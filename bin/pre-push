@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+MAG="\033[95m"
+BLD="\033[1m"
+END="\033[0m"
+
+# End script early on error
+set -e
+
+# In project root...
+cd "$(dirname $0)/.."
+
+# check python types
+pytype
+# check unit tests
+python -m unittest
+
+echo "$MAG$BLD--- Presubmit: Success ---$END"
+exit 0
