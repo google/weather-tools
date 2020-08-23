@@ -26,6 +26,11 @@ setup(
     extras_require={
         'dev': requirements('dev_requirements.txt')
     },
+    entry_points={
+        'console_scripts': [
+            'ecmwf_download=ecmwf_pipeline:cli',
+        ]
+    },
     project_urls={
         # TODO(alxr): Find suitable bug / issue tracker
         # 'Issue Tracking': '',

@@ -1,2 +1,3 @@
 cdsapi
 ecmwf-api-client
+apache-beam[gcp]

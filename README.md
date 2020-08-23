@@ -11,24 +11,6 @@ Milestone 1: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en/f
 - [ ] Download ECMWF's ENS forecasts
 - [ ] Pipe downloaded data into BigQuery for general use
 
-
-## Project Structure 
-    
-```
-docs/  # equivalent of g3docs folder
-
-ecmwf_pipeline/  # also could be `src/`, but we prefer the python convetion of a library name.
-    __init__.py
-    ...  # Other needed files in the library
-    <module>.py
-    <module>_test.py  # We'll follow this naming pattern for tests
-    
-setup.py  # Project should be pip-installable, requirements managed here.
-
-notebooks/  # Explorations / investigations
-```
-
-
 ## Installing
 
 ECMWF-pipeline can be installed via source code:
@@ -39,9 +21,22 @@ cd ecmwf-pipeline
 pip install .
 ```
 
-For additional developer setup, please follow the [contributing guidelines](/CONTRIBUTING.md).
+For additional developer setup, please follow the [contributing guidelines](CONTRIBUTING.md).
 
 ## Usage
+```
+usage: ecmwf_download [-h] [-c {cdn}] config start end
+
+positional arguments:
+  config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
+  start                 Start of date-range (inclusive), in 'YYYY-MM-DD' format.
+  end                   End of date-range (inclusive), in 'YYYY-MM-DD' format.
+```
+Common options: 
+* `-c, --client`: Select the weather API client. The default is 'cnd' or Copernicus. More options
+will be supported later.
+
+Invoke with `-h` or `--help` to see the full range of options.
 
 TODO(AWG)
 

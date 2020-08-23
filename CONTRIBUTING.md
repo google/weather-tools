@@ -1,5 +1,21 @@
 # Contributing Guidelines
 
+## Project Structure 
+    
+```
+docs/  # equivalent of g3docs folder
+
+ecmwf_pipeline/  # also could be `src/`, but we prefer the python convetion of a library name.
+    __init__.py
+    ...  # Other needed files in the library
+    <module>.py
+    <module>_test.py  # We'll follow this naming pattern for tests
+    
+setup.py  # Project should be pip-installable, requirements managed here.
+
+notebooks/  # Explorations / investigations
+```
+
 ## Developer Installation
 
 ```
@@ -17,6 +33,9 @@ cp bin/pre-push .git/hooks/
 pytype
 python3 setup.py test
 ```
+
+Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for
+guidance in how to write tests for the pipeline.
 
 ## Workflow
 
