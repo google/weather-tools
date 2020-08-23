@@ -12,7 +12,7 @@ cd "$(dirname $0)/.."
 # check python types
 pytype
 # check unit tests
-python -m unittest
+python -m unittest discover -s ecmwf_pipeline/ -p "*_test.py"
 
 echo "$MAG$BLD--- Presubmit: Success ---$END"
 exit 0
