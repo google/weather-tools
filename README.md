@@ -25,12 +25,10 @@ For additional developer setup, please follow the [contributing guidelines](CONT
 
 ## Usage
 ```
-usage: ecmwf_download [-h] [-c {cdn}] config start end
+usage: ecmwf_download [-h] [-c {cdn}] config
 
 positional arguments:
   config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
-  start                 Start of date-range (inclusive), in 'YYYY-MM-DD' format.
-  end                   End of date-range (inclusive), in 'YYYY-MM-DD' format.
 ```
 Common options: 
 * `-c, --client`: Select the weather API client. The default is 'cnd' or Copernicus. More options
@@ -38,7 +36,7 @@ will be supported later.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
-TODO(AWG)
+For further information on how to write config files, please consult [this documentation](docs/Configuration.md).
 
 ## FAQ
 

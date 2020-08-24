@@ -3,7 +3,7 @@ import datetime
 import io
 import unittest
 
-from ecmwf_pipeline.parsers import date, parse_config
+from ecmwf_pipeline.parsers import date, parse_config, process_config
 
 
 class DateTest(unittest.TestCase):
@@ -58,6 +58,229 @@ class ParseConfigTest(unittest.TestCase):
         ) as f:
             actual = parse_config(f)
             self.assertDictEqual(actual, {})
+
+    def test_cfg_produces_lists(self):
+        with io.StringIO(
+                """
+                [section]
+                key=value
+                list=00
+                    10
+                    20
+                    30
+                    40
+                """
+        ) as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertIsInstance(actual['section']['list'], list)
+
+
+class ProcessConfigTest(unittest.TestCase):
+
+    def test_parse_config(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    key=value
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertEqual("Unable to parse configuration file.", ctx.exception.args[0])
+
+    def test_require_params_section(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [otherSection]
+                    key=value
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'parameters' section required in configuration file.",
+            ctx.exception.args[0])
+
+    def test_accepts_parameters_section(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    key=value
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertNotIn(
+            "'parameters' section required in configuration file.",
+            ctx.exception.args[0])
+
+    def test_requires_dataset_param(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    notDataset=foo 
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'parameters' section requires a 'dataset' key.",
+            ctx.exception.args[0])
+
+    def test_accepts_dataset_param(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo 
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertNotIn(
+            "'parameters' section requires a 'dataset' key.",
+            ctx.exception.args[0])
+
+    def test_requires_target_template_param(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo 
+                    target=bar
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'parameters' section requires a 'target_template' key.",
+            ctx.exception.args[0])
+
+    def test_accepts_target_template_param(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo 
+                    target_template
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertNotIn(
+            "'parameters' section requires a 'target_template' key.",
+            ctx.exception.args[0])
+
+    def test_requires_partition_keys_to_match_sections(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo 
+                    target_template=bar
+                    partition_keys=
+                        year
+                        month
+                    [selection]
+                    day=
+                        01
+                        02
+                        03
+                    decade=
+                        1950
+                        1960
+                        1970
+                        1980
+                        1990
+                        2000
+                        2010
+                        2020
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "All 'partition_keys' must appear in the 'selection' section.",
+            ctx.exception.args[0])
+
+    def test_accepts_partition_keys_matching_sections(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo 
+                target_template=bar
+                partition_keys=
+                    year
+                    month
+                [selection]
+                month=
+                    01
+                    02
+                    03
+                year=
+                    1950
+                    1960
+                    1970
+                    1980
+                    1990
+                    2000
+                    2010
+                    2020
+                """
+        ) as f:
+            config = process_config(f)
+            self.assertTrue(bool(config))
+
+    def test_treats_partition_keys_as_list(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo 
+                target_template=bar
+                partition_keys=month
+                [selection]
+                month=
+                    01
+                    02
+                    03
+                """
+        ) as f:
+            config = process_config(f)
+            params = config.get('parameters', {})
+            self.assertIsInstance(params['partition_keys'], list)
+
+    def test_params_in_config(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo 
+                target_template=bar
+                partition_keys=
+                    year
+                    month
+                [selection]
+                month=
+                    01
+                    02
+                    03
+                year=
+                    1950
+                    1960
+                    1970
+                    1980
+                    1990
+                    2000
+                    2010
+                    2020
+                """
+        ) as f:
+            config = process_config(f)
+            self.assertIn('parameters', config)
 
 
 if __name__ == '__main__':
