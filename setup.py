@@ -14,9 +14,8 @@ setup(
     version='0.0',
     packages=find_packages(),
     author='Anthropocene Weather Group',
-    # TODO(alxr): Add group email
-    # author_email='',
-    url='https://source.cloud.google.com/grid-intelligence-sandbox/ecmwf-pipeline',
+    author_email='anthropocene-weather-group@google.com',
+    url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
     description='A GCP pipeline to make ECMWF data available to all teams at Alphabet.',
     long_description=open('README.md', 'r').read(),
     long_description_content_type='text/markdown',
@@ -32,7 +31,6 @@ setup(
         ]
     },
     project_urls={
-        # TODO(alxr): Find suitable bug / issue tracker
-        # 'Issue Tracking': '',
+        'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=168372',
     },
 )

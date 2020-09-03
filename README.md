@@ -2,6 +2,8 @@
 
 [Build Status](https://pantheon.corp.google.com/cloud-build/dashboard?project=grid-intelligence-sandbox)
 
+TODO(b/167705057): Upgrade CI.
+
 ## Goals
 
 Goal: Create a pipeline to make [ECMWF](https://www.ecmwf.int/) data available to all teams at Alphabet.
@@ -20,6 +22,8 @@ gcloud source repos clone ecmwf-pipeline --project=grid-intelligence-sandbox
 cd ecmwf-pipeline
 pip install .
 ```
+
+TODO(b/167705057) Update installation instructions for GitLab.
 
 For additional developer setup, please follow the [contributing guidelines](CONTRIBUTING.md).
 
