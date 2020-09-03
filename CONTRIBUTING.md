@@ -39,6 +39,10 @@ guidance in how to write tests for the pipeline.
 
 ## Workflow
 
+TODO(b/167705057): Update docs to reflect ideal GitLab workflow.
+
+_The following instructions are out-of-date._
+
 As of writing (2020-08), I (alxr@) have not discovered a code-review system integrated into GCP's git hosting
 service. Thus, the onus for pushing non-breaking changes is on each contributor. 
 
@@ -55,4 +59,5 @@ the main branch, we run commands from the above two sections. Visit the [build d
 to check build history and status.
 
 ## Deployment
-TODO(campbellsean): Figure out how to deploy to PubSub / Dataflow / GCP services.
+
+TODO(b/167704736): Figure out how to deploy to PubSub / Dataflow / GCP services.
