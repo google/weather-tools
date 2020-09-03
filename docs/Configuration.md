@@ -2,7 +2,7 @@
 
 ## `parameters` Section
 
-Parameters for the pipeline and / or to pass to each worker. 
+Parameters for the pipeline. 
 
 * `dataset`: (required) Name of the target dataset. Allowed options are dictated by the client.
 * `target_template`: (required) Download artifact filename template. Can use Python string format symbols.
@@ -14,7 +14,7 @@ Parameters for the pipeline and / or to pass to each worker.
     * E.g. `['year', 'month']` will lead to a config set like `[(2015, 01), (2015, 02), (2015, 03), ...]`.
   * The list of keys will be used to format the `target_template`.
   
-TODO(alxr): Revise
+TODO(b/167706025): Improve / complete documentation.
 
 ## `selection` Section
 
