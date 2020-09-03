@@ -3,20 +3,17 @@
 import argparse
 import itertools
 import logging
-import string
+import os
 import tempfile
 import typing as t
 
 import apache_beam as beam
+import apache_beam.metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
 import cdsapi
 
 from ecmwf_pipeline.parsers import process_config
-
-
-def _number_of_replacements(s: t.Text):
-    return len([v for v in string.Formatter().parse(s) if v[1] is not None])
 
 
 def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
@@ -44,43 +41,36 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         yield out
 
 
-def fetch_data(config: t.Dict):
+def fetch_data(config: t.Dict) -> t.Tuple:
     dataset = config['parameters']['dataset']
+
     partition_keys = config['parameters']['partition_keys']
-    partition_key_values = [
-      config['selection'][key][0] for key in partition_keys]
-    target = config['parameters']['target_template'].format(
-      *partition_key_values)
+    partition_key_values = [config['selection'][key][0] for key in partition_keys]
+    target = config['parameters']['target_template'].format(*partition_key_values)
+
     selection = config['selection']
-    client = cdsapi.Client()
+
+    client = cdsapi.Client(
+        url=config['parameters'].get('api_url', os.environ.get('CDSAPI_URL')),
+        key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
+    )
+
     temp = tempfile.NamedTemporaryFile(delete=False)
 
     try:
-      logging.info('Fetching data for target {}'.format(target))
-      client.retrieve(dataset, selection, temp.name)
-      beam.metrics.Metrics.counter('Success', 'FetchData').inc()
-      return (target, temp)
+        logging.info('Fetching data for target {}'.format(target))
+        client.retrieve(dataset, selection, target)
+        beam.metrics.Metrics.counter('Success', 'FetchData').inc()
+        return target, temp
     except Exception as e:
-      logging.error('Unable to retrieve data for {}: {}'.format(target, e))
-      beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
+        logging.error('Unable to retrieve data for {}: {}'.format(target, e))
+        beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
+        return 'failure', temp
 
 
 def write_data(target, data):
     with gcsio.GcsIO(target) as f:
         f.write(data)
-
-
-def _validate_config(config):
-    """Check that config is valid and raise an error if not."""
-    num_target_template_replacements = _number_of_replacements(
-        config['parameters']['target_template'])
-    num_partition_keys = len(config['parameters']['partition_keys'])
-    if num_target_template_replacements != num_partition_keys:
-        raise ValueError(
-            'target_template has {} replacements. Expected {}, since there are '
-            '{} partition_keys.'.format(num_target_template_replacements,
-                                        num_partition_keys, num_partition_keys))
-
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -96,10 +86,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     config = {}
     with known_args.config as f:
         config = process_config(f)
-    num_target_template_replacements = _number_of_replacements(
-      config['parameters']['target_template'])
-    num_partition_keys = len(config['parameters']['partition_keys'])
-    _validate_config(config)
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
@@ -108,9 +94,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     with beam.Pipeline(options=pipeline_options) as p:
         output = (
-           p
-           | 'Create' >> beam.Create(prepare_partition(config))
-           | 'FetchData' >> beam.Map(fetch_data)
-           | 'WriteData' >> beam.MapTuple(write_data))
-
-
+                p
+                | 'Create' >> beam.Create(prepare_partition(config))
+                | 'FetchData' >> beam.Map(fetch_data)
+                | 'WriteData' >> beam.MapTuple(write_data)
+        )

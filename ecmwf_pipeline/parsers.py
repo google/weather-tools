@@ -3,6 +3,7 @@ import configparser
 import datetime
 import io
 import json
+import string
 import typing as t
 import textwrap
 
@@ -47,6 +48,10 @@ def _parse_lists(config: t.Dict) -> t.Dict:
         if '\n' in val:
             config[key] = _splitlines(val)
     return config
+
+
+def _number_of_replacements(s: t.Text):
+    return len([v for v in string.Formatter().parse(s) if v[1] is not None])
 
 
 def process_config(file: io.StringIO) -> t.Dict:
@@ -98,6 +103,14 @@ def process_config(file: io.StringIO) -> t.Dict:
             
             'partition_keys' specify how to split data for workers. Please consult 
             documentation for more information.""")
+
+    num_template_replacements = _number_of_replacements(params['target_template'])
+    num_partition_keys = len(partition_keys)
+
+    require(num_template_replacements == num_partition_keys,
+            """
+            `target_template` has {0} replacements. Expected {1}, since there are {1} 
+            partition keys.""".format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys

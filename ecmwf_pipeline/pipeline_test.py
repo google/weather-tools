@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch
 
-from ecmwf_pipeline.pipeline import _number_of_replacements
 from ecmwf_pipeline.pipeline import fetch_data
 from ecmwf_pipeline.pipeline import prepare_partition
 
@@ -55,6 +54,8 @@ class PreparePartitionTest(unittest.TestCase):
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
                 'target_template': 'download-{}-{}.nc',
+                'api_url': 'https//api-url.com/v1/',
+                'api_key': '12345',
             },
             'selection': {
                 'features': ['pressure'],
@@ -69,13 +70,6 @@ class PreparePartitionTest(unittest.TestCase):
             'reanalysis-era5-pressure-levels',
             config['selection'],
             'download-01-12.nc')
-
-    def test_number_of_replacements(self):
-        for (s, want) in [('', 0), ('{} blah', 1), ('{} {}', 2),
-                          ('{0}, {1}', 2), ('%s hello', 0), ('hello {.2f}', 1)]:
-            with self.subTest(s=s, want=want):
-                actual = _number_of_replacements(s)
-                self.assertEqual(actual, want)
 
 
 if __name__ == '__main__':

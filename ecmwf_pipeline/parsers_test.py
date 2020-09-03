@@ -3,7 +3,7 @@ import datetime
 import io
 import unittest
 
-from ecmwf_pipeline.parsers import date, parse_config, process_config
+from ecmwf_pipeline.parsers import date, parse_config, process_config, _number_of_replacements
 
 
 class DateTest(unittest.TestCase):
@@ -75,6 +75,16 @@ class ParseConfigTest(unittest.TestCase):
             for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
             self.assertIsInstance(actual['section']['list'], list)
+
+
+class HelpersTest(unittest.TestCase):
+
+    def test_number_of_replacements(self):
+        for (s, want) in [('', 0), ('{} blah', 1), ('{} {}', 2),
+                          ('{0}, {1}', 2), ('%s hello', 0), ('hello {.2f}', 1)]:
+            with self.subTest(s=s, want=want):
+                actual = _number_of_replacements(s)
+                self.assertEqual(actual, want)
 
 
 class ProcessConfigTest(unittest.TestCase):
@@ -182,7 +192,7 @@ class ProcessConfigTest(unittest.TestCase):
                     """
                     [parameters]
                     dataset=foo 
-                    target_template=bar
+                    target_template=bar-{}-{}
                     partition_keys=
                         year
                         month
@@ -213,7 +223,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo 
-                target_template=bar
+                target_template=bar-{}-{}
                 partition_keys=
                     year
                     month
@@ -241,7 +251,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo 
-                target_template=bar
+                target_template=bar-{}
                 partition_keys=month
                 [selection]
                 month=
@@ -259,7 +269,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo 
-                target_template=bar
+                target_template=bar-{}-{}
                 partition_keys=
                     year
                     month
@@ -281,6 +291,38 @@ class ProcessConfigTest(unittest.TestCase):
         ) as f:
             config = process_config(f)
             self.assertIn('parameters', config)
+
+    def test_mismatched_template_partition_keys(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo 
+                    target_template=bar-{}
+                    partition_keys=
+                        year
+                        month
+                    [selection]
+                    month=
+                        01
+                        02
+                        03
+                    year=
+                        1950
+                        1960
+                        1970
+                        1980
+                        1990
+                        2000
+                        2010
+                        2020
+                    """
+            ) as f:
+                config = process_config(f)
+
+        self.assertIn(
+            "target_template` has 1 replacements. Expected 2",
+            ctx.exception.args[0])
 
 
 if __name__ == '__main__':
