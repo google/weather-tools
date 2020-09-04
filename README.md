@@ -1,8 +1,6 @@
 # ECMWF-pipeline
 
-[Build Status](https://pantheon.corp.google.com/cloud-build/dashboard?project=grid-intelligence-sandbox)
-
-TODO(b/167705057): Upgrade CI.
+![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)
 
 ## Goals
 
