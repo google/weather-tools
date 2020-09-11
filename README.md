@@ -1,27 +1,22 @@
-# ECMWF-pipeline
 
 ![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)
 
-## Goals
+**Goal**: Create a pipeline to make [ECMWF](https://www.ecmwf.int/) data available to all of Alphabet.
 
-Goal: Create a pipeline to make [ECMWF](https://www.ecmwf.int/) data available to all teams at Alphabet.
-
-Milestone 1: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en/forecasts/datasets/archive-datasets) needed for [DeepMind's wind energy-related forecasting](https://deepmind.com/blog/article/machine-learning-can-boost-value-wind-energy).
+_Milestone 1_: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en/forecasts/datasets/archive-datasets) needed for [DeepMind's wind energy-related forecasting](https://deepmind.com/blog/article/machine-learning-can-boost-value-wind-energy).
 - [ ] Use MARs API to download ECMWF's HRES forecasts
 - [ ] Download ECMWF's ENS forecasts
 - [ ] Pipe downloaded data into BigQuery for general use
 
 ## Installing
 
-ECMWF-pipeline can be installed via source code:
-```
-gcloud init
-gcloud source repos clone ecmwf-pipeline --project=grid-intelligence-sandbox
-cd ecmwf-pipeline
-pip install .
-```
+1). Create a personal_access_token with `read_api` scope ([docs](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)).
 
-TODO(b/167705057) Update installation instructions for GitLab.
+2). Run the following command (substituting your <personal_access_token>):
+
+```
+pip install ecmwf-pipeline --no-deps --index-url https://__token__:<personal_access_token>@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
+```
 
 For additional developer setup, please follow the [contributing guidelines](CONTRIBUTING.md).
 
@@ -32,13 +27,13 @@ usage: ecmwf_download [-h] [-c {cdn}] config
 positional arguments:
   config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
 ```
-Common options: 
-* `-c, --client`: Select the weather API client. The default is 'cnd' or Copernicus. More options
+_Common options_: 
+* `-c, --client`: Select the weather API client. The default is `cnd` or Copernicus. More options
 will be supported later.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
-For further information on how to write config files, please consult [this documentation](docs/Configuration.md).
+For further information on how to write config files, please consult [this documentation](Configuration.md).
 
 ## FAQ
 
