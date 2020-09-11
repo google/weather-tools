@@ -6,14 +6,18 @@
 Welcome to ECMWF-Pipeline's documentation!
 ==========================================
 
+
 .. toctree::
    :maxdepth: 2
-   :caption: Table of Contents:
    :titlesonly:
    :glob:
+   :includehidden:
 
-   Configuration
-   meetings/*
+   ../README
+   ../CONTRIBUTING
+   ../Configuration
+   meetings/index
+   modules
 
 
 
