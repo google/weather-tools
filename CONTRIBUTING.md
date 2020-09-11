@@ -3,22 +3,24 @@
 ## Project Structure 
     
 ```
-docs/  # equivalent of g3docs folder
+docs/  # Sphinx documentation, deployed to GitLab pages.
 
-ecmwf_pipeline/  # also could be `src/`, but we prefer the python convetion of a library name.
-    __init__.py
-    ...  # Other needed files in the library
+ecmwf_pipeline/  # Main python package, other packages can come later.
+    __init__.py  
+    ...  
     <module>.py
-    <module>_test.py  # We'll follow this naming pattern for tests
+    <module>_test.py  # We'll follow this naming pattern for tests.
     
-setup.py  # Project should be pip-installable, requirements managed here.
+setup.py  # Project is pip-installable, requirements managed here.
 
-notebooks/  # Explorations / investigations
+notebooks/  # Explorations / investigations.
 ```
 
 ## Developer Installation
 
 ```
+git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
+cd ecmwf
 pip install -e .[dev]
 ```
 
@@ -30,8 +32,7 @@ cp bin/pre-push .git/hooks/
 ## Testing
 
 ```
-pytype
-python3 setup.py test
+tox
 ```
 
 Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for
@@ -39,25 +40,14 @@ guidance in how to write tests for the pipeline.
 
 ## Workflow
 
-TODO(b/167705057): Update docs to reflect ideal GitLab workflow.
+We recommend the [GitLab Flow Merge-Request](https://about.gitlab.com/blog/2016/10/25/gitlab-workflow-an-overview/#code-review-with-gitlab) model of development.
 
-_The following instructions are out-of-date._
+Commits will be squashed before merge into the main branch. Each MR requires one approver and for CI to pass.
 
-As of writing (2020-08), I (alxr@) have not discovered a code-review system integrated into GCP's git hosting
-service. Thus, the onus for pushing non-breaking changes is on each contributor. 
-
-To ensure code quality, please copy the pre-push hook (in the `bin/` directory) to `.git/hooks/`. This 
-will type check and unit tests _locally_ before any push to the remote repository. 
-
-Otherwise, project workflow is up to you (given your best judgement). Personal recommendation: 
-- Work in feature branches. 
-- When you're ready to submit, squash & merge into your primary branch (`git merge --squash <feature>`).
-- Push to main as you normally would.
-
-This project uses Google Cloud Build for continuous integration (and later, deployment). On each commit to 
-the main branch, we run commands from the above two sections. Visit the [build dashboard](https://pantheon.corp.google.com/cloud-build/dashboard?project=grid-intelligence-sandbox)
+This project uses GitLab CI for continuous integration (and later, deployment). On each commit to 
+the main branch, we run commands from the above two sections. Visit the [pipeline dashboard](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
 to check build history and status.
 
 ## Deployment
 
-TODO(b/167704736): Figure out how to deploy to PubSub / Dataflow / GCP services.
+_TODO(b/167704736): Figure out how to deploy to PubSub / Dataflow / GCP services._
