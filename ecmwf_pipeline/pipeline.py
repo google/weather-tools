@@ -1,6 +1,7 @@
 """Primary ECMWF Downloader Workflow."""
 
 import argparse
+import io
 import itertools
 import logging
 import os
@@ -41,7 +42,8 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         yield out
 
 
-def fetch_data(config: t.Dict) -> t.Tuple:
+def fetch_data(config: t.Dict) -> t.Tuple[str, io.BytesIO]:
+    """Download data from a client."""
     dataset = config['parameters']['dataset']
 
     partition_keys = config['parameters']['partition_keys']
@@ -55,22 +57,26 @@ def fetch_data(config: t.Dict) -> t.Tuple:
         key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
     )
 
-    temp = tempfile.NamedTemporaryFile(delete=False)
+    with tempfile.NamedTemporaryFile() as temp:
+        try:
+            logging.info('Fetching data for target {}'.format(target))
+            client.retrieve(dataset, selection, temp.name)
+            beam.metrics.Metrics.counter('Success', 'FetchData').inc()
+            temp.seek(0)
+            return target, io.BytesIO(temp.read())
+        except Exception as e:
+            logging.error('Unable to retrieve data for {}: {}'.format(target, e))
+            beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
+            return '', io.BytesIO()
 
-    try:
-        logging.info('Fetching data for target {}'.format(target))
-        client.retrieve(dataset, selection, target)
-        beam.metrics.Metrics.counter('Success', 'FetchData').inc()
-        return target, temp
-    except Exception as e:
-        logging.error('Unable to retrieve data for {}: {}'.format(target, e))
-        beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
-        return 'failure', temp
 
+def write_data(target: str, data: io.BytesIO) -> None:
+    """Write artifacts to Google Cloud Storage."""
+    if not target:
+        return
 
-def write_data(target, data):
-    with gcsio.GcsIO(target) as f:
-        f.write(data)
+    with gcsio.GcsIO().open(target, 'wb') as f:
+        f.write(data.read())
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
