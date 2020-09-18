@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from ecmwf_pipeline.pipeline import fetch_data
 from ecmwf_pipeline.pipeline import prepare_partition
@@ -69,7 +69,7 @@ class PreparePartitionTest(unittest.TestCase):
         mock_retrieve.assert_called_with(
             'reanalysis-era5-pressure-levels',
             config['selection'],
-            'download-01-12.nc')
+            ANY)
 
 
 if __name__ == '__main__':
