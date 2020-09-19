@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, ANY
 
+from ecmwf_pipeline.clients import CdsClient
 from ecmwf_pipeline.pipeline import fetch_data
 from ecmwf_pipeline.pipeline import prepare_partition
 
@@ -64,7 +65,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = fetch_data(config)
+        _ = fetch_data(config, client=CdsClient(config))
 
         mock_retrieve.assert_called_with(
             'reanalysis-era5-pressure-levels',

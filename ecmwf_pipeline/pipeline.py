@@ -4,7 +4,6 @@ import argparse
 import io
 import itertools
 import logging
-import os
 import tempfile
 import typing as t
 
@@ -12,8 +11,8 @@ import apache_beam as beam
 import apache_beam.metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
-import cdsapi
 
+from ecmwf_pipeline.clients import CLIENTS, Client
 from ecmwf_pipeline.parsers import process_config
 
 
@@ -42,7 +41,7 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         yield out
 
 
-def fetch_data(config: t.Dict) -> t.Tuple[str, io.BytesIO]:
+def fetch_data(config: t.Dict, *, client: Client) -> t.Tuple[str, io.BytesIO]:
     """Download data from a client."""
     dataset = config['parameters']['dataset']
 
@@ -51,11 +50,6 @@ def fetch_data(config: t.Dict) -> t.Tuple[str, io.BytesIO]:
     target = config['parameters']['target_template'].format(*partition_key_values)
 
     selection = config['selection']
-
-    client = cdsapi.Client(
-        url=config['parameters'].get('api_url', os.environ.get('CDSAPI_URL')),
-        key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
-    )
 
     with tempfile.NamedTemporaryFile() as temp:
         try:
@@ -84,8 +78,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
                         help='path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.')
-    parser.add_argument('-c', '--client', type=str, choices=['cdn'], default='cdn',
-                        help="Choose a weather API client; default is 'cnd'.")
+    parser.add_argument('-c', '--client', type=str, choices=CLIENTS.keys(), default=next(iter(CLIENTS.keys())),
+                        help=f"Choose a weather API client; default is '{next(iter(CLIENTS.keys()))}'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -98,10 +92,12 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
+    client = CLIENTS[known_args.client](config)
+
     with beam.Pipeline(options=pipeline_options) as p:
         output = (
                 p
                 | 'Create' >> beam.Create(prepare_partition(config))
-                | 'FetchData' >> beam.Map(fetch_data)
+                | 'FetchData' >> beam.Map(fetch_data, client=client)
                 | 'WriteData' >> beam.MapTuple(write_data)
         )

@@ -22,13 +22,13 @@ For additional developer setup, please follow the [contributing guidelines](CONT
 
 ## Usage
 ```
-usage: ecmwf_download [-h] [-c {cdn}] config
+usage: ecmwf_download [-h] [-c {cds}] config
 
 positional arguments:
   config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
 ```
 _Common options_: 
-* `-c, --client`: Select the weather API client. The default is `cnd` or Copernicus. More options
+* `-c, --client`: Select the weather API client. The default is `cds` or Copernicus. More options
 will be supported later.
 
 Invoke with `-h` or `--help` to see the full range of options.
