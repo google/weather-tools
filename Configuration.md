@@ -21,8 +21,8 @@ Parameters for the pipeline.
 
 Parameters used to select desired data. These will be passed as request parameters to the specified API client.
 
-### Copernicus / CDN
-For CDN parameter options, check out the [Copenicus documentation](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset).
+### Copernicus / CDS
+For CDS parameter options, check out the [Copenicus documentation](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset).
 See [this example](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=form)
 for what kind of requests one can make.
 

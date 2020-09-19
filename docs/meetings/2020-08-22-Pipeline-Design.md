@@ -12,7 +12,7 @@ Carl and I (alxr@) discussed the pipeline API and lessons from a previous projec
 **Q: How should the user specify what to download?**
 
 Given the range of options available, we agreed it makes sense to structure input to the CLI as follows: 
-- Users will pass in a `<client>` argument to choose between CDN, MARS, or any other clients we may support in the future.
+- Users will pass in a `<client>` argument to choose between CDS, MARS, or any other clients we may support in the future.
 - Next, a `<config>` argument, which takes a path/to/a/file.cfg, will allow users to specify exactly what data they'd like 
 to get (region, features, etc.). Each config file will be specific to the particular client implementation. Ideally, the
 file will mirror each client's native API spec as closely as possible. 
