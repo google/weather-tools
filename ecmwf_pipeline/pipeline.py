@@ -95,7 +95,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     client = CLIENTS[known_args.client](config)
 
     with beam.Pipeline(options=pipeline_options) as p:
-        output = (
+        (
                 p
                 | 'Create' >> beam.Create(prepare_partition(config))
                 | 'FetchData' >> beam.Map(fetch_data, client=client)
