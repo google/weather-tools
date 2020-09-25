@@ -128,34 +128,6 @@ class ProcessConfigTest(unittest.TestCase):
             "'parameters' section required in configuration file.",
             ctx.exception.args[0])
 
-    def test_requires_dataset_param(self):
-        with self.assertRaises(ValueError) as ctx:
-            with io.StringIO(
-                    """
-                    [parameters]
-                    notDataset=foo
-                    """
-            ) as f:
-                process_config(f)
-
-        self.assertIn(
-            "'parameters' section requires a 'dataset' key.",
-            ctx.exception.args[0])
-
-    def test_accepts_dataset_param(self):
-        with self.assertRaises(ValueError) as ctx:
-            with io.StringIO(
-                    """
-                    [parameters]
-                    dataset=foo
-                    """
-            ) as f:
-                process_config(f)
-
-        self.assertNotIn(
-            "'parameters' section requires a 'dataset' key.",
-            ctx.exception.args[0])
-
     def test_requires_target_template_param(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(

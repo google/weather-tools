@@ -74,15 +74,6 @@ def process_config(file: io.StringIO) -> t.Dict:
             Please consult the documentation for more information.""")
 
     params = config.get('parameters', {})
-    require('dataset' in params,
-            """
-            'parameters' section requires a 'dataset' key.
-
-            The 'dataset' value is used to choose which data product to download from the
-            API client.
-
-            Please consult the client documentation for more information about what value
-            to specify.""")
     require('target_template' in params,
             """
             'parameters' section requires a 'target_template' key.
