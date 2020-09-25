@@ -133,7 +133,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    notDataset=foo 
+                    notDataset=foo
                     """
             ) as f:
                 process_config(f)
@@ -147,7 +147,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    dataset=foo 
+                    dataset=foo
                     """
             ) as f:
                 process_config(f)
@@ -161,7 +161,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    dataset=foo 
+                    dataset=foo
                     target=bar
                     """
             ) as f:
@@ -176,7 +176,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    dataset=foo 
+                    dataset=foo
                     target_template
                     """
             ) as f:
@@ -191,7 +191,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    dataset=foo 
+                    dataset=foo
                     target_template=bar-{}-{}
                     partition_keys=
                         year
@@ -222,7 +222,7 @@ class ProcessConfigTest(unittest.TestCase):
         with io.StringIO(
                 """
                 [parameters]
-                dataset=foo 
+                dataset=foo
                 target_template=bar-{}-{}
                 partition_keys=
                     year
@@ -250,7 +250,7 @@ class ProcessConfigTest(unittest.TestCase):
         with io.StringIO(
                 """
                 [parameters]
-                dataset=foo 
+                dataset=foo
                 target_template=bar-{}
                 partition_keys=month
                 [selection]
@@ -268,7 +268,7 @@ class ProcessConfigTest(unittest.TestCase):
         with io.StringIO(
                 """
                 [parameters]
-                dataset=foo 
+                dataset=foo
                 target_template=bar-{}-{}
                 partition_keys=
                     year
@@ -297,7 +297,7 @@ class ProcessConfigTest(unittest.TestCase):
             with io.StringIO(
                     """
                     [parameters]
-                    dataset=foo 
+                    dataset=foo
                     target_template=bar-{}
                     partition_keys=
                         year
@@ -318,7 +318,7 @@ class ProcessConfigTest(unittest.TestCase):
                         2020
                     """
             ) as f:
-                config = process_config(f)
+                process_config(f)
 
         self.assertIn(
             "target_template` has 1 replacements. Expected 2",
