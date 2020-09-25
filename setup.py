@@ -12,8 +12,8 @@ def requirements(path=''):
 setup(
     name='ecmwf-pipeline',
     packages=find_packages(),
-    author='Anthropocene Weather Group',
-    author_email='anthropocene-weather-group@google.com',
+    author='Anthromets',
+    author_email='anthromets-ecmwf@google.com',
     url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
     description='A GCP pipeline to make ECMWF data available to all of Alphabet.',
     long_description=open('README.md', 'r').read(),
