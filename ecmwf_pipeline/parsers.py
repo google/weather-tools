@@ -67,26 +67,26 @@ def process_config(file: io.StringIO) -> t.Dict:
     require('parameters' in config,
             """
             'parameters' section required in configuration file.
-            
+
             The 'parameters' section specifies the 'dataset', 'target_template', and
             'partition_key' for the API client.
-            
+
             Please consult the documentation for more information.""")
 
     params = config.get('parameters', {})
     require('dataset' in params,
             """
             'parameters' section requires a 'dataset' key.
-            
+
             The 'dataset' value is used to choose which data product to download from the
             API client.
-            
-            Please consult the client documentation for more information about what value 
+
+            Please consult the client documentation for more information about what value
             to specify.""")
     require('target_template' in params,
             """
             'parameters' section requires a 'target_template' key.
-            
+
             The 'target_template' is used to format the name of the output files. It
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
@@ -100,8 +100,8 @@ def process_config(file: io.StringIO) -> t.Dict:
     require(all((key in selection for key in partition_keys)),
             """
             All 'partition_keys' must appear in the 'selection' section.
-            
-            'partition_keys' specify how to split data for workers. Please consult 
+
+            'partition_keys' specify how to split data for workers. Please consult
             documentation for more information.""")
 
     num_template_replacements = _number_of_replacements(params['target_template'])
@@ -109,7 +109,7 @@ def process_config(file: io.StringIO) -> t.Dict:
 
     require(num_template_replacements == num_partition_keys,
             """
-            `target_template` has {0} replacements. Expected {1}, since there are {1} 
+            `target_template` has {0} replacements. Expected {1}, since there are {1}
             partition keys.""".format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.

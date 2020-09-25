@@ -37,4 +37,3 @@ class CdsClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient
 )
-
