@@ -43,7 +43,7 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
 
 def fetch_data(config: t.Dict, *, client: Client) -> t.Tuple[str, io.BytesIO]:
     """Download data from a client."""
-    dataset = config['parameters']['dataset']
+    dataset = config['parameters'].get('dataset', '')
 
     partition_keys = config['parameters']['partition_keys']
     partition_key_values = [config['selection'][key][0] for key in partition_keys]
