@@ -12,8 +12,8 @@ import apache_beam.metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
 
-from ecmwf_pipeline.clients import CLIENTS, Client
-from ecmwf_pipeline.parsers import process_config
+from .clients import CLIENTS, Client
+from .parsers import process_config
 
 
 def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
