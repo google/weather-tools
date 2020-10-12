@@ -26,11 +26,7 @@ setup(
     extras_require={
         'dev': requirements('dev_requirements.txt')
     },
-    entry_points={
-        'console_scripts': [
-            'ecmwf_download=ecmwf_pipeline:cli',
-        ]
-    },
+    scripts=['ecmwf_pipeline/weather-dl'],
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=168372',
     },

@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import patch, ANY
 
-from ecmwf_pipeline.clients import CdsClient
-from ecmwf_pipeline.pipeline import fetch_data
-from ecmwf_pipeline.pipeline import prepare_partition
+from .clients import CdsClient
+from .pipeline import fetch_data
+from .pipeline import prepare_partition
 
 
 class PreparePartitionTest(unittest.TestCase):

@@ -3,7 +3,7 @@ import datetime
 import io
 import unittest
 
-from ecmwf_pipeline.parsers import date, parse_config, process_config, _number_of_replacements
+from .parsers import date, parse_config, process_config, _number_of_replacements
 
 
 class DateTest(unittest.TestCase):

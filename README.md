@@ -22,7 +22,7 @@ For additional developer setup, please follow the [contributing guidelines](CONT
 
 ## Usage
 ```
-usage: ecmwf_download [-h] [-c {cds,mars}] config
+usage: weather-dl [-h] [-c {cds,mars}] config
 
 positional arguments:
   config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
@@ -33,6 +33,26 @@ _Common options_:
 Invoke with `-h` or `--help` to see the full range of options.
 
 For further information on how to write config files, please consult [this documentation](Configuration.md).
+
+_Dataflow options_: 
+* `--runner`: The `PipelineRunner` to use. This field can be either `DirectRunner` or `DataflowRunner`. Default: `DirectRunner` (local mode)
+* `--project`: The project ID for your Google Cloud Project. This is required if you want to run your pipeline using the Dataflow managed service (i.e. `DataflowRunner`).
+* `--temp_location`: Cloud Storage path for temporary files. Must be a valid Cloud Storage URL, beginning with `gs://`.
+* `--region`: Specifies a regional endpoint for deploying your Dataflow jobs. Default: `us-central1`.
+* `--job_name`: The name of the Dataflow job being executed as it appears in Dataflow's jobs list and job details.
+
+Example run: 
+```shell script
+weather-dl seasonal_forecast_example_config.cfg \
+  --runner DataflowRunner \
+  --project $PROJECT \
+  --region $REGION \
+  --temp_location gs://$BUCKET/tmp/
+```
+
+For a full list of how to configure the dataflow pipeline, please review 
+[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
+
 
 ## FAQ
 
