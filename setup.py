@@ -19,14 +19,15 @@ setup(
     long_description=open('README.md', 'r').read(),
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
-    python_requires='>=3.5, <4',
+    python_requires='>=3.6, <4',
     install_requires=requirements('requirements.txt'),
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     extras_require={
         'dev': requirements('dev_requirements.txt')
     },
-    scripts=['ecmwf_pipeline/weather-dl'],
+    scripts=['ecmwf_pipeline/weather-dl',
+             'netcdf_loader/weather-mv'],
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=168372',
     },
