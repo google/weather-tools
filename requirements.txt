@@ -1,4 +1,7 @@
 cdsapi
 ecmwf-api-client
 apache-beam[gcp]
+numpy
+pandas
+xarray
 requests>=2.24.0

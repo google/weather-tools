@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+from netcdf_loader.loader_pipeline import cli
+
+if __name__ == '__main__':
+    cli(['--setup_file', './setup.py'])
+
