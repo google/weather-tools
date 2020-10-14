@@ -21,7 +21,7 @@ notebooks/  # Explorations / investigations.
 ```
 git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
-pip install -e .[dev]
+pip install -e ."[dev]"
 ```
 
 Additionally, it's recommended that you add a pre-push hook to your local client.
