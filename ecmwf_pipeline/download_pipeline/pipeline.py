@@ -1,7 +1,6 @@
 """Primary ECMWF Downloader Workflow."""
 
 import argparse
-import io
 import itertools
 import logging
 import tempfile
@@ -46,8 +45,10 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         yield out
 
 
-def fetch_data(config: t.Dict, *, client: Client) -> t.Tuple[str, io.BytesIO]:
-    """Download data from a client."""
+def fetch_data(config: t.Dict, *, client: Client) -> None:
+    """
+    Download data from a client to a temp file, then upload to Google Cloud Storage.
+    """
     dataset = config['parameters'].get('dataset', '')
 
     partition_keys = config['parameters']['partition_keys']
@@ -58,24 +59,24 @@ def fetch_data(config: t.Dict, *, client: Client) -> t.Tuple[str, io.BytesIO]:
 
     with tempfile.NamedTemporaryFile() as temp:
         try:
-            logging.info('Fetching data for target {}'.format(target))
+            logging.info(f'Fetching data for {target}')
             client.retrieve(dataset, selection, temp.name)
-            beam.metrics.Metrics.counter('Success', 'FetchData').inc()
+
+            # upload blob to gcs
+            logging.info(f'Uploading to GCS for {target}')
             temp.seek(0)
-            return target, io.BytesIO(temp.read())
+            with gcsio.GcsIO().open(target, 'wb') as dest:
+                while True:
+                    chunk = temp.read(8192)
+                    if len(chunk) == 0:  # eof
+                        break
+                    dest.write(chunk)
+            logging.info(f'Upload to GCS complete for {target}')
+            beam.metrics.Metrics.counter('Success', 'FetchData').inc()
+
         except Exception as e:
-            logging.error('Unable to retrieve data for {}: {}'.format(target, e))
+            logging.error(f'Unable to retrieve/store data for {target}: {e}')
             beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
-            return '', io.BytesIO()
-
-
-def write_data(target: str, data: io.BytesIO) -> None:
-    """Write artifacts to Google Cloud Storage."""
-    if not target:
-        return
-
-    with gcsio.GcsIO().open(target, 'wb') as f:
-        f.write(data.read())
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -108,5 +109,4 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 p
                 | 'Create' >> beam.Create(prepare_partition(config))
                 | 'FetchData' >> beam.Map(fetch_data, client=client)
-                | 'WriteData' >> beam.MapTuple(write_data)
         )
