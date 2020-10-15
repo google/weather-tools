@@ -1,14 +1,11 @@
 import abc
 import cdsapi
 import collections
-import contextlib
-import logging
 import os
 
 import typing as t
 
 from ecmwfapi import ECMWFService
-from .logging import LoggerIO
 
 
 class Client(abc.ABC):
@@ -50,13 +47,10 @@ class MarsClient(Client):
             key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
             url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
             email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
-            log=logging.INFO
         )
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        with LoggerIO(logging.getLogger(), logging.ERROR) as e, contextlib.redirect_stderr(e):
-            with LoggerIO(logging.getLogger(), logging.INFO) as f, contextlib.redirect_stdout(f):
-                self.c.execute(req=selection, target=output)
+        self.c.execute(req=selection, target=output)
 
 
 CLIENTS = collections.OrderedDict(

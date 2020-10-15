@@ -15,11 +15,6 @@ from .clients import CLIENTS, Client
 from .parsers import process_config
 
 
-def configure_logger(verbosity: int) -> None:
-    """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40-verbosity*10))
-
-
 def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
     partition_keys = config['parameters']['partition_keys']
@@ -86,12 +81,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.')
     parser.add_argument('-c', '--client', type=str, choices=CLIENTS.keys(), default=next(iter(CLIENTS.keys())),
                         help=f"Choose a weather API client; default is '{next(iter(CLIENTS.keys()))}'.")
-    parser.add_argument("-v", "--verbosity", action="count", default=0,
-                        help="Increase logging verbosity. Default: Errors only.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
-
-    configure_logger(known_args.verbosity)
 
     config = {}
     with known_args.config as f:
