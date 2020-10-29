@@ -55,7 +55,7 @@ def fetch_data(config: t.Dict, *, client: Client) -> None:
     with tempfile.NamedTemporaryFile() as temp:
         try:
             logging.info(f'Fetching data for {target}')
-            client.retrieve(dataset, selection, temp.name)
+            client.retrieve(dataset, selection, temp.name, log_prepend=target)
 
             # upload blob to gcs
             logging.info(f'Uploading to GCS for {target}')
@@ -67,11 +67,11 @@ def fetch_data(config: t.Dict, *, client: Client) -> None:
                         break
                     dest.write(chunk)
             logging.info(f'Upload to GCS complete for {target}')
-            beam.metrics.Metrics.counter('Success', 'FetchData').inc()
+            beam.metrics.Metrics.counter('weather-dl', 'Success').inc()
 
         except Exception as e:
             logging.error(f'Unable to retrieve/store data for {target}: {e}')
-            beam.metrics.Metrics.counter('Failure', 'FetchData').inc()
+            beam.metrics.Metrics.counter('weather-dl', 'Failure').inc()
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
