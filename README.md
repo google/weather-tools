@@ -53,6 +53,15 @@ weather-dl seasonal_forecast_example_config.cfg \
 For a full list of how to configure the dataflow pipeline, please review 
 [this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
 
+## Monitoring
+
+When running Dataflow, you can track metrics through UI, or beta CLI commands:
+```shell script
+JOBID=<enter job id here>
+gcloud beta dataflow metrics list $JOBID --source=user
+```
+
+You can also view how your ECMWF MARS API jobs are listed active or queued by logging in [here](https://apps.ecmwf.int/mars-activity/).
 
 ## FAQ
 
