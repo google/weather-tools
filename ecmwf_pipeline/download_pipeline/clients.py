@@ -1,10 +1,14 @@
 import abc
 import cdsapi
 import collections
+import contextlib
+import io
+import logging
 import os
 
 import typing as t
 
+import apache_beam as beam
 from ecmwfapi import ECMWFService
 
 
@@ -20,7 +24,7 @@ class Client(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
         """Download from data source."""
         pass
 
@@ -34,23 +38,63 @@ class CdsClient(Client):
             key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
         )
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        self.c.retrieve(dataset, selection, output)
+    def retrieve(self, dataset: str, selection: t.Dict, target: str, log_prepend: str = "") -> None:
+        # TODO(b/171910744): implement log_prepend and more sophisticated CDS logging
+        self.c.retrieve(dataset, selection, target)
+
+
+class MarsLogger(io.StringIO):
+    """Special logger to redirect ecmwf api's stdout to dataflow logs."""
+
+    def __init__(self, prepend=""):
+        super().__init__()
+        self._redirector = contextlib.redirect_stdout(self)
+        self.prepend = prepend
+
+    def log(self, msg) -> None:
+        """Prepends current file being retrieved and monitors for special ECMWF msgs."""
+
+        logging.info(self.prepend + " - " + msg)
+
+        if msg == "Request is active":
+            logging.info("Incrementing count of Active ECMWF Requests")
+            beam.metrics.Metrics.counter('weather-dl', 'Active ECMWF Requests').inc()
+        elif msg == "Done.":
+            logging.info("Incrementing count of Active ECMWF Requests")
+            beam.metrics.Metrics.counter('weather-dl', 'Complete ECMWF Requests').inc()
+
+    def write(self, msg):
+        if msg and not msg.isspace():
+            self.log(msg)
+
+    def __enter__(self):
+        self._redirector.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # let contextlib do any exception handling here
+        self._redirector.__exit__(exc_type, exc_value, traceback)
 
 
 class MarsClient(Client):
     """MARS Client"""
 
     def __init__(self, config: t.Dict) -> None:
-        self.c = ECMWFService(
-            "mars",
-            key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
-            url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
-            email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
-        )
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        self.c.execute(req=selection, target=output)
+        with MarsLogger() as logger:
+            self.c = ECMWFService(
+                "mars",
+                key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
+                url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
+                email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
+                log=logger.log,
+                verbose=True
+            )
+
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
+
+        with MarsLogger(log_prepend):
+            self.c.execute(req=selection, target=output)
 
 
 CLIENTS = collections.OrderedDict(
