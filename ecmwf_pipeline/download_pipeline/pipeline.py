@@ -15,6 +15,37 @@ from .clients import CLIENTS, Client
 from .parsers import process_config
 
 
+def configure_logger(verbosity: int) -> None:
+    """Configures logging from verbosity. Default verbosity will show errors."""
+    logging.basicConfig(level=(40-verbosity*10))
+
+
+def prepare_target_name(config: t.Dict) -> str:
+    """Returns name of target location."""
+    partition_keys = config['parameters']['partition_keys']
+    partition_key_values = [config['selection'][key][0] for key in partition_keys]
+    target = config['parameters']['target_template'].format(*partition_key_values)
+
+    return target
+
+
+def skip_partition(config: t.Dict) -> bool:
+    """Return true if partition should be skipped."""
+
+    if 'force_download' not in config['parameters'].keys():
+        return False
+
+    if config['parameters']['force_download']:
+        return False
+
+    target = prepare_target_name(config)
+    if gcsio.GcsIO().exists(target):
+        logging.info(f'file {target} found, skipping.')
+        return True
+
+    return False
+
+
 def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
     partition_keys = config['parameters']['partition_keys']
@@ -37,6 +68,9 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         for idx, key in enumerate(partition_keys):
             copy[key] = [option[idx]]
         out['selection'] = copy
+        if skip_partition(out):
+            continue
+
         yield out
 
 
@@ -45,11 +79,7 @@ def fetch_data(config: t.Dict, *, client: Client) -> None:
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
     dataset = config['parameters'].get('dataset', '')
-
-    partition_keys = config['parameters']['partition_keys']
-    partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = config['parameters']['target_template'].format(*partition_key_values)
-
+    target = prepare_target_name(config)
     selection = config['selection']
 
     with tempfile.NamedTemporaryFile() as temp:
@@ -81,12 +111,18 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.')
     parser.add_argument('-c', '--client', type=str, choices=CLIENTS.keys(), default=next(iter(CLIENTS.keys())),
                         help=f"Choose a weather API client; default is '{next(iter(CLIENTS.keys()))}'.")
+    parser.add_argument('-f', '--force-download', action="store_true",
+                        help="Force redownload of partitions that were previously downloaded.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
+
+    configure_logger(2)
 
     config = {}
     with known_args.config as f:
         config = process_config(f)
+
+    config['parameters']['force_download'] = known_args.force_download
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
