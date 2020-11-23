@@ -8,6 +8,10 @@ _Milestone 1_: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en
 - [ ] Download ECMWF's ENS forecasts
 - [ ] Pipe downloaded data into BigQuery for general use
 
+## Developer Setup
+
+Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Installation steps below.
+
 ## Installing
 
 1). Create a personal_access_token with `read_api` scope ([docs](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)).
@@ -17,8 +21,6 @@ _Milestone 1_: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en
 ```
 pip install ecmwf-pipeline --no-deps --index-url https://__token__:<personal_access_token>@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
 ```
-
-For additional developer setup, please follow the [contributing guidelines](CONTRIBUTING.md).
 
 ## Usage
 ```
