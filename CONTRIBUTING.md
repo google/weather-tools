@@ -18,13 +18,28 @@ notebooks/  # Explorations / investigations.
 
 ## Developer Installation
 
+ - Set up a Python development environment. We recommend *pyenv* and *virtualenv*. There are plenty of guides on the Internet for setting up your environment depending on your Operating System and choice of package manager.
+
+ - Use Python verison 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
+
+ - Clone the repo and install dependencies.
+
 ```
 git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
 pip install -e ."[dev]"
 ```
 
-Additionally, it's recommended that you add a pre-push hook to your local client.
+ - Visit [our documentation on ECMWF Configuration](Configuration.md) to be able to connect to ECMWF and retrieve data.
+
+ - Install `gcloud`, the Google Cloud CLI following these [instructions](https://cloud.google.com/sdk/docs/install).
+
+ - Run `gcloud auth application-default login`. Make sure your account has write permissions to the storage bucket and the permissions to create a Dataflow job.
+
+ - Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
+
+ - Add a pre-push hook to your local client.
+
 ```
 cp bin/pre-push .git/hooks/
 ```
