@@ -22,7 +22,10 @@ Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Ins
 pip install ecmwf-pipeline --no-deps --index-url https://__token__:<personal_access_token>@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
 ```
 
-## Usage
+## Weather Downloader (`weather-dl`)
+
+Weather Downloader downloads netcdf files from ECMWF to Google Cloud Storage.
+
 ```
 usage: weather-dl [-h] [-c {cds,mars}] config
 
@@ -35,6 +38,25 @@ _Common options_:
 Invoke with `-h` or `--help` to see the full range of options.
 
 For further information on how to write config files, please consult [this documentation](Configuration.md).
+
+## Weather Mover (`weather-mv`)
+
+Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.
+
+```
+usage: weather-mv [-h] -i URIS -o OUTPUT_TABLE [--import_time IMPORT_TIME]
+
+```
+
+_Required Options_:
+* `-i, --uris`: URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-""
+* `-o, --output-table`: Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
+
+Invoke with `-h` or `--help` to see the full range of options.
+
+## Using Dataflow
+
+All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally choose to run the pipelines on Google Cloud Dataflow.
 
 _Dataflow options_: 
 * `--runner`: The `PipelineRunner` to use. This field can be either `DirectRunner` or `DataflowRunner`. Default: `DirectRunner` (local mode)
