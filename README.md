@@ -44,26 +44,42 @@ For further information on how to write config files, please consult [this docum
 Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.
 
 ```
-usage: weather-mv [-h] -i URIS -o OUTPUT_TABLE [--import_time IMPORT_TIME]
+usage: usage: weather-mv [-h] -i URIS -o OUTPUT_TABLE -t TEMP_LOCATION [--import_time IMPORT_TIME]
 
 ```
 
 _Required Options_:
 * `-i, --uris`: URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-""
-* `-o, --output-table`: Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
+* `-o, --output_table`: Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
+* `-t, --temp_location`: Temp Location for staging files to import to BigQuery
 
 Invoke with `-h` or `--help` to see the full range of options.
 
-## Using Dataflow
+## Choosing a Beam Runner
 
 All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally choose to run the pipelines on Google Cloud Dataflow.
 
-_Dataflow options_: 
+### _Direct Runner options_:
+* `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
+
+Example run:
+```shell script
+weather-mv -i gs://netcdf_file.nc \
+  -o project.dataset_id.table_id \
+  -t gs://temp_location  \
+  --direct_num_workers 2
+```
+
+For a full list of how to configure the direct runner, please review
+[this page](https://beam.apache.org/documentation/runners/direct/).
+
+### _Dataflow options_:
 * `--runner`: The `PipelineRunner` to use. This field can be either `DirectRunner` or `DataflowRunner`. Default: `DirectRunner` (local mode)
 * `--project`: The project ID for your Google Cloud Project. This is required if you want to run your pipeline using the Dataflow managed service (i.e. `DataflowRunner`).
 * `--temp_location`: Cloud Storage path for temporary files. Must be a valid Cloud Storage URL, beginning with `gs://`.
 * `--region`: Specifies a regional endpoint for deploying your Dataflow jobs. Default: `us-central1`.
 * `--job_name`: The name of the Dataflow job being executed as it appears in Dataflow's jobs list and job details.
+
 
 Example run: 
 ```shell script
