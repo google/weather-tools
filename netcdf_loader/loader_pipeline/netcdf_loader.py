@@ -5,6 +5,7 @@ import logging
 import io
 import numpy as np
 import pandas as pd
+import tempfile
 import typing as t
 import xarray as xr
 
@@ -16,68 +17,62 @@ from apache_beam.io.gcp import gcsio
 from numbers import Number
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
+BLOCK_SIZE = 16384
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     logging.basicConfig(level=(40-verbosity*10), format='%(asctime)-15s %(message)s')
 
 
-def read_gcs_object(uri : str) -> bytes:
-    """Returns the data for the storage object given by `uri`"""
-    logging.info(f'Reading from {uri}')
+def open_dataset(uri: str) -> xr.Dataset:
+    """Open the netcdf at 'uri' and return its data as an xr.Dataset."""
     try:
-        with gcsio.GcsIO().open(uri, 'rb') as f:
-            data = f.read()
+        # Copy netcdf object from GCS to local file so xarray can open it with
+        # mmap instead of copying the entire thing into memory.
+        with gcsio.GcsIO().open(uri, 'rb') as source_file:
+            with tempfile.NamedTemporaryFile() as dest_file:
+                while True:
+                    chunk = source_file.read(BLOCK_SIZE)
+                    if len(chunk) == 0:  # eof
+                        break
+                    dest_file.write(chunk)
+                dest_file.seek(0)
+
+                xr_dataset: xr.Dataset = xr.open_dataset(dest_file)
+
+                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+                return xr_dataset
     except:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         raise
-    else:
-        beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-        return data
 
 
-def netcdf_to_dataframe(netcdf_bytes : bytes) -> pd.DataFrame:
-    """Returns a pandas dataframe containing the data from the given netcdf data"""
-    logging.info('Converting netcdf to pandas DataFrame')
-    xr_dataset: xr.Dataset = xr.load_dataset(io.BytesIO(netcdf_bytes))
-    beam.metrics.Metrics.counter('Success', 'XarrayConversions').inc()
-    return xr_dataset.to_dataframe()
-
-
-def map_to_sql_type(value: Number) -> str:
-    """Given a value, maps its python type to a suitable BigQuery column type"""
-    if type(value) in {np.float32, np.float64, float}:
+def map_dtype_to_sql_type(var_type: np.dtype) -> str:
+    """Maps a np.dtype to a suitable BigQuery column type."""
+    if var_type in {np.dtype('float64'), np.dtype('float32')}:
         return 'FLOAT64'
-    elif type(value) is pd.Timestamp:
+    elif var_type in {np.dtype('<M8[ns]')}:
         return 'TIMESTAMP'
-    elif type(value) in {int, np.int8, np.int16, np.int32, np.int64}:
+    elif var_type in {np.dtype('int8'), np.dtype('int16'), np.dtype('int32'), np.dtype('int64')}:
         return 'INT64'
-    raise ValueError(f"Unknown mapping from '{repr(type(value))}' to SQL type")
+    raise ValueError(f"Unknown mapping from '{var_type}' to SQL type")
 
 
-def dataframe_to_table_schema(df : pd.DataFrame) -> t.List:
-    """Generates a BigQuery table schema from the columns and types of DataFrame `df`"""
-    # Materialize the index as data columns.
-    logging.info('Creating BQ Table Schema from DataFrame')
-    data = df.reset_index()
-
+def dataset_to_table_schema(ds : xr.Dataset) -> t.List:
+    """Returns a BigQuery table schema able to store the data in 'ds'."""
     fields = []
-    # Examine one row of data to determine column names and types.
-    index, row = next(data.iterrows())
-    for column, value in row.to_dict().items():
-        field = bigquery.SchemaField(column, map_to_sql_type(value), mode="REQUIRED")
-        fields.append(field)
+    for column in ds.variables.keys():
+        if ds.variables[column].size != 0:
+            var_type = ds.variables[column].dtype
+            field = bigquery.SchemaField(column, map_dtype_to_sql_type(var_type), mode="REQUIRED")
+            fields.append(field)
+        else:
+          raise ValueError(f"Column '{column}' of Dataset has no values")
 
     # Add an extra column for recording import time.
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
 
     return fields
-
-
-def read_netcdf_as_dataframe(uri : str) -> pd.DataFrame:
-    """Returns a pandas dataframe containing the data from netcdf object at `uri`"""
-    logging.info('Reading GCS data into netcdf')
-    return netcdf_to_dataframe(read_gcs_object(uri))
 
 
 def to_json_serializable_type(value: t.Any) -> t.Any:
@@ -94,20 +89,41 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
-def extract_rows_as_dicts(netcdf_data: bytes,
+def extract_rows_as_dicts(uri: str,
                           import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Generator[t.Dict, None, None]:
-    """Given netcdf object bytes, yields each of its rows as a dict mapping column names to values"""
+    """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logging.info('Extracting netcdf rows as dicts')
-    data_df: pd.DataFrame = netcdf_to_dataframe(netcdf_data).reset_index()
+    data_ds: xr.Dataset = open_dataset(uri)
 
-    for index, df_row in data_df.iterrows():
-        row = df_row.to_dict()
+    # We start by extracting the index columns and their values, then we add in the data variable
+    # columns and values.
+    index_columns = data_ds.dims
+    # Iterate through all values of the index columns.
+    for index_values in data_ds.coords.to_index():
+        # Create Name-Value map for index columns. Result looks like:
+        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00'}
+        index_dict = dict(zip(index_columns, index_values))
+
+        # Use those index values to select a Dataset containing one row of data.
+        row_ds = data_ds.loc[index_dict]
+
+        # Create a Name-Value map for data columns. Result looks like:
+        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
+        vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
+
+        # Combine index and variable portions into a single row dict, and add import timestamp.
+        row = index_dict
+        row.update(vars_dict)
         row[DATA_IMPORT_TIME_COLUMN] = import_time
 
         # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
         # TODO(dlowell): find a better solution.
         for key, value in row.items():
             row[key] = to_json_serializable_type(value)
+
+        # 'row' ends up looking like:
+        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
 
         beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
         yield row
@@ -130,7 +146,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(2) # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     # temp_location in known_args is passed to beam.io.WriteToBigQuery.
     # If the pipeline is run using the DataflowRunner, temp_location
@@ -144,8 +160,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
     all_uris = gcsio.GcsIO().list_prefix(known_args.uris)
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
-    table_schema = dataframe_to_table_schema(read_netcdf_as_dataframe(next(iter(all_uris))))
-
+    ds : xr.Dataset = open_dataset(next(iter(all_uris)))
+    table_schema = dataset_to_table_schema(ds)
 
     pipeline_options = PipelineOptions(pipeline_args)
 
@@ -165,7 +181,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create(all_uris.keys())
-                | 'ReadNetcdfData' >> beam.Map(read_gcs_object)
                 | 'ExtractRows' >> beam.FlatMap(extract_rows_as_dicts, import_time=known_args.import_time)
                 | 'WriteToBigQuery' >> beam.io.WriteToBigQuery(
                       project=table.project,
