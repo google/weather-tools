@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-import io
 import numpy as np
 import pandas as pd
 import tempfile
@@ -12,12 +11,12 @@ import xarray as xr
 from google.cloud import bigquery
 import apache_beam as beam
 import apache_beam.metrics
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, DirectOptions
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
-from numbers import Number
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 BLOCK_SIZE = 16384
+
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
@@ -42,8 +41,9 @@ def open_dataset(uri: str) -> xr.Dataset:
 
                 beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
                 return xr_dataset
-    except:
+    except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
+        logging.error(f'Unable to open file from Google Cloud Storage: {e}')
         raise
 
 
@@ -58,7 +58,7 @@ def map_dtype_to_sql_type(var_type: np.dtype) -> str:
     raise ValueError(f"Unknown mapping from '{var_type}' to SQL type")
 
 
-def dataset_to_table_schema(ds : xr.Dataset) -> t.List:
+def dataset_to_table_schema(ds: xr.Dataset) -> t.List:
     """Returns a BigQuery table schema able to store the data in 'ds'."""
     fields = []
     for column in ds.variables.keys():
@@ -67,7 +67,7 @@ def dataset_to_table_schema(ds : xr.Dataset) -> t.List:
             field = bigquery.SchemaField(column, map_dtype_to_sql_type(var_type), mode="REQUIRED")
             fields.append(field)
         else:
-          raise ValueError(f"Column '{column}' of Dataset has no values")
+            raise ValueError(f"Column '{column}' of Dataset has no values")
 
     # Add an extra column for recording import time.
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
@@ -160,7 +160,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     all_uris = gcsio.GcsIO().list_prefix(known_args.uris)
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
-    ds : xr.Dataset = open_dataset(next(iter(all_uris)))
+    ds: xr.Dataset = open_dataset(next(iter(all_uris)))
     table_schema = dataset_to_table_schema(ds)
 
     pipeline_options = PipelineOptions(pipeline_args)

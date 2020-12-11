@@ -8,4 +8,3 @@ def cli(extra_args: t.Optional[t.List[str]] = None):
         extra_args = []
     import sys
     run(sys.argv + extra_args)
-

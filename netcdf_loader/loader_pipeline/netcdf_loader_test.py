@@ -6,6 +6,7 @@ from google.cloud.bigquery import SchemaField
 
 from netcdf_loader.loader_pipeline.netcdf_loader import dataset_to_table_schema
 
+
 class NetcdfLoaderTest(unittest.TestCase):
 
     def test_schema_generation(self):
