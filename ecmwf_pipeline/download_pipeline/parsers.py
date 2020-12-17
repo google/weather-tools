@@ -53,7 +53,7 @@ def parse_config(file: io.StringIO) -> t.Dict:
     try:
         config = configparser.ConfigParser()
         config.read_file(file)
-        return {s: _parse_lists(dict(config.items(s))) for s in config.sections()}
+        return {s: _parse_lists(config, s) for s in config.sections()}
     except configparser.ParsingError:
         pass
 
@@ -157,10 +157,12 @@ def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> 
     return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + 1, increment))
 
 
-def _parse_lists(config: t.Dict) -> t.Dict:
+def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') -> t.Dict:
     """Parses multiline blocks in *.cfg files as lists."""
+    config = dict(config_parser.items(section))
+
     for key, val in config.items():
-        if '/' in val:
+        if '/' in val and section != 'parameters':
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:
             config[key] = _splitlines(val)
