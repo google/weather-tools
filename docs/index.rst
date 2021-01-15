@@ -6,6 +6,7 @@
 Welcome to ECMWF-Pipeline's documentation!
 ==========================================
 
+The goal for these tools is to make weather data available to all of Alphabet.
 
 .. toctree::
    :maxdepth: 2

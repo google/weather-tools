@@ -12,13 +12,14 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../ecmwf_pipeline'))
+sys.path.insert(0, os.path.abspath('../ecmwf_pipeline/download_pipeline'))
+sys.path.insert(1, os.path.abspath('../netcdf_loader/loader_pipeline'))
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'ECMWF-Pipeline'
-copyright = '2020, Anthromets'
+copyright = '2020-2021, Anthromets'
 author = 'Anthromets'
 
 # The full version, including alpha/beta/rc tags
