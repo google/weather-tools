@@ -1,3 +1,5 @@
+"""Parsers for ECMWF download configuration."""
+
 import configparser
 import datetime
 import io
@@ -41,7 +43,7 @@ def date(candidate: str) -> datetime.date:
 
 
 def parse_config(file: io.StringIO) -> t.Dict:
-    """Parses a *.json or *.cfg file into a configuration dictionary."""
+    """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
         return json.load(file)

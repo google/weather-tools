@@ -131,7 +131,9 @@ def extract_rows_as_dicts(uri: str,
 
 def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.'
+    )
     parser.add_argument('-i', '--uris', type=str, required=True,
                         help="URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-")
     parser.add_argument('-o', '--output_table', type=str, required=True,

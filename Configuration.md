@@ -58,5 +58,5 @@ to discover the kinds of requests that can be made.
 
 ## Example
 
-See [a CDS example config](era5_example_config.cfg) or [a MARS example config](yesterdays_surface_example.cfg).
+See [a CDS example config](configs/era5_example_config.cfg) or [a MARS example config](configs/yesterdays_surface_example.cfg).
 
