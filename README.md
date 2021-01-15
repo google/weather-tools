@@ -1,12 +1,21 @@
+[![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
+[Documentation](https://google-pso.gitlab.io/ais/grid_intelligence_ai/ecmwf/)
 
-![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)
+# ECMWF-pipeline
 
-**Goal**: Create a pipeline to make [ECMWF](https://www.ecmwf.int/) data available to all of Alphabet.
+**Goal**: Create pipelines to make [ECMWF](https://www.ecmwf.int/) data available to all of Alphabet.
 
-_Milestone 1_: Load a subset of [historical ECMWF data](https://www.ecmwf.int/en/forecasts/datasets/archive-datasets) needed for [DeepMind's wind energy-related forecasting](https://deepmind.com/blog/article/machine-learning-can-boost-value-wind-energy).
-- [ ] Use MARs API to download ECMWF's HRES forecasts
-- [ ] Download ECMWF's ENS forecasts
-- [ ] Pipe downloaded data into BigQuery for general use
+<details>
+<summary>
+<em>Milestone 1</em>: Load a subset of <a href="https://www.ecmwf.int/en/forecasts/datasets/archive-datasets">historical ECMWF data</a> needed for <a href="https://deepmind.com/blog/article/machine-learning-can-boost-value-wind-energy">DeepMind's wind energy-related forecasting</a>.
+</summary>
+
+- ✅ Use MARs API to download ECMWF's HRES forecasts
+- ✅ Download ECMWF's ENS forecasts
+- ✅ Pipe downloaded data into BigQuery for general use
+
+</details>
+
 
 ## Developer Setup
 
@@ -19,7 +28,8 @@ Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Ins
 2). Run the following command (substituting your <personal_access_token>):
 
 ```
-pip install ecmwf-pipeline --no-deps --index-url https://__token__:<personal_access_token>@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
+export TOKEN=<your-token>
+pip install ecmwf-pipeline --no-deps --index-url https://__token__:$TOKEN@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
 ```
 
 ## Weather Downloader (`weather-dl`)
@@ -28,6 +38,8 @@ Weather Downloader downloads netcdf files from ECMWF to Google Cloud Storage.
 
 ```
 usage: weather-dl [-h] [-c {cds,mars}] config
+
+...
 
 positional arguments:
   config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
@@ -83,7 +95,7 @@ For a full list of how to configure the direct runner, please review
 
 Example run: 
 ```shell script
-weather-dl seasonal_forecast_example_config.cfg \
+weather-dl configs/seasonal_forecast_example_config.cfg \
   --runner DataflowRunner \
   --project $PROJECT \
   --region $REGION \
@@ -103,9 +115,4 @@ gcloud beta dataflow metrics list $JOBID --source=user
 
 You can also view how your ECMWF MARS API jobs are listed active or queued by logging in [here](https://apps.ecmwf.int/mars-activity/).
 
-## FAQ
-
-### Q: Where does PubSub Fit in? 
-We plan to use GCP's PubSub service to process [live ECMWF data](https://www.ecmwf.int/en/forecasts/datasets/catalogue-ecmwf-real-time-products). Ideally, we'd like to plumb near-realtime data to BigQuery
-via PubSub, if possible. We may need to add a Dataflow / Beam intermediary for this -- investigating is needed.
 

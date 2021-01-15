@@ -4,34 +4,26 @@ ecmwf\_pipeline package
 Submodules
 ----------
 
-ecmwf\_pipeline.parsers module
-------------------------------
+ecmwf\_pipeline.download_pipeline.clients module
+------------------------------------------------
 
-.. automodule:: ecmwf_pipeline.parsers
+.. automodule:: ecmwf_pipeline.download_pipeline.clients
    :members:
    :undoc-members:
    :show-inheritance:
 
-ecmwf\_pipeline.parsers\_test module
-------------------------------------
+ecmwf\_pipeline.download_pipeline.parsers module
+------------------------------------------------
 
-.. automodule:: ecmwf_pipeline.parsers_test
+.. automodule:: ecmwf_pipeline.download_pipeline.parsers
    :members:
    :undoc-members:
    :show-inheritance:
 
-ecmwf\_pipeline.pipeline module
--------------------------------
+ecmwf\_pipeline.download_pipeline.pipeline module
+-------------------------------------------------
 
-.. automodule:: ecmwf_pipeline.pipeline
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-ecmwf\_pipeline.pipeline\_test module
--------------------------------------
-
-.. automodule:: ecmwf_pipeline.pipeline_test
+.. automodule:: ecmwf_pipeline.download_pipeline.pipeline
    :members:
    :undoc-members:
    :show-inheritance:
