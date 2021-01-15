@@ -1,6 +1,7 @@
-# This file is a template, and might need editing before it works on your project.
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/python/tags/
+#
+# Continuous integration for project.
+#
+
 image: python:3.8
 
 # Change pip's cache directory to be inside the project directory since we can
@@ -38,6 +39,7 @@ run:
     paths:
       - dist/*.whl
 
+# Compile and publish documentation for the project.
 pages:
   script:
     - pip install sphinx sphinx-rtd-theme recommonmark

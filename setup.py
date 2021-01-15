@@ -19,7 +19,7 @@ setup(
     long_description=open('README.md', 'r').read(),
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
-    python_requires='>=3.6, <4',
+    python_requires='>=3.7, <4',
     install_requires=requirements('requirements.txt'),
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
@@ -29,6 +29,9 @@ setup(
     scripts=['ecmwf_pipeline/weather-dl',
              'netcdf_loader/weather-mv'],
     project_urls={
-        'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=168372',
+        'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',
+        'Overview': 'http://go/anthromet-ingestion',
+        'Sync Meeting Notes': 'http://go/anthromet-ingestion-sync',
+        'Anthromet Notes': 'http://go/anthromet-notes',
     },
 )
