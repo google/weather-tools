@@ -2,7 +2,7 @@ import datetime
 import io
 import unittest
 
-from .parsers import date, parse_config, process_config, _number_of_replacements
+from .parsers import date, parse_config, process_config, _number_of_replacements, parse_subsections
 
 
 class DateTest(unittest.TestCase):
@@ -346,6 +346,15 @@ class HelpersTest(unittest.TestCase):
             with self.subTest(s=s, want=want):
                 actual = _number_of_replacements(s)
                 self.assertEqual(actual, want)
+
+
+class SubsectionsTest(unittest.TestCase):
+    def test_parses_config_subsections(self):
+        config = {"parsers": {'a': 1, 'b': 2}, "parsers.1": {'b': 3}}
+
+        actual = parse_subsections(config)
+
+        self.assertEqual(actual, {'parsers': {'a': 1, 'b': 2, '1': {'b': 3}}})
 
 
 class ProcessConfigTest(unittest.TestCase):
