@@ -7,6 +7,7 @@ import json
 import string
 import typing as t
 import textwrap
+import copy as cp
 
 
 def date(candidate: str) -> datetime.date:
@@ -55,7 +56,9 @@ def parse_config(file: io.StringIO) -> t.Dict:
     try:
         config = configparser.ConfigParser()
         config.read_file(file)
-        return {s: _parse_lists(config, s) for s in config.sections()}
+        config_by_section = {s: _parse_lists(config, s) for s in config.sections()}
+        config_with_nesting = parse_subsections(config_by_section)
+        return config_with_nesting
     except configparser.ParsingError:
         pass
 
@@ -164,7 +167,7 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
     config = dict(config_parser.items(section))
 
     for key, val in config.items():
-        if '/' in val and section != 'parameters':
+        if '/' in val and 'parameters' not in section:
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:
             config[key] = _splitlines(val)
@@ -174,6 +177,28 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
 
 def _number_of_replacements(s: t.Text):
     return len([v for v in string.Formatter().parse(s) if v[1] is not None])
+
+
+def parse_subsections(config: t.Dict) -> t.Dict:
+    """Interprets [section.subsection] as nested dictionaries in *.cfg files."""
+    copy = cp.deepcopy(config)
+    for key, val in copy.items():
+        path = key.split('.')
+        runner = copy
+        parent = {}
+        p = None
+        for p in path:
+            if p not in runner:
+                runner[p] = {}
+            parent = runner
+            runner = runner[p]
+        parent[p] = val
+
+    for_cleanup = [key for key, _ in copy.items() if '.' in key]
+    for target in for_cleanup:
+        del copy[target]
+
+    return copy
 
 
 def process_config(file: io.StringIO) -> t.Dict:
