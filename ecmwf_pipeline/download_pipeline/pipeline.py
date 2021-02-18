@@ -5,6 +5,7 @@ import itertools
 import logging
 import tempfile
 import typing as t
+import copy as cp
 
 import apache_beam as beam
 import apache_beam.metrics
@@ -56,18 +57,51 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
     # an iterable like: ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
     fan_out = itertools.product(*[selection[key] for key in partition_keys])
 
+    # If the `parameters` section contains subsections (e.g. '[parameters.1]',
+    # '[parameters.2]'), collect a repeating cycle of the subsection key-value
+    # pairs. Otherwise, store empty dictionaries.
+    #
+    # This is useful for specifying multiple API keys for your configuration.
+    # For example:
+    # ```
+    #   [parameters.deepmind]
+    #   api_key=KKKKK1
+    #   api_url=UUUUU1
+    #   [parameters.research]
+    #   api_key=KKKKK2
+    #   api_url=UUUUU2
+    #   [parameters.cloud]
+    #   api_key=KKKKK3
+    #   api_url=UUUUU3
+    # ```
+    extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
+    params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
+
     # Output a config dictionary, overriding the range of values for
     # each key with the partition instance in 'selection'.
-    # Continuing the example:
+    # Continuing the example, the selection section would be:
     #   { 'foo': ..., 'year': ['2020'], 'month': ['01'], ... }
     #   { 'foo': ..., 'year': ['2020'], 'month': ['02'], ... }
     #   { 'foo': ..., 'year': ['2020'], 'month': ['03'], ... }
-    for option in fan_out:
-        copy = selection.copy()
-        out = config.copy()
+    #
+    # For each of these 'selection' sections, the output dictionary will
+    # overwrite parameters from the extra param subsections (above),
+    # evenly cycling through each subsection.
+    # For example:
+    #   { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
+    #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
+    #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
+    #   { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
+    #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
+    #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
+    #   ...
+    for option, params in zip(fan_out, params_loop):
+        copy = cp.deepcopy(selection)
+        out = cp.deepcopy(config)
         for idx, key in enumerate(partition_keys):
             copy[key] = [option[idx]]
         out['selection'] = copy
+        out['parameters'].update(params)
         if skip_partition(out):
             continue
 

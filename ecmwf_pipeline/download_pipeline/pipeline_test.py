@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch, ANY
+from collections import OrderedDict
 
 from .clients import CdsClient
 from .pipeline import fetch_data
@@ -49,6 +50,44 @@ class PreparePartitionTest(unittest.TestCase):
             {**config['selection'], **{'year': ['2015'], 'month': ['2']}},
             {**config['selection'], **{'year': ['2016'], 'month': ['1']}},
             {**config['selection'], **{'year': ['2016'], 'month': ['2']}},
+        ])
+
+    def test_partition_multi_params_multi_key(self):
+        config = {
+            'parameters': OrderedDict(
+                partition_keys=['year', 'month'],
+                target_template='download-{}-{}.nc',
+                research={
+                    'api_key': 'KKKK1',
+                    'api_url': 'UUUU1'
+                },
+                cloud={
+                    'api_key': 'KKKK2',
+                    'api_url': 'UUUU2'
+                },
+                deepmind={
+                    'api_key': 'KKKK3',
+                    'api_url': 'UUUU3'
+                }
+            ),
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 3)],
+                'year': [str(i) for i in range(2015, 2017)]
+            }
+        }
+
+        actual = list(prepare_partition(config))
+
+        self.assertListEqual(actual, [
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1'),
+             'selection': {**config['selection'], **{'year': ['2015'], 'month': ['1']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2', api_url='UUUU2'),
+             'selection': {**config['selection'], **{'year': ['2015'], 'month': ['2']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3', api_url='UUUU3'),
+             'selection': {**config['selection'], **{'year': ['2016'], 'month': ['1']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1'),
+             'selection': {**config['selection'], **{'year': ['2016'], 'month': ['2']}}},
         ])
 
     @patch('cdsapi.Client.retrieve')
