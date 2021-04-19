@@ -1,19 +1,20 @@
 """Primary ECMWF Downloader Workflow."""
 
 import argparse
+import copy as cp
 import itertools
 import logging
 import tempfile
 import typing as t
-import copy as cp
 
 import apache_beam as beam
 import apache_beam.metrics
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
-from .clients import CLIENTS, Client
+from .clients import CLIENTS, Client, FakeClient
 from .parsers import process_config
+from .stores import Store, TempFileStore
 
 
 def configure_logger(verbosity: int) -> None:
@@ -108,7 +109,7 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
         yield out
 
 
-def fetch_data(config: t.Dict, *, client: Client) -> None:
+def fetch_data(config: t.Dict, *, client: Client, store: Store = gcsio.GcsIO()) -> None:
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
@@ -124,7 +125,7 @@ def fetch_data(config: t.Dict, *, client: Client) -> None:
             # upload blob to gcs
             logging.info(f'Uploading to GCS for {target}')
             temp.seek(0)
-            with gcsio.GcsIO().open(target, 'wb') as dest:
+            with store.open(target, 'wb') as dest:
                 while True:
                     chunk = temp.read(8192)
                     if len(chunk) == 0:  # eof
@@ -149,6 +150,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help=f"Choose a weather API client; default is '{next(iter(CLIENTS.keys()))}'.")
     parser.add_argument('-f', '--force-download', action="store_true",
                         help="Force redownload of partitions that were previously downloaded.")
+    parser.add_argument('-d', '--dry-run', action='store_true', default=False,
+                        help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -158,18 +161,23 @@ def run(argv: t.List[str], save_main_session: bool = True):
     with known_args.config as f:
         config = process_config(f)
 
-    config['parameters']['force_download'] = known_args.force_download
-
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
     client = CLIENTS[known_args.client](config)
+    store = gcsio.GcsIO()
+    config['parameters']['force_download'] = known_args.force_download
+
+    if known_args.dry_run:
+        client = FakeClient(config)
+        store = TempFileStore('dry_run')
+        config['parameters']['force_download'] = True
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
                 | 'Create' >> beam.Create(prepare_partition(config))
-                | 'FetchData' >> beam.Map(fetch_data, client=client)
+                | 'FetchData' >> beam.Map(fetch_data, client=client, store=store)
         )

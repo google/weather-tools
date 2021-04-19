@@ -46,6 +46,8 @@ positional arguments:
 ```
 _Common options_: 
 * `-c, --client`: Select the weather API client. The default is `cds` or Copernicus. `mars` or MARS is also supported.
+* `-f, --force-download`: Force redownload of partitions that were previously downloaded.
+* `-d, --dry-run`: Run pipeline steps without _actually_ downloading or writing to cloud storage.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
