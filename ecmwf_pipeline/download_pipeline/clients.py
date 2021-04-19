@@ -7,6 +7,7 @@ import contextlib
 import io
 import logging
 import os
+import json
 
 import typing as t
 
@@ -97,6 +98,17 @@ class MarsClient(Client):
 
         with MarsLogger(log_prepend):
             self.c.execute(req=selection, target=output)
+
+
+class FakeClient(Client):
+    """A client that writes the selection arguments to the output file. """
+
+    def __init__(self, config: t.Dict) -> None:
+        self.config = config
+
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
+        with open(output, 'w') as f:
+            json.dump({dataset: selection}, f)
 
 
 CLIENTS = collections.OrderedDict(
