@@ -2,24 +2,26 @@
 
 import argparse
 import copy as cp
+import functools
 import itertools
 import logging
+import os
 import tempfile
 import typing as t
 
 import apache_beam as beam
-import apache_beam.metrics
 from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .clients import CLIENTS, Client, FakeClient
-from .parsers import process_config
+from .manifest import Manifest, Location, MockManifest
+from .parsers import process_config, parse_manifest_location
 from .stores import Store, TempFileStore
 
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40-verbosity*10))
+    logging.basicConfig(level=(40 - verbosity * 10))
 
 
 def prepare_target_name(config: t.Dict) -> str:
@@ -31,7 +33,7 @@ def prepare_target_name(config: t.Dict) -> str:
     return target
 
 
-def skip_partition(config: t.Dict) -> bool:
+def skip_partition(config: t.Dict, store: Store = gcsio.GcsIO()) -> bool:
     """Return true if partition should be skipped."""
 
     if 'force_download' not in config['parameters'].keys():
@@ -41,14 +43,14 @@ def skip_partition(config: t.Dict) -> bool:
         return False
 
     target = prepare_target_name(config)
-    if gcsio.GcsIO().exists(target):
+    if store.exists(target):
         logging.info(f'file {target} found, skipping.')
         return True
 
     return False
 
 
-def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
+def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = gcsio.GcsIO()) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
     partition_keys = config['parameters']['partition_keys']
     selection = config.get('selection', {})
@@ -103,22 +105,32 @@ def prepare_partition(config: t.Dict) -> t.Iterator[t.Dict]:
             copy[key] = [option[idx]]
         out['selection'] = copy
         out['parameters'].update(params)
-        if skip_partition(out):
+        if skip_partition(out, store):
             continue
+
+        selection = copy
+        location = prepare_target_name(out)
+        user = out['parameters'].get('user_id', 'unknown')
+        manifest.schedule(selection, location, user)
 
         yield out
 
 
-def fetch_data(config: t.Dict, *, client: Client, store: Store = gcsio.GcsIO()) -> None:
+def fetch_data(config: t.Dict,
+               *,
+               client: Client,
+               manifest: Manifest = MockManifest(Location('location-for-test')),
+               store: Store = gcsio.GcsIO()) -> None:
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
     dataset = config['parameters'].get('dataset', '')
     target = prepare_target_name(config)
     selection = config['selection']
+    user = config['parameters'].get('user_id', 'unknown')
 
-    with tempfile.NamedTemporaryFile() as temp:
-        try:
+    with manifest.transact(selection, target, user):
+        with tempfile.NamedTemporaryFile() as temp:
             logging.info(f'Fetching data for {target}')
             client.retrieve(dataset, selection, temp.name, log_prepend=target)
 
@@ -132,11 +144,6 @@ def fetch_data(config: t.Dict, *, client: Client, store: Store = gcsio.GcsIO()) 
                         break
                     dest.write(chunk)
             logging.info(f'Upload to GCS complete for {target}')
-            beam.metrics.Metrics.counter('weather-dl', 'Success').inc()
-
-        except Exception as e:
-            logging.error(f'Unable to retrieve/store data for {target}: {e}')
-            beam.metrics.Metrics.counter('weather-dl', 'Failure').inc()
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -152,6 +159,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
+    parser.add_argument('-m', '--manifest-location', type=Location, default='mock://',
+                        help="Location of the manifest. Either a Firestore database URI, GCS bucket, or 'mock://' for "
+                             "an in-memory location.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -161,6 +171,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
     with known_args.config as f:
         config = process_config(f)
 
+    config['parameters']['force_download'] = known_args.force_download
+    config['parameters']['user_id'] = os.getlogin()
+
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
     pipeline_options = PipelineOptions(pipeline_args)
@@ -169,15 +182,18 @@ def run(argv: t.List[str], save_main_session: bool = True):
     client = CLIENTS[known_args.client](config)
     store = gcsio.GcsIO()
     config['parameters']['force_download'] = known_args.force_download
+    manifest = parse_manifest_location(known_args.manifest_location)
 
     if known_args.dry_run:
         client = FakeClient(config)
         store = TempFileStore('dry_run')
         config['parameters']['force_download'] = True
 
+    configured_fetch_data = functools.partial(fetch_data, client=client, manifest=manifest, store=store)
+
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
-                | 'Create' >> beam.Create(prepare_partition(config))
-                | 'FetchData' >> beam.Map(fetch_data, client=client, store=store)
+                | 'Create' >> beam.Create(prepare_partition(config, manifest=manifest, store=store))
+                | 'FetchData' >> beam.Map(configured_fetch_data)
         )
