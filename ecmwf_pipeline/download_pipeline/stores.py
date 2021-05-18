@@ -17,6 +17,10 @@ class Store(abc.ABC):
     def open(self, filename: str, mode: str = 'r') -> t.IO:
         pass
 
+    @abc.abstractmethod
+    def exists(self, filename: str) -> bool:
+        pass
+
 
 class InMemoryStore(Store):
     """Store file data in memory."""
@@ -32,6 +36,9 @@ class InMemoryStore(Store):
         self.store[filename] = file
         return file
 
+    def exists(self, filename: str) -> bool:
+        return filename in self.store
+
 
 class TempFileStore(Store):
     """Store data into temporary files."""
@@ -44,3 +51,6 @@ class TempFileStore(Store):
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
         return tempfile.TemporaryFile(mode, dir=self.dir)
+
+    def exists(self, filename: str) -> bool:
+        return os.path.exists(filename)

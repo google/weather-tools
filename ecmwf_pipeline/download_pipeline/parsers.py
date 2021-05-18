@@ -1,13 +1,16 @@
 """Parsers for ECMWF download configuration."""
 
 import configparser
+import copy as cp
 import datetime
 import io
 import json
 import string
-import typing as t
 import textwrap
-import copy as cp
+import typing as t
+from urllib.parse import urlparse
+
+from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 
 def date(candidate: str) -> datetime.date:
@@ -63,6 +66,12 @@ def parse_config(file: io.StringIO) -> t.Dict:
         pass
 
     return {}
+
+
+def parse_manifest_location(location: Location) -> Manifest:
+    """Constructs a manifest object by parsing the location."""
+    parsed = urlparse(location)
+    return MANIFESTS.get(parsed.scheme, NoOpManifest)(location)
 
 
 def _splitlines(block: str) -> t.List[str]:
