@@ -14,6 +14,8 @@ import typing as t
 import apache_beam as beam
 from ecmwfapi import ECMWFService
 
+logger = logging.getLogger(__name__)
+
 
 class Client(abc.ABC):
     """Downloader client interface.
@@ -57,13 +59,13 @@ class MarsLogger(io.StringIO):
     def log(self, msg) -> None:
         """Prepends current file being retrieved and monitors for special ECMWF msgs."""
 
-        logging.info(self.prepend + " - " + msg)
+        logger.info(self.prepend + " - " + msg)
 
         if msg == "Request is active":
-            logging.info("Incrementing count of Active ECMWF Requests")
+            logger.info("Incrementing count of Active ECMWF Requests")
             beam.metrics.Metrics.counter('weather-dl', 'Active ECMWF Requests').inc()
         elif msg == "Done.":
-            logging.info("Incrementing count of Active ECMWF Requests")
+            logger.info("Incrementing count of Active ECMWF Requests")
             beam.metrics.Metrics.counter('weather-dl', 'Complete ECMWF Requests').inc()
 
     def write(self, msg):
@@ -107,6 +109,7 @@ class FakeClient(Client):
         self.config = config
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
+        logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
 

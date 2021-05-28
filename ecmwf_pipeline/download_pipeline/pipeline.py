@@ -13,15 +13,19 @@ import apache_beam as beam
 from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
-from .clients import CLIENTS, Client, FakeClient
+from .clients import CLIENTS, Client, FakeClient, logger as client_logger
 from .manifest import Manifest, Location, MockManifest
 from .parsers import process_config, parse_manifest_location
 from .stores import Store, TempFileStore
 
+logger = logging.getLogger(__name__)
+
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40 - verbosity * 10))
+    level = 40 - verbosity * 10
+    logger.setLevel(level)
+    client_logger.setLevel(level)
 
 
 def prepare_target_name(config: t.Dict) -> str:
@@ -44,7 +48,7 @@ def skip_partition(config: t.Dict, store: Store = gcsio.GcsIO()) -> bool:
 
     target = prepare_target_name(config)
     if store.exists(target):
-        logging.info(f'file {target} found, skipping.')
+        logger.info(f'file {target} found, skipping.')
         return True
 
     return False
@@ -98,7 +102,7 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = gcsi
     #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
     #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
     #   ...
-    for option, params in zip(fan_out, params_loop):
+    for index, (option, params) in enumerate(zip(fan_out, params_loop)):
         copy = cp.deepcopy(selection)
         out = cp.deepcopy(config)
         for idx, key in enumerate(partition_keys):
@@ -107,6 +111,8 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = gcsi
         out['parameters'].update(params)
         if skip_partition(out, store):
             continue
+
+        logger.info(f'Created partition [{index}]')
 
         selection = copy
         location = prepare_target_name(out)
@@ -131,11 +137,11 @@ def fetch_data(config: t.Dict,
 
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
-            logging.info(f'Fetching data for {target}')
+            logger.info(f'Fetching data for {target}')
             client.retrieve(dataset, selection, temp.name, log_prepend=target)
 
             # upload blob to gcs
-            logging.info(f'Uploading to GCS for {target}')
+            logger.info(f'Uploading to GCS for {target}')
             temp.seek(0)
             with store.open(target, 'wb') as dest:
                 while True:
@@ -143,7 +149,7 @@ def fetch_data(config: t.Dict,
                     if len(chunk) == 0:  # eof
                         break
                     dest.write(chunk)
-            logging.info(f'Upload to GCS complete for {target}')
+            logger.info(f'Upload to GCS complete for {target}')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
