@@ -2,7 +2,6 @@
 
 import argparse
 import copy as cp
-import functools
 import itertools
 import logging
 import os
@@ -10,13 +9,12 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .clients import CLIENTS, Client, FakeClient, logger as client_logger
-from .manifest import Manifest, Location, MockManifest
+from .manifest import Manifest, Location, NoOpManifest
 from .parsers import process_config, parse_manifest_location
-from .stores import Store, TempFileStore
+from .stores import Store, TempFileStore, GcsStore, InMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ def prepare_target_name(config: t.Dict) -> str:
     return target
 
 
-def skip_partition(config: t.Dict, store: Store = gcsio.GcsIO()) -> bool:
+def skip_partition(config: t.Dict, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
     if 'force_download' not in config['parameters'].keys():
@@ -54,7 +52,7 @@ def skip_partition(config: t.Dict, store: Store = gcsio.GcsIO()) -> bool:
     return False
 
 
-def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = gcsio.GcsIO()) -> t.Iterator[t.Dict]:
+def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = InMemoryStore()) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
     partition_keys = config['parameters']['partition_keys']
     selection = config.get('selection', {})
@@ -125,8 +123,8 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = gcsi
 def fetch_data(config: t.Dict,
                *,
                client: Client,
-               manifest: Manifest = MockManifest(Location('location-for-test')),
-               store: Store = gcsio.GcsIO()) -> None:
+               manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
+               store: Store = GcsStore()) -> None:
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
@@ -165,9 +163,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
-    parser.add_argument('-m', '--manifest-location', type=Location, default='mock://',
-                        help="Location of the manifest. Either a Firestore database URI, GCS bucket, or 'mock://' for "
-                             "an in-memory location.")
+    parser.add_argument('-m', '--manifest-location', type=Location, default='fs://downloader-manifest',
+                        help="Location of the manifest. Either a Firestore collection URI "
+                             "('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' "
+                             "for an in-memory location.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -185,21 +184,29 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
+    manifest_location = known_args.manifest_location
+
+    project_id__exists = 'project' in pipeline_options.get_all_options()
+    project_id__not_set = 'projectId' not in manifest_location
+    if manifest_location.startswith('fs://') and project_id__not_set and project_id__exists:
+        start_char = '&' if '?' in manifest_location else '?'
+        project = pipeline_options.get_all_options().get('project')
+        manifest_location += f'{start_char}projectId={project}'
+
     client = CLIENTS[known_args.client](config)
-    store = gcsio.GcsIO()
+    store = GcsStore()
     config['parameters']['force_download'] = known_args.force_download
-    manifest = parse_manifest_location(known_args.manifest_location)
+    manifest = parse_manifest_location(manifest_location)
 
     if known_args.dry_run:
         client = FakeClient(config)
         store = TempFileStore('dry_run')
         config['parameters']['force_download'] = True
-
-    configured_fetch_data = functools.partial(fetch_data, client=client, manifest=manifest, store=store)
+        manifest = NoOpManifest(Location('noop://dry-run'))
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
                 | 'Create' >> beam.Create(prepare_partition(config, manifest=manifest, store=store))
-                | 'FetchData' >> beam.Map(configured_fetch_data)
+                | 'FetchData' >> beam.Map(fetch_data, client=client, manifest=manifest, store=store)
         )

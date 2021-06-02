@@ -207,13 +207,16 @@ class FetchDataTest(unittest.TestCase):
 
         fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
 
+        actual = list(self.dummy_manifest.records.values())[0]._asdict()
+
         self.assertDictContainsSubset(dict(
             selection=config['selection'],
             location='gs://weather-dl-unittest/download-01-12.nc',
             status='failure',
-            error=str(error),
             user='unknown',
-        ), list(self.dummy_manifest.records.values())[0]._asdict())
+        ), actual)
+
+        self.assertIn(error.args[0], actual['error'])
 
     @patch('ecmwf_pipeline.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
@@ -238,13 +241,15 @@ class FetchDataTest(unittest.TestCase):
 
         fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
 
+        actual = list(self.dummy_manifest.records.values())[0]._asdict()
         self.assertDictContainsSubset(dict(
             selection=config['selection'],
             location='gs://weather-dl-unittest/download-01-12.nc',
             status='failure',
-            error=str(error),
             user='unknown',
-        ), list(self.dummy_manifest.records.values())[0]._asdict())
+        ), actual)
+
+        self.assertIn(error.args[0], actual['error'])
 
 
 class SkipPartitionsTest(unittest.TestCase):
