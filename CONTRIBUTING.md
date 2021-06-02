@@ -24,11 +24,13 @@ notebooks/  # Explorations / investigations.
 
  - Clone the repo and install dependencies.
 
-```
+```shell script
 git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
-pip install -e ."[dev]"
+pip install -e ."[dev]" --use-feature=2020-resolver
 ```
+
+ - The `--use-feature=2020-resolver` flag resolves install version conflicts among firestore dependencies. It's only needed until `pip`'s dependency resolution algorithm is upgraded.
 
  - Visit [our documentation on ECMWF Configuration](Configuration.md) to be able to connect to ECMWF and retrieve data.
 
@@ -44,9 +46,23 @@ pip install -e ."[dev]"
 cp bin/pre-push .git/hooks/
 ```
 
+### Upgrades
+
+From time to time, the primary or development dependencies may change. When this occurs, it's safest to update your 
+local dependencies like so: 
+
+```shell script
+pip install -r requirements.txt --force-reinstall --upgrade
+pip install -e ."[dev]"  # this updates the local wheel of the specific versions of the project.
+```
+
+Additionally, when testing pipelines end-to-end, it's recommend to re-install the packages, despite them being installed
+in editable mode. So, if you've made a code change and want to test it in a direct runner or dataflow, please run
+`pip install -e .` before the run.
+
 ## Testing
 
-```
+```shell script
 tox
 ```
 
