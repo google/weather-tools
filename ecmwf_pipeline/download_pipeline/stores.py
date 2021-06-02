@@ -6,6 +6,8 @@ import os
 import tempfile
 import typing as t
 
+from apache_beam.io.gcp import gcsio
+
 
 class Store(abc.ABC):
     """A interface to represent where downloads are stored.
@@ -54,3 +56,23 @@ class TempFileStore(Store):
 
     def exists(self, filename: str) -> bool:
         return os.path.exists(filename)
+
+
+class GcsStore(Store):
+    """Store data into GCS."""
+
+    def __init__(self) -> None:
+        self.gcs = None
+
+    def initialize_gcs(self) -> None:
+        """Initializes the gcsio object. Note this must not be in __init__"""
+        if not self.gcs:
+            self.gcs = gcsio.GcsIO()
+
+    def open(self, filename: str, mode: str = 'r') -> t.IO:
+        self.initialize_gcs()
+        return self.gcs.open(filename, mode)
+
+    def exists(self, filename: str) -> bool:
+        self.initialize_gcs()
+        return self.gcs.exists(filename)

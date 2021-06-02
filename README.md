@@ -71,7 +71,12 @@ Invoke with `-h` or `--help` to see the full range of options.
 
 ## Choosing a Beam Runner
 
-All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally choose to run the pipelines on Google Cloud Dataflow.
+All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally choose to run the pipelines on Google Cloud Dataflow by selection the `DataflowRunner`.
+
+When working with GCP, it's recommended you set the project ID up front with the command:
+```shell script
+gcloud config set project <your-id>
+```
 
 ### _Direct Runner options_:
 * `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
