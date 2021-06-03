@@ -10,6 +10,7 @@ import textwrap
 import typing as t
 from urllib.parse import urlparse
 
+from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 
@@ -238,7 +239,18 @@ def process_config(file: io.StringIO) -> t.Dict:
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
             are used to create the templates.""")
+    require('client' in params,
+            """
+            'parameters' section requires a 'client' key.
 
+            Supported clients are {}
+            """.format(str(list(CLIENTS.keys()))))
+    require(params.get('client') in CLIENTS.keys(),
+            """
+            Invalid 'client' parameter.
+
+            Supported clients are {}
+            """.format(str(list(CLIENTS.keys()))))
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
         partition_keys = [partition_keys.strip()]
