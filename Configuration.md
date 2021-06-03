@@ -8,6 +8,7 @@ configures the pipeline, and a `selection` section, which selects a subset of th
 Parameters for the pipeline.
 
 * `dataset`: (optional) Name of the target dataset. Allowed options are dictated by the client.
+* `client`: (required) Select the weather API client. Supported values are `cds` for Copernicus, and `mars` for MARS.
 * `target_template`: (required) Download artifact filename template. Can use Python string format symbols. Must have the same number of format symbols as the number of partition keys.
 * `partition_keys`: (optional) This determines how download jobs will be divided. 
   * Value can be a single item or a list.

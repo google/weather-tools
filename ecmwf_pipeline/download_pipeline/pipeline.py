@@ -156,9 +156,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
         description='Weather Downloader downloads netcdf files from ECMWF to Google Cloud Storage.'
     )
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
-                        help='path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.')
-    parser.add_argument('-c', '--client', type=str, choices=CLIENTS.keys(), default=next(iter(CLIENTS.keys())),
-                        help=f"Choose a weather API client; default is '{next(iter(CLIENTS.keys()))}'.")
+                        help="path/to/config.cfg, containing client and data information. "
+                             "Accepts *.cfg and *.json files.")
     parser.add_argument('-f', '--force-download', action="store_true",
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
@@ -193,7 +192,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         project = pipeline_options.get_all_options().get('project')
         manifest_location += f'{start_char}projectId={project}'
 
-    client = CLIENTS[known_args.client](config)
+    client = CLIENTS[config['parameters']['client']](config)
     store = GcsStore()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
