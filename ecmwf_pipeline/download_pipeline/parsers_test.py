@@ -404,6 +404,7 @@ class ProcessConfigTest(unittest.TestCase):
                     """
                     [parameters]
                     dataset=foo
+                    client=cds
                     target=bar
                     """
             ) as f:
@@ -419,6 +420,7 @@ class ProcessConfigTest(unittest.TestCase):
                     """
                     [parameters]
                     dataset=foo
+                    client=cds
                     target_template
                     """
             ) as f:
@@ -434,6 +436,7 @@ class ProcessConfigTest(unittest.TestCase):
                     """
                     [parameters]
                     dataset=foo
+                    client=cds
                     target_template=bar-{}-{}
                     partition_keys=
                         year
@@ -465,6 +468,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo
+                client=cds
                 target_template=bar-{}-{}
                 partition_keys=
                     year
@@ -493,6 +497,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo
+                client=cds
                 target_template=bar-{}
                 partition_keys=month
                 [selection]
@@ -511,6 +516,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo
+                client=cds
                 target_template=bar-{}-{}
                 partition_keys=
                     year
@@ -540,6 +546,7 @@ class ProcessConfigTest(unittest.TestCase):
                     """
                     [parameters]
                     dataset=foo
+                    client=cds
                     target_template=bar-{}
                     partition_keys=
                         year
@@ -564,6 +571,47 @@ class ProcessConfigTest(unittest.TestCase):
 
         self.assertIn(
             "'target_template' has 1 replacements. Expected 2",
+            ctx.exception.args[0])
+
+    def test_client_not_set(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                target_template=bar-{}
+                partition_keys=
+                    year
+                [selection]
+                year=
+                    1969
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'parameters' section requires a 'client' key.",
+            ctx.exception.args[0])
+
+    def test_client_invalid(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=nope
+                target_template=bar-{}
+                partition_keys=
+                    year
+                [selection]
+                year=
+                    1969
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "Invalid 'client' parameter.",
             ctx.exception.args[0])
 
 
