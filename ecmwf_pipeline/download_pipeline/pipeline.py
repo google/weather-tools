@@ -14,7 +14,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from .clients import CLIENTS, Client, FakeClient, logger as client_logger
 from .manifest import Manifest, Location, NoOpManifest
 from .parsers import process_config, parse_manifest_location
-from .stores import Store, TempFileStore, GcsStore, InMemoryStore
+from .stores import Store, TempFileStore, GcsStore
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +52,10 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
     return False
 
 
-def prepare_partition(config: t.Dict, *, manifest: Manifest, store: Store = InMemoryStore()) -> t.Iterator[t.Dict]:
+def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[Store] = None) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
+    if store is None:
+        store = GcsStore()
     partition_keys = config['parameters']['partition_keys']
     selection = config.get('selection', {})
 
@@ -124,10 +126,12 @@ def fetch_data(config: t.Dict,
                *,
                client: Client,
                manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
-               store: Store = GcsStore()) -> None:
+               store: t.Optional[Store] = None) -> None:
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
+    if store is None:
+        store = GcsStore()
     dataset = config['parameters'].get('dataset', '')
     target = prepare_target_name(config)
     selection = config['selection']
@@ -193,7 +197,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         manifest_location += f'{start_char}projectId={project}'
 
     client = CLIENTS[config['parameters']['client']](config)
-    store = GcsStore()
+    store = None  # will default to using GcsIO()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
 
