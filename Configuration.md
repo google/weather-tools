@@ -9,15 +9,106 @@ Parameters for the pipeline.
 
 * `dataset`: (optional) Name of the target dataset. Allowed options are dictated by the client.
 * `client`: (required) Select the weather API client. Supported values are `cds` for Copernicus, and `mars` for MARS.
-* `target_template`: (required) Download artifact filename template. Can use Python string format symbols. Must have the same number of format symbols as the number of partition keys.
+* `target_path`: (required) Download artifact filename template. Can use Python string format symbols. Must have the same number of format symbols as the number of partition keys.
 * `partition_keys`: (optional) This determines how download jobs will be divided. 
   * Value can be a single item or a list.
   * Each value must appear as a key in the `selection` section.
   * Each downloader will receive a config file with every parameter listed in the `selection`, _except_ for the fields specified by the `partition_keys`.
   * The downloader config will contain one instance of the cross-product of every key in `partition_keys`. 
     * E.g. `['year', 'month']` will lead to a config set like `[(2015, 01), (2015, 02), (2015, 03), ...]`.
-  * The list of keys will be used to format the `target_template`.
-  
+  * The list of keys will be used to format the `target_path`.
+* `target_filename` (optional) This file name will be appended to `target_path`. 
+  * Like `target_path`, `target_filename` can contain format symbols to be replaced by partition keys; if this is used, the total number of format symbols in both fields must match the number of partition keys.
+  * This field is required when generating a date-based directory hierarchy (see below).
+* `append_date_dirs` (optional) A boolean indicating whether a date-based directory hierarchy should be created (see below); defaults to false if not used.
+
+### Creating a date-based directory hierarchy
+
+The configuration can be set up to automatically generate a date-based directory hierarchy for the output files.
+
+To enable this feature, the `append_date_dirs` field has to be set to `true`. 
+In addition, the `target_filename` needs to be specified, and `date` has to be a `partition_key`;
+`date` will not be used as a replacement in `target_template` but will instead be used to create a directory structure.
+
+The resulting target path will be `<target_path>/{year}/{month}/{day}<target_filename>`. The number of format symbols in this path has to match the number of partition keys excluding `date`.
+
+#### Examples
+
+Below are more examples of how to use `target_path`, `target_filename`, and `append_date_dirs`. 
+
+Note that any parameters that are not relevant to the target path have been omitted.
+```
+[parameters]
+target_filename=.nc
+target_path=gs://ecmwf-output-test/era5/
+append_date_dirs=true
+partition_keys=
+     date
+[selection]
+date=2017-01-01/to/2017-01-02
+```
+will create  
+`gs://ecmwf-output-test/era5/2017/01/01.nc` and  
+`gs://ecmwf-output-test/era5/2017/01/02.nc`.
+
+```
+[parameters]
+target_filename=-pressure-{}.nc
+target_path=gs://ecmwf-output-test/era5/
+append_date_dirs=true
+partition_keys=
+     date
+     pressure_level
+[selection]
+pressure_level=
+    500
+date=2017-01-01/to/2017-01-02
+```
+will create  
+`gs://ecmwf-output-test/era5/2017/01/01-pressure-500.nc` and   
+`gs://ecmwf-output-test/era5/2017/01/02-pressure-500.nc`.
+
+```
+[parameters]
+target_filename=.nc
+target_path=gs://ecmwf-output-test/pressure-{}/era5/
+append_date_dirs=true
+partition_keys=
+     date
+     pressure_level
+[selection]
+pressure_level=
+    500
+date=2017-01-01/to/2017-01-02
+```
+will create  
+`gs://ecmwf-output-test/pressure-500/era5/2017/01/01.nc` and  
+`gs://ecmwf-output-test/pressure-500/era5/2017/01/02.nc`.
+
+The above example also illustrates how to create a directory structure based on partition keys, even without using the date-based creation:
+```
+[parameters]
+target_path=gs://ecmwf-output-test/era5/{}/{}/{}-pressure-{}.nc
+partition_keys=
+    year
+    month
+    day
+    pressure_level
+[selection]
+pressure_level=
+    500
+year=
+    2017
+month=
+    01
+day=
+    01
+    02
+```
+will create  
+`gs://ecmwf-output-test/era5/2017/01/01-pressure-500.nc` and  
+`gs://ecmwf-output-test/era5/2017/01/02-pressure-500.nc`.
+
 ### Subsections
 
 Sometimes, we'd like to alternate passing certain parameters to each client. For example, certain data sources have 
