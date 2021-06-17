@@ -9,6 +9,7 @@ from .manifest import MockManifest, Location
 from .pipeline import fetch_data
 from .pipeline import prepare_partition
 from .pipeline import skip_partition
+from .pipeline import prepare_target_name
 
 
 class PreparePartitionTest(unittest.TestCase):
@@ -20,7 +21,7 @@ class PreparePartitionTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year'],
-                'target_template': 'download-{}.nc',
+                'target_path': 'download-{}.nc',
             },
             'selection': {
                 'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
@@ -40,7 +41,7 @@ class PreparePartitionTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year', 'month'],
-                'target_template': 'download-{}-{}.nc',
+                'target_path': 'download-{}-{}.nc',
             },
             'selection': {
                 'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
@@ -62,7 +63,7 @@ class PreparePartitionTest(unittest.TestCase):
         config = {
             'parameters': OrderedDict(
                 partition_keys=['year', 'month'],
-                target_template='download-{}-{}.nc',
+                target_path='download-{}-{}.nc',
                 research={
                     'api_key': 'KKKK1',
                     'api_url': 'UUUU1'
@@ -100,7 +101,7 @@ class PreparePartitionTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year'],
-                'target_template': 'download-{}.nc',
+                'target_path': 'download-{}.nc',
             },
             'selection': {
                 'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
@@ -133,7 +134,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_template': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -163,7 +164,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_template': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -191,7 +192,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_template': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -225,7 +226,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_template': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -261,7 +262,7 @@ class SkipPartitionsTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year', 'month'],
-                'target_template': 'download-{}-{}.nc',
+                'target_path': 'download-{}-{}.nc',
             },
             'selection': {
                 'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
@@ -278,7 +279,7 @@ class SkipPartitionsTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year', 'month'],
-                'target_template': 'download-{}-{}.nc',
+                'target_path': 'download-{}-{}.nc',
                 'force_download': True
             },
             'selection': {
@@ -296,7 +297,7 @@ class SkipPartitionsTest(unittest.TestCase):
         config = {
             'parameters': {
                 'partition_keys': ['year', 'month'],
-                'target_template': 'download-{}-{}.nc',
+                'target_path': 'download-{}-{}.nc',
                 'force_download': False
             },
             'selection': {
@@ -311,6 +312,113 @@ class SkipPartitionsTest(unittest.TestCase):
         actual = skip_partition(config, self.mock_store)
 
         self.assertEqual(actual, True)
+
+
+class PrepareTargetNameTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
+
+    def test_target_name_no_date(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year', 'month'],
+                'target_path': 'download-{}-{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'month': ['12'],
+                'year': ['02']
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "download-02-12.nc")
+
+    def test_target_name_date_no_target_directory(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date'],
+                'target_path': 'download-{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "download-2017-01-15.nc")
+
+    def test_target_name_target_directory_no_date(self):
+        config = {
+            'parameters': {
+                'target_path': 'somewhere/',
+                'partition_keys': ['year', 'month'],
+                'target_filename': 'download/{}/{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'month': ['12'],
+                'year': ['02']
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/download/02/12.nc")
+
+    def test_target_name_date_and_target_directory(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date'],
+                'target_path': 'somewhere',
+                'target_filename': '-download.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/2017/01/15-download.nc")
+
+    def test_target_name_date_and_target_directory_additional_partitions(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date', 'pressure_level'],
+                'target_path': 'somewhere',
+                'target_filename': '-pressure-{}.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/2017/01/15-pressure-500.nc")
+
+    def test_target_name_date_and_target_directory_additional_partitions_in_path(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date', 'expver', 'pressure_level'],
+                'target_path': 'somewhere/expver-{}',
+                'target_filename': '-pressure-{}.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+                'date': ['2017-01-15'],
+                'expver': ['1'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
 
 
 if __name__ == '__main__':

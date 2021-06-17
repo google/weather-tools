@@ -189,6 +189,12 @@ def _number_of_replacements(s: t.Text):
     return len([v for v in string.Formatter().parse(s) if v[1] is not None])
 
 
+def use_date_as_directory(config: t.Dict):
+    return 'date' in config['parameters']['partition_keys'] \
+           and config['parameters'].get('append_date_dirs', 'false') == 'true' \
+           and 'target_filename' in config['parameters']
+
+
 def parse_subsections(config: t.Dict) -> t.Dict:
     """Interprets [section.subsection] as nested dictionaries in *.cfg files."""
     copy = cp.deepcopy(config)
@@ -225,17 +231,22 @@ def process_config(file: io.StringIO) -> t.Dict:
             """
             'parameters' section required in configuration file.
 
-            The 'parameters' section specifies the 'dataset', 'target_template', and
+            The 'parameters' section specifies the 'dataset', 'target_path', and
             'partition_key' for the API client.
 
             Please consult the documentation for more information.""")
 
     params = config.get('parameters', {})
-    require('target_template' in params,
+    require('target_template' not in params,
             """
-            'parameters' section requires a 'target_template' key.
+            'target_template' is deprecated, use 'target_path' instead.
 
-            The 'target_template' is used to format the name of the output files. It
+            Please consult the documentation for more information.""")
+    require('target_path' in params,
+            """
+            'parameters' section requires a 'target_path' key.
+
+            The 'target_path' is used to format the name of the output files. It
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
             are used to create the templates.""")
@@ -251,6 +262,13 @@ def process_config(file: io.StringIO) -> t.Dict:
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
+    if params.get('append_date_dirs', 'false') == 'true':
+        require(use_date_as_directory(config),
+                """
+                'append_date_dirs' set to true, but creating the date directory hierarchy also
+                requires that 'target_filename' is given and that 'date' is a partition_key.
+                """)
+
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
         partition_keys = [partition_keys.strip()]
@@ -263,13 +281,23 @@ def process_config(file: io.StringIO) -> t.Dict:
             'partition_keys' specify how to split data for workers. Please consult
             documentation for more information.""")
 
-    num_template_replacements = _number_of_replacements(params['target_template'])
+    num_template_replacements = _number_of_replacements(params['target_path'])
+    if 'target_filename' in params:
+        num_template_replacements += _number_of_replacements(params['target_filename'])
     num_partition_keys = len(partition_keys)
+    if use_date_as_directory(config):
+        num_partition_keys -= 1
+        if str(params.get('target_path')).endswith('/'):
+            params['target_path'] = params.get('target_path')[:-1]
 
     require(num_template_replacements == num_partition_keys,
             """
-            'target_template' has {0} replacements. Expected {1}, since there are {1}
-            partition keys.""".format(num_template_replacements, num_partition_keys))
+            'target_path' has {0} replacements. Expected {1}, since there are {1}
+            partition keys.
+
+            Note: If date is used to create a directory hierarchy
+            no replacement is needed for 'date')
+            """.format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
