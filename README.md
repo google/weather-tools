@@ -1,5 +1,5 @@
 [![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
-[Documentation](https://google-pso.gitlab.io/ais/grid_intelligence_ai/ecmwf/)
+[📚Documentation](https://google-pso.gitlab.io/ais/grid_intelligence_ai/ecmwf/)
 
 # ECMWF-pipeline
 
@@ -23,14 +23,19 @@ Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Ins
 
 ## Installing
 
-1). Create a personal_access_token with `read_api` scope ([docs](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)).
+Assuming you have access to this GitLab project and have an [SSH key](https://docs.gitlab.com/ee/ssh/) set up, install via pip:
 
-2). Run the following command (substituting your <personal_access_token>):
+```shell script
+pip install git+ssh://git@gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git#egg=ecmwf-pipeline
+```
 
+If you haven't yet set up an SSH key for GitLab, you can install over https where you'll enter your username & password:
+
+```shell script
+pip install git+https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git#egg=ecmwf-pipeline
 ```
-export TOKEN=<your-token>
-pip install ecmwf-pipeline --no-deps --index-url https://__token__:$TOKEN@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
-```
+
+After installation, all tools (e.g. like `weather-dl`) will be available in your environment!
 
 ## Weather Downloader (`weather-dl`)
 
@@ -77,20 +82,6 @@ When working with GCP, it's recommended you set the project ID up front with the
 gcloud config set project <your-id>
 ```
 
-### _Direct Runner options_:
-* `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
-
-Example run:
-```shell script
-weather-mv -i gs://netcdf_file.nc \
-  -o project.dataset_id.table_id \
-  -t gs://temp_location  \
-  --direct_num_workers 2
-```
-
-For a full list of how to configure the direct runner, please review
-[this page](https://beam.apache.org/documentation/runners/direct/).
-
 ### _Dataflow options_:
 * `--runner`: The `PipelineRunner` to use. This field can be either `DirectRunner` or `DataflowRunner`. Default: `DirectRunner` (local mode)
 * `--project`: The project ID for your Google Cloud Project. This is required if you want to run your pipeline using the Dataflow managed service (i.e. `DataflowRunner`).
@@ -110,6 +101,20 @@ weather-dl configs/seasonal_forecast_example_config.cfg \
 
 For a full list of how to configure the dataflow pipeline, please review 
 [this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
+
+### _Direct Runner options_:
+* `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
+
+Example run:
+```shell script
+weather-mv -i gs://netcdf_file.nc \
+  -o project.dataset_id.table_id \
+  -t gs://temp_location  \
+  --direct_num_workers 2
+```
+
+For a full list of how to configure the direct runner, please review
+[this page](https://beam.apache.org/documentation/runners/direct/).
 
 ## Monitoring
 
