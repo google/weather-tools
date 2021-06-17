@@ -13,7 +13,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .clients import CLIENTS, Client, FakeClient, logger as client_logger
 from .manifest import Manifest, Location, NoOpManifest
-from .parsers import process_config, parse_manifest_location
+from .parsers import process_config, parse_manifest_location, use_date_as_directory
 from .stores import Store, TempFileStore, GcsStore
 
 logger = logging.getLogger(__name__)
@@ -28,9 +28,19 @@ def configure_logger(verbosity: int) -> None:
 
 def prepare_target_name(config: t.Dict) -> str:
     """Returns name of target location."""
-    partition_keys = config['parameters']['partition_keys']
+    target_path = config['parameters']['target_path']
+    target_filename = config['parameters'].get('target_filename', '')
+    partition_keys = config['parameters']['partition_keys'].copy()
+    if use_date_as_directory(config):
+        target_path = "{}/{}".format(
+            target_path,
+            ''.join(['/'.join(date_value for date_value in config['selection']['date'][0].split('-'))]))
+        logger.debug(f'target_path adjusted for date: {target_path}')
+        partition_keys.remove('date')
+    target_path = "{}{}".format(target_path, target_filename)
     partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = config['parameters']['target_template'].format(*partition_key_values)
+    target = target_path.format(*partition_key_values)
+    logger.debug(f'target name for partition: {target}')
 
     return target
 

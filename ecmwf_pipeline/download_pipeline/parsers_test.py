@@ -398,7 +398,7 @@ class ProcessConfigTest(unittest.TestCase):
             "'parameters' section required in configuration file.",
             ctx.exception.args[0])
 
-    def test_requires_target_template_param(self):
+    def test_requires_target_path_param(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
@@ -411,23 +411,39 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "'parameters' section requires a 'target_template' key.",
+            "'parameters' section requires a 'target_path' key.",
             ctx.exception.args[0])
 
-    def test_accepts_target_template_param(self):
+    def test_requires_target_template_param_not_present(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_template=bar
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'target_template' is deprecated, use 'target_path' instead.",
+            ctx.exception.args[0])
+
+    def test_accepts_target_path_param(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
                     [parameters]
                     dataset=foo
                     client=cds
-                    target_template
+                    target_path
                     """
             ) as f:
                 process_config(f)
 
         self.assertNotIn(
-            "'parameters' section requires a 'target_template' key.",
+            "'parameters' section requires a 'target_path' key.",
             ctx.exception.args[0])
 
     def test_requires_partition_keys_to_match_sections(self):
@@ -437,7 +453,7 @@ class ProcessConfigTest(unittest.TestCase):
                     [parameters]
                     dataset=foo
                     client=cds
-                    target_template=bar-{}-{}
+                    target_path=bar-{}-{}
                     partition_keys=
                         year
                         month
@@ -469,7 +485,7 @@ class ProcessConfigTest(unittest.TestCase):
                 [parameters]
                 dataset=foo
                 client=cds
-                target_template=bar-{}-{}
+                target_path=bar-{}-{}
                 partition_keys=
                     year
                     month
@@ -498,7 +514,7 @@ class ProcessConfigTest(unittest.TestCase):
                 [parameters]
                 dataset=foo
                 client=cds
-                target_template=bar-{}
+                target_path=bar-{}
                 partition_keys=month
                 [selection]
                 month=
@@ -517,7 +533,7 @@ class ProcessConfigTest(unittest.TestCase):
                 [parameters]
                 dataset=foo
                 client=cds
-                target_template=bar-{}-{}
+                target_path=bar-{}-{}
                 partition_keys=
                     year
                     month
@@ -547,7 +563,7 @@ class ProcessConfigTest(unittest.TestCase):
                     [parameters]
                     dataset=foo
                     client=cds
-                    target_template=bar-{}
+                    target_path=bar-{}
                     partition_keys=
                         year
                         month
@@ -570,8 +586,91 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "'target_template' has 1 replacements. Expected 2",
+            "'target_path' has 1 replacements. Expected 2",
             ctx.exception.args[0])
+
+    def test_date_as_directory_key_mismatch(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                target_filename=bar-{}
+                append_date_dirs=true
+                partition_keys=
+                    date
+                [selection]
+                date=2017-01-01/to/2017-01-01
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'target_path' has 1 replacements. Expected 0",
+            ctx.exception.args[0])
+
+    def test_append_date_dirs_without_filename(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                append_date_dirs=true
+                partition_keys=
+                    date
+                [selection]
+                date=2017-01-01/to/2017-01-01
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'append_date_dirs' set to true, but creating the date directory hierarchy",
+            ctx.exception.args[0])
+
+    def test_append_date_dirs_without_date_partition(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                target_filename=bar
+                append_date_dirs=true
+                partition_keys=
+                    pressure
+                [selection]
+                pressure=500
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'append_date_dirs' set to true, but creating the date directory hierarchy",
+            ctx.exception.args[0])
+
+    def test_date_as_directory_target_directory_ends_in_slash(self):
+        with io.StringIO(
+            """
+            [parameters]
+            dataset=foo
+            client=cds
+            target_path=somewhere/
+            target_filename=bar
+            append_date_dirs=true
+            partition_keys=
+                date
+            [selection]
+            date=2017-01-01/to/2017-01-01
+            """
+        ) as f:
+            config = process_config(f)
+            self.assertEqual(config['parameters']['target_path'], "somewhere")
 
     def test_client_not_set(self):
         with self.assertRaises(ValueError) as ctx:
@@ -579,7 +678,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
                 [parameters]
                 dataset=foo
-                target_template=bar-{}
+                target_path=bar-{}
                 partition_keys=
                     year
                 [selection]
@@ -600,7 +699,7 @@ class ProcessConfigTest(unittest.TestCase):
                 [parameters]
                 dataset=foo
                 client=nope
-                target_template=bar-{}
+                target_path=bar-{}
                 partition_keys=
                     year
                 [selection]
