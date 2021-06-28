@@ -3,7 +3,7 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
-from ecmwf_pipeline.download_pipeline.stores import InMemoryStore
+from download_pipeline.stores import InMemoryStore
 from .clients import CdsClient
 from .manifest import MockManifest, Location
 from .pipeline import fetch_data
@@ -127,7 +127,7 @@ class FetchDataTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('dummy-manifest'))
 
-    @patch('ecmwf_pipeline.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve, mock_gcs_file):
         config = {
@@ -157,7 +157,7 @@ class FetchDataTest(unittest.TestCase):
             config['selection'],
             ANY)
 
-    @patch('ecmwf_pipeline.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
         config = {
@@ -185,7 +185,7 @@ class FetchDataTest(unittest.TestCase):
             user='unknown',
         ), list(self.dummy_manifest.records.values())[0]._asdict())
 
-    @patch('ecmwf_pipeline.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve, mock_gcs_file):
         config = {
@@ -219,7 +219,7 @@ class FetchDataTest(unittest.TestCase):
 
         self.assertIn(error.args[0], actual['error'])
 
-    @patch('ecmwf_pipeline.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve, mock_gcs_file):
         config = {
