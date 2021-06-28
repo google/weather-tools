@@ -4,7 +4,7 @@ import pandas as pd
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
-from netcdf_loader.loader_pipeline.netcdf_loader import dataset_to_table_schema
+from loader_pipeline.netcdf_loader import dataset_to_table_schema
 
 
 class NetcdfLoaderTest(unittest.TestCase):

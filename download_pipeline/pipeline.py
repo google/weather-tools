@@ -167,7 +167,8 @@ def fetch_data(config: t.Dict,
 def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
-        description='Weather Downloader downloads netcdf files from ECMWF to Google Cloud Storage.'
+        prog='weather-dl',
+        description='Weather Downloader downloads weather data to Google Cloud Storage.'
     )
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
                         help="path/to/config.cfg, containing client and data information. "

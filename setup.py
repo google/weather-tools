@@ -26,8 +26,6 @@ setup(
     extras_require={
         'dev': requirements('dev_requirements.txt')
     },
-    scripts=['ecmwf_pipeline/weather-dl',
-             'netcdf_loader/weather-mv'],
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',
         'Overview': 'http://go/anthromet-ingestion',

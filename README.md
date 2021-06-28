@@ -23,36 +23,49 @@ Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Ins
 
 ## Installing
 
-1). Create a personal_access_token with `read_api` scope ([docs](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)).
+Create a local python environment. In that environment, clone the repo (you'll need an SSH key that has
+access to our GitLab repo; this can be set up by [following these instructions](https://docs.gitlab.com/ee/ssh/)).
+Then, enter the repo, and install python packages with `pip`:
 
-2). Run the following command (substituting your <personal_access_token>):
+```shell script
+git clone git@gitlab.com:google-pso/ais/grid_intelligence_ai/ecmwf.git
+cd ecmwf
+pip install . 
+```
+
+Alternatively, you can clone the repo over HTTPS: 
+```shell script
+git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
+cd ecmwf
+pip install . 
+```
+
+From here, you can use the `weather-*` scripts in the `bin/` folder.
+
+## Weather Downloader (`bin/weather-dl`)
+
+Weather Downloader downloads weather data to Google Cloud Storage.
 
 ```
-export TOKEN=<your-token>
-pip install ecmwf-pipeline --no-deps --index-url https://__token__:$TOKEN@gitlab.com/api/v4/projects/20919443/packages/pypi/simple
-```
+usage: weather-dl [-h] [-f] [-d] [-m MANIFEST_LOCATION] config
 
-## Weather Downloader (`weather-dl`)
-
-Weather Downloader downloads netcdf files from ECMWF to Google Cloud Storage.
-
-```
-usage: weather-dl [-h] [-c {cds,mars}] config
-
-...
+Weather Downloader downloads weather data to Google Cloud Storage.
 
 positional arguments:
-  config                path/to/config.cfg, specific to the <client>. Accepts *.cfg and *.json files.
+  config                path/to/config.cfg, containing client and data information. Accepts *.cfg and *.json files.
 ```
+
 _Common options_: 
 * `-f, --force-download`: Force redownload of partitions that were previously downloaded.
 * `-d, --dry-run`: Run pipeline steps without _actually_ downloading or writing to cloud storage.
+* `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI 
+    ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
 For further information on how to write config files, please consult [this documentation](Configuration.md).
 
-## Weather Mover (`weather-mv`)
+## Weather Mover (`bin/weather-mv`)
 
 Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.
 
