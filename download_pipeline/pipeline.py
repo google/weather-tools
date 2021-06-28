@@ -2,9 +2,9 @@
 
 import argparse
 import copy as cp
+import getpass
 import itertools
 import logging
-import os
 import tempfile
 import typing as t
 
@@ -191,7 +191,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         config = process_config(f)
 
     config['parameters']['force_download'] = known_args.force_download
-    config['parameters']['user_id'] = os.getlogin()
+    config['parameters']['user_id'] = getpass.getuser()
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
