@@ -20,7 +20,7 @@ notebooks/  # Explorations / investigations.
 
  - Set up a Python development environment. We recommend *pyenv* and *virtualenv*. There are plenty of guides on the Internet for setting up your environment depending on your Operating System and choice of package manager.
 
- - Use Python verison 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
+ - Use Python version 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
 
  - Clone the repo and install dependencies.
 
