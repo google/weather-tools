@@ -1,4 +1,3 @@
 pytype
-tox
 flake8
 discover

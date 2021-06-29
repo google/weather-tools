@@ -9,7 +9,7 @@ set -e
 # In project root...
 cd "$(dirname $0)/.."
 
-tox -e py38
+tox -e type -e lint -e py38
 
 echo "$MAG$BLD--- Presubmit: Success ---$END"
 exit 0

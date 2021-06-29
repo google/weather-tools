@@ -12,8 +12,8 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../ecmwf_pipeline/download_pipeline'))
-sys.path.insert(1, os.path.abspath('../netcdf_loader/loader_pipeline'))
+sys.path.insert(0, os.path.abspath('../download_pipeline'))
+sys.path.insert(1, os.path.abspath('../loader_pipeline'))
 
 
 # -- Project information -----------------------------------------------------

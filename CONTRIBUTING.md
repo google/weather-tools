@@ -24,7 +24,7 @@ notebooks/  # Explorations / investigations.
 
  - Clone the repo and install dependencies.
 
-```shell script
+```shell
 git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
 pip install -e ."[dev]" --use-feature=2020-resolver
@@ -40,10 +40,10 @@ pip install -e ."[dev]" --use-feature=2020-resolver
 
  - Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
- - Add a pre-push hook to your local client.
+ - Add a post-push hook to your local client.
 
 ```
-cp bin/pre-push .git/hooks/
+cp bin/post-push .git/hooks/
 ```
 
 ### Upgrades
@@ -51,7 +51,7 @@ cp bin/pre-push .git/hooks/
 From time to time, the primary or development dependencies may change. When this occurs, it's safest to update your 
 local dependencies like so: 
 
-```shell script
+```shell
 pip install -r requirements.txt --force-reinstall --upgrade
 pip install -e ."[dev]"  # this updates the local wheel of the specific versions of the project.
 ```
@@ -62,7 +62,7 @@ in editable mode. So, if you've made a code change and want to test it in a dire
 
 ## Testing
 
-```shell script
+```shell
 tox
 ```
 
