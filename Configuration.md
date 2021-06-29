@@ -147,7 +147,7 @@ Visit the follow to register / acquire API credentials:
 _[Install the CDS API key](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key)_.
 After, please set the `api_url` and `api_key` arguments in the `parameters` section of your configuration.
 Alternatively, one can set these values as environment variables: 
-```shell script
+```shell
 export CDSAPI_URL=$api_url
 export CDSAPI_KEY=$api_key
 ```
@@ -162,7 +162,7 @@ Visit the following to register / acquire API credentials:
 _[Install ECWMF Key](https://confluence.ecmwf.int/display/WEBAPI/Access+MARS#AccessMARS-key)_. After, please set
 the `api_url`, `api_key`, and `api_email` arguments in the `parameters` section of your configuration.
 Alternatively, one can set these values as environment variables: 
-```shell script
+```shell
 export ECMWF_API_URL=$api_url
 export ECMWF_API_EMAIL=$api_email
 export ECMWF_API_KEY=$api_key
@@ -179,5 +179,52 @@ to discover the kinds of requests that can be made.
 
 ## Example
 
-See [a CDS example config](configs/era5_example_config.cfg) or [a MARS example config](configs/yesterdays_surface_example.cfg).
+### Download Era5 Pressure Level Reanalysis from Copernicus
+```
+[parameters]
+client=cds
+dataset=reanalysis-era5-pressure-levels
+target_path=gs://ecmwf-output-test/era5/{}/{}/{}-pressure-{}.nc
+partition_keys=
+    year
+    month
+    day
+    pressure_level
+[selection]
+product_type=ensemble_mean
+format=netcdf
+variable=
+    divergence
+    fraction_of_cloud_cover
+    geopotential
+pressure_level=
+    500
+year=
+    2015
+    2016
+    2017
+month=
+    01
+day=
+    01
+    15
+time=
+    00:00
+    06:00
+    12:00
+    18:00
+```
+
+### Download Yesterday's Surface Temperatures from MARS.
+```
+[parameters]
+target_path=all.an
+[selection]
+class   = od
+type    = analysis
+levtype = surface
+date    = -1
+time    = 00/06/12/18
+param   = z/sp
+```
 

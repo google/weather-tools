@@ -27,14 +27,14 @@ Create a local python environment. In that environment, clone the repo (you'll n
 access to our GitLab repo; this can be set up by [following these instructions](https://docs.gitlab.com/ee/ssh/)).
 Then, enter the repo, and install python packages with `pip`:
 
-```shell script
+```shell
 git clone git@gitlab.com:google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
 pip install . 
 ```
 
 Alternatively, you can clone the repo over HTTPS: 
-```shell script
+```shell
 git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
 cd ecmwf
 pip install . 
@@ -86,7 +86,7 @@ Invoke with `-h` or `--help` to see the full range of options.
 All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally choose to run the pipelines on Google Cloud Dataflow by selection the `DataflowRunner`.
 
 When working with GCP, it's recommended you set the project ID up front with the command:
-```shell script
+```shell
 gcloud config set project <your-id>
 ```
 
@@ -94,7 +94,7 @@ gcloud config set project <your-id>
 * `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
 
 Example run:
-```shell script
+```shell
 weather-mv -i gs://netcdf_file.nc \
   -o project.dataset_id.table_id \
   -t gs://temp_location  \
@@ -113,7 +113,7 @@ For a full list of how to configure the direct runner, please review
 
 
 Example run: 
-```shell script
+```shell
 weather-dl configs/seasonal_forecast_example_config.cfg \
   --runner DataflowRunner \
   --project $PROJECT \
@@ -127,7 +127,7 @@ For a full list of how to configure the dataflow pipeline, please review
 ## Monitoring
 
 When running Dataflow, you can track metrics through UI, or beta CLI commands:
-```shell script
+```shell
 JOBID=<enter job id here>
 gcloud beta dataflow metrics list $JOBID --source=user
 ```
