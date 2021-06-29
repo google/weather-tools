@@ -1,4 +1,4 @@
-[![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/master/pipeline.svg)](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
+[![Build Status](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/badges/main/pipeline.svg)](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
 [Documentation](https://google-pso.gitlab.io/ais/grid_intelligence_ai/ecmwf/)
 
 # ECMWF-pipeline
