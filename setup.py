@@ -20,11 +20,11 @@ setup(
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
     python_requires='>=3.7, <4',
-    install_requires=requirements('requirements.txt'),
+    install_requires=requirements('requirements/requirements.txt'),
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     extras_require={
-        'dev': requirements('dev_requirements.txt')
+        'dev': requirements('requirements/dev_requirements.txt')
     },
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',

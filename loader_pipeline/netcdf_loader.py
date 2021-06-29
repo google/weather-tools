@@ -11,6 +11,7 @@ import xarray as xr
 from google.cloud import bigquery
 import apache_beam as beam
 import apache_beam.metrics
+import apache_beam.io
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.io.gcp import gcsio
 
