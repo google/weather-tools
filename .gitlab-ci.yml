@@ -20,7 +20,13 @@ cache:
     - venv/
 
 before_script:
-  - python -V  # Print out python version for debugging
+  - python --version  # Print out python version for debugging
+  - apt update
+  - apt install software-properties-common -y
+  - add-apt-repository ppa:deadsnakes/ppa -y
+  - apt upgrade -y
+  - apt install python3.7 python3.7-dev -y
+  - python3.7 --version
   - pip install virtualenv
   - virtualenv venv
   - source venv/bin/activate
