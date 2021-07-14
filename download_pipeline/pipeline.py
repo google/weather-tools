@@ -9,7 +9,7 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions
 
 from .clients import CLIENTS, Client, FakeClient, logger as client_logger
 from .manifest import Manifest, Location, NoOpManifest
@@ -211,6 +211,12 @@ def run(argv: t.List[str], save_main_session: bool = True):
     store = None  # will default to using GcsIO()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
+
+    if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
+        max_num_workers = client.num_workers_per_key(
+            config.get('parameters', {}).get('dataset', "")) * config.get(
+            'parameters', {}).get('num_api_keys', 1)
+        pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
 
     if known_args.dry_run:
         client = FakeClient(config)
