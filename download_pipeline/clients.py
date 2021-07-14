@@ -33,9 +33,17 @@ class Client(abc.ABC):
         """Download from data source."""
         pass
 
+    @abc.abstractmethod
+    def num_workers_per_key(self, dataset: str) -> int:
+        """Specifies the number of workers to be used per api key for the dataset."""
+        pass
+
 
 class CdsClient(Client):
     """Cloud Data Store Client"""
+
+    """Name patterns of datasets that are hosted internally on CDS servers."""
+    cds_hosted_datasets = {'reanalysis-era'}
 
     def __init__(self, config: t.Dict) -> None:
         self.c = cdsapi.Client(
@@ -46,6 +54,16 @@ class CdsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, target: str, log_prepend: str = "") -> None:
         # TODO(b/171910744): implement log_prepend and more sophisticated CDS logging
         self.c.retrieve(dataset, selection, target)
+
+    def num_workers_per_key(self, dataset: str) -> int:
+        # CDS allows 3 requests per key for reanalysis data.
+        # For completed data, this should be 1 since that data is retrieved from
+        # Mars tape storage. See https://cds.climate.copernicus.eu/live/limits
+        # for up-to-date limits.
+        for internal_set in self.cds_hosted_datasets:
+            if dataset.startswith(internal_set):
+                return 3
+        return 1
 
 
 class MarsLogger(io.StringIO):
@@ -101,6 +119,10 @@ class MarsClient(Client):
         with MarsLogger(log_prepend):
             self.c.execute(req=selection, target=output)
 
+    def num_workers_per_key(self, dataset: str) -> int:
+        # Mars only allows 1 request per key since retrieval from tape is slow.
+        return 1
+
 
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file. """
@@ -112,6 +134,9 @@ class FakeClient(Client):
         logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
+
+    def num_workers_per_key(self, dataset: str) -> int:
+        return 1
 
 
 CLIENTS = collections.OrderedDict(

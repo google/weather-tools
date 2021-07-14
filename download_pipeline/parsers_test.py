@@ -357,6 +357,28 @@ class SubsectionsTest(unittest.TestCase):
         self.assertEqual(actual, {'parsers': {'a': 1, 'b': 2, '1': {'b': 3}}})
 
 
+class ApiKeyCountingTest(unittest.TestCase):
+    def test_no_keys(self):
+        config = {"parameters": {'a': 1, 'b': 2}, "parameters.1": {'b': 3}}
+
+        actual = parse_subsections(config)
+
+        self.assertEqual(actual, {'parameters': {'a': 1, 'b': 2, '1': {'b': 3}}})
+
+    def test_api_keys(self):
+        config = {"parameters": {'a': 1, 'b': 2},
+                  "parameters.param1": {'api_key': 'key1'},
+                  "parameters.param2": {'api_key': 'key2'}}
+
+        actual = parse_subsections(config)
+
+        self.assertEqual(actual,
+                         {'parameters': {'a': 1, 'b': 2,
+                                         'param1': {'api_key': 'key1'},
+                                         'param2': {'api_key': 'key2'},
+                                         'num_api_keys': 2}})
+
+
 class ProcessConfigTest(unittest.TestCase):
 
     def test_parse_config(self):

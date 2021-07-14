@@ -196,10 +196,16 @@ def use_date_as_directory(config: t.Dict):
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
-    """Interprets [section.subsection] as nested dictionaries in *.cfg files."""
+    """Interprets [section.subsection] as nested dictionaries in *.cfg files.
+
+    Also counts number of 'api_key' fields found.
+    """
     copy = cp.deepcopy(config)
+    num_api_keys = 0
     for key, val in copy.items():
         path = key.split('.')
+        if val.get('api_key', ''):
+            num_api_keys += 1
         runner = copy
         parent = {}
         p = None
@@ -213,7 +219,8 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     for_cleanup = [key for key, _ in copy.items() if '.' in key]
     for target in for_cleanup:
         del copy[target]
-
+    if num_api_keys:
+        copy['parameters']['num_api_keys'] = num_api_keys
     return copy
 
 
