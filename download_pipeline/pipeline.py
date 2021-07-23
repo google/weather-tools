@@ -5,16 +5,17 @@ import copy as cp
 import getpass
 import itertools
 import logging
+import os
 import tempfile
 import typing as t
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
 
 from .clients import CLIENTS, Client, FakeClient, logger as client_logger
-from .manifest import Manifest, Location, NoOpManifest
+from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, GcsStore
+from .stores import Store, TempFileStore, GcsStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def fetch_data(config: t.Dict,
             client.retrieve(dataset, selection, temp.name, log_prepend=target)
 
             # upload blob to gcs
-            logger.info(f'Uploading to GCS for {target}')
+            logger.info(f'Uploading to store for {target}')
             temp.seek(0)
             with store.open(target, 'wb') as dest:
                 while True:
@@ -161,7 +162,7 @@ def fetch_data(config: t.Dict,
                     if len(chunk) == 0:  # eof
                         break
                     dest.write(chunk)
-            logger.info(f'Upload to GCS complete for {target}')
+            logger.info(f'Upload to store complete for {target}')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -177,6 +178,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
+    parser.add_argument('-l', '--local-run', action='store_true', default=False,
+                        help="Run pipeline locally, downloads to local hard drive.")
     parser.add_argument('-m', '--manifest-location', type=Location, default='fs://downloader-manifest',
                         help="Location of the manifest. Either a Firestore collection URI "
                              "('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' "
@@ -223,6 +226,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
         store = TempFileStore('dry_run')
         config['parameters']['force_download'] = True
         manifest = NoOpManifest(Location('noop://dry-run'))
+
+    if known_args.local_run:
+        local_dir = '{}/local_run'.format(os.getcwd())
+        store = LocalFileStore(local_dir)
+        config['parameters']['force_download'] = True
+        pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
+        manifest = LocalManifest(Location(local_dir))
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
