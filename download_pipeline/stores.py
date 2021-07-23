@@ -58,6 +58,22 @@ class TempFileStore(Store):
         return os.path.exists(filename)
 
 
+class LocalFileStore(Store):
+    """Store data into local files."""
+
+    def __init__(self, directory: t.Optional[str] = None) -> None:
+        """Optionally specify the directory that contains all downloaded files."""
+        self.dir = directory
+        if self.dir and not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+
+    def open(self, filename: str, mode: str = 'r') -> t.IO:
+        return open('{}/{}'.format(self.dir, filename), mode)
+
+    def exists(self, filename: str) -> bool:
+        return os.path.exists('{}/{}'.format(self.dir, filename))
+
+
 class GcsStore(Store):
     """Store data into GCS."""
 
