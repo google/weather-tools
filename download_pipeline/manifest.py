@@ -4,6 +4,7 @@ import abc
 import collections
 import json
 import logging
+import os
 import time
 import traceback
 import typing as t
@@ -166,6 +167,27 @@ class GCSManifest(Manifest):
         """Writes the JSON data to a manifest."""
         with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
             json.dump(download_status._asdict(), gcs_file)
+            self.logger.info('Manifest written to.')
+            self.logger.debug(download_status)
+
+
+class LocalManifest(Manifest):
+    """Writes a JSON representation of the manifest to local file.
+
+    This is an append-only implementation, the latest value in the manifest
+    represents the current state of a download.
+    """
+
+    def __init__(self, location: Location) -> None:
+        super().__init__(Location('{}/manifest.json'.format(location)))
+        self.logger = logging.getLogger(LocalManifest.__name__)
+        if location and not os.path.exists(location):
+            os.makedirs(location)
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        """Writes the JSON data to a manifest."""
+        with open(self.location, 'a') as file:
+            json.dump(download_status._asdict(), file)
             self.logger.info('Manifest written to.')
             self.logger.debug(download_status)
 
