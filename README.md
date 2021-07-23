@@ -60,6 +60,8 @@ _Common options_:
 * `-d, --dry-run`: Run pipeline steps without _actually_ downloading or writing to cloud storage.
 * `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI 
     ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
+* `-l, --local-run`: Run locally and download to local hard drive. The data and manifest directory is set by default to '<$CWD>/local_run'.
+     The runner will be set to `DirectRunner`. The only other relevant option is the config and `--direct_num_workers`
 
 Invoke with `-h` or `--help` to see the full range of options.
 
