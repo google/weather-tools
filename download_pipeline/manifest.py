@@ -167,7 +167,7 @@ class GCSManifest(Manifest):
         """Writes the JSON data to a manifest."""
         with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
             json.dump(download_status._asdict(), gcs_file)
-            self.logger.info('Manifest written to.')
+            self.logger.debug('Manifest written to.')
             self.logger.debug(download_status)
 
 
@@ -188,7 +188,7 @@ class LocalManifest(Manifest):
         """Writes the JSON data to a manifest."""
         with open(self.location, 'a') as file:
             json.dump(download_status._asdict(), file)
-            self.logger.info('Manifest written to.')
+            self.logger.debug('Manifest written to.')
             self.logger.debug(download_status)
 
 
@@ -202,7 +202,7 @@ class MockManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         self.records.update({download_status.location: download_status})
-        self.logger.info('Manifest updated.')
+        self.logger.debug('Manifest updated.')
         self.logger.debug(download_status)
 
 
@@ -267,7 +267,7 @@ class FirestoreManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Update or create a download status record."""
-        self.logger.info('Updating Firestore Manifest.')
+        self.logger.debug('Updating Firestore Manifest.')
 
         db = self.get_db()
 
