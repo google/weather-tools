@@ -72,7 +72,8 @@ class Manifest(abc.ABC):
 
             # ...
 
-            # on error, will indicate download was a `failure`. By default, it will record download as a `success`.
+            # on error, will record the download as a `failure` before propagating the error.  By default, it will
+            # record download as a `success`.
         ```
     """
 
@@ -117,7 +118,7 @@ class Manifest(abc.ABC):
         self.start = time.time()
         self._update(self.status)
 
-    def __exit__(self, exc_type, exc_inst, exc_tb) -> bool:
+    def __exit__(self, exc_type, exc_inst, exc_tb) -> None:
         """Record end status of a transaction as either 'success' or 'failure'."""
         end = time.time()
         if exc_type is None:
@@ -138,9 +139,6 @@ class Manifest(abc.ABC):
             download_duration=int(end - self.start)
         )
         self._update(self.status)
-        # A truthy return value from this function will not propagate exceptions
-        # to the caller. https://docs.python.org/3/reference/datamodel.html#object.__exit__
-        return status == 'failure'
 
     def transact(self, selection: t.Dict, location: str, user: str) -> 'Manifest':
         """Create a download transaction."""
