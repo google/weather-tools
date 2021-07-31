@@ -87,14 +87,22 @@ class PreparePartitionTest(unittest.TestCase):
         actual = list(prepare_partition(config, manifest=self.dummy_manifest))
 
         self.assertListEqual(actual, [
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1'),
-             'selection': {**config['selection'], **{'year': ['2015'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2', api_url='UUUU2'),
-             'selection': {**config['selection'], **{'year': ['2015'], 'month': ['2']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3', api_url='UUUU3'),
-             'selection': {**config['selection'], **{'year': ['2016'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1'),
-             'selection': {**config['selection'], **{'year': ['2016'], 'month': ['2']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
+                                       api_url='UUUU1'),
+             'selection': {**config['selection'],
+                           **{'year': ['2015'], 'month': ['1']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2',
+                                       api_url='UUUU2'),
+             'selection': {**config['selection'],
+                           **{'year': ['2015'], 'month': ['2']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3',
+                                       api_url='UUUU3'),
+             'selection': {**config['selection'],
+                           **{'year': ['2016'], 'month': ['1']}}},
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
+                                       api_url='UUUU1'),
+             'selection': {**config['selection'],
+                           **{'year': ['2016'], 'month': ['2']}}},
         ])
 
     def test_prepare_partition_records_download_status_to_manifest(self):
@@ -112,10 +120,11 @@ class PreparePartitionTest(unittest.TestCase):
 
         list(prepare_partition(config, manifest=self.dummy_manifest))
 
-        self.assertListEqual([d.selection for d in self.dummy_manifest.records.values()], [
-            {**config['selection'], **{'year': [str(i)]}}
-            for i in range(2015, 2021)
-        ])
+        self.assertListEqual(
+            [d.selection for d in self.dummy_manifest.records.values()], [
+                {**config['selection'], **{'year': [str(i)]}}
+                for i in range(2015, 2021)
+            ])
 
         self.assertTrue(
             all([d.status == 'scheduled' for d in self.dummy_manifest.records.values()])
@@ -145,7 +154,8 @@ class FetchDataTest(unittest.TestCase):
             }
         }
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
+        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest,
+                   store=InMemoryStore())
 
         mock_gcs_file.assert_called_with(
             'gs://weather-dl-unittest/download-01-12.nc',
@@ -175,7 +185,8 @@ class FetchDataTest(unittest.TestCase):
             }
         }
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
+        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest,
+                   store=InMemoryStore())
 
         self.assertDictContainsSubset(dict(
             selection=config['selection'],
@@ -187,7 +198,8 @@ class FetchDataTest(unittest.TestCase):
 
     @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve, mock_gcs_file):
+    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve,
+                                                            mock_gcs_file):
         config = {
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
@@ -206,22 +218,30 @@ class FetchDataTest(unittest.TestCase):
         error = IOError("We don't have enough permissions to download this.")
         mock_retrieve.side_effect = error
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
+        with self.assertRaises(IOError) as e:
+            fetch_data(
+                config,
+                client=CdsClient(config),
+                manifest=self.dummy_manifest,
+                store=InMemoryStore()
+            )
 
-        actual = list(self.dummy_manifest.records.values())[0]._asdict()
+            actual = list(self.dummy_manifest.records.values())[0]._asdict()
 
-        self.assertDictContainsSubset(dict(
-            selection=config['selection'],
-            location='gs://weather-dl-unittest/download-01-12.nc',
-            status='failure',
-            user='unknown',
-        ), actual)
+            self.assertDictContainsSubset(dict(
+                selection=config['selection'],
+                location='gs://weather-dl-unittest/download-01-12.nc',
+                status='failure',
+                user='unknown',
+            ), actual)
 
-        self.assertIn(error.args[0], actual['error'])
+            self.assertIn(error.args[0], actual['error'])
+            self.assertIn(error.args[0], e.exception.args[0])
 
     @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve, mock_gcs_file):
+    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve,
+                                                       mock_gcs_file):
         config = {
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
@@ -240,17 +260,24 @@ class FetchDataTest(unittest.TestCase):
         error = IOError("Can't open gcs file.")
         mock_gcs_file.side_effect = error
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest, store=InMemoryStore())
+        with self.assertRaises(IOError) as e:
+            fetch_data(
+                config,
+                client=CdsClient(config),
+                manifest=self.dummy_manifest,
+                store=InMemoryStore()
+            )
 
-        actual = list(self.dummy_manifest.records.values())[0]._asdict()
-        self.assertDictContainsSubset(dict(
-            selection=config['selection'],
-            location='gs://weather-dl-unittest/download-01-12.nc',
-            status='failure',
-            user='unknown',
-        ), actual)
+            actual = list(self.dummy_manifest.records.values())[0]._asdict()
+            self.assertDictContainsSubset(dict(
+                selection=config['selection'],
+                location='gs://weather-dl-unittest/download-01-12.nc',
+                status='failure',
+                user='unknown',
+            ), actual)
 
-        self.assertIn(error.args[0], actual['error'])
+            self.assertIn(error.args[0], actual['error'])
+            self.assertIn(error.args[0], e.exception.args[0])
 
 
 class SkipPartitionsTest(unittest.TestCase):
