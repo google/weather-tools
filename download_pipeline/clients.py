@@ -1,20 +1,16 @@
 """ECMWF Downloader Clients."""
 
 import abc
-import cdsapi
 import collections
 import contextlib
 import io
+import json
 import logging
 import os
-import json
-
 import typing as t
 
-import apache_beam as beam
+import cdsapi
 from ecmwfapi import ECMWFService
-
-logger = logging.getLogger(__name__)
 
 
 class Client(abc.ABC):
@@ -23,13 +19,14 @@ class Client(abc.ABC):
     Defines allowed operations on clients.
     """
 
-    @abc.abstractmethod
-    def __init__(self, config: t.Dict) -> None:
+    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
-        pass
+        self.config = config
+        self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
+        self.logger.setLevel(level)
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         """Download from data source."""
         pass
 
@@ -46,13 +43,17 @@ class CdsClient(Client):
     cds_hosted_datasets = {'reanalysis-era'}
 
     def __init__(self, config: t.Dict) -> None:
+        super().__init__(config)
         self.c = cdsapi.Client(
             url=config['parameters'].get('api_url', os.environ.get('CDSAPI_URL')),
             key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
+            debug_callback=self.logger.debug,
+            info_callback=self.logger.info,
+            warning_callback=self.logger.warning,
+            error_callback=self.logger.error,
         )
 
-    def retrieve(self, dataset: str, selection: t.Dict, target: str, log_prepend: str = "") -> None:
-        # TODO(b/171910744): implement log_prepend and more sophisticated CDS logging
+    def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
         self.c.retrieve(dataset, selection, target)
 
     def num_workers_per_key(self, dataset: str) -> int:
@@ -66,29 +67,23 @@ class CdsClient(Client):
         return 1
 
 
-class MarsLogger(io.StringIO):
-    """Special logger to redirect ecmwf api's stdout to dataflow logs."""
+class StdoutLogger(io.StringIO):
+    """Special logger to redirect stdout to logs."""
 
-    def __init__(self, prepend=""):
+    def __init__(self, logger_: t.Optional[logging.Logger] = None, level: int = logging.INFO):
         super().__init__()
+        if logger_ is None:
+            logger_ = logging.getLogger(__name__)
+        self.logger = logger_
+        self.level = level
         self._redirector = contextlib.redirect_stdout(self)
-        self.prepend = prepend
 
     def log(self, msg) -> None:
-        """Prepends current file being retrieved and monitors for special ECMWF msgs."""
-
-        logger.info(self.prepend + " - " + msg)
-
-        if msg == "Request is active":
-            logger.info("Incrementing count of Active ECMWF Requests")
-            beam.metrics.Metrics.counter('weather-dl', 'Active ECMWF Requests').inc()
-        elif msg == "Done.":
-            logger.info("Incrementing count of Active ECMWF Requests")
-            beam.metrics.Metrics.counter('weather-dl', 'Complete ECMWF Requests').inc()
+        self.logger.log(self.level, msg)
 
     def write(self, msg):
         if msg and not msg.isspace():
-            self.log(msg)
+            self.logger.info(msg)
 
     def __enter__(self):
         self._redirector.__enter__()
@@ -103,20 +98,18 @@ class MarsClient(Client):
     """MARS Client"""
 
     def __init__(self, config: t.Dict) -> None:
+        super().__init__(config)
+        self.c = ECMWFService(
+            "mars",
+            key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
+            url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
+            email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
+            log=self.logger.log,
+            verbose=True
+        )
 
-        with MarsLogger() as logger:
-            self.c = ECMWFService(
-                "mars",
-                key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
-                url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
-                email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
-                log=logger.log,
-                verbose=True
-            )
-
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
-
-        with MarsLogger(log_prepend):
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        with StdoutLogger(self.logger, level=logging.DEBUG):
             self.c.execute(req=selection, target=output)
 
     def num_workers_per_key(self, dataset: str) -> int:
@@ -127,11 +120,8 @@ class MarsClient(Client):
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file. """
 
-    def __init__(self, config: t.Dict) -> None:
-        self.config = config
-
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, log_prepend: str = "") -> None:
-        logger.debug(f'Downloading {dataset} to {output}')
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        self.logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
 
