@@ -237,6 +237,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
-                | 'Create' >> beam.Create(prepare_partition(config, manifest=manifest, store=store))
+                | 'Create' >> beam.Create([config])
+                | 'Partition' >> beam.FlatMap(prepare_partition, manifest=manifest, store=store)
                 | 'FetchData' >> beam.Map(fetch_data, client=client, manifest=manifest, store=store)
         )
