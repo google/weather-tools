@@ -12,7 +12,7 @@ import typing as t
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
 
-from .clients import CLIENTS, Client, FakeClient, logger as client_logger
+from .clients import CLIENTS, Client, FakeClient
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
 from .stores import Store, TempFileStore, GcsStore, LocalFileStore
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     level = 40 - verbosity * 10
-    logger.setLevel(level)
-    client_logger.setLevel(level)
+    logging.getLogger(__package__).setLevel(level)
+    logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 def prepare_target_name(config: t.Dict) -> str:
@@ -123,12 +123,12 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[S
         if skip_partition(out, store):
             continue
 
-        logger.info(f'Created partition [{index}]')
-
         selection = copy
         location = prepare_target_name(out)
         user = out['parameters'].get('user_id', 'unknown')
         manifest.schedule(selection, location, user)
+
+        logger.info(f'Created partition [{index}] – {location}')
 
         yield out
 
@@ -151,7 +151,7 @@ def fetch_data(config: t.Dict,
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'Fetching data for {target}')
-            client.retrieve(dataset, selection, temp.name, log_prepend=target)
+            client.retrieve(dataset, selection, temp.name)
 
             # upload blob to gcs
             logger.info(f'Uploading to store for {target}')
@@ -187,7 +187,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     config = {}
     with known_args.config as f:

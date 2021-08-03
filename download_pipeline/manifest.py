@@ -82,6 +82,8 @@ class Manifest(abc.ABC):
         self.location = location
         self.start = 0
         self.status = None
+        self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
+        self.logger.setLevel(logging.INFO)
 
     def schedule(self, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
@@ -157,10 +159,6 @@ class GCSManifest(Manifest):
     represents the current state of a download.
     """
 
-    def __init__(self, location: Location) -> None:
-        super().__init__(location)
-        self.logger = logging.getLogger(GCSManifest.__name__)
-
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
@@ -178,7 +176,6 @@ class LocalManifest(Manifest):
 
     def __init__(self, location: Location) -> None:
         super().__init__(Location('{}/manifest.json'.format(location)))
-        self.logger = logging.getLogger(LocalManifest.__name__)
         if location and not os.path.exists(location):
             os.makedirs(location)
 
@@ -196,7 +193,6 @@ class MockManifest(Manifest):
     def __init__(self, location: Location) -> None:
         super().__init__(location)
         self.records = {}
-        self.logger = logging.getLogger(MockManifest.__name__)
 
     def _update(self, download_status: DownloadStatus) -> None:
         self.records.update({download_status.location: download_status})
@@ -231,10 +227,6 @@ class FirestoreManifest(Manifest):
 
     Where `[<name>]` indicates a collection and `<name> {...}` indicates a document.
     """
-
-    def __init__(self, location: Location) -> None:
-        super().__init__(location)
-        self.logger = logging.getLogger(FirestoreManifest.__name__)
 
     def get_db(self) -> firestore.firestore.Client:
         """Acquire a firestore client, initializing the firebase app if necessary.
