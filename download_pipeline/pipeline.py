@@ -230,7 +230,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     if known_args.local_run:
         local_dir = '{}/local_run'.format(os.getcwd())
         store = LocalFileStore(local_dir)
-        config['parameters']['force_download'] = True
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
 
