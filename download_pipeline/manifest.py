@@ -40,6 +40,9 @@ class DownloadStatus(t.NamedTuple):
     """Identifier for the user running the download."""
     user: str
 
+    """Time in milliseconds since epoch of when download was scheduled."""
+    download_scheduled_time: t.Optional[int]
+
     """Time in milliseconds since epoch."""
     download_finished_time: t.Optional[int]
 
@@ -84,12 +87,15 @@ class Manifest(abc.ABC):
         self.status = None
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(logging.INFO)
+        self.scheduled_times = {}
 
     def schedule(self, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
 
         'scheduled' jobs occur before 'in-progress', 'success' or 'finished'.
         """
+        scheduled_time = int(time.time())
+        self.scheduled_times[location] = scheduled_time
         self._update(
             DownloadStatus(
                 selection=selection,
@@ -97,6 +103,7 @@ class Manifest(abc.ABC):
                 user=user,
                 status='scheduled',
                 error=None,
+                download_scheduled_time=scheduled_time,
                 download_finished_time=None,
                 download_duration=None
             )
@@ -111,6 +118,7 @@ class Manifest(abc.ABC):
             user=user,
             status='in-progress',
             error=None,
+            download_scheduled_time=self.scheduled_times.pop(location, None),
             download_finished_time=None,
             download_duration=None
         )
@@ -137,6 +145,7 @@ class Manifest(abc.ABC):
             user=self.status.user,
             status=status,
             error=error,
+            download_scheduled_time=self.status.download_scheduled_time,
             download_finished_time=int(end),
             download_duration=int(end - self.start)
         )
