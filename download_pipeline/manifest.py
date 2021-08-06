@@ -168,21 +168,29 @@ class GCSManifest(Manifest):
 
 
 class LocalManifest(Manifest):
-    """Writes a JSON representation of the manifest to local file.
-
-    This is an append-only implementation, the latest value in the manifest
-    represents the current state of a download.
-    """
+    """Writes a JSON representation of the manifest to local file."""
 
     def __init__(self, location: Location) -> None:
         super().__init__(Location('{}/manifest.json'.format(location)))
         if location and not os.path.exists(location):
             os.makedirs(location)
 
+        # If the file is empty, it should start out as an empty JSON object.
+        if not os.path.exists(self.location) or os.path.getsize(self.location) == 0:
+            with open(self.location, 'w') as file:
+                json.dump({}, file)
+
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
-        with open(self.location, 'a') as file:
-            json.dump(download_status._asdict(), file)
+        assert os.path.exists(self.location), f'{self.location} must exist!'
+        with open(self.location, 'r') as file:
+            manifest = json.load(file)
+
+        status = download_status._asdict()
+        manifest[status['location']] = status
+
+        with open(self.location, 'w') as file:
+            json.dump(manifest, file)
             self.logger.debug('Manifest written to.')
             self.logger.debug(download_status)
 
@@ -319,12 +327,14 @@ class FirestoreManifest(Manifest):
 Users can choose their preferred manifest implementation by via the protocol of the Manifest Location.
 The protocol corresponds to the keys of this ordered dictionary.
 
+If no protocol is specified, we assume the user wants to write to the local file system.
 If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse_manifest_location`.
 """
-MANIFESTS = collections.OrderedDict(
-    fs=FirestoreManifest,
-    gs=GCSManifest
-)
+MANIFESTS = collections.OrderedDict({
+    'fs': FirestoreManifest,
+    'gs': GCSManifest,
+    '': LocalManifest,
+})
 
 if __name__ == '__main__':
     import doctest
