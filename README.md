@@ -136,4 +136,26 @@ gcloud beta dataflow metrics list $JOBID --source=user
 
 You can also view how your ECMWF MARS API jobs are listed active or queued by logging in [here](https://apps.ecmwf.int/mars-activity/).
 
+### `bin/download-status`
 
+We've provided a simple tool for getting a course measure of download state: `bin/download-status`. Provided a bucket
+prefix, it will output the counts of the statuses in that prefix.
+
+```shell
+usage: download-status [-h] [-m MANIFEST_LOCATION] prefix
+
+Check statuses of `weather-dl` downloads.
+
+positional arguments:
+  prefix                Prefix of the location string (e.g. a cloud bucket); used to filter which statuses to check.
+```
+_Options_
+* `-m`, `--manifest-location`: Specify the location to a manifest; this is the same as `weather-dl`. Only supports 
+  Firebase Manifests.
+
+Example usage:
+```shell
+bin/download-status "gs://ecmwf-downloads/hres/world/
+...
+The current download statuses for 'gs://ecmwf-downloads/hres/world/' are: Counter({'scheduled': 245, 'success': 116, 'in-progress': 4, 'failure': 1}).
+```

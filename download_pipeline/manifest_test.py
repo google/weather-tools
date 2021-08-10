@@ -21,6 +21,7 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
         user=random.choice(['user', 'alice', 'bob', 'root']),
         download_finished_time=random.choice([None] + [int(time.time())]),
+        download_scheduled_time=random.choice([None] + [int(time.time())]),
         download_duration=random.choice([None] + [random.randint(2, 137 ** 4)])
     )
 
