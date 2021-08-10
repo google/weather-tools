@@ -13,6 +13,7 @@ from urllib.parse import urlparse, parse_qsl
 import firebase_admin
 from apache_beam.io.gcp import gcsio
 from firebase_admin import firestore
+from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
 Location = t.NewType('Location', str)
@@ -245,7 +246,7 @@ class FirestoreManifest(Manifest):
     Where `[<name>]` indicates a collection and `<name> {...}` indicates a document.
     """
 
-    def get_db(self) -> firestore.firestore.Client:
+    def _get_db(self) -> firestore.firestore.Client:
         """Acquire a firestore client, initializing the firebase app if necessary.
 
         Will attempt to get the db client five times. If it's still unsuccessful, a
@@ -276,28 +277,28 @@ class FirestoreManifest(Manifest):
         """Update or create a download status record."""
         self.logger.debug('Updating Firestore Manifest.')
 
-        db = self.get_db()
-
-        # Get user-defined collection for manifest.
-        collection = self.get_firestore_config().get('collection', 'downloader-manifest')
-
-        # Get info for the rest of the document path
+        # Get info for the document path
         parsed_location = urlparse(download_status.location)
-        scheme = parsed_location.scheme or 'default'
+        scheme = parsed_location.scheme or 'local'
         doc_id = parsed_location.path[1:].replace('/', '--')
 
         # Update document with download status
         download_doc_ref = (
-            db.collection(collection)
-              .document(scheme)
-              .collection(parsed_location.netloc)
-              .document(doc_id)
+            self.root_document_for_store(scheme)
+                .collection(parsed_location.netloc)
+                .document(doc_id)
         )
         result: WriteResult = download_doc_ref.set(download_status._asdict())
 
         self.logger.debug(f'Firestore manifest updated. '
                           f'update_time={result.update_time}, '
                           f'filename={download_status.location}.')
+
+    def root_document_for_store(self, store_scheme: str) -> DocumentReference:
+        """Get the root manifest document given the user's config and current document's storage location."""
+        # Get user-defined collection for manifest.
+        root_collection = self.get_firestore_config().get('collection', 'downloader-manifest')
+        return self._get_db().collection(root_collection).document(store_scheme)
 
     def get_firestore_config(self) -> t.Dict:
         """Parse firestore Location format: 'fs://<collection-name>?projectId=<project-id>'
