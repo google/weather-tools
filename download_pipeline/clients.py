@@ -83,7 +83,7 @@ class StdoutLogger(io.StringIO):
 
     def write(self, msg):
         if msg and not msg.isspace():
-            self.logger.info(msg)
+            self.logger.log(self.level, msg)
 
     def __enter__(self):
         self._redirector.__enter__()
@@ -104,7 +104,7 @@ class MarsClient(Client):
             key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
             url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
             email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
-            log=self.logger.log,
+            log=self.logger.debug,
             verbose=True
         )
 
