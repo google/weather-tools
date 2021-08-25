@@ -1,6 +1,5 @@
 """Parsers for ECMWF download configuration."""
 
-import ast
 import configparser
 import copy as cp
 import datetime
@@ -225,8 +224,9 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     return copy
 
 
-def process_config(config: t.Dict) -> t.Dict:
-    """Read the config and prompt the user if it is improperly structured."""
+def process_config(file: io.StringIO) -> t.Dict:
+    """Read the config file and prompt the user if it is improperly structured."""
+    config = parse_config(file)
 
     def require(condition: bool, message: str) -> None:
         """A assert-like helper that wraps text and throws a `ValueError`."""
@@ -309,31 +309,4 @@ def process_config(config: t.Dict) -> t.Dict:
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
 
-    # Parse selection literals
-    for key, val in selection.items():
-        if type(val) is not list:
-            val = [val]
-        config['selection'][key] = [try_parse_literal(v) for v in val]
-
     return config
-
-
-def try_parse_literal(lit: str):
-    """Parse a selection value as a python literal or as a datetime.date."""
-    try:
-        return ast.literal_eval(lit)
-    except (SyntaxError, ValueError):
-        pass
-
-    try:
-        return date(lit)
-    except ValueError:
-        pass
-
-    # treat value as string literal.
-    return lit
-
-
-def parse(file: t.IO) -> t.Dict:
-    """Top level parser for configuration files"""
-    return process_config(parse_config(file))

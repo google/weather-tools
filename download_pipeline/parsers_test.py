@@ -381,9 +381,6 @@ class ApiKeyCountingTest(unittest.TestCase):
 
 class ProcessConfigTest(unittest.TestCase):
 
-    def parse(self, file):
-        return process_config(parse_config(file))
-
     def test_parse_config(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
@@ -391,7 +388,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertEqual("Unable to parse configuration file.", ctx.exception.args[0])
 
@@ -403,7 +400,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'parameters' section required in configuration file.",
@@ -417,7 +414,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertNotIn(
             "'parameters' section required in configuration file.",
@@ -433,7 +430,7 @@ class ProcessConfigTest(unittest.TestCase):
                     target=bar
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'parameters' section requires a 'target_path' key.",
@@ -449,7 +446,7 @@ class ProcessConfigTest(unittest.TestCase):
                 target_template=bar
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'target_template' is deprecated, use 'target_path' instead.",
@@ -465,7 +462,7 @@ class ProcessConfigTest(unittest.TestCase):
                     target_path
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertNotIn(
             "'parameters' section requires a 'target_path' key.",
@@ -498,7 +495,7 @@ class ProcessConfigTest(unittest.TestCase):
                         2020
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "All 'partition_keys' must appear in the 'selection' section.",
@@ -530,7 +527,7 @@ class ProcessConfigTest(unittest.TestCase):
                     2020
                 """
         ) as f:
-            config = self.parse(f)
+            config = process_config(f)
             self.assertTrue(bool(config))
 
     def test_treats_partition_keys_as_list(self):
@@ -548,7 +545,7 @@ class ProcessConfigTest(unittest.TestCase):
                     03
                 """
         ) as f:
-            config = self.parse(f)
+            config = process_config(f)
             params = config.get('parameters', {})
             self.assertIsInstance(params['partition_keys'], list)
 
@@ -578,7 +575,7 @@ class ProcessConfigTest(unittest.TestCase):
                     2020
                 """
         ) as f:
-            config = self.parse(f)
+            config = process_config(f)
             self.assertIn('parameters', config)
 
     def test_mismatched_template_partition_keys(self):
@@ -608,7 +605,7 @@ class ProcessConfigTest(unittest.TestCase):
                         2020
                     """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'target_path' has 1 replacements. Expected 2",
@@ -630,7 +627,7 @@ class ProcessConfigTest(unittest.TestCase):
                 date=2017-01-01/to/2017-01-01
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'target_path' has 1 replacements. Expected 0",
@@ -651,7 +648,7 @@ class ProcessConfigTest(unittest.TestCase):
                 date=2017-01-01/to/2017-01-01
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'append_date_dirs' set to true, but creating the date directory hierarchy",
@@ -673,7 +670,7 @@ class ProcessConfigTest(unittest.TestCase):
                 pressure=500
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'append_date_dirs' set to true, but creating the date directory hierarchy",
@@ -694,7 +691,7 @@ class ProcessConfigTest(unittest.TestCase):
             date=2017-01-01/to/2017-01-01
             """
         ) as f:
-            config = self.parse(f)
+            config = process_config(f)
             self.assertEqual(config['parameters']['target_path'], "somewhere")
 
     def test_client_not_set(self):
@@ -711,7 +708,7 @@ class ProcessConfigTest(unittest.TestCase):
                     1969
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "'parameters' section requires a 'client' key.",
@@ -732,44 +729,11 @@ class ProcessConfigTest(unittest.TestCase):
                     1969
                 """
             ) as f:
-                self.parse(f)
+                process_config(f)
 
         self.assertIn(
             "Invalid 'client' parameter.",
             ctx.exception.args[0])
-
-    def test_parses_selection_literal_values(self):
-        with io.StringIO(
-            """
-            [parameters]
-            dataset=foo
-            client=cds
-            target_path=somewhere/{}.nc
-            partition_keys=
-                date
-            [selection]
-            date=2017-01-01/to/2017-01-03
-            other_date=2021-100/to/2021-103
-            pressure_levels=100/200/300/400/500
-            params=125.128/127.128
-            other_params=myparam/myotherparam
-            """
-        ) as f:
-            config = self.parse(f)
-            self.assertEqual(config['selection']['pressure_levels'], [100, 200, 300, 400, 500])
-            self.assertEqual(config['selection']['date'], [
-                datetime.date(year=2017, month=1, day=1),
-                datetime.date(year=2017, month=1, day=2),
-                datetime.date(year=2017, month=1, day=3),
-            ])
-            self.assertEqual(config['selection']['other_date'], [
-                datetime.date(year=2021, month=4, day=10),
-                datetime.date(year=2021, month=4, day=11),
-                datetime.date(year=2021, month=4, day=12),
-                datetime.date(year=2021, month=4, day=13),
-            ])
-            self.assertEqual(config['selection']['params'], [125.128, 127.128])
-            self.assertEqual(config['selection']['other_params'], ["myparam", "myotherparam"])
 
 
 if __name__ == '__main__':
