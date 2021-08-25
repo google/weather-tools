@@ -1,6 +1,7 @@
 """Primary ECMWF Downloader Workflow."""
 
 import argparse
+import collections
 import copy as cp
 import getpass
 import itertools
@@ -14,7 +15,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, 
 
 from .clients import CLIENTS, Client, FakeClient
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
-from .parsers import process_config, parse_manifest_location, use_date_as_directory
+from .parsers import parse_manifest_location, use_date_as_directory, parse
 from .stores import Store, TempFileStore, GcsStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
@@ -38,9 +39,15 @@ def prepare_target_name(config: t.Dict) -> str:
             ''.join(['/'.join(date_value for date_value in config['selection']['date'][0].split('-'))]))
         logger.debug(f'target_path adjusted for date: {target_path}')
         partition_keys.remove('date')
-    target_path = "{}{}".format(target_path, target_filename)
-    partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = target_path.format(*partition_key_values)
+    target_path = f"{target_path}{target_filename}"
+    partition_key_values = collections.OrderedDict({key: config['selection'][key][0] for key in partition_keys})
+
+    # Interpolate target path template, preferring named key values, defaulting to positional values.
+    try:
+        target = target_path.format(**partition_key_values)
+    except IndexError:
+        target = target_path.format(*partition_key_values.values())
+
     logger.debug(f'target name for partition: {target}')
 
     return target
@@ -191,7 +198,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     config = {}
     with known_args.config as f:
-        config = process_config(f)
+        config = parse(f)
 
     config['parameters']['force_download'] = known_args.force_download
     config['parameters']['user_id'] = getpass.getuser()

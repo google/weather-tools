@@ -3,6 +3,7 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
+from download_pipeline.parsers import process_config
 from download_pipeline.stores import InMemoryStore
 from .clients import CdsClient
 from .manifest import MockManifest, Location
@@ -446,6 +447,41 @@ class PrepareTargetNameTest(unittest.TestCase):
         }
         target_name = prepare_target_name(config)
         self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
+
+    def test_target_path_named_with_formatting(self):
+        config = {
+            'parameters': {
+                'client': 'cds',
+                'partition_keys': ['pressure_level'],
+                'target_path': 'mydata/pressure-level-{pressure_level:04d}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+            }
+        }
+        config = process_config(config)
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "mydata/pressure-level-0500.nc")
+
+    def test_target_path_named_with_date_formatting(self):
+        config = {
+            'parameters': {
+                'client': 'cds',
+                'partition_keys': ['date', 'pressure_level'],
+                'target_path': 'mydata/{date:%Y/%m/%d}/pressure-level-{pressure_level:04d}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'date': '2021-230',  # use the alternative date format option afforded by ECMWF.
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+            }
+        }
+        config = process_config(config)
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "mydata/2021/08/18/pressure-level-0500.nc")
 
 
 if __name__ == '__main__':
