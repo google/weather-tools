@@ -132,4 +132,5 @@ class FakeClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient,
     mars=MarsClient,
+    fake=FakeClient,
 )

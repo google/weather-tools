@@ -337,6 +337,27 @@ class ParseConfigTest(unittest.TestCase):
                 self.assertNotIn('\n', val)
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
+    def test_cfg_parses_parameter_subsections(self):
+        with io.StringIO(
+                """
+                [parameters]
+                api_url=https://google.com/
+                [parameters.alice]
+                api_key=123
+                [parameters.bob]
+                api_key=456
+                """
+        ) as f:
+            actual = parse_config(f)
+            self.assertEqual(actual, {
+                'parameters': {
+                    'api_url': 'https://google.com/',
+                    'alice': {'api_key': '123'},
+                    'bob': {'api_key': '456'},
+                    'num_api_keys': 2,
+                },
+            })
+
 
 class HelpersTest(unittest.TestCase):
 
