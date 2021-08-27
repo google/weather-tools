@@ -4,12 +4,11 @@ from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
 from download_pipeline.stores import InMemoryStore
-from .clients import CdsClient
 from .manifest import MockManifest, Location
 from .pipeline import fetch_data
 from .pipeline import prepare_partition
-from .pipeline import skip_partition
 from .pipeline import prepare_target_name
+from .pipeline import skip_partition
 
 
 class PreparePartitionTest(unittest.TestCase):
@@ -154,7 +153,7 @@ class FetchDataTest(unittest.TestCase):
             }
         }
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest,
+        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
                    store=InMemoryStore())
 
         mock_gcs_file.assert_called_with(
@@ -185,7 +184,7 @@ class FetchDataTest(unittest.TestCase):
             }
         }
 
-        fetch_data(config, client=CdsClient(config), manifest=self.dummy_manifest,
+        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
                    store=InMemoryStore())
 
         self.assertDictContainsSubset(dict(
@@ -221,7 +220,7 @@ class FetchDataTest(unittest.TestCase):
         with self.assertRaises(IOError) as e:
             fetch_data(
                 config,
-                client=CdsClient(config),
+                client_name='cds',
                 manifest=self.dummy_manifest,
                 store=InMemoryStore()
             )
@@ -263,7 +262,7 @@ class FetchDataTest(unittest.TestCase):
         with self.assertRaises(IOError) as e:
             fetch_data(
                 config,
-                client=CdsClient(config),
+                client_name='cds',
                 manifest=self.dummy_manifest,
                 store=InMemoryStore()
             )
