@@ -12,7 +12,7 @@ import typing as t
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
 
-from .clients import CLIENTS, Client, FakeClient
+from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
 from .stores import Store, TempFileStore, GcsStore, LocalFileStore
@@ -135,7 +135,7 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[S
 
 def fetch_data(config: t.Dict,
                *,
-               client: Client,
+               client_name: str,
                manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
                store: t.Optional[Store] = None) -> None:
     """
@@ -147,6 +147,7 @@ def fetch_data(config: t.Dict,
     target = prepare_target_name(config)
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')
+    client = CLIENTS[client_name](config)
 
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
@@ -210,19 +211,19 @@ def run(argv: t.List[str], save_main_session: bool = True):
         project = pipeline_options.get_all_options().get('project')
         manifest_location += f'{start_char}projectId={project}'
 
-    client = CLIENTS[config['parameters']['client']](config)
+    client_name = config['parameters']['client']
     store = None  # will default to using GcsIO()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
 
     if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
-        max_num_workers = client.num_workers_per_key(
+        max_num_workers = CLIENTS[client_name](config).num_workers_per_key(
             config.get('parameters', {}).get('dataset', "")) * config.get(
             'parameters', {}).get('num_api_keys', 1)
         pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
 
     if known_args.dry_run:
-        client = FakeClient(config)
+        client_name = 'fake'
         store = TempFileStore('dry_run')
         config['parameters']['force_download'] = True
         manifest = NoOpManifest(Location('noop://dry-run'))
@@ -238,5 +239,5 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 p
                 | 'Create' >> beam.Create([config])
                 | 'Partition' >> beam.FlatMap(prepare_partition, manifest=manifest, store=store)
-                | 'FetchData' >> beam.Map(fetch_data, client=client, manifest=manifest, store=store)
+                | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
         )
