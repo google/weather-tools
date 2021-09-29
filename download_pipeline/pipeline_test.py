@@ -6,7 +6,7 @@ from unittest.mock import patch, ANY, MagicMock
 from download_pipeline.stores import InMemoryStore
 from .manifest import MockManifest, Location
 from .pipeline import fetch_data
-from .pipeline import prepare_partition
+from .pipeline import assemble_partition_config, prepare_partitions
 from .pipeline import prepare_target_name
 from .pipeline import skip_partition
 
@@ -29,7 +29,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = list(prepare_partition(config, manifest=self.dummy_manifest))
+        actual = self.create_partition_configs(config)
 
         self.assertListEqual([d['selection'] for d in actual], [
             {**config['selection'], **{'year': [str(i)]}}
@@ -49,7 +49,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = list(prepare_partition(config, manifest=self.dummy_manifest))
+        actual = self.create_partition_configs(config)
 
         self.assertListEqual([d['selection'] for d in actual], [
             {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
@@ -83,7 +83,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = list(prepare_partition(config, manifest=self.dummy_manifest))
+        actual = self.create_partition_configs(config)
 
         self.assertListEqual(actual, [
             {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
@@ -117,7 +117,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        list(prepare_partition(config, manifest=self.dummy_manifest))
+        self.create_partition_configs(config)
 
         self.assertListEqual(
             [d.selection for d in self.dummy_manifest.records.values()], [
@@ -128,6 +128,13 @@ class PreparePartitionTest(unittest.TestCase):
         self.assertTrue(
             all([d.status == 'scheduled' for d in self.dummy_manifest.records.values()])
         )
+
+    def create_partition_configs(self, config):
+        partition_list = prepare_partitions(config)
+        return [
+            assemble_partition_config(p, config, manifest=self.dummy_manifest)
+            for p in partition_list
+                ]
 
 
 class FetchDataTest(unittest.TestCase):
