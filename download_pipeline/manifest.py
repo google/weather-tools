@@ -5,6 +5,7 @@ import collections
 import json
 import logging
 import os
+import threading
 import time
 import traceback
 import typing as t
@@ -180,6 +181,8 @@ class GCSManifest(Manifest):
 class LocalManifest(Manifest):
     """Writes a JSON representation of the manifest to local file."""
 
+    _lock = threading.Lock()
+
     def __init__(self, location: Location) -> None:
         super().__init__(Location('{}/manifest.json'.format(location)))
         if location and not os.path.exists(location):
@@ -193,16 +196,17 @@ class LocalManifest(Manifest):
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         assert os.path.exists(self.location), f'{self.location} must exist!'
-        with open(self.location, 'r') as file:
-            manifest = json.load(file)
+        with LocalManifest._lock:
+            with open(self.location, 'r') as file:
+                manifest = json.load(file)
 
-        status = download_status._asdict()
-        manifest[status['location']] = status
+            status = download_status._asdict()
+            manifest[status['location']] = status
 
-        with open(self.location, 'w') as file:
-            json.dump(manifest, file)
-            self.logger.debug('Manifest written to.')
-            self.logger.debug(download_status)
+            with open(self.location, 'w') as file:
+                json.dump(manifest, file)
+                self.logger.debug('Manifest written to.')
+                self.logger.debug(download_status)
 
 
 class MockManifest(Manifest):
