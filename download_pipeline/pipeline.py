@@ -63,10 +63,8 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
     return False
 
 
-def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[Store] = None) -> t.Iterator[t.Dict]:
+def prepare_partitions(config: t.Dict) -> t.Iterator[t.Tuple]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
-    if store is None:
-        store = GcsStore()
     partition_keys = config['parameters']['partition_keys']
     selection = config.get('selection', {})
 
@@ -95,9 +93,23 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[S
     extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
     params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
 
+    return zip(fan_out, params_loop)
+
+
+def assemble_partition_config(partition: t.Tuple,
+                              config: t.Dict,
+                              manifest: Manifest,
+                              store: t.Optional[Store] = None) -> t.Dict:
+    """
+    Assemble the configuration for a single partition based on one of the
+    partitions prepared by `prepare_partitions`.
+    """
+    if store is None:
+        store = GcsStore()
     # Output a config dictionary, overriding the range of values for
     # each key with the partition instance in 'selection'.
-    # Continuing the example, the selection section would be:
+    # Continuing the example from prepare_partitions, the selection section
+    # would be:
     #   { 'foo': ..., 'year': ['2020'], 'month': ['01'], ... }
     #   { 'foo': ..., 'year': ['2020'], 'month': ['02'], ... }
     #   { 'foo': ..., 'year': ['2020'], 'month': ['03'], ... }
@@ -113,24 +125,26 @@ def prepare_partition(config: t.Dict, *, manifest: Manifest, store: t.Optional[S
     #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
     #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
     #   ...
-    for index, (option, params) in enumerate(zip(fan_out, params_loop)):
-        copy = cp.deepcopy(selection)
-        out = cp.deepcopy(config)
-        for idx, key in enumerate(partition_keys):
-            copy[key] = [option[idx]]
-        out['selection'] = copy
-        out['parameters'].update(params)
-        if skip_partition(out, store):
-            continue
+    partition_keys = config['parameters']['partition_keys']
+    selection = config.get('selection', {})
 
-        selection = copy
-        location = prepare_target_name(out)
-        user = out['parameters'].get('user_id', 'unknown')
-        manifest.schedule(selection, location, user)
+    option, params = partition
+    copy = cp.deepcopy(selection)
+    out = cp.deepcopy(config)
+    for idx, key in enumerate(partition_keys):
+        copy[key] = [option[idx]]
+    out['selection'] = copy
+    out['parameters'].update(params)
+    if skip_partition(out, store):
+        return {}
 
-        logger.info(f'Created partition [{index}] – {location}')
+    selection = copy
+    location = prepare_target_name(out)
+    user = out['parameters'].get('user_id', 'unknown')
+    manifest.schedule(selection, location, user)
 
-        yield out
+    logger.info(f'Created partition {location}')
+    return out
 
 
 def fetch_data(config: t.Dict,
@@ -141,6 +155,8 @@ def fetch_data(config: t.Dict,
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
+    if not config:
+        return
     if store is None:
         store = GcsStore()
     dataset = config['parameters'].get('dataset', '')
@@ -238,6 +254,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create([config])
-                | 'Partition' >> beam.FlatMap(prepare_partition, manifest=manifest, store=store)
+                | 'Prepare' >> beam.FlatMap(prepare_partitions)
+                # Shuffling here prevents beam from fusing all steps,
+                # which would result in utilizing only a single worker.
+                | 'Shuffle' >> beam.Reshuffle()
+                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest, store=store)
                 | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
         )
