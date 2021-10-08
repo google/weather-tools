@@ -31,7 +31,7 @@ class Client(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def num_workers_per_key(self, dataset: str) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
@@ -56,7 +56,7 @@ class CdsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
         self.c.retrieve(dataset, selection, target)
 
-    def num_workers_per_key(self, dataset: str) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         # CDS allows 3 requests per key for reanalysis data.
         # For completed data, this should be 1 since that data is retrieved from
         # Mars tape storage. See https://cds.climate.copernicus.eu/live/limits
@@ -112,7 +112,7 @@ class MarsClient(Client):
         with StdoutLogger(self.logger, level=logging.DEBUG):
             self.c.execute(req=selection, target=output)
 
-    def num_workers_per_key(self, dataset: str) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         # Mars only allows 1 request per key since retrieval from tape is slow.
         return 1
 
@@ -125,7 +125,7 @@ class FakeClient(Client):
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
 
-    def num_workers_per_key(self, dataset: str) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         return 1
 
 
