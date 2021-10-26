@@ -2,21 +2,22 @@
 
 import argparse
 import logging
-import numpy as np
-import pandas as pd
+import shutil
 import tempfile
 import typing as t
-import xarray as xr
 
-from google.cloud import bigquery
 import apache_beam as beam
 import apache_beam.metrics
-import apache_beam.io
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+import numpy as np
+import pandas as pd
+import xarray as xr
+from apache_beam.io import WriteToBigQuery, BigQueryDisposition
+from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp import gcsio
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+from google.cloud import bigquery
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
-BLOCK_SIZE = 16384
 
 
 def configure_logger(verbosity: int) -> None:
@@ -27,24 +28,23 @@ def configure_logger(verbosity: int) -> None:
 def open_dataset(uri: str) -> xr.Dataset:
     """Open the netcdf at 'uri' and return its data as an xr.Dataset."""
     try:
-        # Copy netcdf object from GCS to local file so xarray can open it with
-        # mmap instead of copying the entire thing into memory.
-        with gcsio.GcsIO().open(uri, 'rb') as source_file:
+        # Copy netcdf object from cloud storage, like GCS, to local file so
+        # xarray can open it with mmap instead of copying the entire thing
+        # into memory.
+        with FileSystems().open(uri) as source_file:
             with tempfile.NamedTemporaryFile() as dest_file:
-                while True:
-                    chunk = source_file.read(BLOCK_SIZE)
-                    if len(chunk) == 0:  # eof
-                        break
-                    dest_file.write(chunk)
+                shutil.copyfileobj(source_file, dest_file)
+                dest_file.flush()
                 dest_file.seek(0)
-
                 xr_dataset: xr.Dataset = xr.open_dataset(dest_file)
+
+                logging.info(f'opened dataset size: {xr_dataset.nbytes}')
 
                 beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
                 return xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
-        logging.error(f'Unable to open file from Google Cloud Storage: {e}')
+        logging.error(f'Unable to open file from Cloud Storage: {e}')
         raise
 
 
@@ -90,16 +90,32 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
-def extract_rows_as_dicts(uri: str,
-                          import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Generator[t.Dict, None, None]:
+def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None) -> xr.Dataset:
+    """If the user specifies target fields in the dataset, create a schema only from those fields."""
+
+    # If there are no restrictions on data vars, include the whole dataset.
+    if not data_vars:
+        logging.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
+        return ds
+
+    assert all([dv in ds.data_vars for dv in data_vars]), 'Target variable must be in original dataset.'
+
+    dropped_ds = ds.drop_vars([v for v in ds.data_vars if v not in data_vars])
+    logging.info(f'target-only dataset size: {dropped_ds.nbytes}')
+
+    return dropped_ds
+
+
+def extract_rows(uri: str, *,
+                 target_data_vars: t.Optional[t.List[str]] = None) -> t.Iterable[t.Tuple[t.Dict, xr.Dataset]]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logging.info('Extracting netcdf rows as dicts')
-    data_ds: xr.Dataset = open_dataset(uri)
+    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), target_data_vars)
 
     # We start by extracting the index columns and their values, then we add in the data variable
     # columns and values.
     index_columns = data_ds.dims
-    # Iterate through all values of the index columns.
+
     for index_values in data_ds.coords.to_index():
         # Create Name-Value map for index columns. Result looks like:
         # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00'}
@@ -107,27 +123,31 @@ def extract_rows_as_dicts(uri: str,
 
         # Use those index values to select a Dataset containing one row of data.
         row_ds = data_ds.loc[index_dict]
+        yield index_dict, row_ds.compute()
 
-        # Create a Name-Value map for data columns. Result looks like:
-        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
-        vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
 
-        # Combine index and variable portions into a single row dict, and add import timestamp.
-        row = index_dict
-        row.update(vars_dict)
-        row[DATA_IMPORT_TIME_COLUMN] = import_time
+def convert_to_dicts(index_dict: t.Dict, row_ds: xr.Dataset, *,
+                     import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Iterable[t.Dict]:
+    # Create a Name-Value map for data columns. Result looks like:
+    # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
+    vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
 
-        # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
-        # TODO(dlowell): find a better solution.
-        for key, value in row.items():
-            row[key] = to_json_serializable_type(value)
+    # Combine index and variable portions into a single row dict, and add import timestamp.
+    row = index_dict
+    row.update(vars_dict)
+    row[DATA_IMPORT_TIME_COLUMN] = import_time
 
-        # 'row' ends up looking like:
-        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
+    # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
+    # TODO(dlowell): find a better solution.
+    for key, value in row.items():
+        row[key] = to_json_serializable_type(value)
 
-        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-        yield row
+    # 'row' ends up looking like:
+    # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+    #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
+
+    beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+    yield row
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -136,6 +156,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
         prog='weather-mv',
         description='Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.'
     )
+    parser.add_argument('variables', metavar='variables', type=str, nargs='+', default=list(),
+                        help='Target variables for the BigQuery schema. Default: will import all data variables as '
+                             'columns.')
     parser.add_argument('-i', '--uris', type=str, required=True,
                         help="URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-")
     parser.add_argument('-o', '--output_table', type=str, required=True,
@@ -164,7 +187,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
     all_uris = gcsio.GcsIO().list_prefix(known_args.uris)
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
-    ds: xr.Dataset = open_dataset(next(iter(all_uris)))
+    ds: xr.Dataset = _only_target_vars(open_dataset(next(iter(all_uris))), known_args.variables)
+
     table_schema = dataset_to_table_schema(ds)
 
     pipeline_options = PipelineOptions(pipeline_args)
@@ -185,13 +209,16 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create(all_uris.keys())
-                | 'ExtractRows' >> beam.FlatMap(extract_rows_as_dicts, import_time=known_args.import_time)
-                | 'WriteToBigQuery' >> beam.io.WriteToBigQuery(
+                | 'ExtractRows' >> beam.FlatMap(extract_rows, known_args.variables)
+                # Shuffle to prevent operator fusion and encourage multiple workers.
+                | 'Shuffle' >> beam.Reshuffle()
+                | 'ConvertRows' >> beam.FlatMapTuple(convert_to_dicts, import_time=known_args.import_time)
+                | 'WriteToBigQuery' >> WriteToBigQuery(
                       project=table.project,
                       dataset=table.dataset_id,
                       table=table.table_id,
-                      write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
-                      create_disposition=beam.io.BigQueryDisposition.CREATE_NEVER,
+                      write_disposition=BigQueryDisposition.WRITE_APPEND,
+                      create_disposition=BigQueryDisposition.CREATE_NEVER,
                       custom_gcs_temp_location=known_args.temp_location)
         )
 
