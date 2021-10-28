@@ -36,7 +36,7 @@ def open_dataset(uri: str) -> xr.Dataset:
                 shutil.copyfileobj(source_file, dest_file)
                 dest_file.flush()
                 dest_file.seek(0)
-                xr_dataset: xr.Dataset = xr.open_dataset(dest_file)
+                xr_dataset: xr.Dataset = xr.open_dataset(dest_file.name)
 
                 logging.info(f'opened dataset size: {xr_dataset.nbytes}')
 
@@ -107,10 +107,14 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
 
 def extract_rows(uri: str, *,
-                 target_data_vars: t.Optional[t.List[str]] = None) -> t.Iterable[t.Tuple[t.Dict, xr.Dataset]]:
+                 variables: t.Optional[t.List[str]] = None) -> t.Iterable[t.Tuple[t.Dict, xr.Dataset]]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
+    if not variables:
+        logging.warning('extract_rows: no variables specified.')
+        return
+
     logging.info('Extracting netcdf rows as dicts')
-    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), target_data_vars)
+    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
 
     # We start by extracting the index columns and their values, then we add in the data variable
     # columns and values.
@@ -126,8 +130,15 @@ def extract_rows(uri: str, *,
         yield index_dict, row_ds.compute()
 
 
-def convert_to_dicts(index_dict: t.Dict, row_ds: xr.Dataset, *,
+def convert_to_dicts(index_dict: t.Optional[t.Dict] = None,
+                     row_ds: t.Optional[xr.Dataset] = None,
+                     *,
                      import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Iterable[t.Dict]:
+    # Inputs must not be none.
+    if index_dict is None or row_ds is None:
+        logging.warning('convert_to_dicts: must specify arguments!')
+        return
+
     # Create a Name-Value map for data columns. Result looks like:
     # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
     vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
@@ -209,7 +220,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create(all_uris.keys())
-                | 'ExtractRows' >> beam.FlatMap(extract_rows, known_args.variables)
+                | 'ExtractRows' >> beam.FlatMap(extract_rows, variables=known_args.variables)
                 # Shuffle to prevent operator fusion and encourage multiple workers.
                 | 'Shuffle' >> beam.Reshuffle()
                 | 'ConvertRows' >> beam.FlatMapTuple(convert_to_dicts, import_time=known_args.import_time)
