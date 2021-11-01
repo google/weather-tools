@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-"""Script that displays status counts of `weather-dl` downloads."""
 import argparse
 import itertools
 import sys
@@ -8,9 +6,9 @@ from collections import Counter
 from urllib.parse import urlparse
 
 try:
-    from download_pipeline.manifest import Location, MANIFESTS, Manifest
+    from .download_pipeline.manifest import Location, MANIFESTS, Manifest
 except ModuleNotFoundError:
-    print('\033[93mTool requires `ecmwf-pipelines` to be installed! Please run `pip install .`\033[0m')
+    print('\033[93mTool requires `ecmwf-pipelines` to be installed!`\033[0m')
     sys.exit(1)
 
 # Cycle of characters used in display progress
@@ -49,7 +47,3 @@ def main(args: t.List[str], *, manifests: t.Mapping[str, Manifest.__class__] = M
 
     print(f"\033[1m\033[92mThe current download statuses for '{args.prefix}' are: {counter}.\033[0m")
     return counter
-
-
-if __name__ == '__main__':
-    main(sys.argv[1:])

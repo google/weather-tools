@@ -3,7 +3,7 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
-from download_pipeline.stores import InMemoryStore
+from .stores import InMemoryStore
 from .manifest import MockManifest, Location
 from .pipeline import fetch_data
 from .pipeline import assemble_partition_config, prepare_partitions
@@ -142,7 +142,7 @@ class FetchDataTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('dummy-manifest'))
 
-    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve, mock_gcs_file):
         config = {
@@ -173,7 +173,7 @@ class FetchDataTest(unittest.TestCase):
             config['selection'],
             ANY)
 
-    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
         config = {
@@ -202,7 +202,7 @@ class FetchDataTest(unittest.TestCase):
             user='unknown',
         ), list(self.dummy_manifest.records.values())[0]._asdict())
 
-    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve,
                                                             mock_gcs_file):
@@ -244,7 +244,7 @@ class FetchDataTest(unittest.TestCase):
             self.assertIn(error.args[0], actual['error'])
             self.assertIn(error.args[0], e.exception.args[0])
 
-    @patch('download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve,
                                                        mock_gcs_file):
