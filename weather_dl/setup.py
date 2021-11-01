@@ -22,7 +22,5 @@ setup(
     author_email='anthromets-ecmwf@google.com',
     url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
     description='A tool to download weather data.',
-    long_description=open('README.md', 'r').read(),
-    long_description_content_type='text/markdown',
     install_requires=base_requirements,
 )
