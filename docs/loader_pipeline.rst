@@ -1,4 +1,4 @@
-netcdf\_loader package
+loader_pipeline package
 =======================
 
 Submodules
@@ -7,7 +7,7 @@ Submodules
 loader_pipeline.netcdf_loader module
 ---------------------------------------------------
 
-.. automodule:: loader_pipeline.netcdf_loader
+.. automodule:: weather_mv.loader_pipeline.netcdf_loader
    :members:
    :undoc-members:
    :show-inheritance:
@@ -16,7 +16,7 @@ loader_pipeline.netcdf_loader module
 Module contents
 ---------------
 
-.. automodule:: netcdf_loader
+.. automodule:: loader_pipeline
    :members:
    :undoc-members:
    :show-inheritance:

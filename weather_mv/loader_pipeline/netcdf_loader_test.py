@@ -5,7 +5,7 @@ import pandas as pd
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
-from loader_pipeline.netcdf_loader import dataset_to_table_schema, _only_target_vars
+from weather_mv.loader_pipeline.netcdf_loader import dataset_to_table_schema, _only_target_vars
 
 
 class SchemaCreationTests(unittest.TestCase):

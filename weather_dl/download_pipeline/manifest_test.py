@@ -6,7 +6,7 @@ import time
 import typing as t
 import unittest
 
-from download_pipeline.manifest import LocalManifest, Location, DownloadStatus
+from .manifest import LocalManifest, Location, DownloadStatus
 
 
 def rand_str(max_len=32):

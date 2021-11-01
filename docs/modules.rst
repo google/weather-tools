@@ -4,6 +4,6 @@ Modules
 .. toctree::
    :maxdepth: 4
 
-   ecmwf_pipeline
-   netcdf_loader
+   download_pipeline
+   loader_pipeline
 

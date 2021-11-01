@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Script that displays status counts of `weather-dl` downloads."""
+
+import sys
+
+from weather_dl.download_status import main
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

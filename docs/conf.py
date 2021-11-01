@@ -12,14 +12,15 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../download_pipeline'))
-sys.path.insert(1, os.path.abspath('../loader_pipeline'))
+
+sys.path.insert(0, os.path.abspath('../weather_dl'))
+sys.path.insert(1, os.path.abspath('../weather_mv'))
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'ECMWF-Pipeline'
-copyright = '2020-2021, Anthromets'
+copyright = '2020, Google'
 author = 'Anthromets'
 
 # The full version, including alpha/beta/rc tags

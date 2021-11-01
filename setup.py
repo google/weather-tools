@@ -1,13 +1,35 @@
 from setuptools import setup, find_packages
 
+weather_dl_requirements = [
+    "cdsapi",
+    "ecmwf-api-client",
+    "apache-beam[gcp]",
+    "numpy>=1.19.1",
+    "pandas",
+    "xarray",
+    "requests>=2.24.0",
+    "firebase-admin>=5.0.0",
+    "google-cloud-datastore>=1.15.0,<2",  # For compatability with apache-beam[gcp]
+    "google-cloud-firestore",
+    "urllib3==1.25.11",
+    "pyparsing==2.4.2",  # Fix http2lib auth breakage
 
-def requirements(path=''):
-    try:
-        with open(path, 'r') as f:
-            return [line.strip() for line in f.readlines()]
-    except FileNotFoundError:
-        return []
+]
 
+weather_mv_requirements = [
+    "apache-beam[gcp]",
+    "numpy",
+    "pandas",
+    "xarray",
+    "google-cloud-bigquery",
+    "pyparsing==2.4.2",  # Fix http2lib auth breakage
+]
+
+test_requirements = [
+    "pytype",
+    "flake8",
+    "pytest",
+]
 
 setup(
     name='ecmwf-pipeline',
@@ -20,11 +42,14 @@ setup(
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
     python_requires='>=3.7, <4',
-    install_requires=requirements('requirements/requirements.txt'),
+    install_requires=['apache-beam[gcp]'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
+    scripts=['weather_dl/weather-dl', 'weather_dl/download-status', 'weather_mv/weather-mv'],
+    tests_require=test_requirements,
     extras_require={
-        'dev': requirements('requirements/dev_requirements.txt')
+        'dev': ['tox', 'sphinx', 'recommonmark'],
+        'test': weather_dl_requirements + weather_mv_requirements + test_requirements,
     },
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',
