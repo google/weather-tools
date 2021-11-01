@@ -1,5 +1,5 @@
 download_pipeline package
-=======================
+=========================
 
 Submodules
 ----------
@@ -7,7 +7,7 @@ Submodules
 download_pipeline.clients module
 ------------------------------------------------
 
-.. automodule:: download_pipeline.clients
+.. automodule:: weather_dl.download_pipeline.clients
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ download_pipeline.clients module
 download_pipeline.parsers module
 ------------------------------------------------
 
-.. automodule:: download_pipeline.parsers
+.. automodule:: weather_dl.download_pipeline.parsers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ download_pipeline.parsers module
 download_pipeline.pipeline module
 -------------------------------------------------
 
-.. automodule:: download_pipeline.pipeline
+.. automodule:: weather_dl.download_pipeline.pipeline
    :members:
    :undoc-members:
    :show-inheritance:

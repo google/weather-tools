@@ -3,8 +3,9 @@ import random
 import string
 import unittest
 
-from download_pipeline.manifest import FirestoreManifest
-from download_status import main
+from .download_pipeline.manifest import FirestoreManifest
+
+from weather_dl.download_status import main
 
 
 class FakeCollectionReference:

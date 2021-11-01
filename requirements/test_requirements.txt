@@ -1,3 +1,0 @@
-pytype
-flake8
-pytest

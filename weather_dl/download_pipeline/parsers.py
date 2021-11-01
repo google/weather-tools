@@ -196,7 +196,7 @@ def use_date_as_directory(config: t.Dict):
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
-    """Interprets [section.subsection] as nested dictionaries in *.cfg files.
+    """Interprets [section.subsection] as nested dictionaries in `.cfg` files.
 
     Also counts number of 'api_key' fields found.
     """

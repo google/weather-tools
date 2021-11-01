@@ -3,62 +3,56 @@
 ## Project Structure 
     
 ```
+bin/  # Tools for development
+
+configs/  # Save example and general purpose configs.
+
 docs/  # Sphinx documentation, deployed to GitLab pages.
 
-ecmwf_pipeline/  # Main python package, other packages can come later.
+weather_dl/  # Main python package, other pipelines can come later.
     __init__.py  
-    ...  
-    <module>.py
-    <module>_test.py  # We'll follow this naming pattern for tests.
+    download_pipeline/  # sources for pipeline
+        __init__.py 
+        ...  
+        <module>.py
+        <module>_test.py  # We'll follow this naming pattern for tests.
+    weather-dl  # script to run pipeline
+    setup.py  # packages sources for execution in beam worker
+              # pipeline-specific requirements managed here
     
-setup.py  # Project is pip-installable, requirements managed here.
-
-notebooks/  # Explorations / investigations.
+setup.py  # Project is pip-installable, project requirements managed here.
 ```
 
 ## Developer Installation
 
- - Set up a Python development environment. We recommend *pyenv* and *virtualenv*. There are plenty of guides on the Internet for setting up your environment depending on your Operating System and choice of package manager.
+- Set up a Python development environment. We recommend *pyenv* and *virtualenv*. There are plenty of guides on the Internet for setting up your environment depending on your Operating System and choice of package manager.
 
- - Use Python version 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
+- Use Python version 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
 
- - Clone the repo and install dependencies.
+- Clone the repo and install dependencies.
 
-```shell
-git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
-cd ecmwf
-pip install -e ."[dev]" --use-feature=2020-resolver
-```
+  ```shell
+  # clone with HTTPS
+  git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
+  # close with SSH
+  git clone git@gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git 
+  cd ecmwf
+  pip install -e ."[dev]"
+  ```
 
- - The `--use-feature=2020-resolver` flag resolves install version conflicts among firestore dependencies. It's only needed until `pip`'s dependency resolution algorithm is upgraded.
+- Visit [our documentation on ECMWF Configuration](Configuration.md) to be able to connect to ECMWF and retrieve data.
 
- - Visit [our documentation on ECMWF Configuration](Configuration.md) to be able to connect to ECMWF and retrieve data.
+- Install `gcloud`, the Google Cloud CLI following these [instructions](https://cloud.google.com/sdk/docs/install).
 
- - Install `gcloud`, the Google Cloud CLI following these [instructions](https://cloud.google.com/sdk/docs/install).
+- Run `gcloud auth application-default login`. Make sure your account has *write* permissions to the storage bucket and the permissions to create a Dataflow job.
 
- - Run `gcloud auth application-default login`. Make sure your account has write permissions to the storage bucket and the permissions to create a Dataflow job.
+- Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
- - Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
-
- - Add a post-push hook to your local client.
-
-```
-cp bin/post-push .git/hooks/
-```
-
-### Upgrades
-
-From time to time, the primary or development dependencies may change. When this occurs, it's safest to update your 
-local dependencies like so: 
-
-```shell
-pip install -r requirements.txt --force-reinstall --upgrade
-pip install -e ."[dev]"  # this updates the local wheel of the specific versions of the project.
-```
-
-Additionally, when testing pipelines end-to-end, it's recommend to re-install the packages, despite them being installed
-in editable mode. So, if you've made a code change and want to test it in a direct runner or dataflow, please run
-`pip install -e .` before the run.
+- Add a post-push hook to your local client.
+  
+  ```
+  cp bin/post-push .git/hooks/
+  ```
 
 ## Testing
 
