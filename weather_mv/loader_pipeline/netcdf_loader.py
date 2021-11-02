@@ -22,7 +22,7 @@ DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40-verbosity*10), format='%(asctime)-15s %(message)s')
+    logging.basicConfig(level=(40 - verbosity * 10), format='%(asctime)-15s %(message)s')
 
 
 def open_dataset(uri: str) -> xr.Dataset:
@@ -107,14 +107,16 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
 
 def extract_rows(uri: str, *,
-                 variables: t.Optional[t.List[str]] = None) -> t.Iterable[t.Tuple[t.Dict, xr.Dataset]]:
+                 variables: t.Optional[t.List[str]] = None,
+                 area: t.Optional[t.List[int]] = None,
+                 import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Iterable[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    if not variables:
-        logging.warning('extract_rows: no variables specified.')
-        return
-
     logging.info('Extracting netcdf rows as dicts')
     data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
+
+    if area:
+        n, w, s, e = area
+        data_ds = data_ds.sel(latitude=slice(s, n), longitude=slice(w, e))
 
     # We start by extracting the index columns and their values, then we add in the data variable
     # columns and values.
@@ -127,38 +129,27 @@ def extract_rows(uri: str, *,
 
         # Use those index values to select a Dataset containing one row of data.
         row_ds = data_ds.loc[index_dict]
-        yield index_dict, row_ds.compute()
 
+        # Create a Name-Value map for data columns. Result looks like:
+        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
+        vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
 
-def convert_to_dicts(index_dict: t.Optional[t.Dict] = None,
-                     row_ds: t.Optional[xr.Dataset] = None,
-                     *,
-                     import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Iterable[t.Dict]:
-    # Inputs must not be none.
-    if index_dict is None or row_ds is None:
-        logging.warning('convert_to_dicts: must specify arguments!')
-        return
+        # Combine index and variable portions into a single row dict, and add import timestamp.
+        row = index_dict
+        row.update(vars_dict)
+        row[DATA_IMPORT_TIME_COLUMN] = import_time
 
-    # Create a Name-Value map for data columns. Result looks like:
-    # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
-    vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
+        # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
+        # TODO(dlowell): find a better solution.
+        for key, value in row.items():
+            row[key] = to_json_serializable_type(value)
 
-    # Combine index and variable portions into a single row dict, and add import timestamp.
-    row = index_dict
-    row.update(vars_dict)
-    row[DATA_IMPORT_TIME_COLUMN] = import_time
+        # 'row' ends up looking like:
+        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
 
-    # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
-    # TODO(dlowell): find a better solution.
-    for key, value in row.items():
-        row[key] = to_json_serializable_type(value)
-
-    # 'row' ends up looking like:
-    # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-    #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
-
-    beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-    yield row
+        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+        yield row
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -167,9 +158,11 @@ def run(argv: t.List[str], save_main_session: bool = True):
         prog='weather-mv',
         description='Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.'
     )
-    parser.add_argument('variables', metavar='variables', type=str, nargs='+', default=list(),
+    parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                         help='Target variables for the BigQuery schema. Default: will import all data variables as '
                              'columns.')
+    parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
+                        help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('-i', '--uris', type=str, required=True,
                         help="URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-")
     parser.add_argument('-o', '--output_table', type=str, required=True,
@@ -186,6 +179,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
+    if known_args.area:
+        assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
     # temp_location in known_args is passed to beam.io.WriteToBigQuery.
     # If the pipeline is run using the DataflowRunner, temp_location
     # must also be in pipeline_args.
@@ -220,17 +215,18 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create(all_uris.keys())
-                | 'ExtractRows' >> beam.FlatMap(extract_rows, variables=known_args.variables)
-                # Shuffle to prevent operator fusion and encourage multiple workers.
-                | 'Shuffle' >> beam.Reshuffle()
-                | 'ConvertRows' >> beam.FlatMapTuple(convert_to_dicts, import_time=known_args.import_time)
+                | 'ExtractRows' >> beam.FlatMap(
+                    extract_rows,
+                    variables=known_args.variables,
+                    area=known_args.area,
+                    import_time=known_args.import_time)
                 | 'WriteToBigQuery' >> WriteToBigQuery(
-                      project=table.project,
-                      dataset=table.dataset_id,
-                      table=table.table_id,
-                      write_disposition=BigQueryDisposition.WRITE_APPEND,
-                      create_disposition=BigQueryDisposition.CREATE_NEVER,
-                      custom_gcs_temp_location=known_args.temp_location)
+                    project=table.project,
+                    dataset=table.dataset_id,
+                    table=table.table_id,
+                    write_disposition=BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=BigQueryDisposition.CREATE_NEVER,
+                    custom_gcs_temp_location=known_args.temp_location)
         )
 
     logging.info('Pipeline is finished.')
