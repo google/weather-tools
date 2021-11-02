@@ -1,0 +1,3 @@
+global-exclude *_test.py
+include README.md
+exclude download_status*.py
