@@ -1,0 +1,2 @@
+global-exclude *_test.py
+include README.md
