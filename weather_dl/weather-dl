@@ -24,6 +24,7 @@ if __name__ == '__main__':
         # Re-load sys.path
         import site
         from importlib import reload
+
         reload(site)
 
         # Re-attempt import. If this fails, the user probably has an older version of
@@ -38,6 +39,7 @@ if __name__ == '__main__':
         cli()
     else:
         with tempfile.TemporaryDirectory() as tmpdir:
+            original_dir = os.getcwd()
 
             # Convert subpackage to a tarball
             os.chdir(site_pkg)
@@ -45,11 +47,15 @@ if __name__ == '__main__':
                 f'{sys.executable} ./setup.py -q sdist --dist-dir {tmpdir}'.split(),
             )
 
+            os.chdir(original_dir)
+
             # Set tarball as extra packages for Beam.
             pkg_archive = glob.glob(os.path.join(tmpdir, '*.tar.gz'))[0]
 
             with tarfile.open(pkg_archive, 'r') as tar:
-                py_files_in_tar = [f for f in tar.getnames() if f.endswith('.py')]
-                assert len(py_files_in_tar) > 0, 'extra_package must include python files!'
+                assert any([f.endswith('.py') for f in tar.getnames()]), 'extra_package must include python files!'
+
+            # cleanup memory to prevent pickling error.
+            tar = None
 
             cli(['--extra_package', pkg_archive])
