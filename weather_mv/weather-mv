@@ -56,5 +56,6 @@ if __name__ == '__main__':
 
             # cleanup memory to prevent pickling error.
             tar = None
+            weather_mv = None
 
             cli(['--extra_package', pkg_archive])
