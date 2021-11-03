@@ -1,6 +1,7 @@
 """Pipeline for reflecting lots of NetCDF objects into a BigQuery table."""
 
 import argparse
+import datetime
 import logging
 import shutil
 import tempfile
@@ -59,16 +60,22 @@ def map_dtype_to_sql_type(var_type: np.dtype) -> str:
     raise ValueError(f"Unknown mapping from '{var_type}' to SQL type")
 
 
-def dataset_to_table_schema(ds: xr.Dataset) -> t.List:
+def dataset_to_table_schema(ds: xr.Dataset) -> t.List[bigquery.SchemaField]:
     """Returns a BigQuery table schema able to store the data in 'ds'."""
-    fields = []
-    for column in ds.variables.keys():
-        if ds.variables[column].size != 0:
-            var_type = ds.variables[column].dtype
-            field = bigquery.SchemaField(column, map_dtype_to_sql_type(var_type), mode="REQUIRED")
-            fields.append(field)
-        else:
-            raise ValueError(f"Column '{column}' of Dataset has no values")
+    # Get the columns and data types for all variables in the dataframe
+    columns = [
+        (str(col), map_dtype_to_sql_type(ds.variables[col].dtype))
+        for col in ds.variables.keys() if ds.variables[col].size != 0
+    ]
+
+    return to_table_schema(columns)
+
+
+def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.SchemaField]:
+    fields = [
+        bigquery.SchemaField(column, var_type, mode="REQUIRED")
+        for column, var_type in columns
+    ]
 
     # Add an extra column for recording import time.
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
@@ -85,6 +92,19 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
             return value.isoformat()
         # We assume here that naive timestamps are in UTC timezone.
         return value.tz_localize(tz='UTC').isoformat()
+    elif type(value) is str:
+        # Assume strings are ISO format timestamps...
+        try:
+            time = datetime.datetime.fromisoformat(value)
+        except ValueError:
+            # ... if they are not, assume serialization is already correct.
+            return value
+
+        # We use a string timestamp representation.
+        if time.tzname():
+            return value.isoformat()
+        # We assume here that naive timestamps are in UTC timezone.
+        return value.astimezome(tz=datetime.timezone.utc).isoformat()
     elif type(value) == np.float32 or type(value) == np.float64:
         return float(value)
     return value
@@ -109,7 +129,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: pd.Timestamp = pd.Timestamp(0)) -> t.Iterable[t.Dict]:
+                 import_time: str = datetime.datetime.utcfromtimestamp(0).isoformat()) -> t.Iterable[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logging.info('Extracting netcdf rows as dicts')
     data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
@@ -117,6 +137,7 @@ def extract_rows(uri: str, *,
     if area:
         n, w, s, e = area
         data_ds = data_ds.sel(latitude=slice(s, n), longitude=slice(w, e))
+        logging.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
     # We start by extracting the index columns and their values, then we add in the data variable
     # columns and values.
@@ -139,7 +160,7 @@ def extract_rows(uri: str, *,
         row.update(vars_dict)
         row[DATA_IMPORT_TIME_COLUMN] = import_time
 
-        # Workaround for Beam being unable to serialize pd.Timestamp and np.float32 to JSON.
+        # Workaround for Beam being unable to serialize pd.Timestamp, iso-format strings, and np.float32 to JSON.
         # TODO(dlowell): find a better solution.
         for key, value in row.items():
             row[key] = to_json_serializable_type(value)
@@ -171,9 +192,11 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('-t', '--temp_location', type=str, required=True,
                         help=("Cloud Storage path for temporary files. Must be a valid Cloud Storage URL"
                               ", beginning with gs://"))
-    parser.add_argument('--import_time', type=pd.Timestamp, default=pd.Timestamp.now(tz="UTC"),
+    parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
+    parser.add_argument('--infer_schema', action='store_true', default=False,
+                        help='Download one file in the URI pattern and infer a schema from that file. Default: off')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -193,9 +216,17 @@ def run(argv: t.List[str], save_main_session: bool = True):
     all_uris = gcsio.GcsIO().list_prefix(known_args.uris)
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
-    ds: xr.Dataset = _only_target_vars(open_dataset(next(iter(all_uris))), known_args.variables)
 
-    table_schema = dataset_to_table_schema(ds)
+    if known_args.variables and not known_args.infer_schema:
+        logging.info('Creating schema from input variables.')
+        table_schema = to_table_schema(
+            [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
+            [(var, 'FLOAT64') for var in known_args.variables]
+        )
+    else:
+        logging.info('Inferring schema from data.')
+        ds: xr.Dataset = _only_target_vars(open_dataset(next(iter(all_uris))), known_args.variables)
+        table_schema = dataset_to_table_schema(ds)
 
     pipeline_options = PipelineOptions(pipeline_args)
 
