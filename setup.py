@@ -29,6 +29,7 @@ test_requirements = [
     "pytype",
     "flake8",
     "pytest",
+    "netcdf4",
 ]
 
 setup(
