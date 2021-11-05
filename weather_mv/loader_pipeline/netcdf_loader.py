@@ -2,6 +2,7 @@
 
 import argparse
 import datetime
+import itertools
 import logging
 import shutil
 import tempfile
@@ -10,13 +11,16 @@ import typing as t
 import apache_beam as beam
 import apache_beam.metrics
 import numpy as np
-import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
+from xarray.core.utils import ensure_us_time_resolution
+
+
+DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 
@@ -72,8 +76,9 @@ def dataset_to_table_schema(ds: xr.Dataset) -> t.List[bigquery.SchemaField]:
 
 
 def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.SchemaField]:
+    # Fields are all Nullable because data may have NANs. We treat these as null.
     fields = [
-        bigquery.SchemaField(column, var_type, mode="REQUIRED")
+        bigquery.SchemaField(column, var_type, mode='NULLABLE')
         for column, var_type in columns
     ]
 
@@ -86,25 +91,25 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     logging.debug('Serializing to JSON')
-    if type(value) == pd.Timestamp:
-        # We use a string timestamp representation.
-        if value.tzname():
-            return value.isoformat()
-        # We assume here that naive timestamps are in UTC timezone.
-        return value.tz_localize(tz='UTC').isoformat()
-    elif type(value) is str:
+    if type(value) == datetime.datetime or type(value) == str:
         # Assume strings are ISO format timestamps...
         try:
-            time = datetime.datetime.fromisoformat(value)
+            value = datetime.datetime.fromisoformat(value)
         except ValueError:
             # ... if they are not, assume serialization is already correct.
             return value
+        except TypeError:
+            # ... value is a datetime object, continue
+            pass
 
         # We use a string timestamp representation.
-        if time.tzname():
+        if value.tzname():
             return value.isoformat()
+
         # We assume here that naive timestamps are in UTC timezone.
-        return value.astimezome(tz=datetime.timezone.utc).isoformat()
+        return value.replace(tzinfo=datetime.timezone.utc).isoformat()
+    elif np.isnan(value) or value is None:
+        return None
     elif type(value) == np.float32 or type(value) == np.float64:
         return float(value)
     return value
@@ -129,48 +134,58 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: str = datetime.datetime.utcfromtimestamp(0).isoformat()) -> t.Iterable[t.Dict]:
+                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logging.info('Extracting netcdf rows as dicts')
     data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
-
     if area:
         n, w, s, e = area
-        data_ds = data_ds.sel(latitude=slice(s, n), longitude=slice(w, e))
+        data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
         logging.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-    # We start by extracting the index columns and their values, then we add in the data variable
-    # columns and values.
-    index_columns = data_ds.dims
+    # Creates flattened iterator of all coordinate positions in the Dataset.
+    #
+    # Coordinates have been pre-processed to remove NaNs and to format datetime objects
+    # to ISO format strings.
+    #
+    # Example: (-108.0, 49.0, '2018-01-02T22:00:00+00:00')
+    coords = itertools.product(
+        *(
+            (
+                to_json_serializable_type(v)
+                for v in ensure_us_time_resolution(data_ds[c].variable.values).tolist()
+            )
+            for c in data_ds.coords
+        )
+    )
+    # Give dictionary keys to a coordinate index.
+    #
+    # Example:
+    #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
+    labeled_coords = map(lambda it: dict(zip(data_ds.coords, it)), coords)
 
-    for index_values in data_ds.coords.to_index():
-        # Create Name-Value map for index columns. Result looks like:
-        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00'}
-        index_dict = dict(zip(index_columns, index_values))
+    def to_row(it: t.Dict) -> t.Dict:
+        """Produce a single row, or a dictionary of all variables at a point."""
 
         # Use those index values to select a Dataset containing one row of data.
-        row_ds = data_ds.loc[index_dict]
+        row_ds = data_ds.loc[it]
 
         # Create a Name-Value map for data columns. Result looks like:
         # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
-        vars_dict = {key: value.data.item() for (key, value) in row_ds.data_vars.items()}
+        row: t.Dict = row_ds.to_pandas().to_dict()
+        row = {k: to_json_serializable_type(v) for k, v in row.items()}
 
         # Combine index and variable portions into a single row dict, and add import timestamp.
-        row = index_dict
-        row.update(vars_dict)
+        row.update(it)
         row[DATA_IMPORT_TIME_COLUMN] = import_time
-
-        # Workaround for Beam being unable to serialize pd.Timestamp, iso-format strings, and np.float32 to JSON.
-        # TODO(dlowell): find a better solution.
-        for key, value in row.items():
-            row[key] = to_json_serializable_type(value)
 
         # 'row' ends up looking like:
         # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
         #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
-
         beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-        yield row
+        return row
+
+    yield from map(to_row, labeled_coords)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
