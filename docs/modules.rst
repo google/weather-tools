@@ -6,4 +6,5 @@ Modules
 
    download_pipeline
    loader_pipeline
+   splitter_pipeline
 

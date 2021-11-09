@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath('../weather_dl'))
 sys.path.insert(1, os.path.abspath('../weather_mv'))
+sys.path.insert(2, os.path.abspath('../weather_sp'))
 
 
 # -- Project information -----------------------------------------------------
