@@ -1,4 +1,5 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from setuptools import setup
 
 weather_dl_requirements = [
     "cdsapi",
@@ -25,11 +26,19 @@ weather_mv_requirements = [
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
 ]
 
+weather_sp_requirements = [
+    "apache-beam[gcp]",
+    "pygrib",
+    "netcdf4",
+]
+
 test_requirements = [
     "pytype",
     "flake8",
     "pytest",
     "netcdf4",
+    "numpy",
+    "xarray",
 ]
 
 setup(
@@ -46,11 +55,12 @@ setup(
     install_requires=['apache-beam[gcp]'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
-    scripts=['weather_dl/weather-dl', 'weather_dl/download-status', 'weather_mv/weather-mv'],
+    scripts=['weather_dl/weather-dl', 'weather_dl/download-status',
+             'weather_mv/weather-mv', 'weather_sp/weather-splitter'],
     tests_require=test_requirements,
     extras_require={
         'dev': ['tox', 'sphinx', 'recommonmark'],
-        'test': weather_dl_requirements + weather_mv_requirements + test_requirements,
+        'test': weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements,
     },
     project_urls={
         'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',
