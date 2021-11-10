@@ -1,6 +1,7 @@
 import datetime
 import typing as t
 import unittest
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,12 @@ import xarray as xr
 from google.cloud.bigquery import SchemaField
 
 import weather_mv
-from weather_mv.loader_pipeline.netcdf_loader import dataset_to_table_schema, _only_target_vars, extract_rows
+from weather_mv.loader_pipeline.netcdf_loader import (
+    dataset_to_table_schema,
+    _only_target_vars,
+    extract_rows,
+    get_coordinates
+)
 
 
 class SchemaCreationTests(unittest.TestCase):
@@ -28,32 +34,44 @@ class SchemaCreationTests(unittest.TestCase):
     def test_schema_generation(self):
         ds = xr.Dataset.from_dict(self.test_dataset)
         schema = dataset_to_table_schema(ds)
-        expected_schema = [SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-                           SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None)]
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+        ]
         self.assertListEqual(schema, expected_schema)
 
     def test_schema_generation__with_target_columns(self):
         target_variables = ['c', 'd']
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
-        expected_schema = [SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-                           SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None)]
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+        ]
         self.assertListEqual(schema, expected_schema)
 
     def test_schema_generation__no_targets_specified(self):
         target_variables = []  # intentionally empty
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
-        expected_schema = [SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-                           SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-                           SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None)]
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+        ]
         self.assertListEqual(schema, expected_schema)
 
     def test_schema_generation__missing_target(self):
@@ -76,6 +94,8 @@ class ExtractRowsTest(unittest.TestCase):
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
             'latitude': 49.0,
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
@@ -88,6 +108,8 @@ class ExtractRowsTest(unittest.TestCase):
         actual = next(extract_rows(self.test_data_path, variables=['u10']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
             'latitude': 49.0,
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
@@ -100,6 +122,8 @@ class ExtractRowsTest(unittest.TestCase):
         expected = {
             'd2m': 246.19993591308594,
             'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
             'latitude': 45.0,
             'longitude': -103.0,
             'time': '2018-01-02T06:00:00+00:00',
@@ -114,6 +138,8 @@ class ExtractRowsTest(unittest.TestCase):
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': now,
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
             'latitude': 49.0,
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
@@ -121,6 +147,13 @@ class ExtractRowsTest(unittest.TestCase):
             'v10': 0.03294110298156738
         }
         self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows__no_duplicate_coordinates(self):
+        ds = xr.open_dataset(self.test_data_path)
+
+        # Assert that all the coordinates are unique.
+        counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
+        self.assertTrue(all((c == 1 for c in counts.values())))
 
 
 if __name__ == '__main__':
