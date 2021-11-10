@@ -23,6 +23,8 @@ from xarray.core.utils import ensure_us_time_resolution
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
+DATA_URI_COLUMN = 'data_uri'
+DATA_FIRST_STEP = 'data_first_step'
 
 
 def configure_logger(verbosity: int) -> None:
@@ -82,8 +84,10 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
         for column, var_type in columns
     ]
 
-    # Add an extra column for recording import time.
+    # Add an extra columns for recording import metadata.
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
 
     return fields
 
@@ -91,7 +95,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     logging.debug('Serializing to JSON')
-    if type(value) == datetime.datetime or type(value) == str:
+    if type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
@@ -99,8 +103,12 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
             # ... if they are not, assume serialization is already correct.
             return value
         except TypeError:
-            # ... value is a datetime object, continue
-            pass
+            # ... maybe value is a numpy datetime ...
+            try:
+                value = ensure_us_time_resolution(value).astype(datetime.datetime)
+            except AttributeError:
+                # ... value is a datetime object, continue.
+                pass
 
         # We use a string timestamp representation.
         if value.tzname():
@@ -131,18 +139,8 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
     return dropped_ds
 
 
-def extract_rows(uri: str, *,
-                 variables: t.Optional[t.List[str]] = None,
-                 area: t.Optional[t.List[int]] = None,
-                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
-    """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    logging.info('Extracting netcdf rows as dicts')
-    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
-    if area:
-        n, w, s, e = area
-        data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-        logging.info(f'Data filtered by area, size: {data_ds.nbytes}')
-
+def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
+    """Generates normalized coordinate dictionaries that can be used to index Datasets with `.loc[]`."""
     # Creates flattened iterator of all coordinate positions in the Dataset.
     #
     # Coordinates have been pre-processed to remove NaNs and to format datetime objects
@@ -153,16 +151,31 @@ def extract_rows(uri: str, *,
         *(
             (
                 to_json_serializable_type(v)
-                for v in ensure_us_time_resolution(data_ds[c].variable.values).tolist()
+                for v in ensure_us_time_resolution(ds[c].variable.values).tolist()
             )
-            for c in data_ds.coords
+            for c in ds.coords
         )
     )
     # Give dictionary keys to a coordinate index.
     #
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
-    labeled_coords = map(lambda it: dict(zip(data_ds.coords, it)), coords)
+    yield from map(lambda it: dict(zip(ds.coords, it)), coords)
+
+
+def extract_rows(uri: str, *,
+                 variables: t.Optional[t.List[str]] = None,
+                 area: t.Optional[t.List[int]] = None,
+                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+    """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
+    logging.info(f'Extracting netcdf rows as dicts: {uri!r}.')
+    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
+    if area:
+        n, w, s, e = area
+        data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+        logging.info(f'Data filtered by area, size: {data_ds.nbytes}')
+
+    first_time_step = to_json_serializable_type(data_ds.time[0].values)
 
     def to_row(it: t.Dict) -> t.Dict:
         """Produce a single row, or a dictionary of all variables at a point."""
@@ -172,20 +185,21 @@ def extract_rows(uri: str, *,
 
         # Create a Name-Value map for data columns. Result looks like:
         # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
-        row: t.Dict = row_ds.to_pandas().to_dict()
-        row = {k: to_json_serializable_type(v) for k, v in row.items()}
+        row: t.Dict = row_ds.to_pandas().apply(to_json_serializable_type).to_dict()
 
-        # Combine index and variable portions into a single row dict, and add import timestamp.
+        # Combine index and variable portions into a single row dict, and add import metadata.
         row.update(it)
         row[DATA_IMPORT_TIME_COLUMN] = import_time
+        row[DATA_URI_COLUMN] = uri
+        row[DATA_FIRST_STEP] = first_time_step
 
         # 'row' ends up looking like:
         # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC'}
+        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
         beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
         return row
 
-    yield from map(to_row, labeled_coords)
+    yield from map(to_row, get_coordinates(data_ds))
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
