@@ -29,14 +29,6 @@ class GetSplitterTest(unittest.TestCase):
         self.assertIsInstance(splitter, GribSplitter)
 
 
-def gcsio_open_side_effect(*args):
-    input_path = args[0]
-    dir = os.path.dirname(input_path)
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    return open(input_path, args[1])
-
-
 class GribSplitterTest(unittest.TestCase):
 
     def setUp(self):
@@ -52,15 +44,13 @@ class GribSplitterTest(unittest.TestCase):
         out = splitter._get_output_file_path(SplitKey('level', 'cc'))
         self.assertEqual(out, 'path/split_files/input_level_cc.grib')
 
-    @patch('apache_beam.io.gcp.gcsio.GcsIO.open')
+    @patch('apache_beam.io.filesystems.FileSystems.create')
     def test_open_outfile(self, mock_io):
         splitter = GribSplitter('path/input')
         splitter._open_outfile(SplitKey('level', 'cc'))
-        mock_io.assert_called_with('path/split_files/input_level_cc.grib', 'wb')
+        mock_io.assert_called_with('path/split_files/input_level_cc.grib')
 
-    @patch('apache_beam.io.gcp.gcsio.GcsIO.open')
-    def test_split_data(self, mock_io):
-        mock_io.side_effect = gcsio_open_side_effect
+    def test_split_data(self):
         input_path = f'{self._data_dir}/era5_sample.grib'
         splitter = GribSplitter(input_path)
         splitter.split_data()
@@ -102,9 +92,7 @@ class NetCdfSplitterTest(unittest.TestCase):
         out = splitter._get_output_file_path(SplitKey('', 'cc'))
         self.assertEqual(out, 'path/split_files/input_cc.nc')
 
-    @patch('apache_beam.io.gcp.gcsio.GcsIO.open')
-    def test_split_data(self, mock_io):
-        mock_io.side_effect = gcsio_open_side_effect
+    def test_split_data(self):
         input_path = f'{self._data_dir}/era5_sample.nc'
         splitter = NetCdfSplitter(input_path)
         splitter.split_data()
