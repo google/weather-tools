@@ -3,6 +3,7 @@ from setuptools import setup, find_packages
 base_requirements = [
     "apache-beam[gcp]",
     "pygrib",
+    "numpy>=1.20.3",
     "netcdf4",
 ]
 

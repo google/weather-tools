@@ -28,6 +28,7 @@ weather_mv_requirements = [
 
 weather_sp_requirements = [
     "apache-beam[gcp]",
+    "numpy>=1.20.3",
     "pygrib",
     "netcdf4",
 ]
