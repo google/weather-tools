@@ -3,8 +3,8 @@ import logging
 import typing as t
 
 import apache_beam as beam
+from apache_beam.io.filesystems import FileSystems
 import apache_beam.metrics as metrics
-from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .file_splitters import get_splitter, SPLIT_DIRECTORY
@@ -17,7 +17,10 @@ def configure_logger(verbosity: int) -> None:
 
 
 def create_file_list(input_pattern: str) -> t.List[str]:
-    return list(gcsio.GcsIO().list_prefix(input_pattern).keys())
+    match_results = FileSystems.match([f'{input_pattern}/**'])
+    file_list = [metadata.path for match in match_results for metadata in match.metadata_list]
+    logging.debug('matched files=%s', file_list)
+    return file_list
 
 
 def split_file(path: str):

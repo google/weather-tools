@@ -8,7 +8,6 @@ import shutil
 import tempfile
 import typing as t
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp import gcsio
 from contextlib import contextmanager
 
 SPLIT_DIRECTORY = '/split_files/'
@@ -54,7 +53,7 @@ class FileSplitter(abc.ABC):
                                                file=file_name)
 
     def _copy_dataset_to_storage(self, src_file: t.IO, target: str):
-        with gcsio.GcsIO().open(target, 'wb') as dest_file:
+        with FileSystems().create(target) as dest_file:
             shutil.copyfileobj(src_file, dest_file)
 
     def _get_output_file_path(self, key: SplitKey) -> str:
@@ -91,7 +90,7 @@ class GribSplitter(FileSplitter):
             return pygrib.open(local_file.name)
 
     def _open_outfile(self, key: SplitKey):
-        return gcsio.GcsIO().open(self._get_output_file_path(key), 'wb')
+        return FileSystems.create(self._get_output_file_path(key))
 
 
 class NetCdfSplitter(FileSplitter):
