@@ -3,6 +3,7 @@ import logging
 import typing as t
 
 import apache_beam as beam
+import apache_beam.metrics as metrics
 from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
@@ -21,9 +22,11 @@ def create_file_list(input_pattern: str) -> t.List[str]:
 
 def split_file(path: str):
     if SPLIT_DIRECTORY in path:
+        metrics.Metrics.counter('pipeline', 'file skipped, already split').inc()
         logging.info('Skipping already split file %s', path)
         return
     logging.info('Splitting file %s', path)
+    metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(path)
     splitter.split_data()
 
