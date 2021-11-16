@@ -49,7 +49,7 @@ class GribSplitterTest(unittest.TestCase):
 
     def test_get_output_file_path(self):
         splitter = GribSplitter('path/input')
-        out = splitter._get_output_file_path(SplitKey('level', 'cc'), 'grib')
+        out = splitter._get_output_file_path(SplitKey('level', 'cc'))
         self.assertEqual(out, 'path/split_files/input_level_cc.grib')
 
     @patch('apache_beam.io.gcp.gcsio.GcsIO.open')
@@ -99,7 +99,7 @@ class NetCdfSplitterTest(unittest.TestCase):
 
     def test_get_output_file_path(self):
         splitter = NetCdfSplitter('path/input')
-        out = splitter._get_output_file_path(SplitKey('', 'cc'), 'nc')
+        out = splitter._get_output_file_path(SplitKey('', 'cc'))
         self.assertEqual(out, 'path/split_files/input_cc.nc')
 
     @patch('apache_beam.io.gcp.gcsio.GcsIO.open')
