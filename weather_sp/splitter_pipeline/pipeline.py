@@ -3,7 +3,7 @@ import logging
 import typing as t
 
 import apache_beam as beam
-from apache_beam.io.filesystems import FileSystems
+from apache_beam.io.fileio import MatchFiles, ReadMatches
 import apache_beam.metrics as metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
@@ -14,13 +14,6 @@ def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     logging.basicConfig(level=(40 - verbosity * 10),
                         format='%(asctime)-15s %(message)s')
-
-
-def create_file_list(input_pattern: str) -> t.List[str]:
-    match_results = FileSystems.match([f'{input_pattern}/**'])
-    file_list = [metadata.path for match in match_results for metadata in match.metadata_list]
-    logging.debug('matched files=%s', file_list)
-    return file_list
 
 
 def split_file(path: str):
@@ -52,8 +45,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
     with beam.Pipeline(options=pipeline_options) as p:
         (
             p
-            | 'Create' >> beam.Create([known_args.input_pattern])
-            | 'ListFiles' >> beam.FlatMap(create_file_list)
+            | 'MatchFiles' >> MatchFiles(known_args.input_pattern)
+            | 'ReadMatches' >> ReadMatches()
             | 'Shuffle' >> beam.Reshuffle()
+            | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
             | 'SplitFiles' >> beam.Map(split_file)
         )
