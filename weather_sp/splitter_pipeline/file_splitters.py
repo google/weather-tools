@@ -2,15 +2,12 @@ import abc
 import apache_beam.metrics as metrics
 import logging
 import netCDF4 as nc
-import os
 import pygrib
 import shutil
 import tempfile
 import typing as t
 from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
-
-SPLIT_DIRECTORY = '/split_files/'
 
 
 class SplitKey(t.NamedTuple):
@@ -26,13 +23,15 @@ class SplitKey(t.NamedTuple):
 class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
-    def __init__(self, input_path: str, file_suffix: str = "",
+    def __init__(self, input_path: str, output_path: str, file_suffix: str = "",
                  level: int = logging.INFO):
         self.input_path = input_path
+        self.output_path = output_path
         self.file_suffix = file_suffix
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
-        self.logger.info('Splitter for path=%s', self.input_path)
+        self.logger.debug('Splitter for path=%s, output base=%s',
+                          self.input_path, self.output_path)
 
     @abc.abstractmethod
     def split_data(self) -> None:
@@ -46,12 +45,6 @@ class FileSplitter(abc.ABC):
                 dest_file.flush()
                 yield dest_file
 
-    def _get_ouput_basename(self) -> str:
-        directory, file_name = os.path.split(self.input_path)
-        return '{dir}{split_dir}{file}'.format(dir=directory,
-                                               split_dir=SPLIT_DIRECTORY,
-                                               file=file_name)
-
     def _copy_dataset_to_storage(self, src_file: t.IO, target: str):
         with FileSystems().create(target) as dest_file:
             shutil.copyfileobj(src_file, dest_file)
@@ -59,14 +52,14 @@ class FileSplitter(abc.ABC):
     def _get_output_file_path(self, key: SplitKey) -> str:
         level = '_{level}'.format(level=key.level) if key.level else ''
         return '{base}{level}_{sn}.{ending}'.format(
-                base=self._get_ouput_basename(), level=level, sn=key.short_name,
+                base=self.output_path, level=level, sn=key.short_name,
                 ending=self.file_suffix)
 
 
 class GribSplitter(FileSplitter):
 
-    def __init__(self, input_path: str):
-        super().__init__(input_path, file_suffix='grib')
+    def __init__(self, input_path: str, output_folder: str):
+        super().__init__(input_path, output_folder, file_suffix='grib')
 
     def split_data(self) -> None:
         outputs = dict()
@@ -95,8 +88,8 @@ class GribSplitter(FileSplitter):
 
 class NetCdfSplitter(FileSplitter):
 
-    def __init__(self, input_path: str):
-        super().__init__(input_path, file_suffix='nc')
+    def __init__(self, input_path: str, output_folder: str):
+        super().__init__(input_path, output_folder, file_suffix='nc')
 
     def split_data(self) -> None:
         nc_data = self._open_dataset_locally()
@@ -120,8 +113,8 @@ class NetCdfSplitter(FileSplitter):
                 dest.setncatts(dataset.__dict__)
                 for name, dim in dataset.dimensions.items():
                     dest.createDimension(
-                        name,
-                        (len(dim) if not dim.isunlimited() else None))
+                            name,
+                            (len(dim) if not dim.isunlimited() else None))
                 include = [var for var in dataset.dimensions.keys()]
                 include.append(variable)
                 for name, var in dataset.variables.items():
@@ -137,15 +130,29 @@ class NetCdfSplitter(FileSplitter):
                                                   SplitKey('', variable)))
 
 
-def get_splitter(file_path: str) -> FileSplitter:
+class DrySplitter(FileSplitter):
+    def __init__(self, file_path: str, output_path: str, file_ending: str):
+        super().__init__(file_path, output_path, file_ending)
+
+    def split_data(self) -> None:
+        logging.info('input file: %s - output scheme: %s_level_shortname.%s',
+                     self.input_path, self.output_path, self.file_suffix)
+
+
+def get_splitter(file_path: str, output_path: str,
+                 dry_run: bool) -> FileSplitter:
     if file_path.endswith('.nc') or file_path.endswith('.cd'):
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
-        return NetCdfSplitter(file_path)
+        if dry_run:
+            return DrySplitter(file_path, output_path, "nc")
+        return NetCdfSplitter(file_path, output_path)
     if file_path.endswith('grb') or file_path.endswith(
             'grib') or file_path.endswith('grib2'):
         metrics.Metrics.counter('get_splitter', 'grib').inc()
-        return GribSplitter(file_path)
-    logging.info('unspecified file type, assuming grib for %s', file_path)
-    metrics.Metrics.counter('get_splitter',
-                            'unidentified grib').inc()
-    return GribSplitter(file_path)
+    else:
+        logging.info('unspecified file type, assuming grib for %s', file_path)
+        metrics.Metrics.counter('get_splitter',
+                                'unidentified grib').inc()
+    if dry_run:
+        return DrySplitter(file_path, output_path, "grib")
+    return GribSplitter(file_path, output_path)
