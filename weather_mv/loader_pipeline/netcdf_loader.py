@@ -206,7 +206,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
         prog='weather-mv',
-        description='Weather Mover creates Google Cloud BigQuery tables from netcdf files in Google Cloud Storage.'
+        description='Weather Mover loads weather data from cloud storage into Google BigQuery.'
     )
     parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                         help='Target variables for the BigQuery schema. Default: will import all data variables as '

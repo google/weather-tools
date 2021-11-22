@@ -186,7 +186,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
         prog='weather-dl',
-        description='Weather Downloader downloads weather data to Google Cloud Storage.'
+        description='Weather Downloader ingests weather data to cloud storage.'
     )
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
                         help="path/to/config.cfg, containing client and data information. "

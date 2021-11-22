@@ -19,7 +19,7 @@ if __name__ == '__main__':
         from download_pipeline import cli
     except ImportError:
         # Install the subpackage.
-        subprocess.check_call(f'{sys.executable} -m pip -q install {site_pkg}'.split())
+        subprocess.check_call(f'{sys.executable} -m pip -q install -e {site_pkg}'.split())
 
         # Re-load sys.path
         import site
