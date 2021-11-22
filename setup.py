@@ -1,5 +1,4 @@
-from setuptools import find_packages
-from setuptools import setup
+from setuptools import find_packages, setup
 
 weather_dl_requirements = [
     "cdsapi",
@@ -43,12 +42,11 @@ test_requirements = [
 ]
 
 setup(
-    name='ecmwf-pipeline',
+    name='weather-tools',
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
-    description='A GCP pipeline to make ECMWF data available to all of Alphabet.',
+    description='Apache Beam pipelines to make weather data accessible and useful.',
     long_description=open('README.md', 'r').read(),
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
@@ -57,16 +55,13 @@ setup(
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     scripts=['weather_dl/weather-dl', 'weather_dl/download-status',
-             'weather_mv/weather-mv', 'weather_sp/weather-splitter'],
+             'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
         'dev': ['tox', 'sphinx', 'recommonmark'],
         'test': weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements,
     },
     project_urls={
-        'Issue Tracking': 'https://bugdashboard.corp.google.com/app/tree;dashboardId=145842',
-        'Overview': 'http://go/anthromet-ingestion',
-        'Sync Meeting Notes': 'http://go/anthromet-ingestion-sync',
-        'Anthromet Notes': 'http://go/anthromet-notes',
+        'Issue Tracking': 'https://github.com/googlestaging/weather-tools/issues',
     },
 )
