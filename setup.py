@@ -62,6 +62,6 @@ setup(
         'test': weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements,
     },
     project_urls={
-        'Issue Tracking': 'https://github.com/googlestaging/weather-tools/issues',
+        'Issue Tracking': 'http://github.com/google/weather-tools/issues',
     },
 )
