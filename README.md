@@ -19,8 +19,8 @@ Please follow the [contributing guidelines](CONTRIBUTING.md) rather than the Ins
 
 ## Installing
 
-It's recommended that you create a local python environment (
-with [Anaconda](https://www.anaconda.com/products/individual)). Otherwise, these tools can be installed with pip:
+It's recommended that you create a local python environment (with
+[Anaconda](https://www.anaconda.com/products/individual)). Otherwise, these tools can be installed with pip:
 
   ```shell
   pip install git+http://github.com/google/weather-tools.git#egg=weather-tools
