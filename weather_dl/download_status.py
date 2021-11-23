@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 try:
     from .download_pipeline.manifest import Location, MANIFESTS, Manifest
 except ModuleNotFoundError:
-    print('\033[93mTool requires `ecmwf-pipelines` to be installed!`\033[0m')
+    print('\033[93mTool requires `weather-tools` to be installed!`\033[0m')
     sys.exit(1)
 
 # Cycle of characters used in display progress
