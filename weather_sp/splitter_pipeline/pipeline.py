@@ -58,19 +58,19 @@ def get_output_base_name(input_path: str, input_base: str,
 def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
-        prog='weather-splitter',
+        prog='weather-sp',
         description='Split weather data file into files by variable.'
     )
-    parser.add_argument('-i', '--input_pattern', type=str, required=True,
+    parser.add_argument('-i', '--input-pattern', type=str, required=True,
                         help='Pattern for input weather data.')
-    parser.add_argument('-o', '--output_dir', type=str, required=True,
+    parser.add_argument('-o', '--output-dir', type=str, required=True,
                         help='Path to base folder for output files. '
                         'This directory will replace the common path of the '
                         'input_pattern. For `input_pattern a/b/c/**` and '
                         '`output_dir /x/y/z` a file `a/b/c/file.nc` will create'
                         'output files like `/x/y/z/c/file.nc_shortname.nc`'
                         )
-    parser.add_argument('-d', '--dry_run', action='store_true', default=False,
+    parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
