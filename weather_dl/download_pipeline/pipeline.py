@@ -14,15 +14,16 @@
 
 """Primary ECMWF Downloader Workflow."""
 
-import os
 import argparse
 import copy as cp
 import getpass
 import itertools
 import logging
+import os
 import shutil
 import tempfile
 import typing as t
+from urllib.parse import urlparse
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -59,6 +60,11 @@ def prepare_target_name(config: t.Dict) -> str:
     logger.debug(f'target name for partition: {target}')
 
     return target
+
+
+def _to_local_path(uri: str, new_root: str) -> str:
+    """Convert a cloud storage URL to a local file system path."""
+    return f'{new_root}/{uri.split("://", 1)[-1]}'
 
 
 def skip_partition(config: t.Dict) -> bool:
@@ -252,12 +258,18 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     if known_args.dry_run:
         client_name = 'fake'
-        tmpdir = tempfile.TemporaryDirectory()
-        config['parameters']['target_path'] = tmpdir.name
         config['parameters']['force_download'] = True
+        tmpdir = tempfile.TemporaryDirectory(dir='/tmp/')
+        config['parameters']['target_path'] = _to_local_path(
+            config['parameters']['target_path'],
+            tmpdir.name
+        )
         manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:
+        target_path = config['parameters']['target_path']
+        assert urlparse(target_path).scheme == '', "'target_path' must be to local files if '--local-run' is used."
+
         local_dir = '{}/local_run'.format(os.getcwd())
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
