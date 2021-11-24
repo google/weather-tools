@@ -1,13 +1,45 @@
-# Contributing Guidelines
+# How to Contribute
 
-## Project Structure 
-    
+We'd love to accept your patches and contributions to this project. There are just a few small guidelines you need to
+follow.
+
+## Contributor License Agreement
+
+Contributions to this project must be accompanied by a Contributor License Agreement (CLA). You (or your employer)
+retain the copyright to your contribution; this simply gives us permission to use and redistribute your contributions as
+part of the project. Head over to
+<https://cla.developers.google.com/> to see your current agreements on file or to sign a new one.
+
+You generally only need to submit a CLA once, so if you've already submitted one
+(even if it was for a different project), you probably don't need to do it again.
+
+## Code Reviews
+
+All submissions, including submissions by project members, require review. We use GitHub pull requests for this purpose.
+Consult
+[GitHub Help](https://help.github.com/articles/about-pull-requests/) for more information on using pull requests.
+
+## Community Guidelines
+
+This project follows
+[Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+## Pull Request Etiquette
+
+We're thrilled to have your pull request! However, we ask that you file an issue (or check if one exist) before
+submitting a change-list (CL).
+
+In general, we're happier reviewing many small PRs over fewer, larger changes. Please try to
+submit [small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html).
+
+## Project Structure
+
 ```
 bin/  # Tools for development
 
 configs/  # Save example and general purpose configs.
 
-docs/  # Sphinx documentation, deployed to GitLab pages.
+docs/  # Sphinx documentation, deployed to Github pages (or readthedocs).
 
 weather_dl/  # Main python package, other pipelines can come later.
     __init__.py  
@@ -25,50 +57,48 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 ## Developer Installation
 
-- Set up a Python development environment. We recommend *pyenv* and *virtualenv*. There are plenty of guides on the Internet for setting up your environment depending on your Operating System and choice of package manager.
+1. Set up a Python development environment. We recommend *Anaconda*, *pyenv* or *virtualenv*.
 
-- Use Python version 3.8.5 for development. (Python 3.9.x is incompatible per b/173798232)
+    * Use Python version 3.8.5 for development. (Python 3.9.x is incompatible
+      with [Apache Beam's Python SDK](https://issues.apache.org/jira/browse/BEAM-12000).)
 
-- Clone the repo and install dependencies.
+1. Clone the repo and install dependencies.
 
-  ```shell
-  # clone with HTTPS
-  git clone https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git
-  # close with SSH
-  git clone git@gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf.git 
-  cd ecmwf
-  pip install -e ."[dev]"
-  ```
+   ```shell
+   # clone with HTTPS
+   git clone http://github.com/google/weather-tools.git
+   # close with SSH
+   git clone git@github.com:google/weather-tools.git
+   cd weather-tools
+   pip install -e ."[dev]"
+   ```
 
-- Visit [our documentation on ECMWF Configuration](Configuration.md) to be able to connect to ECMWF and retrieve data.
+1. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
 
-- Install `gcloud`, the Google Cloud CLI following these [instructions](https://cloud.google.com/sdk/docs/install).
+1. Acquire adequate permissions for the project.
+    * Run `gcloud auth application-default login`.
 
-- Run `gcloud auth application-default login`. Make sure your account has *write* permissions to the storage bucket and the permissions to create a Dataflow job.
+    * Make sure your account has *write* permissions to the storage bucket as well as the permissions to create a
+      Dataflow job.
 
-- Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
+    * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
-- Add a post-push hook to your local client.
-  
-  ```
-  cp bin/post-push .git/hooks/
-  ```
+1. (optional) Add a post-push hook to your local client.
+
+   ```shell
+   cp bin/post-push .git/hooks/
+   ```
 
 ## Testing
+
+To execute tests on all supported python versions, as well as lint & type checks, just run:
 
 ```shell
 tox
 ```
 
-Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for
-guidance in how to write tests for the pipeline.
+You can also inspect the `bin/post-push` script to see examples of ways to run a subset of these checks. Or, feel free
+to just run the script itself.
 
-## Workflow
-
-We recommend the [GitLab Flow Merge-Request](https://about.gitlab.com/blog/2016/10/25/gitlab-workflow-an-overview/#code-review-with-gitlab) model of development.
-
-Commits will be squashed before merge into the main branch. Each MR requires one approver and for CI to pass.
-
-This project uses GitLab CI for continuous integration (and later, deployment). On each commit to 
-the main branch, we run commands from the above two sections. Visit the [pipeline dashboard](https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf/-/pipelines)
-to check build history and status.
+Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for guidance
+in how to write tests for the pipeline.
