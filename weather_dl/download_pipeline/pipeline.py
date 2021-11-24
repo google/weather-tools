@@ -1,21 +1,22 @@
 """Primary ECMWF Downloader Workflow."""
 
+import os
 import argparse
 import copy as cp
 import getpass
 import itertools
 import logging
-import os
+import shutil
 import tempfile
 import typing as t
 
 import apache_beam as beam
+from apache_beam.io.filesystems import FileSystems
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, GcsStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def prepare_target_name(config: t.Dict) -> str:
     return target
 
 
-def skip_partition(config: t.Dict, store: Store) -> bool:
+def skip_partition(config: t.Dict) -> bool:
     """Return true if partition should be skipped."""
 
     if 'force_download' not in config['parameters'].keys():
@@ -56,7 +57,7 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
         return False
 
     target = prepare_target_name(config)
-    if store.exists(target):
+    if FileSystems().exists(target):
         logger.info(f'file {target} found, skipping.')
         return True
 
@@ -98,14 +99,11 @@ def prepare_partitions(config: t.Dict) -> t.Iterator[t.Tuple]:
 
 def assemble_partition_config(partition: t.Tuple,
                               config: t.Dict,
-                              manifest: Manifest,
-                              store: t.Optional[Store] = None) -> t.Dict:
+                              manifest: Manifest) -> t.Dict:
     """
     Assemble the configuration for a single partition based on one of the
     partitions prepared by `prepare_partitions`.
     """
-    if store is None:
-        store = GcsStore()
     # Output a config dictionary, overriding the range of values for
     # each key with the partition instance in 'selection'.
     # Continuing the example from prepare_partitions, the selection section
@@ -135,7 +133,7 @@ def assemble_partition_config(partition: t.Tuple,
         copy[key] = [option[idx]]
     out['selection'] = copy
     out['parameters'].update(params)
-    if skip_partition(out, store):
+    if skip_partition(out):
         return {}
 
     selection = copy
@@ -150,36 +148,35 @@ def assemble_partition_config(partition: t.Tuple,
 def fetch_data(config: t.Dict,
                *,
                client_name: str,
-               manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
-               store: t.Optional[Store] = None) -> None:
+               manifest: Manifest = NoOpManifest(Location('noop://in-memory'))) -> None:
     """
     Download data from a client to a temp file, then upload to Google Cloud Storage.
     """
     if not config:
         return
-    if store is None:
-        store = GcsStore()
-    dataset = config['parameters'].get('dataset', '')
+
+    fs = FileSystems()
+    client = CLIENTS[client_name](config)
+
     target = prepare_target_name(config)
+    dataset = config['parameters'].get('dataset', '')
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')
-    client = CLIENTS[client_name](config)
 
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
-            logger.info(f'Fetching data for {target}')
+            logger.info(f'Fetching data for {target!r}.')
             client.retrieve(dataset, selection, temp.name)
 
-            # upload blob to gcs
-            logger.info(f'Uploading to store for {target}')
             temp.seek(0)
-            with store.open(target, 'wb') as dest:
-                while True:
-                    chunk = temp.read(8192)
-                    if len(chunk) == 0:  # eof
-                        break
-                    dest.write(chunk)
-            logger.info(f'Upload to store complete for {target}')
+
+            # upload blob to cloud storage
+            logger.info(f'Uploading to store for {target!r}.')
+
+            with fs.create(target) as dest:
+                shutil.copyfileobj(temp, dest)
+
+            logger.info(f'Upload complete for {target!r}.')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -228,7 +225,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
         manifest_location += f'{start_char}projectId={project}'
 
     client_name = config['parameters']['client']
-    store = None  # will default to using GcsIO()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
 
@@ -242,13 +238,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     if known_args.dry_run:
         client_name = 'fake'
-        store = TempFileStore('dry_run')
+        tmpdir = tempfile.TemporaryDirectory()
+        config['parameters']['target_path'] = tmpdir.name
         config['parameters']['force_download'] = True
         manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:
         local_dir = '{}/local_run'.format(os.getcwd())
-        store = LocalFileStore(local_dir)
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
 
@@ -260,6 +256,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 # Shuffling here prevents beam from fusing all steps,
                 # which would result in utilizing only a single worker.
                 | 'Shuffle' >> beam.Reshuffle()
-                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest, store=store)
-                | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
+                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest)
+                | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest)
         )

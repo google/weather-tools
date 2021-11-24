@@ -1,12 +1,13 @@
 import io
+import os
+import tempfile
 import unittest
 from collections import OrderedDict
-from unittest.mock import patch, ANY, MagicMock
+from unittest.mock import patch
 
-from .stores import InMemoryStore
 from .manifest import MockManifest, Location
-from .pipeline import fetch_data
 from .pipeline import assemble_partition_config, prepare_partitions
+from .pipeline import fetch_data
 from .pipeline import prepare_target_name
 from .pipeline import skip_partition
 
@@ -134,7 +135,7 @@ class PreparePartitionTest(unittest.TestCase):
         return [
             assemble_partition_config(p, config, manifest=self.dummy_manifest)
             for p in partition_list
-                ]
+        ]
 
 
 class FetchDataTest(unittest.TestCase):
@@ -142,154 +143,135 @@ class FetchDataTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('dummy-manifest'))
 
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data(self, mock_retrieve, mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
+    def test_fetch_data(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                'parameters': {
+                    'dataset': 'reanalysis-era5-pressure-levels',
+                    'partition_keys': ['year', 'month'],
+                    'target_path': tmpdir + '/download-{}-{}.nc',
+                    'api_url': 'https//api-url.com/v1/',
+                    'api_key': '12345',
+                },
+                'selection': {
+                    'features': ['pressure'],
+                    'month': ['12'],
+                    'year': ['01']
+                }
             }
-        }
 
-        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
-                   store=InMemoryStore())
+            fetch_data(config, client_name='fake', manifest=self.dummy_manifest)
 
-        mock_gcs_file.assert_called_with(
-            'gs://weather-dl-unittest/download-01-12.nc',
-            'wb'
-        )
+            self.assertTrue(os.path.exists(f'{tmpdir}/download-01-12.nc'))
 
-        mock_retrieve.assert_called_with(
-            'reanalysis-era5-pressure-levels',
-            config['selection'],
-            ANY)
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
+    def test_fetch_data__manifest__returns_success(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                'parameters': {
+                    'dataset': 'reanalysis-era5-pressure-levels',
+                    'partition_keys': ['year', 'month'],
+                    'target_path': tmpdir + '/download-{}-{}.nc',
+                    'api_url': 'https//api-url.com/v1/',
+                    'api_key': '12345',
+                },
+                'selection': {
+                    'features': ['pressure'],
+                    'month': ['12'],
+                    'year': ['01']
+                }
             }
-        }
 
-        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
-                   store=InMemoryStore())
-
-        self.assertDictContainsSubset(dict(
-            selection=config['selection'],
-            location='gs://weather-dl-unittest/download-01-12.nc',
-            status='success',
-            error=None,
-            user='unknown',
-        ), list(self.dummy_manifest.records.values())[0]._asdict())
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve,
-                                                            mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
-            }
-        }
-
-        error = IOError("We don't have enough permissions to download this.")
-        mock_retrieve.side_effect = error
-
-        with self.assertRaises(IOError) as e:
-            fetch_data(
-                config,
-                client_name='cds',
-                manifest=self.dummy_manifest,
-                store=InMemoryStore()
-            )
-
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
+            fetch_data(config, client_name='fake', manifest=self.dummy_manifest)
 
             self.assertDictContainsSubset(dict(
                 selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
+                location=f'{tmpdir}/download-01-12.nc',
+                status='success',
+                error=None,
                 user='unknown',
-            ), actual)
+            ), list(self.dummy_manifest.records.values())[0]._asdict())
 
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve,
-                                                       mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
+    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                'parameters': {
+                    'dataset': 'reanalysis-era5-pressure-levels',
+                    'partition_keys': ['year', 'month'],
+                    'target_path': tmpdir + '/download-{}-{}.nc',
+                    'api_url': 'https//api-url.com/v1/',
+                    'api_key': '12345',
+                },
+                'selection': {
+                    'features': ['pressure'],
+                    'month': ['12'],
+                    'year': ['01']
+                }
             }
-        }
 
-        error = IOError("Can't open gcs file.")
-        mock_gcs_file.side_effect = error
+            error = IOError("We don't have enough permissions to download this.")
+            mock_retrieve.side_effect = error
 
-        with self.assertRaises(IOError) as e:
-            fetch_data(
-                config,
-                client_name='cds',
-                manifest=self.dummy_manifest,
-                store=InMemoryStore()
-            )
+            with self.assertRaises(IOError) as e:
+                fetch_data(
+                    config,
+                    client_name='cds',
+                    manifest=self.dummy_manifest
+                )
 
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
-            self.assertDictContainsSubset(dict(
-                selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
-                user='unknown',
-            ), actual)
+                actual = list(self.dummy_manifest.records.values())[0]._asdict()
 
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
+                self.assertDictContainsSubset(dict(
+                    selection=config['selection'],
+                    location=f'{tmpdir}/download-01-12.nc',
+                    status='failure',
+                    user='unknown',
+                ), actual)
+
+                self.assertIn(error.args[0], actual['error'])
+                self.assertIn(error.args[0], e.exception.args[0])
+
+    @patch('apache_beam.io.filesystems.FileSystems.create', return_value=io.StringIO())
+    def test_fetch_data__manifest__records_filesystems_failure(self, mock_fs_file):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                'parameters': {
+                    'dataset': 'reanalysis-era5-pressure-levels',
+                    'partition_keys': ['year', 'month'],
+                    'target_path': tmpdir + '/download-{}-{}.nc',
+                    'api_url': 'https//api-url.com/v1/',
+                    'api_key': '12345',
+                },
+                'selection': {
+                    'features': ['pressure'],
+                    'month': ['12'],
+                    'year': ['01']
+                }
+            }
+
+            error = IOError("Can't create gcs file.")
+            mock_fs_file.side_effect = error
+
+            with self.assertRaises(IOError) as e:
+                fetch_data(
+                    config,
+                    client_name='fake',
+                    manifest=self.dummy_manifest
+                )
+
+                actual = list(self.dummy_manifest.records.values())[0]._asdict()
+                self.assertDictContainsSubset(dict(
+                    selection=config['selection'],
+                    location=f'{tmpdir}/download-01-12.nc',
+                    status='failure',
+                    user='unknown',
+                ), actual)
+
+                self.assertIn(error.args[0], actual['error'])
+                self.assertIn(error.args[0], e.exception.args[0])
 
 
 class SkipPartitionsTest(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.mock_store = InMemoryStore()
 
     def test_skip_partition_missing_force_download(self):
         config = {
@@ -304,7 +286,7 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        actual = skip_partition(config, self.mock_store)
+        actual = skip_partition(config)
 
         self.assertEqual(actual, False)
 
@@ -322,11 +304,12 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        actual = skip_partition(config, self.mock_store)
+        actual = skip_partition(config)
 
         self.assertEqual(actual, False)
 
-    def test_skip_partition_force_download_false(self):
+    @patch('apache_beam.io.filesystems.FileSystems.exists', return_value=True)
+    def test_skip_partition_force_download_false(self, mock_fs_exists):
         config = {
             'parameters': {
                 'partition_keys': ['year', 'month'],
@@ -340,9 +323,7 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        self.mock_store.exists = MagicMock(return_value=True)
-
-        actual = skip_partition(config, self.mock_store)
+        actual = skip_partition(config)
 
         self.assertEqual(actual, True)
 
