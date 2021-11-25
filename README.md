@@ -34,6 +34,29 @@ From here, you can use the `weather-*` tools from your python environment. Curre
 - [`weather-mv`](weather_mv/README.md) – Load weather data into BigQuery.
 - [`weather-sp`](weather_sp/README.md) – Split weather data by variable.
 
+## Quickstart
+
+1. Acquire and install a license from ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key).
+
+2. Use `weather-dl` to get weather data – for example, Era 5 pressure level data.
+  
+   To download data to your local machine, use the `--local-run` option:
+   ```shell
+   weather-dl configs/era5_example_config_local_run.cfg --local-run
+   ```
+   
+   Generally, `weather-dl` is designed to ingest weather data to cloud storage.
+   To learn how to configure downloads, please see [this documentation](Configuration.md).
+
+3. Use `weather-mv` to upload this data to Google BigQuery.
+
+   ```shell
+   weather-mv --uris $(pwd)/local_run/**.nc \
+      --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
+      --temp_location gs://$BUCKET/tmp/ \
+      --infer_schema
+   ```
+
 ## Choosing a Beam Runner
 
 All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally
