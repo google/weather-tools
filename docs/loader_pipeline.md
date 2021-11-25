@@ -1,22 +1,21 @@
-loader_pipeline package
-=======================
+# loader_pipeline package
 
-Submodules
-----------
+## Submodules
 
-loader_pipeline.netcdf_loader module
----------------------------------------------------
+### loader_pipeline.netcdf_loader module
 
+```{eval-rst}
 .. automodule:: weather_mv.loader_pipeline.netcdf_loader
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
+## Module contents
 
-Module contents
----------------
-
+```{eval-rst}
 .. automodule:: loader_pipeline
    :members:
    :undoc-members:
    :show-inheritance:
+```

@@ -1,4 +1,4 @@
-# Weather data splitter (`weather-sp`)
+# `weather-sp` – Weather Splitter 
 
 Splits netcdf and grib files into several files by variable.
 
