@@ -20,9 +20,9 @@ import getpass
 import itertools
 import logging
 import os
+import shutil
 import tempfile
 import typing as t
-import shutil
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
@@ -64,10 +64,7 @@ def prepare_target_name(config: t.Dict) -> str:
 def skip_partition(config: t.Dict, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
-    if 'force_download' not in config['parameters'].keys():
-        return False
-
-    if config['parameters']['force_download']:
+    if config['parameters'].get('force_download', False):
         return False
 
     target = prepare_target_name(config)
@@ -115,10 +112,7 @@ def assemble_partition_config(partition: t.Tuple,
                               config: t.Dict,
                               manifest: Manifest,
                               store: t.Optional[Store] = None) -> t.Dict:
-    """
-    Assemble the configuration for a single partition based on one of the
-    partitions prepared by `prepare_partitions`.
-    """
+    """Assemble the configuration for a single partition."""
     if store is None:
         store = GcsStore()
     # Output a config dictionary, overriding the range of values for
@@ -158,7 +152,7 @@ def assemble_partition_config(partition: t.Tuple,
     user = out['parameters'].get('user_id', 'unknown')
     manifest.schedule(selection, location, user)
 
-    logger.info(f'Created partition {location}')
+    logger.info(f'Created partition {location!r}.')
     return out
 
 
@@ -172,6 +166,7 @@ def fetch_data(config: t.Dict,
     """
     if not config:
         return
+
     if store is None:
         store = GcsStore()
 
@@ -205,7 +200,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
                         help="path/to/config.cfg, containing client and data information. "
                              "Accepts *.cfg and *.json files.")
-    parser.add_argument('-f', '--force-download', action="store_true",
+    parser.add_argument('-f', '--force-download', action="store_true", default=False,
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
@@ -232,19 +227,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
-    manifest_location = known_args.manifest_location
-
-    project_id__exists = 'project' in pipeline_options.get_all_options()
-    project_id__not_set = 'projectId' not in manifest_location
-    if manifest_location.startswith('fs://') and project_id__not_set and project_id__exists:
-        start_char = '&' if '?' in manifest_location else '?'
-        project = pipeline_options.get_all_options().get('project')
-        manifest_location += f'{start_char}projectId={project}'
-
     client_name = config['parameters']['client']
     store = None  # will default to using GcsIO()
     config['parameters']['force_download'] = known_args.force_download
-    manifest = parse_manifest_location(manifest_location)
+    manifest = parse_manifest_location(known_args.manifest_location, pipeline_options.get_all_options())
 
     if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
         max_num_workers = CLIENTS[client_name](config).num_requests_per_key(

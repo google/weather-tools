@@ -83,8 +83,16 @@ def parse_config(file: io.StringIO) -> t.Dict:
     return {}
 
 
-def parse_manifest_location(location: Location) -> Manifest:
+def parse_manifest_location(location: Location, pipeline_opts: t.Dict) -> Manifest:
     """Constructs a manifest object by parsing the location."""
+
+    project_id__exists = 'project' in pipeline_opts
+    project_id__not_set = 'projectId' not in location
+    if location.startswith('fs://') and project_id__not_set and project_id__exists:
+        start_char = '&' if '?' in location else '?'
+        project = pipeline_opts.get('project')
+        location += f'{start_char}projectId={project}'
+
     parsed = urlparse(location)
     return MANIFESTS.get(parsed.scheme, NoOpManifest)(location)
 
