@@ -22,6 +22,7 @@ import logging
 import os
 import tempfile
 import typing as t
+import shutil
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
@@ -173,27 +174,26 @@ def fetch_data(config: t.Dict,
         return
     if store is None:
         store = GcsStore()
-    dataset = config['parameters'].get('dataset', '')
+
+    client = CLIENTS[client_name](config)
     target = prepare_target_name(config)
+
+    dataset = config['parameters'].get('dataset', '')
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')
-    client = CLIENTS[client_name](config)
 
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
-            logger.info(f'Fetching data for {target}')
+            logger.info(f'Fetching data for {target!r}.')
             client.retrieve(dataset, selection, temp.name)
 
             # upload blob to gcs
-            logger.info(f'Uploading to store for {target}')
-            temp.seek(0)
+            logger.info(f'Uploading to store for {target!r}.')
+
             with store.open(target, 'wb') as dest:
-                while True:
-                    chunk = temp.read(8192)
-                    if len(chunk) == 0:  # eof
-                        break
-                    dest.write(chunk)
-            logger.info(f'Upload to store complete for {target}')
+                shutil.copyfileobj(temp, dest)
+
+            logger.info(f'Upload to store complete for {target!r}.')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
