@@ -31,7 +31,7 @@ class MaxWorkersTest(unittest.TestCase):
     def test_marsclient(self):
         client = MarsClient({'parameters': {}})
         self.assertEqual(
-            client.num_requests_per_key("reanalysis-era5-some-data"), 1)
+            client.num_requests_per_key("reanalysis-era5-some-data"), 24)
 
     def test_fakeclient(self):
         client = FakeClient({'parameters': {}})

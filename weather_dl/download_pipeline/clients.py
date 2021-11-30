@@ -127,8 +127,11 @@ class MarsClient(Client):
             self.c.execute(req=selection, target=output)
 
     def num_requests_per_key(self, dataset: str) -> int:
-        # Mars only allows 1 request per key since retrieval from tape is slow.
-        return 1
+        # Mars allows 2 active requests per user and 22 queued requests per user, as of Sept 27, 2021.
+        # See: https://confluence.ecmwf.int/display/UDOC/Total+number+of+requests+a+user+can+submit+-+Web+API+FAQ
+        active_requests = 2
+        queued_requests = 22
+        return active_requests + queued_requests
 
 
 class FakeClient(Client):
