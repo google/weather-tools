@@ -20,7 +20,7 @@ import os
 import tempfile
 import typing as t
 
-from apache_beam.io.gcp import gcsio
+from apache_beam.io.filesystems import FileSystems
 
 
 class Store(abc.ABC):
@@ -88,21 +88,17 @@ class LocalFileStore(Store):
         return os.path.exists('{}/{}'.format(self.dir, filename))
 
 
-class GcsStore(Store):
-    """Store data into GCS."""
-
-    def __init__(self) -> None:
-        self.gcs = None
-
-    def initialize_gcs(self) -> None:
-        """Initializes the gcsio object. Note this must not be in __init__"""
-        if not self.gcs:
-            self.gcs = gcsio.GcsIO()
+class FSStore(Store):
+    """Store data into any store supported by Apache Beam's FileSystems."""
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
-        self.initialize_gcs()
-        return self.gcs.open(filename, mode)
+        if 'r' in mode and 'w' not in mode:
+            return FileSystems().open(filename)
+
+        if 'w' in mode and 'r' not in mode:
+            return FileSystems().create(filename)
+
+        raise ValueError("invalid mode: mode must have either 'r' or 'w', but not both.")
 
     def exists(self, filename: str) -> bool:
-        self.initialize_gcs()
-        return self.gcs.exists(filename)
+        return FileSystems().exists(filename)
