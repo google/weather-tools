@@ -78,9 +78,10 @@ class GribSplitter(FileSplitter):
                 out.close()
             logging.info('split %s into %d files', self.input_path, len(outputs))
 
-    def _open_grib_locally(self) -> t.Iterator[pygrib.gribmessage]:
+    @contextmanager
+    def _open_grib_locally(self) -> t.Iterator[t.Iterator[pygrib.gribmessage]]:
         with self._copy_to_local_file() as local_file:
-            return pygrib.open(local_file.name)
+            yield pygrib.open(local_file.name)
 
     def _open_outfile(self, key: SplitKey):
         return FileSystems.create(self._get_output_file_path(key))
@@ -99,9 +100,10 @@ class NetCdfSplitter(FileSplitter):
                 self._create_netcdf_dataset_for_variable(nc_data, field)
             logging.info('split %s into %d files', self.input_path, len(fields))
 
-    def _open_dataset_locally(self) -> nc.Dataset:
+    @contextmanager
+    def _open_dataset_locally(self) -> t.Iterator[nc.Dataset]:
         with self._copy_to_local_file() as local_file:
-            return nc.Dataset(local_file.name, 'r')
+            yield nc.Dataset(local_file.name, 'r')
 
     def _create_netcdf_dataset_for_variable(self, dataset: nc.Dataset,
                                             variable: str) -> None:
