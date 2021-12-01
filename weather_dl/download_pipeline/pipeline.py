@@ -29,7 +29,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, GcsStore, LocalFileStore
+from .stores import Store, TempFileStore, FSStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def assemble_partition_config(partition: t.Tuple,
     partitions prepared by `prepare_partitions`.
     """
     if store is None:
-        store = GcsStore()
+        store = FSStore()
     # Output a config dictionary, overriding the range of values for
     # each key with the partition instance in 'selection'.
     # Continuing the example from prepare_partitions, the selection section
@@ -172,7 +172,7 @@ def fetch_data(config: t.Dict,
     if not config:
         return
     if store is None:
-        store = GcsStore()
+        store = FSStore()
     dataset = config['parameters'].get('dataset', '')
     target = prepare_target_name(config)
     selection = config['selection']
@@ -184,7 +184,7 @@ def fetch_data(config: t.Dict,
             logger.info(f'Fetching data for {target}')
             client.retrieve(dataset, selection, temp.name)
 
-            # upload blob to gcs
+            # upload blob to cloud storage
             logger.info(f'Uploading to store for {target}')
             temp.seek(0)
             with store.open(target, 'wb') as dest:
@@ -242,7 +242,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         manifest_location += f'{start_char}projectId={project}'
 
     client_name = config['parameters']['client']
-    store = None  # will default to using GcsIO()
+    store = None  # will default to using FileSystems()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(manifest_location)
 
