@@ -92,13 +92,23 @@ class FSStore(Store):
     """Store data into any store supported by Apache Beam's FileSystems."""
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
+        """Open object in cloud bucket (or local file system) as a read or write channel.
+
+        To work with cloud storage systems, only a read or write channel can be openend
+        at one time. Data will be treated as bytes, not text (equivalent to `rb` or `wb`).
+
+        Further, append operations, or writes on existing objects, are dissallowed (the
+        error thrown will depend on the implementation of the underlying cloud provider).
+        """
         if 'r' in mode and 'w' not in mode:
             return FileSystems().open(filename)
 
         if 'w' in mode and 'r' not in mode:
             return FileSystems().create(filename)
 
-        raise ValueError("invalid mode: mode must have either 'r' or 'w', but not both.")
+        raise ValueError(
+            f"invalid mode {mode!r}: mode must have either 'r' or 'w', but not both."
+        )
 
     def exists(self, filename: str) -> bool:
         return FileSystems().exists(filename)

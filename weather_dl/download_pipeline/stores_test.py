@@ -36,15 +36,23 @@ class FSStoreTest(unittest.TestCase):
             with FSStore().open(target, 'rb') as f:
                 self.assertEqual(f.readlines(), [b'data'])
 
+    def test_reads__default_argument(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = f'{tmpdir}/my-file'
+            with open(target, 'w') as f:
+                f.write('data')
+            with FSStore().open(target) as f:
+                self.assertEqual(f.readlines(), [b'data'])
+
     def test_asserts_bad_mode__both(self):
-        with self.assertRaisesRegex(ValueError, 'invalid mode:'):
+        with self.assertRaisesRegex(ValueError, 'invalid mode'):
             with tempfile.TemporaryDirectory() as tmpdir:
                 target = f'{tmpdir}/my-file'
                 with FSStore().open(target, 'rw') as f:
                     f.read()
 
     def test_asserts_bad_mode__neither(self):
-        with self.assertRaisesRegex(ValueError, 'invalid mode:'):
+        with self.assertRaisesRegex(ValueError, 'invalid mode'):
             with tempfile.TemporaryDirectory() as tmpdir:
                 target = f'{tmpdir}/my-file'
                 with FSStore().open(target, '') as f:
