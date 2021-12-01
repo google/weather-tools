@@ -255,6 +255,11 @@ def run(argv: t.List[str], save_main_session: bool = True):
         pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
         pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers
 
+    # Default: Assume user intends to have one thread per worker.
+    if pipeline_options.view_as(WorkerOptions).number_of_worker_harness_threads is None:
+        pipeline_options.view_as(WorkerOptions).experiments = 'use_runner_v2'
+        pipeline_options.view_as(WorkerOptions).number_of_worker_harness_threads = 1
+
     if known_args.dry_run:
         client_name = 'fake'
         store = TempFileStore('dry_run')
