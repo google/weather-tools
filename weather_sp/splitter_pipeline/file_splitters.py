@@ -64,19 +64,19 @@ class GribSplitter(FileSplitter):
     def split_data(self) -> None:
         outputs = dict()
 
-        grbs = self._open_grib_locally()
-        for grb in grbs:
-            key = SplitKey(grb.typeOfLevel, grb.shortName)
-            if key not in outputs:
-                metrics.Metrics.counter('file_splitters',
-                                        f'grib: {key}').inc()
-                outputs[key] = self._open_outfile(key)
-            outputs[key].write(grb.tostring())
-            outputs[key].flush()
+        with self._open_grib_locally() as grbs:
+            for grb in grbs:
+                key = SplitKey(grb.typeOfLevel, grb.shortName)
+                if key not in outputs:
+                    metrics.Metrics.counter('file_splitters',
+                                            f'grib: {key}').inc()
+                    outputs[key] = self._open_outfile(key)
+                outputs[key].write(grb.tostring())
+                outputs[key].flush()
 
-        for out in outputs.values():
-            out.close()
-        logging.info('split %s into %d files', self.input_path, len(outputs))
+            for out in outputs.values():
+                out.close()
+            logging.info('split %s into %d files', self.input_path, len(outputs))
 
     def _open_grib_locally(self) -> t.Iterator[pygrib.gribmessage]:
         with self._copy_to_local_file() as local_file:
@@ -92,12 +92,12 @@ class NetCdfSplitter(FileSplitter):
         super().__init__(input_path, output_folder, file_suffix='nc')
 
     def split_data(self) -> None:
-        nc_data = self._open_dataset_locally()
-        fields = [var for var in nc_data.variables.keys() if
-                  var not in nc_data.dimensions.keys()]
-        for field in fields:
-            self._create_netcdf_dataset_for_variable(nc_data, field)
-        logging.info('split %s into %d files', self.input_path, len(fields))
+        with self._open_dataset_locally() as nc_data:
+            fields = [var for var in nc_data.variables.keys() if
+                      var not in nc_data.dimensions.keys()]
+            for field in fields:
+                self._create_netcdf_dataset_for_variable(nc_data, field)
+            logging.info('split %s into %d files', self.input_path, len(fields))
 
     def _open_dataset_locally(self) -> nc.Dataset:
         with self._copy_to_local_file() as local_file:
