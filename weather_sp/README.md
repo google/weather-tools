@@ -60,5 +60,5 @@ split will be `gs://test-output/splits/2020/01/01.nc_t.nc`
 ## Dry run
 
 To verify the input file matching and the output naming scheme, weather-splitter can be run with the `--dry-run` option.
-This does not read the files, so ti will not check whether the files are readable and in the correct format. It will
+This does not read the files, so it will not check whether the files are readable and in the correct format. It will
 only list the input files with the corresponding output file schemes.
