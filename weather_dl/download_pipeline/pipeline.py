@@ -247,11 +247,12 @@ def run(argv: t.List[str], save_main_session: bool = True):
     manifest = parse_manifest_location(manifest_location)
 
     if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
-        max_num_workers = CLIENTS[client_name](config).num_requests_per_key(
-            config.get('parameters', {}).get('dataset', "")) * config.get(
-            'parameters', {}).get('num_api_keys', 1)
-        pipeline_options.view_as(
-            WorkerOptions).max_num_workers = max_num_workers * 2
+        num_api_keys = config.get('parameters', {}).get('num_api_keys', 1)
+        num_workers_per_key = CLIENTS[client_name](config).num_requests_per_key(
+            config.get('parameters', {}).get('dataset', "")
+        )
+        max_num_workers =  num_workers_per_key * num_api_keys
+        pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
         pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers
 
     if known_args.dry_run:
