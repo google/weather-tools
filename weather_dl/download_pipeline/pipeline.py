@@ -251,7 +251,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         num_workers_per_key = CLIENTS[client_name](config).num_requests_per_key(
             config.get('parameters', {}).get('dataset', "")
         )
-        max_num_workers =  num_workers_per_key * num_api_keys
+        max_num_workers = num_workers_per_key * num_api_keys
         pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
         pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers
 
