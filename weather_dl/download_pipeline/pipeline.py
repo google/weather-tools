@@ -24,7 +24,13 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
+from apache_beam.options.pipeline_options import (
+    DebugOptions,
+    PipelineOptions,
+    SetupOptions,
+    WorkerOptions,
+    StandardOptions,
+)
 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
@@ -256,9 +262,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
         pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers
 
     # Default: Assume user intends to have one thread per worker.
-    if pipeline_options.view_as(WorkerOptions).number_of_worker_harness_threads is None:
-        pipeline_options.view_as(WorkerOptions).experiments = 'use_runner_v2'
-        pipeline_options.view_as(WorkerOptions).number_of_worker_harness_threads = 1
+    if pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads is None:
+        pipeline_options.view_as(DebugOptions).add_experiment('use_runner_v2')
+        pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads = 1
 
     if known_args.dry_run:
         client_name = 'fake'
