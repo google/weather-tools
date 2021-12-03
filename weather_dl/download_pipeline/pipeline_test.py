@@ -66,7 +66,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         }
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
-    def test_multiple_api_keys__odd(self):
+    def test_multiple_api_keys__rounds_up(self):
         self.config['parameters']['num_api_keys'] = 5
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
@@ -99,7 +99,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         }
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
-    def test_user_specifies_threads__odd(self):
+    def test_user_specifies_threads__rounds_up(self):
         args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
         self.config['parameters']['num_api_keys'] = 17
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
@@ -122,7 +122,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         }
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
-    def test_user_specifies_workers__odd(self):
+    def test_user_specifies_workers__rounds_up(self):
         args = '--max_num_workers 3'.split()
         self.config['parameters']['num_api_keys'] = 7
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
@@ -138,7 +138,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.config['parameters']['num_api_keys'] = 7
         with self.assertWarnsRegex(
                 Warning,
-                "Max number of workers 12 with 2 threads each exceeds recommended 7 concurrent requestors."
+                "Max number of workers 12 with 2 threads each exceeds recommended 7 concurrent requests."
         ):
             opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {

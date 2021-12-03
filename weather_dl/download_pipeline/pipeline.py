@@ -79,7 +79,7 @@ def configure_workers(client_name: str,
     if pipeline_options.view_as(WorkerOptions).max_num_workers > max_num_workers_with_n_threads:
         warnings.warn(
             f'Max number of workers {pipeline_options.view_as(WorkerOptions).max_num_workers!r} with '
-            f'{n_threads!r} threads each exceeds recommended {max_num_requesters!r} concurrent requestors.'
+            f'{n_threads!r} threads each exceeds recommended {max_num_requesters!r} concurrent requests.'
         )
 
     return pipeline_options
