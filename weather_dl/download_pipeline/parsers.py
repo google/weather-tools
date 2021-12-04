@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Parsers for ECMWF download configuration."""
 
 import configparser
@@ -31,6 +30,11 @@ from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 def date(candidate: str) -> datetime.date:
     """Converts ECMWF-format date strings into a `datetime.date`.
 
+    Accepted absolute date formats:
+    - YYYY-MM-DD
+    - YYYYMMDD
+    - YYYY-DDD, where DDD refers to the day of the year
+
     See https://confluence.ecmwf.int/pages/viewpage.action?pageId=118817289 for date format spec.
     Note: Name of month is not supported.
     """
@@ -40,10 +44,6 @@ def date(candidate: str) -> datetime.date:
     if candidate.startswith('-'):
         return datetime.date.today() + datetime.timedelta(days=int(candidate))
 
-    # Accepted absolute formats:
-    # - YYYY-MM-DD
-    # - YYYYMMDD
-    # - YYYY-DDD, where DDD refers to the day of the year
     accepted_formats = ["%Y-%m-%d", "%Y%m%d", "%Y-%j"]
 
     for fmt in accepted_formats:
