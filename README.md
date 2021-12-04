@@ -1,5 +1,7 @@
 # weather-tools
 
+[![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
+
 Apache Beam pipelines to make weather data accessible and useful.
 
 <details>

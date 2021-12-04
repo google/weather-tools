@@ -50,11 +50,12 @@ jobs:
       with:
         path: ${{ steps.pip-cache.outputs.dir }}
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
-    - name: Setup tox runner
-      run: |
-        pip install tox tox-gh-actions
     - name: Install weather-tools
       run: |
         pip install -e .[tests]
     - name: Run unit tests
-      run: tox
+      run: pytest
+    - name: Lint project
+      run: flake8
+    - name: Run type checker
+      run: pytype
