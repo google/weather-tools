@@ -22,6 +22,7 @@ import os
 import shutil
 import tempfile
 import typing as t
+import warnings
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import (
