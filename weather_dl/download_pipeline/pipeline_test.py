@@ -17,12 +17,136 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
+from apache_beam.options.pipeline_options import PipelineOptions
 from .stores import InMemoryStore
 from .manifest import MockManifest, Location
-from .pipeline import fetch_data
-from .pipeline import assemble_partition_config, prepare_partitions
-from .pipeline import prepare_target_name
-from .pipeline import skip_partition
+from .pipeline import (
+    assemble_partition_config,
+    configure_workers,
+    fetch_data,
+    prepare_partitions,
+    prepare_target_name,
+    skip_partition,
+)
+
+
+class ConfigureWorkersTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = {
+            'parameters': {
+                'partition_keys': ['year'],
+                'target_path': 'download-{}.nc',
+                'num_api_keys': 1
+            },
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 13)],
+                'year': [str(i) for i in range(2015, 2021)]
+            }
+        }
+
+    def test_fake_client(self):
+        opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 1,
+            'num_workers': 1,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_multiple_api_keys(self):
+        self.config['parameters']['num_api_keys'] = 4
+        opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 2,
+            'num_workers': 2,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_multiple_api_keys__rounds_up(self):
+        self.config['parameters']['num_api_keys'] = 5
+        opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 3,
+            'num_workers': 3,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_requestors(self):
+        opts = configure_workers('fake', self.config, 3, PipelineOptions([]))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 2,
+            'num_workers': 2,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_threads(self):
+        args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
+        self.config['parameters']['num_api_keys'] = 15
+        opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 3,
+            'max_num_workers': 5,
+            'num_workers': 5,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_threads__rounds_up(self):
+        args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
+        self.config['parameters']['num_api_keys'] = 17
+        opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 3,
+            'max_num_workers': 6,
+            'num_workers': 6,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_workers(self):
+        args = '--max_num_workers 3'.split()
+        self.config['parameters']['num_api_keys'] = 6
+        opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 3,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_workers__rounds_up(self):
+        args = '--max_num_workers 3'.split()
+        self.config['parameters']['num_api_keys'] = 7
+        opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 3,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
+
+    def test_user_specifies_workers__large(self):
+        args = '--max_num_workers 12'.split()
+        self.config['parameters']['num_api_keys'] = 7
+        with self.assertWarnsRegex(
+                Warning,
+                "Max number of workers 12 with 2 threads each exceeds recommended 7 concurrent requests."
+        ):
+            opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
+        expected = {
+            'experiments': ['use_runner_v2'],
+            'number_of_worker_harness_threads': 2,
+            'max_num_workers': 12,
+        }
+        self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
 
 class PreparePartitionTest(unittest.TestCase):
@@ -148,7 +272,7 @@ class PreparePartitionTest(unittest.TestCase):
         return [
             assemble_partition_config(p, config, manifest=self.dummy_manifest)
             for p in partition_list
-                ]
+        ]
 
 
 class FetchDataTest(unittest.TestCase):
