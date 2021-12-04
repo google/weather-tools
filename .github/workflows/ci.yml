@@ -52,10 +52,56 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
     - name: Install weather-tools
       run: |
-        pip install -e .[tests]
+        pip install -e .[tests] pytest
     - name: Run unit tests
       run: pytest
-    - name: Lint project
-      run: flake8
-    - name: Run type checker
-      run: pytype
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Cancel previous
+        uses: styfle/cancel-workflow-action@0.7.0
+        with:
+          access_token: ${{ github.token }}
+        if: ${{github.ref != 'refs/head/main'}}
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          python -m pip install --upgrade pip wheel
+          echo "::set-output name=dir::$(pip cache dir)"
+      - name: Install linter
+        run: |
+          pip install flake8
+      - name: Lint project
+        run: flake8
+  type-check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Cancel previous
+        uses: styfle/cancel-workflow-action@0.7.0
+        with:
+          access_token: ${{ github.token }}
+        if: ${{github.ref != 'refs/head/main'}}
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          python -m pip install --upgrade pip wheel
+          echo "::set-output name=dir::$(pip cache dir)"
+      - name: Install weather-tools
+        run: |
+          pip install -e .[tests]
+      - name: Run type checker
+        run: pytype
