@@ -52,7 +52,7 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
     - name: Install weather-tools
       run: |
-        pip install -e .[tests] pytest
+        pip install -e .[test]
     - name: Run unit tests
       run: pytest
   lint:
@@ -102,6 +102,6 @@ jobs:
           echo "::set-output name=dir::$(pip cache dir)"
       - name: Install weather-tools
         run: |
-          pip install -e .[tests]
+          pip install -e .[test]
       - name: Run type checker
         run: pytype
