@@ -91,14 +91,24 @@ class CdsClient(Client):
         self.c.retrieve(dataset, selection, target)
 
     def num_requests_per_key(self, dataset: str) -> int:
-        # CDS allows 3 requests per key for reanalysis data.
-        # For completed data, this should be 1 since that data is retrieved from
-        # Mars tape storage. See https://cds.climate.copernicus.eu/live/limits
-        # for up-to-date limits.
+        """Number of requests per key from the CDS API.
+
+        CDS has dynamic, data-specific limits, defined here:
+          https://cds.climate.copernicus.eu/live/limits
+
+        Typically, the reanalysis dataset allows for 3-5 simultaneous requets.
+        For all standard CDS data (backed on disk drives), it's common that 2
+        requests are allowed, though this is dynamically set, too.
+
+        If the Beam pipeline encounters a user request limit error, please cancel
+        all outstanding requests (per each user account) at the following link:
+        https://cds.climate.copernicus.eu/cdsapp#!/yourrequests
+        """
+        # TODO(#15): Parse live CDS limits API to set data-specific limits.
         for internal_set in self.cds_hosted_datasets:
             if dataset.startswith(internal_set):
-                return 3
-        return 1
+                return 5
+        return 2
 
 
 class StdoutLogger(io.StringIO):
@@ -162,8 +172,18 @@ class MarsClient(Client):
             self.c.execute(req=selection, target=output)
 
     def num_requests_per_key(self, dataset: str) -> int:
-        # Mars only allows 1 request per key since retrieval from tape is slow.
-        return 1
+        """Number of requests per key (or user) for the Mars API.
+
+        Mars allows 2 active requests per user and 20 queued requests per user, as of Sept 27, 2021.
+        To ensure we never hit a rate limit error during download, we return a slightly smaller
+        number of requests than the possible limit (20/22 requets).
+        See: https://confluence.ecmwf.int/display/UDOC/Total+number+of+requests+a+user+can+submit+-+Web+API+FAQ
+
+        Queued requests can _only_ be canceled manually from a web dashboard. If the
+        `ERROR 101 (USER_QUEUED_LIMIT_EXCEEDED)` error occurs in the Beam pipeline, then go to
+        http://apps.ecmwf.int/webmars/joblist/ and cancel queued jobs.
+        """
+        return 20
 
 
 class FakeClient(Client):

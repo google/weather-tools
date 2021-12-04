@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Primary ECMWF Downloader Workflow."""
-
+import warnings
 import argparse
 import copy as cp
 import getpass
@@ -24,12 +24,18 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
+from apache_beam.options.pipeline_options import (
+    DebugOptions,
+    PipelineOptions,
+    SetupOptions,
+    WorkerOptions,
+    StandardOptions,
+)
 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, GcsStore, LocalFileStore
+from .stores import Store, TempFileStore, FSStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +45,44 @@ def configure_logger(verbosity: int) -> None:
     level = 40 - verbosity * 10
     logging.getLogger(__package__).setLevel(level)
     logging.getLogger(__name__).setLevel(logging.INFO)
+
+
+def configure_workers(client_name: str,
+                      config: t.Dict,
+                      num_requesters_per_key: int,
+                      pipeline_options: PipelineOptions) -> PipelineOptions:
+    """Configure the number of workers and threads for the pipeline, allowing for user control."""
+
+    # The number of workers should always be proportional to the number of licenses.
+    num_api_keys = config.get('parameters', {}).get('num_api_keys', 1)
+
+    # If user doesn't specify a number of requestors, make educated guess based on clients and dataset.
+    if num_requesters_per_key == -1:
+        num_requesters_per_key = CLIENTS[client_name](config).num_requests_per_key(
+            config.get('parameters', {}).get('dataset', "")
+        )
+
+    max_num_requesters = num_requesters_per_key * num_api_keys
+
+    # Default: Assume user intends to have two thread per worker.
+    if pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads is None:
+        pipeline_options.view_as(DebugOptions).add_experiment('use_runner_v2')
+        pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads = 2
+
+    n_threads = pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads
+    max_num_workers_with_n_threads = max_num_requesters // n_threads + int(max_num_requesters % n_threads > 0)
+
+    if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
+        pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers_with_n_threads
+        pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers_with_n_threads
+
+    if pipeline_options.view_as(WorkerOptions).max_num_workers > max_num_workers_with_n_threads:
+        warnings.warn(
+            f'Max number of workers {pipeline_options.view_as(WorkerOptions).max_num_workers!r} with '
+            f'{n_threads!r} threads each exceeds recommended {max_num_requesters!r} concurrent requests.'
+        )
+
+    return pipeline_options
 
 
 def prepare_target_name(config: t.Dict) -> str:
@@ -113,7 +157,7 @@ def assemble_partition_config(partition: t.Tuple,
                               store: t.Optional[Store] = None) -> t.Dict:
     """Assemble the configuration for a single partition."""
     if store is None:
-        store = GcsStore()
+        store = FSStore()
     # Output a config dictionary, overriding the range of values for
     # each key with the partition instance in 'selection'.
     # Continuing the example from prepare_partitions, the selection section
@@ -167,11 +211,10 @@ def fetch_data(config: t.Dict,
         return
 
     if store is None:
-        store = GcsStore()
+        store = FSStore()
 
     client = CLIENTS[client_name](config)
     target = prepare_target_name(config)
-
     dataset = config['parameters'].get('dataset', '')
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')
@@ -181,9 +224,8 @@ def fetch_data(config: t.Dict,
             logger.info(f'Fetching data for {target!r}.')
             client.retrieve(dataset, selection, temp.name)
 
-            # upload blob to gcs
+            # upload blob to cloud storage
             logger.info(f'Uploading to store for {target!r}.')
-
             with store.open(target, 'wb') as dest:
                 shutil.copyfileobj(temp, dest)
 
@@ -209,6 +251,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help="Location of the manifest. Either a Firestore collection URI "
                              "('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' "
                              "for an in-memory location.")
+    parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
+                        help='Number of concurrent requests to make per API key. '
+                             'Default: make an educated guess per client & config. '
+                             'Please see the client documentation for more details.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -227,17 +273,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
     client_name = config['parameters']['client']
-    store = None  # will default to using GcsIO()
+    store = None  # will default to using FileSystems()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(known_args.manifest_location, pipeline_options.get_all_options())
-
-    if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
-        max_num_workers = CLIENTS[client_name](config).num_requests_per_key(
-            config.get('parameters', {}).get('dataset', "")) * config.get(
-            'parameters', {}).get('num_api_keys', 1)
-        pipeline_options.view_as(
-            WorkerOptions).max_num_workers = max_num_workers * 2
-        pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers
 
     if known_args.dry_run:
         client_name = 'fake'
@@ -250,6 +288,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
         store = LocalFileStore(local_dir)
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
+
+    pipeline_options = configure_workers(client_name, config, known_args.num_requests_per_key, pipeline_options)
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
