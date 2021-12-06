@@ -167,9 +167,9 @@ class PreparePartitionTest(unittest.TestCase):
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def create_partition_configs(self, config, store: t.Optional[Store] = None):
-        partition_list = prepare_partitions(config)
+        partition_list = prepare_partitions(config, store=store)
         return [
-            assemble_partition_config(p, config, manifest=self.dummy_manifest, store=store)
+            assemble_partition_config(p, config, manifest=self.dummy_manifest)
             for p in partition_list
         ]
 
