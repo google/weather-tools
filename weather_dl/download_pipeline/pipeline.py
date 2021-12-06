@@ -107,10 +107,7 @@ def prepare_target_name(config: t.Dict) -> str:
 def skip_partition(config: t.Dict, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
-    if 'force_download' not in config['parameters'].keys():
-        return False
-
-    if config['parameters']['force_download']:
+    if config['parameters'].get('force_download', False):
         return False
 
     target = prepare_target_name(config)

@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing as t
 import io
 import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
 from apache_beam.options.pipeline_options import PipelineOptions
-from .stores import InMemoryStore
+from .stores import InMemoryStore, Store
 from .manifest import MockManifest, Location
 from .pipeline import (
     assemble_partition_config,
@@ -28,6 +29,17 @@ from .pipeline import (
     prepare_target_name,
     skip_partition,
 )
+
+
+class OddFilesDoNotExistStore(InMemoryStore):
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def exists(self, filename: str) -> bool:
+        ret = self.count % 2 == 0
+        self.count += 1
+        return ret
 
 
 class ConfigureWorkersTest(unittest.TestCase):
@@ -154,6 +166,13 @@ class PreparePartitionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
+    def create_partition_configs(self, config, store: t.Optional[Store] = None):
+        partition_list = prepare_partitions(config)
+        return [
+            assemble_partition_config(p, config, manifest=self.dummy_manifest, store=store)
+            for p in partition_list
+        ]
+
     def test_partition_single_key(self):
         config = {
             'parameters': {
@@ -267,12 +286,34 @@ class PreparePartitionTest(unittest.TestCase):
             all([d.status == 'scheduled' for d in self.dummy_manifest.records.values()])
         )
 
-    def create_partition_configs(self, config):
-        partition_list = prepare_partitions(config)
-        return [
-            assemble_partition_config(p, config, manifest=self.dummy_manifest)
-            for p in partition_list
-        ]
+    def test_skip_partitions__never_unbalances_licenses(self):
+        skip_odd_files = OddFilesDoNotExistStore()
+        config = {
+            'parameters': OrderedDict(
+                partition_keys=['year', 'month'],
+                target_path='download-{}-{}.nc',
+                research={
+                    'api_key': 'KKKK1',
+                    'api_url': 'UUUU1'
+                },
+                cloud={
+                    'api_key': 'KKKK2',
+                    'api_url': 'UUUU2'
+                }
+            ),
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 3)],
+                'year': [str(i) for i in range(2016, 2020)]
+            }
+        }
+
+        actual = self.create_partition_configs(config, store=skip_odd_files)
+        research_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('1')]
+        cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
+
+        print(len(research_configs), len(cloud_configs))
+        self.assertEqual(len(research_configs), len(cloud_configs))
 
 
 class FetchDataTest(unittest.TestCase):
