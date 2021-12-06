@@ -166,7 +166,7 @@ class PreparePartitionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
-    def create_partition_configs(self, config, store: t.Optional[Store] = None):
+    def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
         partition_list = prepare_partitions(config, store=store)
         return [
             assemble_partition_config(p, config, manifest=self.dummy_manifest)
@@ -312,7 +312,6 @@ class PreparePartitionTest(unittest.TestCase):
         research_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('1')]
         cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
 
-        print(len(research_configs), len(cloud_configs))
         self.assertEqual(len(research_configs), len(cloud_configs))
 
 
