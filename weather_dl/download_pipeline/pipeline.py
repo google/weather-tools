@@ -179,12 +179,14 @@ def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Ite
     extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
     params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
 
-    def new_downloads_only(option: t.Tuple) -> bool:
+    def new_downloads_only(candidate: t.Dict) -> bool:
         """Predicate function to skip already downloaded partitions."""
-        candidate = _create_partition_config(option, config)
         return not skip_partition(candidate, store)
 
-    return zip(filter(new_downloads_only, fan_out), params_loop)
+    return zip(
+        filter(new_downloads_only, [_create_partition_config(option, config) for option in fan_out]),
+        params_loop
+    )
 
 
 def assemble_partition_config(partition: t.Tuple,
@@ -202,8 +204,7 @@ def assemble_partition_config(partition: t.Tuple,
     #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
     #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
     #   ...
-    option, params = partition
-    out = _create_partition_config(option, config)
+    out, params = partition
     out['parameters'].update(params)
 
     location = prepare_target_name(out)
