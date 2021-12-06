@@ -103,7 +103,8 @@ def prepare_target_name(config: t.Dict) -> str:
 
     return target
 
-def _create_partition_config(option: t.Tuple, config: t.Dict) -> str:
+
+def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
     """Create a config for a single partition option.
 
     Output a config dictionary, overriding the range of values for
