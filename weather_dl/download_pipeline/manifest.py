@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Client interface for connecting to a manifest."""
 
 import abc
@@ -31,10 +30,12 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
+"""An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
 
 
 class ManifestException(Exception):
+    """Errors that occur in Manifest Clients."""
     pass
 
 
@@ -67,7 +68,7 @@ class DownloadStatus(t.NamedTuple):
 
 
 class Manifest(abc.ABC):
-    """Manifest client interface.
+    """Abstract manifest of download statuses.
 
     Update download statuses to some storage medium.
 
@@ -94,6 +95,9 @@ class Manifest(abc.ABC):
             # on error, will record the download as a `failure` before propagating the error.  By default, it will
             # record download as a `success`.
         ```
+
+    Attributes:
+        location: An implementation-specific manifest URI.
     """
 
     def __init__(self, location: Location) -> None:
@@ -184,12 +188,17 @@ class GCSManifest(Manifest):
     represents the current state of a download.
     """
 
+    # Ensure no race conditions occurs on appends to objects in GCS
+    # (i.e. JSON manifests).
+    _lock = threading.Lock()
+
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
-        with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
-            json.dump(download_status._asdict(), gcs_file)
-            self.logger.debug('Manifest written to.')
-            self.logger.debug(download_status)
+        with GCSManifest._lock:
+            with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
+                json.dump(download_status._asdict(), gcs_file)
+        self.logger.debug('Manifest written to.')
+        self.logger.debug(download_status)
 
 
 class LocalManifest(Manifest):
@@ -198,7 +207,7 @@ class LocalManifest(Manifest):
     _lock = threading.Lock()
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location('{}/manifest.json'.format(location)))
+        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
         if location and not os.path.exists(location):
             os.makedirs(location)
 
@@ -237,6 +246,8 @@ class MockManifest(Manifest):
 
 
 class NoOpManifest(Manifest):
+    """A manifest that performs no operations."""
+
     def _update(self, download_status: DownloadStatus) -> None:
         pass
 
@@ -365,6 +376,6 @@ MANIFESTS = collections.OrderedDict({
 })
 
 if __name__ == '__main__':
+    # Execute doc tests
     import doctest
-
     doctest.testmod()

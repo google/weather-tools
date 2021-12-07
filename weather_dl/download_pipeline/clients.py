@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """ECMWF Downloader Clients."""
 
 import abc
@@ -28,9 +27,14 @@ from ecmwfapi import ECMWFService
 
 
 class Client(abc.ABC):
-    """Downloader client interface.
+    """Weather data provider client interface.
 
-    Defines allowed operations on clients.
+    Defines methods and properties required to efficiently interact with weather
+    data providers.
+
+    Attributes:
+        config: A config that contains pipeline parameters, such as API keys.
+        level: Default log level for the client.
     """
 
     def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
@@ -51,13 +55,29 @@ class Client(abc.ABC):
 
 
 class CdsClient(Client):
-    """Cloud Data Store Client"""
+    """A client to access weather data from the Cloud Data Store (CDS).
+
+    Datasets on CDS can be found at:
+      https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset
+
+    The parameters section of the input `config` requires two values: `api_url` and
+    `api_key`. Or, these values can be set as the environment variables: `CDSAPI_URL`
+    and `CDSAPI_KEY`. These can be acquired from the following URL, which requires
+    creating a free account: https://cds.climate.copernicus.eu/api-how-to
+
+    The CDS global queues for data access has dynamic rate limits. These can be viewed
+    live here: https://cds.climate.copernicus.eu/live/limits.
+
+    Attributes:
+        config: A config that contains pipeline parameters, such as API keys.
+        level: Default log level for the client.
+    """
 
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: t.Dict) -> None:
-        super().__init__(config)
+    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
+        super().__init__(config, level)
         self.c = cdsapi.Client(
             url=config['parameters'].get('api_url', os.environ.get('CDSAPI_URL')),
             key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
@@ -94,10 +114,8 @@ class CdsClient(Client):
 class StdoutLogger(io.StringIO):
     """Special logger to redirect stdout to logs."""
 
-    def __init__(self, logger_: t.Optional[logging.Logger] = None, level: int = logging.INFO):
+    def __init__(self, logger_: logging.Logger, level: int = logging.INFO):
         super().__init__()
-        if logger_ is None:
-            logger_ = logging.getLogger(__name__)
         self.logger = logger_
         self.level = level
         self._redirector = contextlib.redirect_stdout(self)
@@ -119,15 +137,32 @@ class StdoutLogger(io.StringIO):
 
 
 class MarsClient(Client):
-    """MARS Client"""
+    """A client to access data from the Meteorological Archival and Retrieval System (MARS).
 
-    def __init__(self, config: t.Dict) -> None:
-        super().__init__(config)
+    See https://www.ecmwf.int/en/forecasts/datasets for a summary of datasets available
+    on MARS. Most notable, MARS provides access to ECMWF's Operational Archive
+    https://www.ecmwf.int/en/forecasts/dataset/operational-archive.
+
+    The client config must contain three parameters to autheticate access to the MARS archive:
+    `api_key`, `api_url`, and `api_email`. These can also be configued by setting the
+    commensurate environment variables: `MARS_API_KEY`, `MARS_API_URL`, and `MARS_API_EMAIL`.
+    These credentials can be looked up by after registering for an ECMWF account
+    (https://apps.ecmwf.int/registration/) and visitng: https://api.ecmwf.int/v1/key/.
+
+    MARS server activity can be observed at https://apps.ecmwf.int/mars-activity/.
+
+    Attributes:
+        config: A config that contains pipeline parameters, such as API keys.
+        level: Default log level for the client.
+    """
+
+    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
+        super().__init__(config, level)
         self.c = ECMWFService(
             "mars",
-            key=config['parameters'].get('api_key', os.environ.get("ECMWF_API_KEY")),
-            url=config['parameters'].get('api_url', os.environ.get("ECMWF_API_URL")),
-            email=config['parameters'].get('api_email', os.environ.get("ECMWF_API_EMAIL")),
+            key=config['parameters'].get('api_key', os.environ.get("MARS_API_KEY")),
+            url=config['parameters'].get('api_url', os.environ.get("MARS_API_URL")),
+            email=config['parameters'].get('api_email', os.environ.get("MARS_API_EMAIL")),
             log=self.logger.debug,
             verbose=True
         )
@@ -152,7 +187,7 @@ class MarsClient(Client):
 
 
 class FakeClient(Client):
-    """A client that writes the selection arguments to the output file. """
+    """A client that writes the selection arguments to the output file."""
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         self.logger.debug(f'Downloading {dataset} to {output}')
