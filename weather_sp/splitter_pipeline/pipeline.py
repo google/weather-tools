@@ -26,6 +26,7 @@ from .file_splitters import get_splitter
 
 logger = logging.getLogger(__name__)
 
+
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     level = 40 - verbosity * 10
@@ -67,10 +68,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Pattern for input weather data.')
     parser.add_argument('-o', '--output-dir', type=str, required=True,
                         help='Path to base folder for output files. '
-                        'This directory will replace the common path of the '
-                        'input_pattern. For `input_pattern a/b/c/**` and '
-                        '`output_dir /x/y/z` a file `a/b/c/file.nc` will create'
-                        'output files like `/x/y/z/c/file.nc_shortname.nc`'
+                             'This directory will replace the common path of the '
+                             'input_pattern. For `input_pattern a/b/c/**` and '
+                             '`output_dir /x/y/z` a file `a/b/c/file.nc` will create'
+                             'output files like `/x/y/z/c/file.nc_shortname.nc`'
                         )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
@@ -94,13 +95,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
     logger.debug('dry_run: %s', known_args.dry_run)
     with beam.Pipeline(options=pipeline_options) as p:
         (
-            p
-            | 'MatchFiles' >> MatchFiles(input_pattern)
-            | 'ReadMatches' >> ReadMatches()
-            | 'Shuffle' >> beam.Reshuffle()
-            | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
-            | 'SplitFiles' >> beam.Map(split_file,
-                                       input_base_dir,
-                                       output_directory,
-                                       dry_run)
+                p
+                | 'MatchFiles' >> MatchFiles(input_pattern)
+                | 'ReadMatches' >> ReadMatches()
+                | 'Shuffle' >> beam.Reshuffle()
+                | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
+                | 'SplitFiles' >> beam.Map(split_file,
+                                           input_base_dir,
+                                           output_directory,
+                                           dry_run)
         )

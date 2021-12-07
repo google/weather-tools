@@ -25,6 +25,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class SplitKey(t.NamedTuple):
     level: str
     short_name: str
@@ -67,8 +68,8 @@ class FileSplitter(abc.ABC):
     def _get_output_file_path(self, key: SplitKey) -> str:
         level = '_{level}'.format(level=key.level) if key.level else ''
         return '{base}{level}_{sn}.{ending}'.format(
-                base=self.output_path, level=level, sn=key.short_name,
-                ending=self.file_suffix)
+            base=self.output_path, level=level, sn=key.short_name,
+            ending=self.file_suffix)
 
 
 class GribSplitter(FileSplitter):
@@ -130,8 +131,8 @@ class NetCdfSplitter(FileSplitter):
                 dest.setncatts(dataset.__dict__)
                 for name, dim in dataset.dimensions.items():
                     dest.createDimension(
-                            name,
-                            (len(dim) if not dim.isunlimited() else None))
+                        name,
+                        (len(dim) if not dim.isunlimited() else None))
                 include = [var for var in dataset.dimensions.keys()]
                 include.append(variable)
                 for name, var in dataset.variables.items():
@@ -144,7 +145,7 @@ class NetCdfSplitter(FileSplitter):
             temp_file.flush()
             self._copy_dataset_to_storage(temp_file,
                                           self._get_output_file_path(
-                                                  SplitKey('', variable)))
+                                              SplitKey('', variable)))
 
 
 class DrySplitter(FileSplitter):
@@ -153,7 +154,7 @@ class DrySplitter(FileSplitter):
 
     def split_data(self) -> None:
         self.logger.info('input file: %s - output scheme: %s_level_shortname.%s',
-                     self.input_path, self.output_path, self.file_suffix)
+                         self.input_path, self.output_path, self.file_suffix)
 
 
 def get_splitter(file_path: str, output_path: str,

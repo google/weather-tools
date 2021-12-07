@@ -27,7 +27,6 @@ import numpy as np
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
@@ -306,17 +305,17 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 p
                 | 'Create' >> beam.Create(all_uris)
                 | 'ExtractRows' >> beam.FlatMap(
-            extract_rows,
-            variables=known_args.variables,
-            area=known_args.area,
-            import_time=known_args.import_time)
+                    extract_rows,
+                    variables=known_args.variables,
+                    area=known_args.area,
+                    import_time=known_args.import_time)
                 | 'WriteToBigQuery' >> WriteToBigQuery(
-            project=table.project,
-            dataset=table.dataset_id,
-            table=table.table_id,
-            write_disposition=BigQueryDisposition.WRITE_APPEND,
-            create_disposition=BigQueryDisposition.CREATE_NEVER,
-            custom_gcs_temp_location=known_args.temp_location)
+                    project=table.project,
+                    dataset=table.dataset_id,
+                    table=table.table_id,
+                    write_disposition=BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=BigQueryDisposition.CREATE_NEVER,
+                    custom_gcs_temp_location=known_args.temp_location)
         )
 
     logger.info('Pipeline is finished.')
