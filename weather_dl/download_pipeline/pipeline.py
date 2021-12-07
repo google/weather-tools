@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Primary ECMWF Downloader Workflow."""
-import warnings
 import argparse
 import copy as cp
 import getpass
