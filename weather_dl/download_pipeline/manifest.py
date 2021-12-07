@@ -188,6 +188,8 @@ class GCSManifest(Manifest):
     represents the current state of a download.
     """
 
+    # Ensure no race conditions occurs on appends to objects in GCS
+    # (i.e. JSON manifests).
     _lock = threading.Lock()
 
     def _update(self, download_status: DownloadStatus) -> None:
@@ -195,8 +197,8 @@ class GCSManifest(Manifest):
         with GCSManifest._lock:
             with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
                 json.dump(download_status._asdict(), gcs_file)
-                self.logger.debug('Manifest written to.')
-                self.logger.debug(download_status)
+        self.logger.debug('Manifest written to.')
+        self.logger.debug(download_status)
 
 
 class LocalManifest(Manifest):
@@ -205,7 +207,7 @@ class LocalManifest(Manifest):
     _lock = threading.Lock()
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location('{}/manifest.json'.format(location)))
+        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
         if location and not os.path.exists(location):
             os.makedirs(location)
 

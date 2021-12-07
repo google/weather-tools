@@ -114,7 +114,7 @@ class CdsClient(Client):
 class StdoutLogger(io.StringIO):
     """Special logger to redirect stdout to logs."""
 
-    def __init__(self, logger_, level: int = logging.INFO):
+    def __init__(self, logger_: logging.Logger, level: int = logging.INFO):
         super().__init__()
         self.logger = logger_
         self.level = level

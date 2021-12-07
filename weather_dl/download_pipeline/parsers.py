@@ -35,6 +35,11 @@ def date(candidate: str) -> datetime.date:
     - YYYYMMDD
     - YYYY-DDD, where DDD refers to the day of the year
 
+    For example:
+    - 2021-10-31
+    - 19700101
+    - 1950-007
+
     See https://confluence.ecmwf.int/pages/viewpage.action?pageId=118817289 for date format spec.
     Note: Name of month is not supported.
     """
@@ -87,7 +92,11 @@ def parse_manifest_location(location: Location, pipeline_opts: t.Dict) -> Manife
     """Constructs a manifest object by parsing the location."""
     project_id__exists = 'project' in pipeline_opts
     project_id__not_set = 'projectId' not in location
+
+    # If the firestore location doesn't specify which project (and, the pipeline
+    # knows which project)...
     if location.startswith('fs://') and project_id__not_set and project_id__exists:
+        # ...Set the project query param in the Firestore URI.
         start_char = '&' if '?' in location else '?'
         project = pipeline_opts.get('project')
         location += f'{start_char}projectId={project}'

@@ -86,11 +86,11 @@ class LocalFileStore(Store):
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
         """Open a local file from the store directory."""
-        return open('{}/{}'.format(self.dir, filename), mode)
+        return open(os.sep.join([self.dir, filename]), mode)
 
     def exists(self, filename: str) -> bool:
         """Returns true if local file exists."""
-        return os.path.exists('{}/{}'.format(self.dir, filename))
+        return os.path.exists(os.sep.join([self.dir, filename]))
 
 
 class FSStore(Store):
