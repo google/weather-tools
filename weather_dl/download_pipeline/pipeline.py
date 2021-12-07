@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Primary ECMWF Downloader Workflow."""
-import warnings
+
 import argparse
 import copy as cp
 import getpass
 import itertools
 import logging
 import os
+import shutil
 import tempfile
 import typing as t
+import warnings
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import (
@@ -211,7 +212,7 @@ def assemble_partition_config(partition: t.Tuple,
     user = out['parameters'].get('user_id', 'unknown')
     manifest.schedule(out['selection'], location, user)
 
-    logger.info(f'Created partition {location}')
+    logger.info(f'Created partition {location!r}.')
     return out
 
 
@@ -225,29 +226,28 @@ def fetch_data(config: t.Dict,
     """
     if not config:
         return
+
     if store is None:
         store = FSStore()
-    dataset = config['parameters'].get('dataset', '')
+
+    client = CLIENTS[client_name](config)
     target = prepare_target_name(config)
+
+    dataset = config['parameters'].get('dataset', '')
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')
-    client = CLIENTS[client_name](config)
 
     with manifest.transact(selection, target, user):
         with tempfile.NamedTemporaryFile() as temp:
-            logger.info(f'Fetching data for {target}')
+            logger.info(f'Fetching data for {target!r}.')
             client.retrieve(dataset, selection, temp.name)
 
             # upload blob to cloud storage
-            logger.info(f'Uploading to store for {target}')
-            temp.seek(0)
+            logger.info(f'Uploading to store for {target!r}.')
             with store.open(target, 'wb') as dest:
-                while True:
-                    chunk = temp.read(8192)
-                    if len(chunk) == 0:  # eof
-                        break
-                    dest.write(chunk)
-            logger.info(f'Upload to store complete for {target}')
+                shutil.copyfileobj(temp, dest)
+
+            logger.info(f'Upload to store complete for {target!r}.')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -259,7 +259,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('config', type=argparse.FileType('r', encoding='utf-8'),
                         help="path/to/config.cfg, containing client and data information. "
                              "Accepts *.cfg and *.json files.")
-    parser.add_argument('-f', '--force-download', action="store_true",
+    parser.add_argument('-f', '--force-download', action="store_true", default=False,
                         help="Force redownload of partitions that were previously downloaded.")
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
@@ -290,19 +290,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
-    manifest_location = known_args.manifest_location
-
-    project_id__exists = 'project' in pipeline_options.get_all_options()
-    project_id__not_set = 'projectId' not in manifest_location
-    if manifest_location.startswith('fs://') and project_id__not_set and project_id__exists:
-        start_char = '&' if '?' in manifest_location else '?'
-        project = pipeline_options.get_all_options().get('project')
-        manifest_location += f'{start_char}projectId={project}'
-
     client_name = config['parameters']['client']
     store = None  # will default to using FileSystems()
     config['parameters']['force_download'] = known_args.force_download
-    manifest = parse_manifest_location(manifest_location)
+    manifest = parse_manifest_location(known_args.manifest_location, pipeline_options.get_all_options())
 
     if known_args.dry_run:
         client_name = 'fake'
