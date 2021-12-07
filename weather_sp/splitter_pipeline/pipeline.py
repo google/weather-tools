@@ -81,7 +81,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
     input_pattern = known_args.input_pattern
-    input_base_dir = _get_base_input_directory(known_args.input_pattern)
+    input_base_dir = _get_base_input_directory(input_pattern)
     # output target directory, if empty, set to same as input
     output_directory = known_args.output_dir
     if not output_directory:

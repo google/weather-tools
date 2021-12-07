@@ -12,22 +12,22 @@ _Common options_:
 
 * `-i, --input-pattern`: Pattern for input weather data.
 * `-o, --output-dir`: Path to base folder for output files. This directory will replace the common path of the
-  input_pattern. For `input-pattern a/b/c/**` and
+  input-pattern. For `input-pattern a/b/c/**` and
   `output-dir /x/y/z` a file `a/b/c/file.nc` will createoutput files like `/x/y/z/c/file.nc_shortname.nc`
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 
 _Usage examples_:
 
 ```bash
-weather-sp --input_pattern 'gs://test-tmp/era5/2017/**' \
-           --output_dir 'gs://test-tmp/era5/splits'
+weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
+           --output-dir 'gs://test-tmp/era5/splits'
 ```
 
 Using DataflowRunner
 
 ```bash
-weather-sp --input_pattern 'gs://test-tmp/era5/2015/**' \
-           --output_dir 'gs://test-tmp/era5/splits'
+weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
+           --output-dir 'gs://test-tmp/era5/splits'
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
