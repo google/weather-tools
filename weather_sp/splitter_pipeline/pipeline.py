@@ -24,15 +24,17 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .file_splitters import get_splitter
 
+logger = logging.getLogger(__name__)
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40 - verbosity * 10),
-                        format='%(asctime)-15s %(message)s')
+    level = 40 - verbosity * 10
+    logging.getLogger(__package__).setLevel(level)
+    logger.setLevel(level)
 
 
 def split_file(input_file: str, input_base_dir: str, output_directory: str, dry_run: bool):
-    logging.info('Splitting file %s', input_file)
+    logger.info('Splitting file %s', input_file)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(input_file,
                             get_output_base_name(input_path=input_file,
@@ -74,7 +76,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Test the input file matching and the output file scheme without splitting.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
@@ -86,10 +88,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
         output_directory = input_base_dir
     dry_run = known_args.dry_run
 
-    logging.debug('input_pattern: %s', input_pattern)
-    logging.debug('input_base_dir: %s', input_base_dir)
-    logging.debug('output_directory: %s', output_directory)
-    logging.debug('dry_run: %s', known_args.dry_run)
+    logger.debug('input_pattern: %s', input_pattern)
+    logger.debug('input_base_dir: %s', input_base_dir)
+    logger.debug('output_directory: %s', output_directory)
+    logger.debug('dry_run: %s', known_args.dry_run)
     with beam.Pipeline(options=pipeline_options) as p:
         (
             p

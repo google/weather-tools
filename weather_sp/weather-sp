@@ -18,15 +18,12 @@ import logging
 import os
 import subprocess
 import sys
-sys.path.append('.')
 import tarfile
 import tempfile
 
 import weather_sp
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
-
     site_pkg = weather_sp.__path__[0]
 
     try:
