@@ -105,6 +105,35 @@ def prepare_target_name(config: t.Dict) -> str:
     return target
 
 
+def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
+    """Create a config for a single partition option.
+
+    Output a config dictionary, overriding the range of values for
+    each key with the partition instance in 'selection'.
+    Continuing the example from prepare_partitions, the selection section
+    would be:
+      { 'foo': ..., 'year': ['2020'], 'month': ['01'], ... }
+      { 'foo': ..., 'year': ['2020'], 'month': ['02'], ... }
+      { 'foo': ..., 'year': ['2020'], 'month': ['03'], ... }
+
+    Args:
+        option: A single item in the range of partition_keys.
+        config: The download config, including the parameters and selection sections.
+
+    Returns:
+        A configuration with that selects a single download partition.
+    """
+    partition_keys = config['parameters']['partition_keys']
+    selection = config.get('selection', {})
+    copy = cp.deepcopy(selection)
+    out = cp.deepcopy(config)
+    for idx, key in enumerate(partition_keys):
+        copy[key] = [option[idx]]
+
+    out['selection'] = copy
+    return out
+
+
 def skip_partition(config: t.Dict, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
@@ -119,8 +148,10 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
     return False
 
 
-def prepare_partitions(config: t.Dict) -> t.Iterator[t.Tuple]:
+def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Iterator[t.Tuple]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
+    if store is None:
+        store = FSStore()
     partition_keys = config['parameters']['partition_keys']
     selection = config.get('selection', {})
 
@@ -149,24 +180,20 @@ def prepare_partitions(config: t.Dict) -> t.Iterator[t.Tuple]:
     extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
     params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
 
-    return zip(fan_out, params_loop)
+    def new_downloads_only(candidate: t.Dict) -> bool:
+        """Predicate function to skip already downloaded partitions."""
+        return not skip_partition(candidate, store)
+
+    return zip(
+        filter(new_downloads_only, [_create_partition_config(option, config) for option in fan_out]),
+        params_loop
+    )
 
 
 def assemble_partition_config(partition: t.Tuple,
                               config: t.Dict,
-                              manifest: Manifest,
-                              store: t.Optional[Store] = None) -> t.Dict:
+                              manifest: Manifest) -> t.Dict:
     """Assemble the configuration for a single partition."""
-    if store is None:
-        store = FSStore()
-    # Output a config dictionary, overriding the range of values for
-    # each key with the partition instance in 'selection'.
-    # Continuing the example from prepare_partitions, the selection section
-    # would be:
-    #   { 'foo': ..., 'year': ['2020'], 'month': ['01'], ... }
-    #   { 'foo': ..., 'year': ['2020'], 'month': ['02'], ... }
-    #   { 'foo': ..., 'year': ['2020'], 'month': ['03'], ... }
-    #
     # For each of these 'selection' sections, the output dictionary will
     # overwrite parameters from the extra param subsections (above),
     # evenly cycling through each subsection.
@@ -178,23 +205,12 @@ def assemble_partition_config(partition: t.Tuple,
     #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
     #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
     #   ...
-    partition_keys = config['parameters']['partition_keys']
-    selection = config.get('selection', {})
-
-    option, params = partition
-    copy = cp.deepcopy(selection)
-    out = cp.deepcopy(config)
-    for idx, key in enumerate(partition_keys):
-        copy[key] = [option[idx]]
-    out['selection'] = copy
+    out, params = partition
     out['parameters'].update(params)
-    if skip_partition(out, store):
-        return {}
 
-    selection = copy
     location = prepare_target_name(out)
     user = out['parameters'].get('user_id', 'unknown')
-    manifest.schedule(selection, location, user)
+    manifest.schedule(out['selection'], location, user)
 
     logger.info(f'Created partition {location!r}.')
     return out
@@ -296,10 +312,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 p
                 | 'Create' >> beam.Create([config])
-                | 'Prepare' >> beam.FlatMap(prepare_partitions)
+                | 'Prepare' >> beam.FlatMap(prepare_partitions, store=store)
                 # Shuffling here prevents beam from fusing all steps,
                 # which would result in utilizing only a single worker.
                 | 'Shuffle' >> beam.Reshuffle()
-                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest, store=store)
+                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest)
                 | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
         )
