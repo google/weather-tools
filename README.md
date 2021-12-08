@@ -1,6 +1,10 @@
-<h1 style="text-align: center">weather-tools</h1>
+<div style="text-align: center;">
 
-<p style="text-align: center">Easy-to-use Apache Beam pipelines to make weather data accessible and useful.</p>
+# weather-tools
+
+</div>
+
+<p style="text-align: center;">Easy-to-use Apache Beam pipelines to make weather data accessible and useful.</p>
 
 [![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
 
@@ -43,9 +47,9 @@ It's recommended that you create a local python environment (with
 
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
-- [`weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
-- [`weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into BigQuery.
-- [`weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by variable.
+- [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
+- [⛅️ `weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into BigQuery.
+- [🌪 `weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by variable.
 
 ## Quickstart
 
@@ -168,4 +172,22 @@ gcloud beta dataflow metrics list $JOBID --source=user
 ## Contributing
 
 The weather tools are under active development, and contributions are welcome! Please check out
-our [guide](CONTRIBUTING.md) to get started.
+our [guide](CONTRIBUTING.md) to get started. 
+
+## License
+
+```
+Copyright 2021 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```

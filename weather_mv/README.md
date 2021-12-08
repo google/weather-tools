@@ -1,4 +1,4 @@
-# `weather-mv` – Weather Mover
+# ⛅️ `weather-mv` – Weather Mover
 
 Weather Mover loads weather data from cloud storage into Google BigQuery.
 
