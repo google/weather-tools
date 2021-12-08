@@ -1,37 +1,40 @@
-download_pipeline package
+# download_pipeline package
 =========================
 
-Submodules
-----------
+## Submodules
 
-download_pipeline.clients module
-------------------------------------------------
+### download_pipeline.clients module
 
+```{eval-rst}
 .. automodule:: weather_dl.download_pipeline.clients
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
-download_pipeline.parsers module
-------------------------------------------------
+### download_pipeline.parsers module
 
+```{eval-rst}
 .. automodule:: weather_dl.download_pipeline.parsers
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
-download_pipeline.pipeline module
--------------------------------------------------
+### download_pipeline.pipeline module
 
+```{eval-rst}
 .. automodule:: weather_dl.download_pipeline.pipeline
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
-Module contents
----------------
+## Module contents
 
+```{eval-rst}
 .. automodule:: download_pipeline
    :members:
    :undoc-members:
    :show-inheritance:
+```

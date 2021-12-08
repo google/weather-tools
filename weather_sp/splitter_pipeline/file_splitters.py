@@ -23,6 +23,8 @@ import typing as t
 from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
 
+logger = logging.getLogger(__name__)
+
 
 class SplitKey(t.NamedTuple):
     level: str
@@ -66,8 +68,8 @@ class FileSplitter(abc.ABC):
     def _get_output_file_path(self, key: SplitKey) -> str:
         level = '_{level}'.format(level=key.level) if key.level else ''
         return '{base}{level}_{sn}.{ending}'.format(
-                base=self.output_path, level=level, sn=key.short_name,
-                ending=self.file_suffix)
+            base=self.output_path, level=level, sn=key.short_name,
+            ending=self.file_suffix)
 
 
 class GribSplitter(FileSplitter):
@@ -90,7 +92,7 @@ class GribSplitter(FileSplitter):
 
             for out in outputs.values():
                 out.close()
-            logging.info('split %s into %d files', self.input_path, len(outputs))
+            self.logger.info('split %s into %d files', self.input_path, len(outputs))
 
     @contextmanager
     def _open_grib_locally(self) -> t.Iterator[t.Iterator[pygrib.gribmessage]]:
@@ -112,7 +114,7 @@ class NetCdfSplitter(FileSplitter):
                       var not in nc_data.dimensions.keys()]
             for field in fields:
                 self._create_netcdf_dataset_for_variable(nc_data, field)
-            logging.info('split %s into %d files', self.input_path, len(fields))
+            self.logger.info('split %s into %d files', self.input_path, len(fields))
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[nc.Dataset]:
@@ -129,8 +131,8 @@ class NetCdfSplitter(FileSplitter):
                 dest.setncatts(dataset.__dict__)
                 for name, dim in dataset.dimensions.items():
                     dest.createDimension(
-                            name,
-                            (len(dim) if not dim.isunlimited() else None))
+                        name,
+                        (len(dim) if not dim.isunlimited() else None))
                 include = [var for var in dataset.dimensions.keys()]
                 include.append(variable)
                 for name, var in dataset.variables.items():
@@ -143,7 +145,7 @@ class NetCdfSplitter(FileSplitter):
             temp_file.flush()
             self._copy_dataset_to_storage(temp_file,
                                           self._get_output_file_path(
-                                                  SplitKey('', variable)))
+                                              SplitKey('', variable)))
 
 
 class DrySplitter(FileSplitter):
@@ -151,8 +153,8 @@ class DrySplitter(FileSplitter):
         super().__init__(file_path, output_path, file_ending)
 
     def split_data(self) -> None:
-        logging.info('input file: %s - output scheme: %s_level_shortname.%s',
-                     self.input_path, self.output_path, self.file_suffix)
+        self.logger.info('input file: %s - output scheme: %s_level_shortname.%s',
+                         self.input_path, self.output_path, self.file_suffix)
 
 
 def get_splitter(file_path: str, output_path: str,
@@ -166,7 +168,7 @@ def get_splitter(file_path: str, output_path: str,
             'grib') or file_path.endswith('grib2'):
         metrics.Metrics.counter('get_splitter', 'grib').inc()
     else:
-        logging.info('unspecified file type, assuming grib for %s', file_path)
+        logger.info('unspecified file type, assuming grib for %s', file_path)
         metrics.Metrics.counter('get_splitter',
                                 'unidentified grib').inc()
     if dry_run:

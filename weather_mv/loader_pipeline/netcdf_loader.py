@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pipeline for reflecting lots of NetCDF objects into a BigQuery table."""
 
 import argparse
@@ -28,11 +27,9 @@ import numpy as np
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp import gcsio
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
-
 
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 
@@ -40,10 +37,14 @@ DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 
+logger = logging.getLogger(__name__)
+
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
-    logging.basicConfig(level=(40 - verbosity * 10), format='%(asctime)-15s %(message)s')
+    level = (40 - verbosity * 10)
+    logging.getLogger(__package__).setLevel(level)
+    logger.setLevel(level)
 
 
 def open_dataset(uri: str) -> xr.Dataset:
@@ -59,13 +60,13 @@ def open_dataset(uri: str) -> xr.Dataset:
                 dest_file.seek(0)
                 xr_dataset: xr.Dataset = xr.open_dataset(dest_file.name)
 
-                logging.info(f'opened dataset size: {xr_dataset.nbytes}')
+                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
                 beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
                 return xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
-        logging.error(f'Unable to open file from Cloud Storage: {e}')
+        logger.error(f'Unable to open file from Cloud Storage: {e}')
         raise
 
 
@@ -108,7 +109,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
-    logging.debug('Serializing to JSON')
+    logger.debug('Serializing to JSON')
     if type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
         # Assume strings are ISO format timestamps...
         try:
@@ -142,13 +143,13 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
     # If there are no restrictions on data vars, include the whole dataset.
     if not data_vars:
-        logging.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
+        logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
         return ds
 
     assert all([dv in ds.data_vars for dv in data_vars]), 'Target variable must be in original dataset.'
 
     dropped_ds = ds.drop_vars([v for v in ds.data_vars if v not in data_vars])
-    logging.info(f'target-only dataset size: {dropped_ds.nbytes}')
+    logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
 
     return dropped_ds
 
@@ -174,7 +175,10 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     #
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
-    yield from map(lambda it: dict(zip(ds.coords, it)), coords)
+    for idx, it in enumerate(coords):
+        if idx % 1000 == 0:
+            logger.info(f'Processed {idx // 1000}k coordinates...')
+        yield dict(zip(ds.coords, it))
 
 
 def extract_rows(uri: str, *,
@@ -182,12 +186,12 @@ def extract_rows(uri: str, *,
                  area: t.Optional[t.List[int]] = None,
                  import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    logging.info(f'Extracting netcdf rows as dicts: {uri!r}.')
+    logger.info(f'Extracting netcdf rows as dicts: {uri!r}.')
     data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
     if area:
         n, w, s, e = area
         data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-        logging.info(f'Data filtered by area, size: {data_ds.nbytes}')
+        logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
     first_time_step = to_json_serializable_type(data_ds.time[0].values)
 
@@ -216,6 +220,11 @@ def extract_rows(uri: str, *,
     yield from map(to_row, get_coordinates(data_ds))
 
 
+def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
+    for match in FileSystems().match([match_pattern]):
+        yield from [x.path for x in match.metadata_list]
+
+
 def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
@@ -240,8 +249,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
     parser.add_argument('--infer_schema', action='store_true', default=False,
                         help='Download one file in the URI pattern and infer a schema from that file. Default: off')
+    parser.add_argument('-d', '--dry-run', action='store_true', default=False,
+                        help='Preview the load into BigQuery. Default: off')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
+
+    if known_args.dry_run:
+        raise NotImplementedError('dry-runs are currently not supported!')
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
@@ -256,18 +270,19 @@ def run(argv: t.List[str], save_main_session: bool = True):
     # Before starting the pipeline, read one file and generate the BigQuery
     # table schema from it. Assumes the the number of matching uris is
     # manageable.
-    all_uris = gcsio.GcsIO().list_prefix(known_args.uris)
+
+    all_uris = list(pattern_to_uris(known_args.uris))
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
 
     if known_args.variables and not known_args.infer_schema:
-        logging.info('Creating schema from input variables.')
+        logger.info('Creating schema from input variables.')
         table_schema = to_table_schema(
             [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
             [(var, 'FLOAT64') for var in known_args.variables]
         )
     else:
-        logging.info('Inferring schema from data.')
+        logger.info('Inferring schema from data.')
         ds: xr.Dataset = _only_target_vars(open_dataset(next(iter(all_uris))), known_args.variables)
         table_schema = dataset_to_table_schema(ds)
 
@@ -282,13 +297,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
         table = bigquery.Table(known_args.output_table, schema=table_schema)
         table = bigquery.Client().create_table(table, exists_ok=True)
     except Exception as e:
-        logging.error(f'Unable to create table in BigQuery: {e}')
+        logger.error(f'Unable to create table in BigQuery: {e}')
         raise
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
-                | 'Create' >> beam.Create(all_uris.keys())
+                | 'Create' >> beam.Create(all_uris)
                 | 'ExtractRows' >> beam.FlatMap(
                     extract_rows,
                     variables=known_args.variables,
@@ -303,4 +318,4 @@ def run(argv: t.List[str], save_main_session: bool = True):
                     custom_gcs_temp_location=known_args.temp_location)
         )
 
-    logging.info('Pipeline is finished.')
+    logger.info('Pipeline is finished.')

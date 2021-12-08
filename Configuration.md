@@ -225,8 +225,7 @@ Selections are dependent on how each data source's catalog is structured.
 
 ### Copernicus / CDS
 
-**
-Catalog**: [https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset)
+**Catalog**: [https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset)
 
 Visit the follow to register / acquire API credentials:
 _[Install the CDS API key](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key)_. After, please set

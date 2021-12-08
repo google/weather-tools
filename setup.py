@@ -72,7 +72,7 @@ setup(
              'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'dev': ['tox', 'sphinx', 'recommonmark'],
+        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'],
         'test': weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements,
     },
     project_urls={

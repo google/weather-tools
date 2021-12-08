@@ -45,7 +45,7 @@ def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     level = 40 - verbosity * 10
     logging.getLogger(__package__).setLevel(level)
-    logging.getLogger(__name__).setLevel(logging.INFO)
+    logger.setLevel(level)
 
 
 def configure_workers(client_name: str,

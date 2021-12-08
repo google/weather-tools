@@ -1,6 +1,6 @@
-Meeting Notes
-=============
+# Meeting Notes
 
+```{eval-rst}
 .. toctree::
    :maxdepth: 2
    :titlesonly:
@@ -8,3 +8,4 @@ Meeting Notes
    :includehidden:
 
    ./*
+```
