@@ -78,13 +78,15 @@ _Steps_:
    > Recommendation: Pass the `-d, --dry-run` flag to any of these commands to preview effects.
 
    Generally, `weather-dl` is designed to ingest weather data to cloud storage. To learn how to configure downloads,
-   please see [this documentation](Configuration.md).
+   please see [this documentation](Configuration.md). See [detailed usage of `weather-dl` here](weather_dl/README.md).
 
 2. (optional) Split your downloaded dataset up by variable with `weather-sp`:
 
    ```shell
     weather-sp --input-pattern "./local_run/era5-*.nc" --output-dir "split_data" 
    ```
+
+   Consult the [`weather-sp` docs](weather_sp/README.md) for more.
 
 3. Use `weather-mv` to upload this data to Google BigQuery.
 
@@ -93,6 +95,8 @@ _Steps_:
       --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
       --temp_location gs://$BUCKET/tmp/
    ```
+
+   See [these docs](weather_mv/README.md) for more about this tool.
 
    > Warning: Dry-runs are currently not supported. See [#22](https://github.com/googlestaging/weather-tools/issues/22).
 
