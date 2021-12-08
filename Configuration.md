@@ -252,9 +252,9 @@ the `api_url`, `api_key`, and `api_email` arguments in the `parameters` section 
 one can set these values as environment variables:
 
 ```shell
-export ECMWF_API_URL=$api_url
-export ECMWF_API_EMAIL=$api_email
-export ECMWF_API_KEY=$api_key
+export MARS_API_URL=$api_url
+export MARS_API_EMAIL=$api_email
+export MARS_API_KEY=$api_key
 ```
 
 For MARS parameter options, first read up on

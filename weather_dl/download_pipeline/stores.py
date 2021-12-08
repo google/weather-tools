@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Download destinations, or `Store`s."""
 
 import abc
@@ -26,7 +25,7 @@ from apache_beam.io.filesystems import FileSystems
 class Store(abc.ABC):
     """A interface to represent where downloads are stored.
 
-     Default implementation is Google Cloud Storage.
+     Default implementation uses Apache Beam's Filesystems.
      """
 
     @abc.abstractmethod
@@ -45,6 +44,7 @@ class InMemoryStore(Store):
         self.store = {}
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
+        """Create or read in-memory data."""
         if 'b' in mode:
             file = io.BytesIO()
         else:
@@ -53,6 +53,7 @@ class InMemoryStore(Store):
         return file
 
     def exists(self, filename: str) -> bool:
+        """Return true if the 'file' exists in memory."""
         return filename in self.store
 
 
@@ -66,9 +67,11 @@ class TempFileStore(Store):
             os.makedirs(self.dir)
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
+        """Create a temporary file in the store directory."""
         return tempfile.TemporaryFile(mode, dir=self.dir)
 
     def exists(self, filename: str) -> bool:
+        """Return true if file exists."""
         return os.path.exists(filename)
 
 
@@ -82,10 +85,12 @@ class LocalFileStore(Store):
             os.makedirs(self.dir)
 
     def open(self, filename: str, mode: str = 'r') -> t.IO:
-        return open('{}/{}'.format(self.dir, filename), mode)
+        """Open a local file from the store directory."""
+        return open(os.sep.join([self.dir, filename]), mode)
 
     def exists(self, filename: str) -> bool:
-        return os.path.exists('{}/{}'.format(self.dir, filename))
+        """Returns true if local file exists."""
+        return os.path.exists(os.sep.join([self.dir, filename]))
 
 
 class FSStore(Store):
@@ -111,4 +116,5 @@ class FSStore(Store):
         )
 
     def exists(self, filename: str) -> bool:
+        """Returns true if object exists."""
         return FileSystems().exists(filename)
