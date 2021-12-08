@@ -20,8 +20,8 @@ sys.path.insert(2, os.path.abspath('../weather_sp'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'ECMWF-Pipeline'
-copyright = '2020, Google'
+project = 'weather-tools'
+copyright = '2021 Google'
 author = 'Anthromets'
 
 # The full version, including alpha/beta/rc tags
@@ -34,7 +34,7 @@ release = '0.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'recommonmark',
+    'myst_parser',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
