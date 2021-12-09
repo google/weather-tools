@@ -1,7 +1,3 @@
-<style>
-   p { text-align: justify; }
-</style>
-
 # 🌪 `weather-sp` – Weather Splitter
 
 Splits NetCDF and Grib files into several files by variable (_alpha_).

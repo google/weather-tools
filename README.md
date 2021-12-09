@@ -1,11 +1,6 @@
-<style>
-   h1 { text-align: center; }
-   p { text-align: justify; }
-</style>
-
 # weather-tools
 
-<p style="text-align: center">Apache Beam pipelines to make weather data accessible and useful.</p>
+Apache Beam pipelines to make weather data accessible and useful.
 
 [![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
 

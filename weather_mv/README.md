@@ -1,7 +1,3 @@
-<style>
-   p { text-align: justify; }
-</style>
-
 # ⛅️ `weather-mv` – Weather Mover
 
 Weather Mover loads weather data from cloud storage into [Google BigQuery](https://cloud.google.com/bigquery) (_alpha_).

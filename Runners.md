@@ -1,6 +1,3 @@
-<style>
-   p { text-align: justify; }
-</style>
 # Choosing a Beam Runner
 
 All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally

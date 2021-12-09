@@ -1,7 +1,3 @@
-<style>
-   p { text-align: justify; }
-</style>
-
 # Configuration Files
 
 Config files describe both _what_ to download and _how_ it should be downloaded. To this end, configs have two sections:

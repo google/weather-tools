@@ -1,7 +1,3 @@
-<style>
-   p { text-align: justify; }
-</style>
-
 # ⛈ `weather-dl` – Weather Downloader
 
 Weather Downloader ingests weather data to cloud buckets, such
