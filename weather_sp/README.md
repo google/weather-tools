@@ -1,6 +1,18 @@
-# 🌪 `weather-sp` – Weather Splitter 
+<style>
+   p { text-align: justify; }
+</style>
 
-Splits netcdf and grib files into several files by variable.
+# 🌪 `weather-sp` – Weather Splitter
+
+Splits NetCDF and Grib files into several files by variable (_alpha_).
+
+## Features
+
+* **Format-Aware Processing**: Care is taken to ensure that each input file format is handled Appropriately. For
+  example, for Grib files, overlapping variables with different levels are kept separate. In addition, buckets with 
+  mixtures of NetCDF and Grib files can be processed on the same run.
+
+## Use
 
 ```
 usage: weather-sp [-h] -i INPUT_PATTERN -o OUTPUT_DIR [-d]
@@ -16,11 +28,21 @@ _Common options_:
   `output-dir /x/y/z` a file `a/b/c/file.nc` will createoutput files like `/x/y/z/c/file.nc_shortname.nc`
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 
+Invoke with `-h` or `--help` to see the full range of options.
+
 _Usage examples_:
 
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits'
+```
+
+Preview splits with a dry run:
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
+           --output-dir 'gs://test-tmp/era5/splits' \
+           --dry-run
 ```
 
 Using DataflowRunner
@@ -33,6 +55,9 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME
 ```
+
+For a full list of how to configure the Dataflow pipeline, please review
+[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
 
 ## Specifying input files
 
@@ -73,6 +98,6 @@ split will be `gs://test-output/splits/2020/01/01.nc_t.nc`
 
 ## Dry run
 
-To verify the input file matching and the output naming scheme, weather-sp can be run with the `--dry-run` option. This
-does not read the files, so it will not check whether the files are readable and in the correct format. It will only
-list the input files with the corresponding output file schemes.
+To verify the input file matching and the output naming scheme, `weather-sp` can be run with the `--dry-run` option.
+This does not read the files, so it will not check whether the files are readable and in the correct format. It will
+only list the input files with the corresponding output file schemes.

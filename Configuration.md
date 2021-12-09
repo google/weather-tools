@@ -1,3 +1,7 @@
+<style>
+   p { text-align: justify; }
+</style>
+
 # Configuration Files
 
 Config files describe both _what_ to download and _how_ it should be downloaded. To this end, configs have two sections:
@@ -269,7 +273,7 @@ to discover the kinds of requests that can be made.
 > **NOTE**: MARS data is stored on tape drives. It takes longer for multiple workers to request data than a single
 > worker. Thus, it's recommended _not_ to set a partition key when writing MARS data configurations.
 
-## Writing Efficient Configurations
+## Writing Efficient Data Requests
 
 TODO([#26](https://github.com/googlestaging/weather-tools/issues/26)). In the mean-time, please consult this ECMWF 
 documentation: 

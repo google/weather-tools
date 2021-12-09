@@ -1,9 +1,13 @@
+<style>
+   p { text-align: justify; }
+</style>
+
 # ⛈ `weather-dl` – Weather Downloader
 
 Weather Downloader ingests weather data to cloud buckets, such
-as [Google Cloud Storage](https://cloud.google.com/storage).
+as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 
-## Use Cases
+## Features
 
 * **Flexible yet Efficient Parallelization**: The tool gives you full control over how downloads are sharded and
   parallelized (with good defaults). This lets you focus on the data and not the plumbing. See
@@ -45,6 +49,12 @@ _Usage Examples_:
 weather-dl configs/era5_example_config_local_run.cfg --local-run
 ```
 
+Preview download with a dry run:
+
+```bash
+weather-dl configs/mars_example_config.cfg --dry-run
+```
+
 Using DataflowRunner
 
 ```bash
@@ -55,6 +65,9 @@ weather-dl configs/mars_example_config.cfg \
            --job_name $JOB_NAME
 ```
 
+For a full list of how to configure the Dataflow pipeline, please review
+[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
+
 ## Monitoring
 
 You can view how your ECMWF API jobs are by visitng the client-specific job queue:
@@ -62,7 +75,7 @@ You can view how your ECMWF API jobs are by visitng the client-specific job queu
 * [MARS](https://apps.ecmwf.int/mars-activity/)
 * [Copernicus](https://cds.climate.copernicus.eu/live/queue)
 
-If you use Google Cloud Storage, we recommend using [`gsutil`](https://cloud.google.com/storage/docs/gsutil) to inspect
+If you use Google Cloud Storage, we recommend using [`gsutil` (link)](https://cloud.google.com/storage/docs/gsutil) to inspect
 the progress of your downloads. For example:
 
 ```shell
