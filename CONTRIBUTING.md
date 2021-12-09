@@ -59,7 +59,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 1. Set up a Python development environment. We recommend *Anaconda*, *pyenv* or *virtualenv*.
 
-    * Use Python version 3.8.5 for development. (Python 3.9.x is incompatible
+    * Use Python version 3.8.5+ for development. (Python 3.9.x is incompatible
       with [Apache Beam's Python SDK](https://issues.apache.org/jira/browse/BEAM-12000).)
 
 1. Clone the repo and install dependencies.
@@ -70,7 +70,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
    # close with SSH
    git clone git@github.com:google/weather-tools.git
    cd weather-tools
-   pip install -e ."[tests]"
+   pip install -e ."[dev]"
    ```
 
 1. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
@@ -129,3 +129,22 @@ tox
 
 Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for guidance
 in how to write tests for the pipeline.
+
+## Documentation
+
+Documents are generated with Sphinx and the myst-parser. Like any project set up with Sphinx, a call to `make html` in
+the `docs/` folder is all that's needed to locally create the docs webpage. We often use the following subshell command
+to re-generate everything without having to leave the project root:
+
+```shell
+(cd docs && rm -r _build && make html)
+```
+
+> Note: Due to the idiosyncrasies of how Sphinx detects updates and our use of symbolic links, we recommend deleting the
+> `_build` folder.
+
+After the docs are re-generated, you can view them by starting a local file server, for example:
+
+```shell
+python -m http.server -d docs/_build/html
+```
