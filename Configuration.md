@@ -76,11 +76,11 @@ These describe which data source to download, where the data should live, and ho
 * `dataset`: (optional) Name of the target dataset. Allowed options are dictated by the client.
 * `target_path`: (required) Download artifact filename template. Can use Python string format symbols. Must have the
   same number of format symbols as the number of partition keys.
-* `target_filename` (optional) This file name will be appended to `target_path`.
+* `target_filename`: (optional) This file name will be appended to `target_path`.
     * Like `target_path`, `target_filename` can contain format symbols to be replaced by partition keys; if this is
       used, the total number of format symbols in both fields must match the number of partition keys.
     * This field is required when generating a date-based directory hierarchy (see below).
-* `append_date_dirs` (optional) A boolean indicating whether a date-based directory hierarchy should be created (see
+* `append_date_dirs`: (optional) A boolean indicating whether a date-based directory hierarchy should be created (see
   below); defaults to false if not used.
 * `partition_keys`: (optional) This determines how download jobs will be divided.
     * Value can be a single item or a list.

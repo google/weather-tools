@@ -8,7 +8,7 @@ as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 * **Flexible yet Efficient Parallelization**: The tool gives you full control over how downloads are sharded and
   parallelized (with good defaults). This lets you focus on the data and not the plumbing. See
   our [configuration docs](../Configuration.md) for more.
-* **Hassle-Free Dev-Ops**. `weather-dl` & Dataflow make it easy to spin up VMs on your behalf with one command. No need
+* **Hassle-Free Dev-Ops**. `weather-dl` and Dataflow make it easy to spin up VMs on your behalf with one command. No need
   to keep your local machine online all night to acquire data.
 * **Robust Downloads**. If an error occurs when fetching a shard, Dataflow will automatically retry the download for
   you. Previously downloaded shards will be skipped by default, so you can re-run the tool without having to worry about
