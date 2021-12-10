@@ -5,16 +5,20 @@ as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 
 ## Features
 
-* **Flexible yet Efficient Parallelization**: The tool gives you full control over how downloads are sharded and
+* **Flexible and Efficient Parallelization**: The tool gives you full control over how downloads are sharded and
   parallelized (with good defaults). This lets you focus on the data and not the plumbing. See
   our [configuration docs](../Configuration.md) for more.
-* **Hassle-Free Dev-Ops**. `weather-dl` and Dataflow make it easy to spin up VMs on your behalf with one command. No need
-  to keep your local machine online all night to acquire data.
+* **Hassle-Free Dev-Ops**. `weather-dl` and Dataflow make it easy to spin up VMs on your behalf with one command. No
+  need to keep your local machine online all night to acquire data.
 * **Robust Downloads**. If an error occurs when fetching a shard, Dataflow will automatically retry the download for
   you. Previously downloaded shards will be skipped by default, so you can re-run the tool without having to worry about
   duplication of work.
 
-## Use
+> Note: Currently, only ECMWF's MARS and CDS clients are supported. If you'd like to use `weather-dl` to work with other
+> data sources, please [file an issue](https://github.com/googlestaging/weather-tools/issues) (or consider
+> [making a contribution](../CONTRIBUTING.md)).
+
+## Usage
 
 ```
 usage: weather-dl [-h] [-f] [-d] [-l] [-m MANIFEST_LOCATION] config
@@ -71,8 +75,8 @@ You can view how your ECMWF API jobs are by visitng the client-specific job queu
 * [MARS](https://apps.ecmwf.int/mars-activity/)
 * [Copernicus](https://cds.climate.copernicus.eu/live/queue)
 
-If you use Google Cloud Storage, we recommend using [`gsutil` (link)](https://cloud.google.com/storage/docs/gsutil) to inspect
-the progress of your downloads. For example:
+If you use Google Cloud Storage, we recommend using [`gsutil` (link)](https://cloud.google.com/storage/docs/gsutil) to
+inspect the progress of your downloads. For example:
 
 ```shell
 # Check that the file-sizes of your downloads look alright

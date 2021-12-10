@@ -4,11 +4,11 @@ Splits NetCDF and Grib files into several files by variable (_alpha_).
 
 ## Features
 
-* **Format-Aware Processing**: Care is taken to ensure that each input file format is handled Appropriately. For
-  example, for Grib files, overlapping variables with different levels are kept separate. In addition, buckets with 
+* **Format-Aware Processing**: Care is taken to ensure that each input file format is handled appropriately. For
+  example, for Grib files, overlapping variables with different levels are kept separate. In addition, buckets with
   mixtures of NetCDF and Grib files can be processed on the same run.
 
-## Use
+## Usage
 
 ```
 usage: weather-sp [-h] -i INPUT_PATTERN -o OUTPUT_DIR [-d]

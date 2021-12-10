@@ -132,16 +132,22 @@ in how to write tests for the pipeline.
 
 ## Documentation
 
-Documents are generated with Sphinx and the myst-parser. Like any project set up with Sphinx, a call to `make html` in
-the `docs/` folder is all that's needed to locally create the docs webpage. We often use the following subshell command
-to re-generate everything without having to leave the project root:
+Documents are generated with Sphinx and the myst-parser. To generate the documents locally, simply invoke `make`:
 
 ```shell
-(cd docs && rm -r _build && make html)
+cd docs
+rm -r _build
+make html
 ```
 
 > Note: Due to the idiosyncrasies of how Sphinx detects updates and our use of symbolic links, we recommend deleting the
 > `_build` folder.
+
+Or, you can run the following subshell command to re-generate everything without having to leave the project root:
+
+```shell
+(cd docs && rm -r _build && make html)
+```
 
 After the docs are re-generated, you can view them by starting a local file server, for example:
 

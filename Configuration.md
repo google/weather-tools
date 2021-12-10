@@ -68,7 +68,7 @@ param   = z/sp
 
 ## `parameters` Section
 
-_Parameters for the pipeline._
+_Parameters for the pipeline_
 
 These describe which data source to download, where the data should live, and how the download should be partitioned.
 
@@ -221,7 +221,7 @@ api_url=UUUUU3
 
 ## `selection` Section
 
-_Parameters used to select desired data._
+_Parameters used to select desired data_
 
 These will be passed as request parameters to the specified API client. Selections are dependent on how each data
 source's catalog is structured.

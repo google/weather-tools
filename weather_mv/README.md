@@ -11,7 +11,7 @@ Weather Mover loads weather data from cloud storage into [Google BigQuery](https
 * **Parallel Upload**: Each file will be processed in parallel. With Dataflow autoscaling, even large datasets can be
   processed in a reasonable amount of time.
 
-## Use
+## Usage
 
 ```
 usage: weather-mv [-h] [-v variables [variables ...]] [-a area [area ...]] -i URIS -o OUTPUT_TABLE -t TEMP_LOCATION [--import_time IMPORT_TIME] [--infer_schema]
@@ -51,7 +51,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --direct_num_workers 2
 ```
 
-Upload all variables, but for a specific geographic region:
+Upload all variables, but for a specific geographic region (for example, the contitental US):
 
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
