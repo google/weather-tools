@@ -12,6 +12,15 @@
    :show-inheritance:
 ```
 
+### download_pipeline.manifest module
+
+```{eval-rst}
+.. automodule:: weather_dl.download_pipeline.manifest
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
 ### download_pipeline.parsers module
 
 ```{eval-rst}
@@ -25,6 +34,15 @@
 
 ```{eval-rst}
 .. automodule:: weather_dl.download_pipeline.pipeline
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+### download_pipeline.store module
+
+```{eval-rst}
+.. automodule:: weather_dl.download_pipeline.store
    :members:
    :undoc-members:
    :show-inheritance:
