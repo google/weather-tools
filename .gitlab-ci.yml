@@ -27,7 +27,7 @@ run:
 # Compile and publish documentation for the project.
 pages:
   script:
-    - pip install sphinx sphinx-rtd-theme recommonmark
+    - pip install -e ".[dev]"
     - cd docs ; make html
     - mv _build/html/ ../public/
   artifacts:
