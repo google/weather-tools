@@ -5,9 +5,11 @@ as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 
 ## Features
 
-* **Flexible and Efficient Parallelization**: The tool gives you full control over how downloads are sharded and
-  parallelized (with good defaults). This lets you focus on the data and not the plumbing. See
-  our [configuration docs](../Configuration.md) for more.
+* **Flexible Pipelines**: `weather-dl` offers a high degree of control over what is downloaded via configuration files.
+  Separate scripts need not be written to get new data or add parameters. For more, see the
+  [configuration docs](../Configuration.md).
+* **Efficient Parallelization**: The tool gives you full control over how downloads are sharded and parallelized (with
+  good defaults). This lets you focus on the data and not the plumbing.
 * **Hassle-Free Dev-Ops**. `weather-dl` and Dataflow make it easy to spin up VMs on your behalf with one command. No
   need to keep your local machine online all night to acquire data.
 * **Robust Downloads**. If an error occurs when fetching a shard, Dataflow will automatically retry the download for
