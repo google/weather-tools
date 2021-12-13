@@ -47,7 +47,7 @@ weather_sp_requirements = [
 ]
 
 test_requirements = [
-    "pytype",
+    "pytype==2021.11.29",
     "flake8",
     "pytest",
     "netcdf4",
