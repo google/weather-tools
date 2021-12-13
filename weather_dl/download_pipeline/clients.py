@@ -145,7 +145,7 @@ class MarsClient(Client):
 
     The client config must contain three parameters to autheticate access to the MARS archive:
     `api_key`, `api_url`, and `api_email`. These can also be configued by setting the
-    commensurate environment variables: `MARS_API_KEY`, `MARS_API_URL`, and `MARS_API_EMAIL`.
+    commensurate environment variables: `MARSAPI_KEY`, `MARSAPI_URL`, and `MARSAPI_EMAIL`.
     These credentials can be looked up by after registering for an ECMWF account
     (https://apps.ecmwf.int/registration/) and visitng: https://api.ecmwf.int/v1/key/.
 
@@ -160,9 +160,9 @@ class MarsClient(Client):
         super().__init__(config, level)
         self.c = ECMWFService(
             "mars",
-            key=config['parameters'].get('api_key', os.environ.get("MARS_API_KEY")),
-            url=config['parameters'].get('api_url', os.environ.get("MARS_API_URL")),
-            email=config['parameters'].get('api_email', os.environ.get("MARS_API_EMAIL")),
+            key=config['parameters'].get('api_key', os.environ.get("MARSAPI_KEY")),
+            url=config['parameters'].get('api_url', os.environ.get("MARSAPI_URL")),
+            email=config['parameters'].get('api_email', os.environ.get("MARSAPI_EMAIL")),
             log=self.logger.debug,
             verbose=True
         )

@@ -1,6 +1,6 @@
-<h1 style="text-align: center">weather-tools</h1>
+# weather-tools
 
-<p style="text-align: center">Easy-to-use Apache Beam pipelines to make weather data accessible and useful.</p>
+Apache Beam pipelines to make weather data accessible and useful.
 
 [![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
 
@@ -13,8 +13,9 @@ across Alphabet.
 The first tool created was the weather downloader (`weather-dl`). This makes it easier to ingest data from the European
 Center for Medium Range Forecasts (ECMWF). `weather-dl` enables users to describe very specifically what data they'd
 like to ingest from ECMWF's catalogs. It also offers them control over how to parallelize requests, empowering users to
-[retrieve data efficiently](https://confluence.ecmwf.int/display/WEBAPI/Retrieval+efficiency). Downloads are driven from
-a configuration file, which can be reviewed (and version-controlled) independently of pipeline or analysis code.
+[retrieve data efficiently](Configuration.html#writing-efficient-data-requests). Downloads are driven from a
+[configuration file](Configuration.md), which can be reviewed (and version-controlled) independently of pipeline or
+analysis code.
 
 We also provide two additional tools to aid climate and weather researchers: the weather mover (`weather-mv`) and the
 weather splitter (`weather-sp`). These CLIs are still in their alpha stages of development. Yet, they have been used for
@@ -43,9 +44,9 @@ It's recommended that you create a local python environment (with
 
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
-- [`weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
-- [`weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into BigQuery.
-- [`weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by variable.
+- [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
+- [⛅️ `weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into BigQuery.
+- [🌪 `weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by variable.
 
 ## Quickstart
 
@@ -94,6 +95,7 @@ _Steps_:
    weather-mv --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
       --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
       --temp_location gs://$BUCKET/tmp/
+      --direct_num_workers 2
    ```
 
    See [these docs](weather_mv/README.md) for more about this tool.
@@ -105,67 +107,25 @@ That's it! Soon, you'll have your weather data ready for analysis in BigQuery.
 > Note: The exact interfaces for these CLIs are subject to change. For example, we plan to make the CLIs have more
 > uniform arguments ([#21](https://github.com/googlestaging/weather-tools/issues/21)).
 
-## Choosing a Beam Runner
-
-All tools use Apache Beam pipelines. By default, pipelines run locally using the `DirectRunner`. You can optionally
-choose to run the pipelines on [Google Cloud Dataflow](https://cloud.google.com/dataflow) by selection
-the `DataflowRunner`.
-
-When working with GCP, it's recommended you set the project ID up front with the command:
-
-```shell
-gcloud config set project <your-id>
-```
-
-### _Dataflow options_:
-
-* `--runner`: The `PipelineRunner` to use. This field can be either `DirectRunner` or `DataflowRunner`.
-  Default: `DirectRunner` (local mode)
-* `--project`: The project ID for your Google Cloud Project. This is required if you want to run your pipeline using the
-  Dataflow managed service (i.e. `DataflowRunner`).
-* `--temp_location`: Cloud Storage path for temporary files. Must be a valid Cloud Storage URL, beginning with `gs://`.
-* `--region`: Specifies a regional endpoint for deploying your Dataflow jobs. Default: `us-central1`.
-* `--job_name`: The name of the Dataflow job being executed as it appears in Dataflow's jobs list and job details.
-
-Example run:
-
-```shell
-weather-dl configs/seasonal_forecast_example_config.cfg \
-  --runner DataflowRunner \
-  --project $PROJECT \
-  --region $REGION \
-  --temp_location gs://$BUCKET/tmp/
-```
-
-For a full list of how to configure the dataflow pipeline, please review
-[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
-
-### _Direct Runner options_:
-
-* `--direct_num_workers`: The number of workers to use. We recommend 2 for local development.
-
-Example run:
-
-```shell
-weather-mv -i gs://netcdf_file.nc \
-  -o project.dataset_id.table_id \
-  -t gs://temp_location  \
-  --direct_num_workers 2
-```
-
-For a full list of how to configure the direct runner, please review
-[this page](https://beam.apache.org/documentation/runners/direct/).
-
-## Monitoring
-
-When running Dataflow, you can track metrics through UI, or beta CLI commands:
-
-```shell
-JOBID=<enter job id here>
-gcloud beta dataflow metrics list $JOBID --source=user
-```
-
 ## Contributing
 
 The weather tools are under active development, and contributions are welcome! Please check out
 our [guide](CONTRIBUTING.md) to get started.
+
+## License
+
+```
+Copyright 2021 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
