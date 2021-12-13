@@ -59,7 +59,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 1. Set up a Python development environment. We recommend *Anaconda*, *pyenv* or *virtualenv*.
 
-    * Use Python version 3.8.5 for development. (Python 3.9.x is incompatible
+    * Use Python version 3.8.5+ for development. (Python 3.9.x is incompatible
       with [Apache Beam's Python SDK](https://issues.apache.org/jira/browse/BEAM-12000).)
 
 1. Clone the repo and install dependencies.
@@ -102,3 +102,28 @@ to just run the script itself.
 
 Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for guidance
 in how to write tests for the pipeline.
+
+## Documentation
+
+Documents are generated with Sphinx and the myst-parser. To generate the documents locally, simply invoke `make`:
+
+```shell
+cd docs
+rm -r _build
+make html
+```
+
+> Note: Due to the idiosyncrasies of how Sphinx detects updates and our use of symbolic links, we recommend deleting the
+> `_build` folder.
+
+Or, you can run the following subshell command to re-generate everything without having to leave the project root:
+
+```shell
+(cd docs && rm -r _build && make html)
+```
+
+After the docs are re-generated, you can view them by starting a local file server, for example:
+
+```shell
+python -m http.server -d docs/_build/html
+```

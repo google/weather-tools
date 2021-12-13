@@ -68,18 +68,19 @@ param   = z/sp
 
 ## `parameters` Section
 
-Parameters for the pipeline. These describe which data source to download, where the data should live, and how the
-download should be partitioned.
+_Parameters for the pipeline_
+
+These describe which data source to download, where the data should live, and how the download should be partitioned.
 
 * `client`: (required) Select the weather API client. Supported values are `cds` for Copernicus, and `mars` for MARS.
 * `dataset`: (optional) Name of the target dataset. Allowed options are dictated by the client.
 * `target_path`: (required) Download artifact filename template. Can use Python string format symbols. Must have the
   same number of format symbols as the number of partition keys.
-* `target_filename` (optional) This file name will be appended to `target_path`.
+* `target_filename`: (optional) This file name will be appended to `target_path`.
     * Like `target_path`, `target_filename` can contain format symbols to be replaced by partition keys; if this is
       used, the total number of format symbols in both fields must match the number of partition keys.
     * This field is required when generating a date-based directory hierarchy (see below).
-* `append_date_dirs` (optional) A boolean indicating whether a date-based directory hierarchy should be created (see
+* `append_date_dirs`: (optional) A boolean indicating whether a date-based directory hierarchy should be created (see
   below); defaults to false if not used.
 * `partition_keys`: (optional) This determines how download jobs will be divided.
     * Value can be a single item or a list.
@@ -196,8 +197,8 @@ specify a parameters subsection. The downloader will overwrite the base paramete
 subsection, evenly alternating between each parameter set across the partitions.
 
 To specify a subsection, create a new section with the following naming pattern: `[parameters.<subsection-name>]`.
-The `<subsectiona-name>` can be any string, but it's recommended to chose a name that describes the grouping of values
-in the section.
+The `<subsection-name>` can be any string, but it's recommended to chose a name that describes the grouping of values in
+the section.
 
 Here's an example of this type of configuration:
 
@@ -220,8 +221,10 @@ api_url=UUUUU3
 
 ## `selection` Section
 
-Parameters used to select desired data. These will be passed as request parameters to the specified API client.
-Selections are dependent on how each data source's catalog is structured.
+_Parameters used to select desired data_
+
+These will be passed as request parameters to the specified API client. Selections are dependent on how each data
+source's catalog is structured.
 
 ### Copernicus / CDS
 
@@ -252,9 +255,9 @@ the `api_url`, `api_key`, and `api_email` arguments in the `parameters` section 
 one can set these values as environment variables:
 
 ```shell
-export MARS_API_URL=$api_url
-export MARS_API_EMAIL=$api_email
-export MARS_API_KEY=$api_key
+export MARSAPI_URL=$api_url
+export MARSAPI_EMAIL=$api_email
+export MARSAPI_KEY=$api_key
 ```
 
 For MARS parameter options, first read up on
@@ -265,3 +268,10 @@ to discover the kinds of requests that can be made.
 
 > **NOTE**: MARS data is stored on tape drives. It takes longer for multiple workers to request data than a single
 > worker. Thus, it's recommended _not_ to set a partition key when writing MARS data configurations.
+
+## Writing Efficient Data Requests
+
+TODO([#26](https://github.com/googlestaging/weather-tools/issues/26)). In the mean-time, please consult this ECMWF 
+documentation: 
+* [Web API Retrieval Efficiency](https://confluence.ecmwf.int/display/WEBAPI/Retrieval+efficiency)
+* [Era 5 daily data retrieval efficiency](https://confluence.ecmwf.int/display/WEBAPI/ERA5+daily+retrieval+efficiency)
