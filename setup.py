@@ -55,6 +55,8 @@ test_requirements = [
     "xarray",
 ]
 
+all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
+
 setup(
     name='weather-tools',
     packages=find_packages(),
@@ -72,8 +74,8 @@ setup(
              'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'],
-        'test': weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements,
+        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
+        'test': all_test_requirements,
     },
     project_urls={
         'Issue Tracking': 'http://github.com/google/weather-tools/issues',

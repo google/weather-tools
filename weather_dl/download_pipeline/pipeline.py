@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Primary ECMWF Downloader Workflow."""
-
 import argparse
 import copy as cp
 import getpass
@@ -232,7 +231,6 @@ def fetch_data(config: t.Dict,
 
     client = CLIENTS[client_name](config)
     target = prepare_target_name(config)
-
     dataset = config['parameters'].get('dataset', '')
     selection = config['selection']
     user = config['parameters'].get('user_id', 'unknown')

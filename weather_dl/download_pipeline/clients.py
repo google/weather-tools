@@ -69,8 +69,8 @@ class CdsClient(Client):
     live here: https://cds.climate.copernicus.eu/live/limits.
 
     Attributes:
-        config: A config that contains pipeline parameters, such as API keys (base class attribute).
-        level: Default log level for the client (base class attribute).
+        config: A config that contains pipeline parameters, such as API keys.
+        level: Default log level for the client.
     """
 
     """Name patterns of datasets that are hosted internally on CDS servers."""
@@ -152,8 +152,8 @@ class MarsClient(Client):
     MARS server activity can be observed at https://apps.ecmwf.int/mars-activity/.
 
     Attributes:
-        config: A config that contains pipeline parameters, such as API keys (base class attribute).
-        level: Default log level for the client (base class attribute).
+        config: A config that contains pipeline parameters, such as API keys.
+        level: Default log level for the client.
     """
 
     def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:

@@ -83,22 +83,49 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
     * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
-1. (optional) Add a post-push hook to your local client.
-
-   ```shell
-   cp bin/post-push .git/hooks/
-   ```
-
 ## Testing
 
-To execute tests on all supported python versions, as well as lint & type checks, just run:
+For testing at development time, we make use of three tools:
+
+* `pytype` checking types:
+   ```shell
+   # check everything
+   pytype
+   # check a specific tool
+   pytype weather_dl
+   ```
+
+* `flake8` for linting:
+   ```shell 
+   # lint everything
+   flake8
+   # lint a specific tool
+   flake8 weather_mv
+   ```
+
+* `pytest` for running tests:
+   ```shell
+   # test everything 
+   pytest
+   # test a specific tool
+   pytest weather_sp
+   ```
+
+If you'd like to automate running these checks, we provide a post-push git hook:
+
+```shell
+cp bin/post-push .git/hooks/
+```
+
+This script can be run manually, too.
+
+If you'd like to locally run these checks for all versions of python this project supports, you can use
+`tox`. Tox will make use of the python versions installed on your machine and create virtual test environments on your
+behalf.
 
 ```shell
 tox
 ```
-
-You can also inspect the `bin/post-push` script to see examples of ways to run a subset of these checks. Or, feel free
-to just run the script itself.
 
 Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for guidance
 in how to write tests for the pipeline.
