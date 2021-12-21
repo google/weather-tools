@@ -206,7 +206,7 @@ def extract_rows(uri: str, *,
         # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
         temp_row = row_ds.to_pandas().apply(to_json_serializable_type)
         # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
-        row: t.Dict = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
+        row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
 
         # Combine index and variable portions into a single row dict, and add import metadata.
         row.update(it)
