@@ -24,6 +24,7 @@ import typing as t
 import apache_beam as beam
 import apache_beam.metrics
 import numpy as np
+import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
@@ -202,8 +203,10 @@ def extract_rows(uri: str, *,
         row_ds = data_ds.loc[it]
 
         # Create a Name-Value map for data columns. Result looks like:
-        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8}
-        row: t.Dict = row_ds.to_pandas().apply(to_json_serializable_type).to_dict()
+        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+        temp_row = row_ds.to_pandas().apply(to_json_serializable_type)
+        # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
+        row: t.Dict = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
 
         # Combine index and variable portions into a single row dict, and add import metadata.
         row.update(it)
