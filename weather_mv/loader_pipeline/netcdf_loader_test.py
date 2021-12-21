@@ -97,7 +97,8 @@ class SchemaCreationTests(unittest.TestCase):
 class ExtractRowsTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.test_data_path = f'{next(iter(weather_mv.__path__))}/test_data/test_data_20180101.nc'
+        self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
+        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         for key in expected.keys():
@@ -170,9 +171,8 @@ class ExtractRowsTest(unittest.TestCase):
         self.assertTrue(all((c == 1 for c in counts.values())))
 
     def test_extract_rows_nan(self):
-        self.test_data_path = f'{next(iter(weather_mv.__path__))}/test_data/test_data_has_nan.nc'
+        self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
         actual = next(extract_rows(self.test_data_path))
-        print(actual)
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
