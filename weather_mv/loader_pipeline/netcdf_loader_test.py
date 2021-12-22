@@ -97,7 +97,8 @@ class SchemaCreationTests(unittest.TestCase):
 class ExtractRowsTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.test_data_path = f'{next(iter(weather_mv.__path__))}/test_data/test_data_20180101.nc'
+        self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
+        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         for key in expected.keys():
@@ -168,6 +169,22 @@ class ExtractRowsTest(unittest.TestCase):
         # Assert that all the coordinates are unique.
         counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
         self.assertTrue(all((c == 1 for c in counts.values())))
+
+    def test_extract_rows_nan(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
+        actual = next(extract_rows(self.test_data_path))
+        expected = {
+            'd2m': 242.3035430908203,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 49.0,
+            'longitude': -108.0,
+            'time': '2018-01-02T06:00:00+00:00',
+            'u10': None,
+            'v10': 0.03294110298156738,
+        }
+        self.assertRowsEqual(actual, expected)
 
 
 if __name__ == '__main__':
