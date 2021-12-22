@@ -63,7 +63,7 @@ setup(
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     description='Apache Beam pipelines to make weather data accessible and useful.',
-    long_description=open('README.md', 'r').read(),
+    long_description=open('README.md', 'r', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
     python_requires='>=3.7, <4',
