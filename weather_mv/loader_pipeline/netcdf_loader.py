@@ -14,6 +14,7 @@
 """Pipeline for reflecting lots of NetCDF objects into a BigQuery table."""
 
 import argparse
+import contextlib
 import datetime
 import itertools
 import logging
@@ -48,23 +49,48 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def open_dataset(uri: str) -> xr.Dataset:
+def __open_dataset_file(filename: str) -> xr.Dataset:
+    try:
+        return xr.open_dataset(filename)
+    except ValueError as e:
+        e_str = str(e)
+        if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
+            raise
+    # Trying with explicit engine for cfgrib.
+    try:
+        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
+    except ValueError as e:
+        if not "multiple values for key 'edition'" in str(e):
+            raise
+
+    # Try with edition 1
+    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+    # TODO: Make this a more generic function that can take custom args from tool users.
+    return xr.open_dataset(filename, engine='cfgrib',
+                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+
+
+def open_dataset(uri: str, tmp_dir=None) -> xr.Dataset:
     """Open the netcdf at 'uri' and return its data as an xr.Dataset."""
     try:
         # Copy netcdf object from cloud storage, like GCS, to local file so
         # xarray can open it with mmap instead of copying the entire thing
         # into memory.
-        with FileSystems().open(uri) as source_file:
-            with tempfile.NamedTemporaryFile() as dest_file:
-                shutil.copyfileobj(source_file, dest_file)
-                dest_file.flush()
-                dest_file.seek(0)
-                xr_dataset: xr.Dataset = xr.open_dataset(dest_file.name)
+        with contextlib.ExitStack() as stack:
+            source_file = stack.enter_context(FileSystems().open(uri))
+            if tmp_dir:
+                dest_file = tempfile.NamedTemporaryFile(delete=False, dir=tmp_dir)
+            else:
+                dest_file = stack.enter_context(tempfile.NamedTemporaryFile())
+            shutil.copyfileobj(source_file, dest_file)
+            dest_file.flush()
+            dest_file.seek(0)
+            xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name)
 
-                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
-                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-                return xr_dataset
+            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+            return xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file from Cloud Storage: {e}')
@@ -111,7 +137,12 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     logger.debug('Serializing to JSON')
-    if type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+    if type(value) == np.float32 or type(value) == np.float64:
+        return float(value)
+    elif type(value) == np.ndarray:
+        # Will return a scaler if array is of size 1, else will return a list.
+        return value.tolist()
+    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
@@ -134,8 +165,9 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
     elif np.isnan(value) or value is None:
         return None
-    elif type(value) == np.float32 or type(value) == np.float64:
-        return float(value)
+    elif type(value) == np.timedelta64:
+        # Return time delta in seconds.
+        return value / np.timedelta64(1, 's')
     return value
 
 
@@ -185,10 +217,11 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+                 import_time: str = DEFAULT_IMPORT_TIME,
+                 tmp_dir: str = None) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    logger.info(f'Extracting netcdf rows as dicts: {uri!r}.')
-    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri), variables)
+    logger.info(f'Extracting rows as dicts: {uri!r}.')
+    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri, tmp_dir=tmp_dir), variables)
     if area:
         n, w, s, e = area
         data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
@@ -214,7 +247,7 @@ def extract_rows(uri: str, *,
         # Add un-indexed coordinates.
         for c in row_ds.coords:
             if c not in it:
-                row[c] = to_json_serializable_type(row_ds[c].values)
+                row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
         # Add import metadata.
         row[DATA_IMPORT_TIME_COLUMN] = import_time
         row[DATA_URI_COLUMN] = uri
@@ -260,6 +293,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Download one file in the URI pattern and infer a schema from that file. Default: off')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
+    parser.add_argument('--use_tmp_dir', action='store_true', default=False,
+                        help='HACK: Uses a tmp directory to store files and lazy deletes them after usage. This is '
+                             'required if xarray backend assumes file will exist throughout usage. Default: off')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -309,22 +345,31 @@ def run(argv: t.List[str], save_main_session: bool = True):
         logger.error(f'Unable to create table in BigQuery: {e}')
         raise
 
-    with beam.Pipeline(options=pipeline_options) as p:
-        (
-                p
-                | 'Create' >> beam.Create(all_uris)
-                | 'ExtractRows' >> beam.FlatMap(
-                    extract_rows,
-                    variables=known_args.variables,
-                    area=known_args.area,
-                    import_time=known_args.import_time)
-                | 'WriteToBigQuery' >> WriteToBigQuery(
-                    project=table.project,
-                    dataset=table.dataset_id,
-                    table=table.table_id,
-                    write_disposition=BigQueryDisposition.WRITE_APPEND,
-                    create_disposition=BigQueryDisposition.CREATE_NEVER,
-                    custom_gcs_temp_location=known_args.temp_location)
-        )
+    # HACK: Cfgrib assumes the original file will stay around for the entire usage.
+    # TODO: Ideally, we should delete the tmpfile as soon as all usage is finished. However, this would require a
+    #  few changes to the pipeline setup. For now, using a hack to use a tmp dir and clean up after the entire run.
+    with contextlib.ExitStack() as stack:
+        if known_args.use_tmp_dir:
+            tmp_dir_obj = stack.enter_context(tempfile.TemporaryDirectory())
+        else:
+            tmp_dir_obj = None
 
+        with beam.Pipeline(options=pipeline_options) as p:
+            (
+                    p
+                    | 'Create' >> beam.Create(all_uris)
+                    | 'ExtractRows' >> beam.FlatMap(
+                        extract_rows,
+                        variables=known_args.variables,
+                        area=known_args.area,
+                        import_time=known_args.import_time,
+                        tmp_dir=getattr(tmp_dir_obj, 'name', None))
+                    | 'WriteToBigQuery' >> WriteToBigQuery(
+                        project=table.project,
+                        dataset=table.dataset_id,
+                        table=table.table_id,
+                        write_disposition=BigQueryDisposition.WRITE_APPEND,
+                        create_disposition=BigQueryDisposition.CREATE_NEVER,
+                        custom_gcs_temp_location=known_args.temp_location)
+            )
     logger.info('Pipeline is finished.')
