@@ -214,7 +214,6 @@ def extract_rows(uri: str, *,
         # Add un-indexed coordinates.
         for c in row_ds.coords:
             if c not in it:
-                print(c)
                 row[c] = to_json_serializable_type(row_ds[c].values)
         # Add import metadata.
         row[DATA_IMPORT_TIME_COLUMN] = import_time
