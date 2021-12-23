@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import datetime
+import tempfile
 import typing as t
 import unittest
 from collections import Counter
+from functools import wraps
 
 import numpy as np
 import pandas as pd
@@ -94,15 +96,21 @@ class SchemaCreationTests(unittest.TestCase):
             _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
 
 
-class ExtractRowsTest(unittest.TestCase):
+class ExtractRowsTestBase(unittest.TestCase):
 
     def setUp(self) -> None:
         self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
-        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         for key in expected.keys():
             self.assertAlmostEqual(actual[key], expected[key], places=4)
+
+
+class ExtractRowsTest(ExtractRowsTestBase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def test_extract_rows(self):
         actual = next(extract_rows(self.test_data_path))
@@ -199,6 +207,103 @@ class ExtractRowsTest(unittest.TestCase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': None,
             'v10': 0.03294110298156738,
+        }
+        self.assertRowsEqual(actual, expected)
+
+
+def _handle_missing_grib_be(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
+            e_str = str(e)
+            if not "Consider explicitly selecting one of the installed engines" in e_str or "cfgrib" in e_str:
+                raise
+
+    return decorated
+
+
+class ExtractRowsGribSupportTest(ExtractRowsTestBase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+
+    def tearDown(self):
+        # Close the file, the directory will be removed after the test
+        self.tmp_dir.cleanup()
+
+    @_handle_missing_grib_be
+    def test_extract_rows(self):
+        actual = next(extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'number': 0,
+            'step': 0.0,
+            'surface': 0.0,
+            'time': '2021-10-18T06:00:00+00:00',
+            'valid_time': '2021-10-18T06:00:00+00:00',
+            'z': 1.42578125,
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_multiple_editions(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        actual = next(extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name))
+        print(actual)
+        expected = {
+            'cape': 0.0,
+            'cbh': None,
+            'cp': 0.0,
+            'crr': 0.0,
+            'd2m': 248.3846893310547,
+            'data_first_step': '2021-12-10T12:00:00+00:00',
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'depthBelowLandLayer': 0.0,
+            'dsrp': 0.0,
+            'fdir': 0.0,
+            'hcc': 0.0,
+            'hcct': None,
+            'hwbt0': 0.0,
+            'i10fg': 7.41250467300415,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'lsp': 1.1444091796875e-05,
+            'mcc': 0.0,
+            'msl': 99867.3125,
+            'number': 0,
+            'p3020': 20306.701171875,
+            'sd': 0.0,
+            'sf': 1.049041748046875e-05,
+            'sp': 99867.15625,
+            'step': 28800.0,
+            'stl1': 251.02520751953125,
+            'surface': 0.0,
+            'swvl1': -1.9539930654413618e-13,
+            't2m': 251.18968200683594,
+            'tcc': 0.9609375,
+            'tcrw': 0.0,
+            'tcw': 2.314192295074463,
+            'tcwv': 2.314192295074463,
+            'time': '2021-12-10T12:00:00+00:00',
+            'tp': 1.1444091796875e-05,
+            'tsr': 0.0,
+            'u10': -4.6668853759765625,
+            'u100': -7.6197662353515625,
+            'u200': -9.176498413085938,
+            'v10': -3.2414093017578125,
+            'v100': -4.1650390625,
+            'v200': -3.6647186279296875,
+            'valid_time': '2021-12-10T20:00:00+00:00'
         }
         self.assertRowsEqual(actual, expected)
 
