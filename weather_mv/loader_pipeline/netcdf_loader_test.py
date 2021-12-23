@@ -170,6 +170,22 @@ class ExtractRowsTest(unittest.TestCase):
         counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
         self.assertTrue(all((c == 1 for c in counts.values())))
 
+    def test_extract_rows_single_point(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_single_point.nc'
+        actual = next(extract_rows(self.test_data_path))
+        expected = {
+            'd2m': 242.3035430908203,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 42.0,
+            'longitude': -108.0,
+            'time': '2018-01-02T06:00:00+00:00',
+            'u10': 3.4776244163513184,
+            'v10': 0.03294110298156738,
+        }
+        self.assertRowsEqual(actual, expected)
+
     def test_extract_rows_nan(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
         actual = next(extract_rows(self.test_data_path))
