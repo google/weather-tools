@@ -169,7 +169,7 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
                 to_json_serializable_type(v)
                 for v in ensure_us_time_resolution(ds[c].variable.values).tolist()
             )
-            for c in ds.coords
+            for c in ds.coords.indexes
         )
     )
     # Give dictionary keys to a coordinate index.
@@ -179,7 +179,7 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
             logger.info(f'Processed {idx // 1000}k coordinates...')
-        yield dict(zip(ds.coords, it))
+        yield dict(zip(ds.coords.indexes, it))
 
 
 def extract_rows(uri: str, *,
@@ -194,7 +194,8 @@ def extract_rows(uri: str, *,
         data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
         logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-    first_time_step = to_json_serializable_type(data_ds.time[0].values)
+    first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
+    first_time_step = to_json_serializable_type(first_ts_raw)
 
     def to_row(it: t.Dict) -> t.Dict:
         """Produce a single row, or a dictionary of all variables at a point."""
@@ -208,8 +209,13 @@ def extract_rows(uri: str, *,
         # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
         row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
 
-        # Combine index and variable portions into a single row dict, and add import metadata.
+        # Add indexed coordinates.
         row.update(it)
+        # Add un-indexed coordinates.
+        for c in row_ds.coords:
+            if c not in it:
+                row[c] = to_json_serializable_type(row_ds[c].values)
+        # Add import metadata.
         row[DATA_IMPORT_TIME_COLUMN] = import_time
         row[DATA_URI_COLUMN] = uri
         row[DATA_FIRST_STEP] = first_time_step
