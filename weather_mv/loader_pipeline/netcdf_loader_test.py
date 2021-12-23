@@ -178,7 +178,7 @@ class ExtractRowsTest(unittest.TestCase):
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2018-01-02T06:00:00+00:00',
             'data_uri': self.test_data_path,
-            'latitude': 42.0,
+            'latitude': 49.0,
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
