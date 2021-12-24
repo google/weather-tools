@@ -224,6 +224,15 @@ def _handle_missing_grib_be(f):
     return decorated
 
 
+@contextmanager
+def timing(description: str) -> None:
+    logging.info(f"{description}: Starting profiler")
+    start = perf_counter()
+    yield
+    elapsed_time = perf_counter() - start
+    logging.info(f"{description}: Elapsed time: {elapsed_time:0.4f} seconds")
+
+
 class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
@@ -300,6 +309,23 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'valid_time': '2021-12-10T20:00:00+00:00'
         }
         self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_timing_profile(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        counter = 0
+        logging.info('AAA')
+        i = extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name)
+        logging.info('BBB')
+        first = next(i)
+        logging.info('CCC')
+        with timing('Loop'):
+            for v in i:
+                logging.info(f'CCC: {counter}')
+                if counter % 1000 == 0:
+                    logging.info(f'Processed {counter // 1000}k coordinates...')
+                counter += 1
+        logging.info(f'Finished {counter}')
 
 
 if __name__ == '__main__':
