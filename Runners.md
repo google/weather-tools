@@ -47,7 +47,7 @@ weather-dl configs/seasonal_forecast_example_config.cfg \
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review
-[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
+[this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).
 
 ## Monitoring
 
