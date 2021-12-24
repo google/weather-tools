@@ -350,9 +350,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
     #  few changes to the pipeline setup. For now, using a hack to use a tmp dir and clean up after the entire run.
     with contextlib.ExitStack() as stack:
         if known_args.use_tmp_dir:
-            tmp_dir_obj = stack.enter_context(tempfile.TemporaryDirectory())
+            tmp_dir = stack.enter_context(tempfile.TemporaryDirectory())
+            logger.info(f'Using tmp dir: {tmp_dir}')
         else:
-            tmp_dir_obj = None
+            tmp_dir = ''
 
         with beam.Pipeline(options=pipeline_options) as p:
             (
@@ -363,7 +364,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         variables=known_args.variables,
                         area=known_args.area,
                         import_time=known_args.import_time,
-                        tmp_dir=getattr(tmp_dir_obj, 'name', ''))
+                        tmp_dir=tmp_dir)
                     | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=table.project,
                         dataset=table.dataset_id,
