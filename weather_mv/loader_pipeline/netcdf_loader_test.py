@@ -219,7 +219,7 @@ def _handle_missing_grib_be(f):
         except ValueError as e:
             # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
             e_str = str(e)
-            if not "Consider explicitly selecting one of the installed engines" in e_str or "cfgrib" in e_str:
+            if "Consider explicitly selecting one of the installed engines" not in e_str or "cfgrib" in e_str:
                 raise
 
     return decorated

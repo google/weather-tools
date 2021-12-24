@@ -60,7 +60,7 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
     try:
         return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
     except ValueError as e:
-        if not "multiple values for key 'edition'" in str(e):
+        if "multiple values for key 'edition'" not in str(e):
             raise
 
     # Try with edition 1
@@ -218,7 +218,7 @@ def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
                  import_time: str = DEFAULT_IMPORT_TIME,
-                 tmp_dir: str = None) -> t.Iterator[t.Dict]:
+                 tmp_dir: t.Optional[str] = None) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
     data_ds: xr.Dataset = _only_target_vars(open_dataset(uri, tmp_dir=tmp_dir), variables)
