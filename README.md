@@ -58,11 +58,11 @@ _Pre-requisites_:
 
 1. Acquire and install a license from
    ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key).
-2. Create an empty BigQuery Table. This can be done in
+2. Create an empty BigQuery Dataset. This can be done in
    the [console](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-cloud-console#create_a_dataset)
    or via the [`bq` CLI](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-command-line). For example:
    ```shell
-   bq mk --project_id=$PROJECT $DATASET_ID.$TABLE_ID
+   bq mk --project_id=$PROJECT $DATASET_ID
    ```
 
 _Steps_:
