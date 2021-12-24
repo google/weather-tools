@@ -99,7 +99,7 @@ def open_dataset(uri: str, tmp_dir=None) -> xr.Dataset:
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
     """Maps a np.dtype to a suitable BigQuery column type."""
-    if var_type in {np.dtype('float64'), np.dtype('float32')}:
+    if var_type in {np.dtype('float64'), np.dtype('float32'), np.dtype('timedelta64[ns]')}:
         return 'FLOAT64'
     elif var_type in {np.dtype('<M8[ns]')}:
         return 'TIMESTAMP'
@@ -363,7 +363,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         variables=known_args.variables,
                         area=known_args.area,
                         import_time=known_args.import_time,
-                        tmp_dir=getattr(tmp_dir_obj, 'name', None))
+                        tmp_dir=getattr(tmp_dir_obj, 'name', ''))
                     | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=table.project,
                         dataset=table.dataset_id,
