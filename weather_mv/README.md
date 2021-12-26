@@ -73,4 +73,4 @@ weather-mv --uris "gs://your-bucket/*.nc" \
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review
-[this table](https://cloud.google.com/dataflow/docs/guides/specifying-exec-params).
+[this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).

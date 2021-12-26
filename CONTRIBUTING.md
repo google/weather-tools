@@ -87,7 +87,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 For testing at development time, we make use of three tools:
 
-* `pytype` checking types:
+* `pytype` for checking types:
    ```shell
    # check everything
    pytype
