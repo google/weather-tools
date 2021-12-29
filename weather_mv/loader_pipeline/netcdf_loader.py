@@ -63,9 +63,10 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
         if "multiple values for key 'edition'" not in str(e):
             raise
 
+    logger.warning("Assuming grib edition 1.")
     # Try with edition 1
     # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    # TODO: Make this a more generic function that can take custom args from tool users.
+    # TODO(#54): Make this a more generic function that can take custom args from tool users.
     return xr.open_dataset(filename, engine='cfgrib',
                            backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
 
