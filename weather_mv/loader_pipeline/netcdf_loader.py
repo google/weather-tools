@@ -32,6 +32,8 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
+from weather_mv.loader_pipeline.streaming import GroupMessagesByFixedWindows, ParsePaths
+
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
@@ -310,21 +312,32 @@ def run(argv: t.List[str], save_main_session: bool = True):
         raise
 
     with beam.Pipeline(options=pipeline_options) as p:
+        if known_args.topic:
+            paths = (
+                    p
+                    # Windowing is based on this code sample:
+                    # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
+                    | 'Read GCS Upload Event' >> beam.io.ReadFromPubSub(known_args.topic)
+                    | 'Window into' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
+                    | 'Parse Paths' >> beam.ParDo(ParsePaths())
+            )
+        else:
+            paths = p | 'Create' >> beam.Create(all_uris)
+
         (
-                p
-                | 'Create' >> beam.Create(all_uris)
-                | 'ExtractRows' >> beam.FlatMap(
-                    extract_rows,
-                    variables=known_args.variables,
-                    area=known_args.area,
-                    import_time=known_args.import_time)
-                | 'WriteToBigQuery' >> WriteToBigQuery(
-                    project=table.project,
-                    dataset=table.dataset_id,
-                    table=table.table_id,
-                    write_disposition=BigQueryDisposition.WRITE_APPEND,
-                    create_disposition=BigQueryDisposition.CREATE_NEVER,
-                    custom_gcs_temp_location=known_args.temp_location)
+            paths
+            | 'ExtractRows' >> beam.FlatMap(
+                extract_rows,
+                variables=known_args.variables,
+                area=known_args.area,
+                import_time=known_args.import_time)
+            | 'WriteToBigQuery' >> WriteToBigQuery(
+                project=table.project,
+                dataset=table.dataset_id,
+                table=table.table_id,
+                write_disposition=BigQueryDisposition.WRITE_APPEND,
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                custom_gcs_temp_location=known_args.temp_location)
         )
 
     logger.info('Pipeline is finished.')
