@@ -636,14 +636,14 @@ class PrepareTargetNameTest(unittest.TestCase):
 
 class ConfigTest(unittest.TestCase):
 
-    def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('mock://dummy'))
-
     def test_process_config_files(self):
-        for filename in os.listdir("../configs"):
-            run(["weather-dl", "../configs/" + filename, "--dry-run"])
+        directory = "../configs"
+        for filename in os.listdir(directory):
+            config = directory + "/" + filename
+            run(["weather-dl", config, "--dry-run"])
 
         # Testing file parse so no assertion required
+
 
 if __name__ == '__main__':
     unittest.main()
