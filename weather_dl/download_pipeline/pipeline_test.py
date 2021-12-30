@@ -31,6 +31,7 @@ from .pipeline import (
     run,
     skip_partition,
 )
+import weather_dl
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -636,10 +637,12 @@ class PrepareTargetNameTest(unittest.TestCase):
 
 class ConfigTest(unittest.TestCase):
 
+    def setUp(self):
+        self._data_dir = f'{next(iter(weather_dl.__path__))}/../configs'
+
     def test_process_config_files(self):
-        directory = os.path.join("..", "configs")
-        for filename in os.listdir(directory):
-            config = os.path.join(directory, filename)
+        for filename in os.listdir(self._data_dir):
+            config = os.path.join(self._data_dir, filename)
             try:
                 run(["weather-dl", config, "--dry-run"])
             except Exception as e:
