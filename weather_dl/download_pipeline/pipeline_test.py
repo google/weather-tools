@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import typing as t
 import io
 import unittest
@@ -28,10 +27,8 @@ from .pipeline import (
     fetch_data,
     prepare_partitions,
     prepare_target_name,
-    run,
     skip_partition,
 )
-import weather_dl
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -633,20 +630,6 @@ class PrepareTargetNameTest(unittest.TestCase):
         }
         target_name = prepare_target_name(config)
         self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
-
-
-class ConfigTest(unittest.TestCase):
-
-    def setUp(self):
-        self._data_dir = f'{next(iter(weather_dl.__path__))}/../configs'
-
-    def test_process_config_files(self):
-        for filename in os.listdir(self._data_dir):
-            config = os.path.join(self._data_dir, filename)
-            try:
-                run(["weather-dl", config, "--dry-run"])
-            except Exception as e:
-                assert False, ("\n" + type(e).__name__ + " " + str(e) + "\nIn " + filename)
 
 
 if __name__ == '__main__':
