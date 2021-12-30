@@ -22,16 +22,16 @@ import weather_dl
 class ConfigTest(unittest.TestCase):
 
     def setUp(self):
-        self._data_dir = f'{next(iter(weather_dl.__path__))}/../configs'
+        self.data_dir = f'{next(iter(weather_dl.__path__))}/../configs'
 
     def test_process_config_files(self):
-        for filename in os.listdir(self._data_dir):
+        for filename in os.listdir(self.data_dir):
             with self.subTest(filename=filename):
-                config = os.path.join(self._data_dir, filename)
+                config = os.path.join(self.data_dir, filename)
                 try:
                     run(["weather-dl", config, "--dry-run"])
-                except Exception:
-                    self.fail(f'Config {filename!r} is incorrect')
+                except:
+                    self.fail(f'Config {filename!r} is incorrect.')
 
 
 if __name__ == '__main__':
