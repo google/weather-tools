@@ -71,30 +71,27 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
                            backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
 
 
-def open_dataset(uri: str, tmp_dir=None) -> xr.Dataset:
-    """Open the netcdf at 'uri' and return its data as an xr.Dataset."""
+@contextlib.contextmanager
+def open_dataset(uri: str) -> t.Iterator[xr.Dataset]:
+    """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
-        # Copy netcdf object from cloud storage, like GCS, to local file so
-        # xarray can open it with mmap instead of copying the entire thing
+        # Copy netcdf or grib object from cloud storage, like GCS, to local file
+        # so xarray can open it with mmap instead of copying the entire thing
         # into memory.
-        with contextlib.ExitStack() as stack:
-            source_file = stack.enter_context(FileSystems().open(uri))
-            if tmp_dir:
-                dest_file = tempfile.NamedTemporaryFile(delete=False, dir=tmp_dir)
-            else:
-                dest_file = stack.enter_context(tempfile.NamedTemporaryFile())
-            shutil.copyfileobj(source_file, dest_file)
-            dest_file.flush()
-            dest_file.seek(0)
-            xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name)
+        with FileSystems().open(uri) as source_file:
+            with tempfile.NamedTemporaryFile() as dest_file:
+                shutil.copyfileobj(source_file, dest_file)
+                dest_file.flush()
+                dest_file.seek(0)
+                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name)
 
-            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
-            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-            return xr_dataset
+                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+                yield xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
-        logger.error(f'Unable to open file from Cloud Storage: {e}')
+        logger.error(f'Unable to open file {uri!r}: {e}')
         raise
 
 
@@ -218,18 +215,9 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: str = DEFAULT_IMPORT_TIME,
-                 tmp_dir: t.Optional[str] = None) -> t.Iterator[t.Dict]:
+                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
-    data_ds: xr.Dataset = _only_target_vars(open_dataset(uri, tmp_dir=tmp_dir), variables)
-    if area:
-        n, w, s, e = area
-        data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-        logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
-
-    first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
-    first_time_step = to_json_serializable_type(first_ts_raw)
 
     def to_row(it: t.Dict) -> t.Dict:
         """Produce a single row, or a dictionary of all variables at a point."""
@@ -260,7 +248,18 @@ def extract_rows(uri: str, *,
         beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
         return row
 
-    yield from map(to_row, get_coordinates(data_ds))
+    with open_dataset(uri) as ds:
+        data_ds: xr.Dataset = _only_target_vars(ds, variables)
+
+        if area:
+            n, w, s, e = area
+            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+
+        first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
+        first_time_step = to_json_serializable_type(first_ts_raw)
+
+        yield from map(to_row, get_coordinates(data_ds))
 
 
 def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
@@ -294,9 +293,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Download one file in the URI pattern and infer a schema from that file. Default: off')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
-    parser.add_argument('--use_tmp_dir', action='store_true', default=False,
-                        help='HACK: Uses a tmp directory to store files and lazy deletes them after usage. This is '
-                             'required if xarray backend assumes file will exist throughout usage. Default: off')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -314,9 +310,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_args.append(known_args.temp_location)
 
     # Before starting the pipeline, read one file and generate the BigQuery
-    # table schema from it. Assumes the the number of matching uris is
+    # table schema from it. Assumes the number of matching uris is
     # manageable.
-
     all_uris = list(pattern_to_uris(known_args.uris))
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
@@ -329,8 +324,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
         )
     else:
         logger.info('Inferring schema from data.')
-        ds: xr.Dataset = _only_target_vars(open_dataset(next(iter(all_uris))), known_args.variables)
-        table_schema = dataset_to_table_schema(ds)
+        with open_dataset(next(iter(all_uris))) as open_ds:
+            ds: xr.Dataset = _only_target_vars(open_ds, known_args.variables)
+            table_schema = dataset_to_table_schema(ds)
 
     pipeline_options = PipelineOptions(pipeline_args)
 
@@ -346,32 +342,21 @@ def run(argv: t.List[str], save_main_session: bool = True):
         logger.error(f'Unable to create table in BigQuery: {e}')
         raise
 
-    # HACK: Cfgrib assumes the original file will stay around for the entire usage.
-    # TODO: Ideally, we should delete the tmpfile as soon as all usage is finished. However, this would require a
-    #  few changes to the pipeline setup. For now, using a hack to use a tmp dir and clean up after the entire run.
-    with contextlib.ExitStack() as stack:
-        if known_args.use_tmp_dir:
-            tmp_dir = stack.enter_context(tempfile.TemporaryDirectory())
-            logger.info(f'Using tmp dir: {tmp_dir}')
-        else:
-            tmp_dir = ''
-
-        with beam.Pipeline(options=pipeline_options) as p:
-            (
-                    p
-                    | 'Create' >> beam.Create(all_uris)
-                    | 'ExtractRows' >> beam.FlatMap(
-                        extract_rows,
-                        variables=known_args.variables,
-                        area=known_args.area,
-                        import_time=known_args.import_time,
-                        tmp_dir=tmp_dir)
-                    | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=table.project,
-                        dataset=table.dataset_id,
-                        table=table.table_id,
-                        write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER,
-                        custom_gcs_temp_location=known_args.temp_location)
-            )
+    with beam.Pipeline(options=pipeline_options) as p:
+        (
+            p
+            | 'Create' >> beam.Create(all_uris)
+            | 'ExtractRows' >> beam.FlatMap(
+                extract_rows,
+                variables=known_args.variables,
+                area=known_args.area,
+                import_time=known_args.import_time)
+            | 'WriteToBigQuery' >> WriteToBigQuery(
+                project=table.project,
+                dataset=table.dataset_id,
+                table=table.table_id,
+                write_disposition=BigQueryDisposition.WRITE_APPEND,
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                custom_gcs_temp_location=known_args.temp_location)
+        )
     logger.info('Pipeline is finished.')

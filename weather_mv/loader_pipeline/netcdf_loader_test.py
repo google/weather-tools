@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import tempfile
 import typing as t
 import unittest
 from collections import Counter
@@ -229,16 +228,11 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.tmp_dir = tempfile.TemporaryDirectory()
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-
-    def tearDown(self):
-        # Close the file, the directory will be removed after the test
-        self.tmp_dir.cleanup()
 
     @_handle_missing_grib_be
     def test_extract_rows(self):
-        actual = next(extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name))
+        actual = next(extract_rows(self.test_data_path))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -257,7 +251,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     @_handle_missing_grib_be
     def test_multiple_editions(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name))
+        actual = next(extract_rows(self.test_data_path))
         print(actual)
         expected = {
             'cape': 0.0,
