@@ -206,10 +206,13 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     #
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
+    idx = 0
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
             logger.info(f'Processed {idx // 1000}k coordinates...')
         yield dict(zip(ds.coords.indexes, it))
+
+    logger.info(f'Finished processing all {(idx / 1000):2f}k coordinates.')
 
 
 def extract_rows(uri: str, *,
