@@ -637,9 +637,9 @@ class PrepareTargetNameTest(unittest.TestCase):
 class ConfigTest(unittest.TestCase):
 
     def test_process_config_files(self):
-        directory = "../configs"
+        directory = os.path.join("..", "configs")
         for filename in os.listdir(directory):
-            config = directory + "/" + filename
+            config = os.path.join(directory, filename)
             try:
                 run(["weather-dl", config, "--dry-run"])
             except Exception as e:
