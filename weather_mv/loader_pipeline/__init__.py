@@ -15,7 +15,7 @@
 import logging
 import sys
 
-from .netcdf_loader import run
+from .pipeline import run
 
 
 def cli(extra=[]):
