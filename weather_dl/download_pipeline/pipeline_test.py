@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import typing as t
 import io
 import unittest
@@ -27,6 +28,7 @@ from .pipeline import (
     fetch_data,
     prepare_partitions,
     prepare_target_name,
+    run,
     skip_partition,
 )
 
@@ -631,6 +633,17 @@ class PrepareTargetNameTest(unittest.TestCase):
         target_name = prepare_target_name(config)
         self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
 
+
+class ConfigTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.dummy_manifest = MockManifest(Location('mock://dummy'))
+
+    def test_process_config_files(self):
+        for filename in os.listdir("../configs"):
+            run(["weather-dl", "../configs/" + filename, "--dry-run"])
+
+        # Testing file parse so no assertion required
 
 if __name__ == '__main__':
     unittest.main()
