@@ -640,9 +640,10 @@ class ConfigTest(unittest.TestCase):
         directory = "../configs"
         for filename in os.listdir(directory):
             config = directory + "/" + filename
-            run(["weather-dl", config, "--dry-run"])
-
-        # Testing file parse so no assertion required
+            try:
+                run(["weather-dl", config, "--dry-run"])
+            except Exception as e:
+                assert False, ("\n" + type(e).__name__ + " " + str(e) + "\nIn " + filename)
 
 
 if __name__ == '__main__':
