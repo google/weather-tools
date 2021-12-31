@@ -278,19 +278,27 @@ def run(argv: t.List[str], save_main_session: bool = True):
         prog='weather-mv',
         description='Weather Mover loads weather data from cloud storage into Google BigQuery.'
     )
+    parser.add_argument('-i', '--uris', type=str, required=True,
+                        help="URI prefix matching input netcdf objects, e.g. 'gs://ecmwf/era5/era5-2015-'.")
+    parser.add_argument('-o', '--output_table', type=str, required=True,
+                        help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table will be "
+                             "created if it doesn't exist.")
+    parser.add_argument('-t', '--temp_location', type=str, required=True,
+                        help='Cloud Storage path for temporary files, used by the BigQuery writer. Must be a valid '
+                             'Cloud Storage URL, e.g. beginning with gs://')
+    parser.add_argument('--topic', type=str,
+                        help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket."
+                             "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'")
+    parser.add_argument("--window_size", type=float, default=1.0,
+                        help="Output file's window size in minutes. Only used with the `topic` flag.")
+    parser.add_argument('--num_shards', type=int, default=5,
+                        help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
+                             'the `topic` flag.')
     parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                         help='Target variables for the BigQuery schema. Default: will import all data variables as '
                              'columns.')
     parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
                         help='Target area in [N, W, S, E]. Default: Will include all available area.')
-    parser.add_argument('-i', '--uris', type=str, required=True,
-                        help="URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-")
-    parser.add_argument('-o', '--output_table', type=str, required=True,
-                        help=("Full name of destination BigQuery table (<project>.<dataset>.<table>). "
-                              "Table will be created if it doesn't exist."))
-    parser.add_argument('-t', '--temp_location', type=str, required=True,
-                        help=("Cloud Storage path for temporary files. Must be a valid Cloud Storage URL"
-                              ", beginning with gs://"))
     parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -313,6 +321,10 @@ def run(argv: t.List[str], save_main_session: bool = True):
     # must also be in pipeline_args.
     pipeline_args.append('--temp_location')
     pipeline_args.append(known_args.temp_location)
+
+    # If a topic is used, then the pipeline must be a streaming pipeline.
+    if known_args.topic:
+        pipeline_args.extend('--streaming true'.split())
 
     # Before starting the pipeline, read one file and generate the BigQuery
     # table schema from it. Assumes the number of matching uris is
@@ -353,9 +365,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
                     p
                     # Windowing is based on this code sample:
                     # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
-                    | 'Read GCS Upload Event' >> beam.io.ReadFromPubSub(known_args.topic)
+                    | 'Read Upload Event' >> beam.io.ReadFromPubSub(known_args.topic)
                     | 'Window into' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
-                    | 'Parse Paths' >> beam.ParDo(ParsePaths())
+                    | 'Parse Paths' >> beam.ParDo(ParsePaths(known_args.uris))
             )
         else:
             paths = p | 'Create' >> beam.Create(all_uris)

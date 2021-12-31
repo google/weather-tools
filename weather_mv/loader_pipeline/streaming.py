@@ -11,12 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Window and parse Pub/Sub streams of real-time weather data added to cloud storage.
+
+Example windowing code borrowed from:
+  https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
+"""
 
 import datetime
+import fnmatch
 import json
 import logging
 import random
 import typing as t
+from urllib.parse import urlparse
 
 import apache_beam as beam
 from apache_beam.transforms.window import FixedWindows
@@ -24,8 +31,6 @@ from apache_beam.transforms.window import FixedWindows
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-GCS_PROTOCOL = 'gs://'
 
 
 class GroupMessagesByFixedWindows(beam.PTransform):
@@ -66,50 +71,54 @@ class AddTimestamp(beam.DoFn):
         )
 
 
-def to_object_path(payload: t.Dict) -> str:
-    """Parse GCS object from Pub/Sub topic payload."""
-    path = f'{GCS_PROTOCOL}{payload["bucket"]}/{payload["name"]}'
-    logger.info(path)
-    return path
-
-
-def parse_message(message_body) -> t.Dict:
-    """Robustly parse message body, which will be JSON in the vast majority of cases,
-     but might be a dictionary."""
-    try:
-        return json.loads(message_body)
-    except (json.JSONDecodeError, TypeError):
-        if type(message_body) is dict:
-            return message_body
-        raise
-
-
-def should_skip(message_body: t.Dict) -> bool:
-    """Returns true if Pub/Sub topic payload is *not* a path to a realtime Grib file."""
-    try:
-        # TODO(alxr): Add more filtering conditions...
-        return message_body['contentType'] != 'application/octet-stream'
-    except KeyError:
-        return True
-
-
 class ParsePaths(beam.DoFn):
-    """Parse paths to Grib files from windowed-batches."""
+    """Parse paths to real-time weather data from windowed-batches."""
+
+    def __init__(self, uri_pattern: str):
+        self.uri_pattern = uri_pattern
+        self.protocol = f'{urlparse(uri_pattern).scheme}://'
+        super().__init__()
+
+    @classmethod
+    def try_parse_message(cls, message_body: t.Union[str, t.Dict]) -> t.Dict:
+        """Robustly parse message body, which will be JSON in the vast majority of cases,
+         but might be a dictionary."""
+        try:
+            return json.loads(message_body)
+        except (json.JSONDecodeError, TypeError):
+            if type(message_body) is dict:
+                return message_body
+            raise
+
+    def to_object_path(self, payload: t.Dict) -> str:
+        """Parse cloud object from Pub/Sub topic payload."""
+        return f'{self.protocol}{payload["bucket"]}/{payload["name"]}'
+
+    def should_skip(self, message_body: t.Dict) -> bool:
+        """Returns true if Pub/Sub topic does *not* match the target file URI pattern."""
+        try:
+            return message_body['contentType'] != 'application/octet-stream' and \
+                   not fnmatch.fnmatch(self.to_object_path(message_body), self.uri_pattern)
+        except KeyError:
+            return True
 
     def process(self, key_value, window=beam.DoFn.WindowParam) -> t.Iterable[str]:
-        """Yield paths to Grib files in GCS."""
+        """Yield paths to real-time weather data in cloud storage."""
 
         shard_id, batch = key_value
+
+        logger.debug(f'Processing shard {shard_id!r}.')
 
         for message_body, publish_time in batch:
             logger.debug(message_body)
 
-            parsed_msg = parse_message(message_body)
+            parsed_msg = self.try_parse_message(message_body)
 
-            target = to_object_path(parsed_msg)
+            target = self.to_object_path(parsed_msg)
+            logger.info(f'Parsed path {target!r}...')
 
-            if should_skip(parsed_msg):
-                logger.info(f'skipping.')
+            if self.should_skip(parsed_msg):
+                logger.info('skipping.')
                 continue
 
             yield target
