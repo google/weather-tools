@@ -30,7 +30,7 @@ class ConfigTest(unittest.TestCase):
                 config = os.path.join(self.data_dir, filename)
                 try:
                     run(["weather-dl", config, "--dry-run"])
-                except Exception:
+                except:  # noqa: E722
                     self.fail(f'Config {filename!r} is incorrect.')
 
 
