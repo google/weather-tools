@@ -1,0 +1,4 @@
+# doc requirements
+myst-parser==0.13.7
+sphinx>=2.1
+sphinx_rtd_theme
