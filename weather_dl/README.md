@@ -1,6 +1,6 @@
 # ⛈ `weather-dl` – Weather Downloader
 
-Test build on commit - Weather Downloader ingests weather data to cloud buckets, such
+Weather Downloader ingests weather data to cloud buckets, such
 as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 
 ## Features
