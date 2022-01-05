@@ -50,6 +50,7 @@ test_requirements = [
     "pytype==2021.11.29",
     "flake8",
     "pytest",
+    "pytest-subtests",
     "netcdf4",
     "numpy",
     "xarray",
