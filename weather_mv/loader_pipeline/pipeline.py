@@ -372,9 +372,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
                     p
                     # Windowing is based on this code sample:
                     # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
-                    | 'Read Upload Event' >> beam.io.ReadFromPubSub(known_args.topic)
-                    | 'Window into' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
-                    | 'Parse Paths' >> beam.ParDo(ParsePaths(known_args.uris))
+                    | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(known_args.topic)
+                    | 'WindowInto' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
+                    | 'ParsePaths' >> beam.ParDo(ParsePaths(known_args.uris))
             )
         else:
             paths = p | 'Create' >> beam.Create(all_uris)
