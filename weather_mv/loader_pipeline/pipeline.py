@@ -220,9 +220,13 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
+
+    # re-calculate import time for streaming extractions.
+    if not import_time:
+        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
     def to_row(it: t.Dict) -> t.Dict:
         """Produce a single row, or a dictionary of all variables at a point."""
@@ -325,6 +329,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
     # If a topic is used, then the pipeline must be a streaming pipeline.
     if known_args.topic:
         pipeline_args.extend('--streaming true'.split())
+
+        # make sure we re-compute utcnow() every time rows are extracted from a file.
+        known_args.import_time = None
 
     # Before starting the pipeline, read one file and generate the BigQuery
     # table schema from it. Assumes the number of matching uris is
