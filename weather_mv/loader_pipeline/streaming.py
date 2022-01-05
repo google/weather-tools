@@ -97,8 +97,7 @@ class ParsePaths(beam.DoFn):
     def should_skip(self, message_body: t.Dict) -> bool:
         """Returns true if Pub/Sub topic does *not* match the target file URI pattern."""
         try:
-            return message_body['contentType'] != 'application/octet-stream' and \
-                   not fnmatch.fnmatch(self.to_object_path(message_body), self.uri_pattern)
+            return not fnmatch.fnmatch(self.to_object_path(message_body), self.uri_pattern)
         except KeyError:
             return True
 
