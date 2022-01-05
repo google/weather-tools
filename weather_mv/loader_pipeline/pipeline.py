@@ -33,7 +33,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
-from weather_mv.loader_pipeline.streaming import GroupMessagesByFixedWindows, ParsePaths
+from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 

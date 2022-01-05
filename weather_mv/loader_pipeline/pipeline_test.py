@@ -24,7 +24,7 @@ import xarray as xr
 from google.cloud.bigquery import SchemaField
 
 import weather_mv
-from weather_mv.loader_pipeline.pipeline import (
+from .pipeline import (
     dataset_to_table_schema,
     _only_target_vars,
     extract_rows,
