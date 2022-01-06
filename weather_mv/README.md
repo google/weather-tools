@@ -11,6 +11,9 @@ Weather Mover loads weather data from cloud storage into [Google BigQuery](https
 * **Parallel Upload**: Each file will be processed in parallel. With Dataflow autoscaling, even large datasets can be
   processed in a reasonable amount of time.
 
+> Note: Data is written into BigQuery using streaming inserts. It may take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
+> for buffers to persist into storage. However, weather data will be available for querying immediately.
+
 ## Usage
 
 ```
