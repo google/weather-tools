@@ -289,9 +289,11 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('-o', '--output_table', type=str, required=True,
                         help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table will be "
                              "created if it doesn't exist.")
-    parser.add_argument('-t', '--temp_location', type=str, required=True,
-                        help='Cloud Storage path for temporary files, used by the BigQuery writer. Must be a valid '
-                             'Cloud Storage URL, e.g. beginning with gs://')
+    parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
+                        help='Target variables for the BigQuery schema. Default: will import all data variables as '
+                             'columns.')
+    parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
+                        help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('--topic', type=str,
                         help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket."
                              "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'")
@@ -300,11 +302,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('--num_shards', type=int, default=5,
                         help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
                              'the `topic` flag.')
-    parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
-                        help='Target variables for the BigQuery schema. Default: will import all data variables as '
-                             'columns.')
-    parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
-                        help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -322,11 +319,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
-    # temp_location in known_args is passed to beam.io.WriteToBigQuery.
-    # If the pipeline is run using the DataflowRunner, temp_location
-    # must also be in pipeline_args.
-    pipeline_args.append('--temp_location')
-    pipeline_args.append(known_args.temp_location)
 
     # If a topic is used, then the pipeline must be a streaming pipeline.
     if known_args.topic:
@@ -392,8 +384,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 project=table.project,
                 dataset=table.dataset_id,
                 table=table.table_id,
+                method='STREAMING_INSERTS',
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
-                custom_gcs_temp_location=known_args.temp_location)
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
         )
     logger.info('Pipeline is finished.')
