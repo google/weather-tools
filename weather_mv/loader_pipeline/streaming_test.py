@@ -69,7 +69,8 @@ class ParsePathsTests(unittest.TestCase):
         self.assertFalse(self.parser.should_skip(parsed))
 
     def test_should_skip__missing_values(self):
-        parsed = self.parser.try_parse_message(self.test_input)
+        missing_field = """{"name": "tmp/T1D10091200101309001"}"""
+        parsed = self.parser.try_parse_message(missing_field)
         self.assertTrue(self.parser.should_skip(parsed))
 
     def test_should_skip__mismatch_pattern(self):

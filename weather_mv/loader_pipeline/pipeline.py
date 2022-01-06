@@ -18,10 +18,11 @@ import contextlib
 import datetime
 import itertools
 import logging
-import math
+import operator
 import shutil
 import tempfile
 import typing as t
+from functools import reduce
 
 import apache_beam as beam
 import apache_beam.metrics
@@ -50,6 +51,10 @@ def configure_logger(verbosity: int) -> None:
     level = (40 - verbosity * 10)
     logging.getLogger(__package__).setLevel(level)
     logger.setLevel(level)
+
+
+def _prod(xs: t.Iterable[int]) -> int:
+    return reduce(operator.mul, xs, 1)
 
 
 def __open_dataset_file(filename: str) -> xr.Dataset:
@@ -210,7 +215,7 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
     idx = 0
-    total_coords = math.prod(ds.coords.dims.values())
+    total_coords = _prod(ds.coords.dims.values())
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
             logger.info(f'Processed {idx // 1000}k coordinates of {(total_coords / 1000):2f}k...')
