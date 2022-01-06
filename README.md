@@ -94,7 +94,6 @@ _Steps_:
    ```shell
    weather-mv --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
       --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
-      --temp_location gs://$BUCKET/tmp/
       --direct_num_workers 2
    ```
 
