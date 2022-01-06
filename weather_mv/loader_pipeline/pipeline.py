@@ -286,9 +286,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('-o', '--output_table', type=str, required=True,
                         help=("Full name of destination BigQuery table (<project>.<dataset>.<table>). "
                               "Table will be created if it doesn't exist."))
-    parser.add_argument('-t', '--temp_location', type=str, required=True,
-                        help=("Cloud Storage path for temporary files. Must be a valid Cloud Storage URL"
-                              ", beginning with gs://"))
     parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -306,11 +303,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
-    # temp_location in known_args is passed to beam.io.WriteToBigQuery.
-    # If the pipeline is run using the DataflowRunner, temp_location
-    # must also be in pipeline_args.
-    pipeline_args.append('--temp_location')
-    pipeline_args.append(known_args.temp_location)
 
     # Before starting the pipeline, read one file and generate the BigQuery
     # table schema from it. Assumes the number of matching uris is
@@ -358,8 +350,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 project=table.project,
                 dataset=table.dataset_id,
                 table=table.table_id,
+                method='STREAMING_INSERTS',
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
-                custom_gcs_temp_location=known_args.temp_location)
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
         )
     logger.info('Pipeline is finished.')

@@ -14,7 +14,7 @@ Weather Mover loads weather data from cloud storage into [Google BigQuery](https
 ## Usage
 
 ```
-usage: weather-mv [-h] [-v variables [variables ...]] [-a area [area ...]] -i URIS -o OUTPUT_TABLE -t TEMP_LOCATION [--import_time IMPORT_TIME] [--infer_schema]
+usage: weather-mv [-h] [-v variables [variables ...]] [-a area [area ...]] -i URIS -o OUTPUT_TABLE [--import_time IMPORT_TIME] [--infer_schema] [-d]
 
 Weather Mover loads weather data from cloud storage into Google BigQuery.
 ```
@@ -23,7 +23,6 @@ _Common options_:
 
 * `-i, --uris`: (required) URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-""
 * `-o, --output_table`: (required) Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
-* `-t, --temp_location`: Temp Location for staging files to import to BigQuery
 * `--import_time`: When writing data to BigQuery, record that data import occurred at this time
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `-v, --variables`:  Target variables for the BigQuery schema. Default: will import all data variables as columns.
@@ -32,12 +31,13 @@ _Common options_:
 
 Invoke with `-h` or `--help` to see the full range of options.
 
+> Warning: Dry-runs are currently not supported. See [#22](https://github.com/googlestaging/weather-tools/issues/22).
+
 _Usage Examples_:
 
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location gs://$BUCKET/tmp \
            --direct_num_workers 2
 ```
 
@@ -47,7 +47,6 @@ Upload only a subset of variables:
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --variables u10 v10 t
-           --temp_location gs://$BUCKET/tmp \
            --direct_num_workers 2
 ```
 
@@ -57,7 +56,6 @@ Upload all variables, but for a specific geographic region (for example, the con
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --area 49.34 -124.68 24.74 -66.95 \
-           --temp_location gs://$BUCKET/tmp \
            --direct_num_workers 2
 ```
 
