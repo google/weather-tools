@@ -18,6 +18,7 @@ import contextlib
 import datetime
 import itertools
 import logging
+import math
 import shutil
 import tempfile
 import typing as t
@@ -209,9 +210,10 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
     idx = 0
+    total_coords = math.prod(ds.coords.dims.values())
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
-            logger.info(f'Processed {idx // 1000}k coordinates...')
+            logger.info(f'Processed {idx // 1000}k coordinates of {(total_coords / 1000):2f}k...')
         yield dict(zip(ds.coords.indexes, it))
 
     logger.info(f'Finished processing all {(idx / 1000):2f}k coordinates.')
