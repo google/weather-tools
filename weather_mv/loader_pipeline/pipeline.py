@@ -300,13 +300,14 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
                         help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('--topic', type=str,
-                        help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket."
-                             "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'")
+                        help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
+                             "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
     parser.add_argument("--window_size", type=float, default=1.0,
-                        help="Output file's window size in minutes. Only used with the `topic` flag.")
+                        help="Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 "
+                             "minute.")
     parser.add_argument('--num_shards', type=int, default=5,
                         help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
-                             'the `topic` flag.')
+                             'the `topic` flag. Default: 5 shards.')
     parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
