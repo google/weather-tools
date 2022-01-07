@@ -117,7 +117,7 @@ class ParsePaths(beam.DoFn):
             logger.info(f'Parsed path {target!r}...')
 
             if self.should_skip(parsed_msg):
-                logger.info('skipping.')
+                logger.info(f'skipping {target!r}.')
                 continue
 
             yield target
