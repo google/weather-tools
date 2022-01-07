@@ -18,9 +18,11 @@ import contextlib
 import datetime
 import itertools
 import logging
+import operator
 import shutil
 import tempfile
 import typing as t
+from functools import reduce
 
 import apache_beam as beam
 import apache_beam.metrics
@@ -32,6 +34,8 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
+
+from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 
@@ -47,6 +51,10 @@ def configure_logger(verbosity: int) -> None:
     level = (40 - verbosity * 10)
     logging.getLogger(__package__).setLevel(level)
     logger.setLevel(level)
+
+
+def _prod(xs: t.Iterable[int]) -> int:
+    return reduce(operator.mul, xs, 1)
 
 
 def __open_dataset_file(filename: str) -> xr.Dataset:
@@ -207,9 +215,10 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     # Example:
     #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
     idx = 0
+    total_coords = _prod(ds.coords.dims.values())
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
-            logger.info(f'Processed {idx // 1000}k coordinates...')
+            logger.info(f'Processed {idx // 1000}k coordinates of {(total_coords / 1000):2f}k...')
         yield dict(zip(ds.coords.indexes, it))
 
     logger.info(f'Finished processing all {(idx / 1000):2f}k coordinates.')
@@ -218,9 +227,13 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: str = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
+
+    # re-calculate import time for streaming extractions.
+    if not import_time:
+        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
     def to_row(it: t.Dict) -> t.Dict:
         """Produce a single row, or a dictionary of all variables at a point."""
@@ -276,16 +289,25 @@ def run(argv: t.List[str], save_main_session: bool = True):
         prog='weather-mv',
         description='Weather Mover loads weather data from cloud storage into Google BigQuery.'
     )
+    parser.add_argument('-i', '--uris', type=str, required=True,
+                        help="URI prefix matching input netcdf objects, e.g. 'gs://ecmwf/era5/era5-2015-'.")
+    parser.add_argument('-o', '--output_table', type=str, required=True,
+                        help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table will be "
+                             "created if it doesn't exist.")
     parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                         help='Target variables for the BigQuery schema. Default: will import all data variables as '
                              'columns.')
     parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
                         help='Target area in [N, W, S, E]. Default: Will include all available area.')
-    parser.add_argument('-i', '--uris', type=str, required=True,
-                        help="URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-")
-    parser.add_argument('-o', '--output_table', type=str, required=True,
-                        help=("Full name of destination BigQuery table (<project>.<dataset>.<table>). "
-                              "Table will be created if it doesn't exist."))
+    parser.add_argument('--topic', type=str,
+                        help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
+                             "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
+    parser.add_argument("--window_size", type=float, default=1.0,
+                        help="Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 "
+                             "minute.")
+    parser.add_argument('--num_shards', type=int, default=5,
+                        help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
+                             'the `topic` flag. Default: 5 shards.')
     parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                         help=("When writing data to BigQuery, record that data import occurred at this "
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -303,6 +325,13 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
+
+    # If a topic is used, then the pipeline must be a streaming pipeline.
+    if known_args.topic:
+        pipeline_args.extend('--streaming true'.split())
+
+        # make sure we re-compute utcnow() every time rows are extracted from a file.
+        known_args.import_time = None
 
     # Before starting the pipeline, read one file and generate the BigQuery
     # table schema from it. Assumes the number of matching uris is
@@ -338,9 +367,20 @@ def run(argv: t.List[str], save_main_session: bool = True):
         raise
 
     with beam.Pipeline(options=pipeline_options) as p:
+        if known_args.topic:
+            paths = (
+                    p
+                    # Windowing is based on this code sample:
+                    # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
+                    | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(known_args.topic)
+                    | 'WindowInto' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
+                    | 'ParsePaths' >> beam.ParDo(ParsePaths(known_args.uris))
+            )
+        else:
+            paths = p | 'Create' >> beam.Create(all_uris)
+
         (
-            p
-            | 'Create' >> beam.Create(all_uris)
+            paths
             | 'ExtractRows' >> beam.FlatMap(
                 extract_rows,
                 variables=known_args.variables,

@@ -17,7 +17,9 @@ Weather Mover loads weather data from cloud storage into [Google BigQuery](https
 ## Usage
 
 ```
-usage: weather-mv [-h] [-v variables [variables ...]] [-a area [area ...]] -i URIS -o OUTPUT_TABLE [--import_time IMPORT_TIME] [--infer_schema] [-d]
+usage: weather-mv [-h] -i URIS -o OUTPUT_TABLE [-v variables [variables ...]] [-a area [area ...]]
+                  [--topic TOPIC] [--window_size WINDOW_SIZE] [--num_shards NUM_SHARDS]
+                  [--import_time IMPORT_TIME] [--infer_schema] [-d]
 
 Weather Mover loads weather data from cloud storage into Google BigQuery.
 ```
@@ -26,10 +28,15 @@ _Common options_:
 
 * `-i, --uris`: (required) URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-""
 * `-o, --output_table`: (required) Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
-* `--import_time`: When writing data to BigQuery, record that data import occurred at this time
-  (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `-v, --variables`:  Target variables for the BigQuery schema. Default: will import all data variables as columns.
 * `-a, --area`:  Target area in [N, W, S, E]. Default: Will include all available area.
+* `--topic`: A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. E.g. 'projects/<
+  PROJECT_ID>/topics/<TOPIC_ID>'.
+* `--window_size`: Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 minute.
+* `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic`
+  flag. Default: 5 shards.
+* `--import_time`: When writing data to BigQuery, record that data import occurred at this time
+  (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 
 Invoke with `-h` or `--help` to see the full range of options.
@@ -53,7 +60,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --direct_num_workers 2
 ```
 
-Upload all variables, but for a specific geographic region (for example, the contitental US):
+Upload all variables, but for a specific geographic region (for example, the continental US):
 
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
@@ -75,3 +82,53 @@ weather-mv --uris "gs://your-bucket/*.nc" \
 
 For a full list of how to configure the Dataflow pipeline, please review
 [this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).
+
+## Streaming ingestion into BigQuery
+
+`weather-mv` optionally provides the ability to react
+to [Pub/Sub events for objects added to GCS](https://cloud.google.com/storage/docs/pubsub-notifications). This can be
+used to automate ingestion into BigQuery as soon as weather data is disseminated. To set up the Weather Mover with
+streaming ingestion, use the `--topic` flag (see above). Objects that don't match the `--uris` will be filtered out of
+ingestion. It's worth noting: when setting up PubSub, **make sure to create a topic for GCS `OBJECT_FINALIZE` events
+only.**
+
+> Note: It's recommended that you specify variables to ingest (`-v, --variables`) instead of inferring the schema for
+> streaming pipelines. Not all variables will be distributed with every file, especially when they are in Grib format.
+
+_Usage Examples_:
+
+```shell
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --topic "projects/$PROJECT/topics/$TOPIC_ID" \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp \
+           --job_name $JOB_NAME 
+```
+
+Window incoming data every five minutes instead of every minute.
+
+```shell
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --topic "projects/$PROJECT/topics/$TOPIC_ID" \
+           --window_size 5 \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp \
+           --job_name $JOB_NAME 
+```
+
+Increase the number of shards per window.
+
+```shell
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --topic "projects/$PROJECT/topics/$TOPIC_ID" \
+           --num_shards 10 \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp \
+           --job_name $JOB_NAME 
+```
