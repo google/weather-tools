@@ -127,6 +127,10 @@ behalf.
 tox
 ```
 
+In addition, we provide a simple script to install _other_ branches locally. Run `bin/install-branch <branch-name>` to
+pip install that branches working copy of weather-tools. Hopefully, this script facilitates testing of work-in-progress
+contributions.
+
 Please review the [Beam testing docs](https://beam.apache.org/documentation/pipelines/test-your-pipeline/) for guidance
 in how to write tests for the pipeline.
 
