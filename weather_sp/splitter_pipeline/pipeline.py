@@ -22,6 +22,7 @@ from apache_beam.io.fileio import MatchFiles, ReadMatches
 import apache_beam.metrics as metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
+from .file_name_utils import OutFileInfo, get_output_file_base_name
 from .file_splitters import get_splitter
 
 logger = logging.getLogger(__name__)
@@ -34,13 +35,13 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def split_file(input_file: str, input_base_dir: str, output_directory: str, dry_run: bool):
+def split_file(input_file: str, input_base_dir: str, output_template: str, dry_run: bool):
     logger.info('Splitting file %s', input_file)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(input_file,
                             get_output_base_name(input_path=input_file,
                                                  input_base=input_base_dir,
-                                                 output_dir=output_directory),
+                                                 output_template=output_template),
                             dry_run)
     splitter.split_data()
 
@@ -54,8 +55,8 @@ def _get_base_input_directory(input_pattern: str) -> str:
 
 
 def get_output_base_name(input_path: str, input_base: str,
-                         output_dir: str) -> str:
-    return input_path.replace(input_base, output_dir)
+                         output_template: str) -> OutFileInfo:
+    return get_output_file_base_name(input_path, output_template, input_base)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -66,12 +67,15 @@ def run(argv: t.List[str], save_main_session: bool = True):
     )
     parser.add_argument('-i', '--input-pattern', type=str, required=True,
                         help='Pattern for input weather data.')
-    parser.add_argument('-o', '--output-dir', type=str, required=True,
-                        help='Path to base folder for output files. '
-                             'This directory will replace the common path of the '
-                             'input_pattern. For `input_pattern a/b/c/**` and '
-                             '`output_dir /x/y/z` a file `a/b/c/file.nc` will create'
-                             'output files like `/x/y/z/c/file.nc_shortname.nc`'
+    parser.add_argument('-o', '--output-template', type=str, required=True,
+                        help='Template specifying path to output files. '
+                             'Either a directory that will replace the common path of the '
+                             'input_pattern, or a template using python-style formatting substitution'
+                             'of input directory names.'
+                             'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`,'
+                             '`output_template /x/y/z` will create'
+                             'output files like `/x/y/z/c/file_shortname.nc`, while a template'
+                             'with formating `/somewhere/{1}-{0}.` will give `somewhere/c-file.shortname.nc`'
                         )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
@@ -84,14 +88,14 @@ def run(argv: t.List[str], save_main_session: bool = True):
     input_pattern = known_args.input_pattern
     input_base_dir = _get_base_input_directory(input_pattern)
     # output target directory, if empty, set to same as input
-    output_directory = known_args.output_dir
-    if not output_directory:
-        output_directory = input_base_dir
+    output_template = known_args.output_template
+    if not output_template:
+        output_template = input_base_dir
     dry_run = known_args.dry_run
 
     logger.debug('input_pattern: %s', input_pattern)
     logger.debug('input_base_dir: %s', input_base_dir)
-    logger.debug('output_directory: %s', output_directory)
+    logger.debug('output_template: %s', output_template)
     logger.debug('dry_run: %s', known_args.dry_run)
     with beam.Pipeline(options=pipeline_options) as p:
         (
@@ -102,6 +106,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
                 | 'SplitFiles' >> beam.Map(split_file,
                                            input_base_dir,
-                                           output_directory,
+                                           output_template,
                                            dry_run)
         )

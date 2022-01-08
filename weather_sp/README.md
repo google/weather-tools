@@ -19,9 +19,7 @@ Split weather data file into files by variable.
 _Common options_:
 
 * `-i, --input-pattern`: Pattern for input weather data.
-* `-o, --output-dir`: Path to base folder for output files. This directory will replace the common path of the
-  input-pattern. For `input-pattern a/b/c/**` and
-  `output-dir /x/y/z` a file `a/b/c/file.nc` will createoutput files like `/x/y/z/c/file.nc_shortname.nc`
+* `-o, --output-template`: Path to base folder for output files, or template using Python formating, see [Output section](#output) below.
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 
 Invoke with `-h` or `--help` to see the full range of options.
@@ -75,22 +73,45 @@ On the other hand, to specify a specific pattern use
 
 ## Output
 
-The base output path is specified using the `--output-path` flag. Based on that path, the directory structure of the
+The base output file names are specified using the `--output-template` flag. This template can be either a directory,
+or contain Python-style numbered formating.
+
+### Output template is a directory
+Based on the output template path, the directory structure of the
 input pattern is replicated.
 
 To create the directory structure, the common path of the input pattern is removed from the input file path and replaced
-with the output path.
+with the output path. A '_' is added to separate the split level / variable.
 
 Example:
 
 ```bash
 --input-pattern 'gs://test-input/era5/2020/**' \
---output-dir 'gs://test-output/splits'
+--output-template 'gs://test-output/splits'
 ```
 
-For a file `gs://test-input/era5/2020/01/01.nc` the output file pattern is
-`gs://test-output/splits/2020/01/01.nc` and if the temperature is a variable in that data, the output file for that
-split will be `gs://test-output/splits/2020/01/01.nc_t.nc`
+For a file `gs://test-input/era5/2020/02/01.nc` the output file pattern is
+`gs://test-output/splits/2020/02/01_` and if the temperature is a variable in that data, the output file for that
+split will be `gs://test-output/splits/2020/02/01_t.nc`
+
+### Output template with Python-style formating
+Using Python-style substitution (e.g. `{1}`) allows for more flexibility when creating the output files.
+The substitutions are based on the directory structure of the input file, where each `{<x>}` stands for
+one directory name, counting backwards from the end, i.e. the file name is `{0}`, the immediate
+directory in which it is located is `{1}`.
+
+Example:
+
+```bash
+--input-pattern 'gs://test-input/era5/2020/**' \
+--output-template 'gs://test-output/splits/{2}.{1}.{0}T00.'
+```
+
+For a file `gs://test-input/era5/2020/02/01.nc` the output file pattern is
+`gs://test-output/splits/2020.02.01T00.` and if the temperature is a variable in that data, the output file for that
+split will be `gs://test-output/splits/2020/01/01.t.nc`
+
+Note that in this case no '_' is added, the template is used as is.
 
 ## Dry run
 
