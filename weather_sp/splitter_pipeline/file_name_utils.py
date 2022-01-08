@@ -29,7 +29,7 @@ def get_output_file_base_name(filename: str, out_pattern: str, input_base_dir: s
     Args:
         filename: input file to be split
         out_pattern: pattern to apply when creating output file
-        input_base_dir: used if out_pattern does not contain any '*' wildcards.
+        input_base_dir: used if out_pattern does not contain any '{}' substitutions.
             The output file is then created by replacing this part of the input name
             with the output pattern.
     '''
