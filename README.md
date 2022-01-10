@@ -37,7 +37,7 @@ It's recommended that you create a local python environment (with
 [Anaconda](https://www.anaconda.com/products/individual)). Otherwise, these tools can be installed with pip:
 
   ```shell
-  pip install git+http://github.com/google/weather-tools.git#egg=weather-tools
+  pip install google-weather-tools
   ```
 
 > Note: Publishing on PyPi will come soon, [#1](https://github.com/googlestaging/weather-tools/issues/1).
