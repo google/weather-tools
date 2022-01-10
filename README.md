@@ -40,8 +40,6 @@ It's recommended that you create a local python environment (with
   pip install google-weather-tools
   ```
 
-> Note: Publishing on PyPi will come soon, [#1](https://github.com/googlestaging/weather-tools/issues/1).
-
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
 - [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
