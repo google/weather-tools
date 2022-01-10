@@ -59,15 +59,33 @@ test_requirements = [
 all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
 
 setup(
-    name='weather-tools',
+    name='google-weather-tools',
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
+    url='https://weather-tools.readthedocs.io/',
     description='Apache Beam pipelines to make weather data accessible and useful.',
     long_description=open('README.md', 'r', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
     platforms=['darwin', 'linux'],
-    python_requires='>=3.7, <4',
+    license='License :: OSI Approved :: Apache Software License',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Environment :: Console',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Information Technology'
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: MacOS :: MacOS X',
+        # 'Operating System :: Microsoft :: Windows',  # TODO(#64): Fully support Windows.
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Topic :: Scientific/Engineering :: Atmospheric Science',
+
+    ],
+    # Apache Beam's Python SDK only supports up to 3.8
+    python_requires='>=3.7, <3.9',
     install_requires=['apache-beam[gcp]'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
