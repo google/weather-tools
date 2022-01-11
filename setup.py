@@ -74,7 +74,7 @@ setup(
         'Environment :: Console',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
-        'Intended Audience :: Information Technology'
+        'Intended Audience :: Information Technology',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: MacOS :: MacOS X',
         # 'Operating System :: Microsoft :: Windows',  # TODO(#64): Fully support Windows.
