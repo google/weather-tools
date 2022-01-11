@@ -325,7 +325,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         with timing('Loop'):
             for v in i:
                 # Don't do everything, 10K coordinates is enough for testing.
-                if counter > 10000: break
+                if counter > 10000:
+                    break
                 if counter % 1000 == 0:
                     logging.info(f'Processed {counter // 1000}k coordinates...')
                 counter += 1
