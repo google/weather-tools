@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import datetime
+import logging
 import typing as t
 import unittest
 from collections import Counter
+from contextlib import contextmanager
 from functools import wraps
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -30,6 +33,8 @@ from .pipeline import (
     extract_rows,
     get_coordinates
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaCreationTests(unittest.TestCase):
@@ -312,16 +317,17 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     @_handle_missing_grib_be
     def test_timing_profile(self):
-        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         counter = 0
         logging.info('AAA')
-        i = extract_rows(self.test_data_path, tmp_dir=self.tmp_dir.name)
+        i = extract_rows(self.test_data_path)
         logging.info('BBB')
         first = next(i)
         logging.info('CCC')
         with timing('Loop'):
             for v in i:
-                logging.info(f'CCC: {counter}')
+                # Don't do everything, 10K coordinates is enough for testing.
+                if counter > 10000: break
                 if counter % 1000 == 0:
                     logging.info(f'Processed {counter // 1000}k coordinates...')
                 counter += 1
