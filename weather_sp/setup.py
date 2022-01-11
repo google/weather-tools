@@ -26,7 +26,8 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
+    version='0.1.0',
+    url='https://github.com/google/weather-tools',
     description='A tool to split weather data files into per-variable files.',
     install_requires=base_requirements,
 )
