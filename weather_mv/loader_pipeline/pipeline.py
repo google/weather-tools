@@ -235,35 +235,6 @@ def extract_rows(uri: str, *,
     if not import_time:
         import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-    def to_row(it: t.Dict) -> t.Dict:
-        """Produce a single row, or a dictionary of all variables at a point."""
-
-        # Use those index values to select a Dataset containing one row of data.
-        row_ds = data_ds.loc[it]
-
-        # Create a Name-Value map for data columns. Result looks like:
-        # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-        temp_row = row_ds.to_pandas().apply(to_json_serializable_type)
-        # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
-        row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
-
-        # Add indexed coordinates.
-        row.update(it)
-        # Add un-indexed coordinates.
-        for c in row_ds.coords:
-            if c not in it:
-                row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
-        # Add import metadata.
-        row[DATA_IMPORT_TIME_COLUMN] = import_time
-        row[DATA_URI_COLUMN] = uri
-        row[DATA_FIRST_STEP] = first_time_step
-
-        # 'row' ends up looking like:
-        # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-        #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-        return row
-
     with open_dataset(uri) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
@@ -274,6 +245,35 @@ def extract_rows(uri: str, *,
 
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
+
+        def to_row(it: t.Dict) -> t.Dict:
+            """Produce a single row, or a dictionary of all variables at a point."""
+
+            # Use those index values to select a Dataset containing one row of data.
+            row_ds = data_ds.loc[it]
+
+            # Create a Name-Value map for data columns. Result looks like:
+            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+            temp_row = row_ds.to_pandas().apply(to_json_serializable_type)
+            # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
+            row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
+
+            # Add indexed coordinates.
+            row.update(it)
+            # Add un-indexed coordinates.
+            for c in row_ds.coords:
+                if c not in it:
+                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+            # Add import metadata.
+            row[DATA_IMPORT_TIME_COLUMN] = import_time
+            row[DATA_URI_COLUMN] = uri
+            row[DATA_FIRST_STEP] = first_time_step
+
+            # 'row' ends up looking like:
+            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            return row
 
         yield from map(to_row, get_coordinates(data_ds))
 
@@ -380,18 +380,18 @@ def run(argv: t.List[str], save_main_session: bool = True):
             paths = p | 'Create' >> beam.Create(all_uris)
 
         (
-            paths
-            | 'ExtractRows' >> beam.FlatMap(
-                extract_rows,
-                variables=known_args.variables,
-                area=known_args.area,
-                import_time=known_args.import_time)
-            | 'WriteToBigQuery' >> WriteToBigQuery(
-                project=table.project,
-                dataset=table.dataset_id,
-                table=table.table_id,
-                method='STREAMING_INSERTS',
-                write_disposition=BigQueryDisposition.WRITE_APPEND,
-                create_disposition=BigQueryDisposition.CREATE_NEVER)
+                paths
+                | 'ExtractRows' >> beam.FlatMap(
+                    extract_rows,
+                    variables=known_args.variables,
+                    area=known_args.area,
+                    import_time=known_args.import_time)
+                | 'WriteToBigQuery' >> WriteToBigQuery(
+                    project=table.project,
+                    dataset=table.dataset_id,
+                    table=table.table_id,
+                    method='STREAMING_INSERTS',
+                    write_disposition=BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=BigQueryDisposition.CREATE_NEVER)
         )
     logger.info('Pipeline is finished.')
