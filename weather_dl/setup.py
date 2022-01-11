@@ -32,9 +32,10 @@ base_requirements = [
 setup(
     name='download_pipeline',
     packages=find_packages(),
+    version='0.1.0',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    url='https://gitlab.com/google-pso/ais/grid_intelligence_ai/ecmwf',
+    url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
     install_requires=base_requirements,
 )
