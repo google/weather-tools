@@ -35,7 +35,7 @@ setup(
     version='0.1.0',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    url='https://github.com/google/weather-tools',
+    url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
     install_requires=base_requirements,
 )

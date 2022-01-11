@@ -29,7 +29,7 @@ setup(
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     version='0.1.0',
-    url='https://github.com/google/weather-tools',
+    url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=base_requirements,
 )

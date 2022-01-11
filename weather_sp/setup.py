@@ -27,7 +27,7 @@ setup(
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     version='0.1.0',
-    url='https://github.com/google/weather-tools',
+    url='https://weather-tools.readthedocs.io/en/latest/weather_sp/',
     description='A tool to split weather data files into per-variable files.',
     install_requires=base_requirements,
 )
