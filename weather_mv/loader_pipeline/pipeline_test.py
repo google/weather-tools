@@ -230,7 +230,7 @@ def _handle_missing_grib_be(f):
 
 
 @contextmanager
-def timing(description: str) -> None:
+def timing(description: str) -> t.Iterator[None]:
     logging.info(f"{description}: Starting profiler")
     start = perf_counter()
     yield
@@ -319,11 +319,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     def test_timing_profile(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         counter = 0
-        logging.info('AAA')
         i = extract_rows(self.test_data_path)
-        logging.info('BBB')
-        first = next(i)
-        logging.info('CCC')
+        # Read once to avoid counting dataset open times, etc.
+        _ = next(i)
         with timing('Loop'):
             for v in i:
                 # Don't do everything, 10K coordinates is enough for testing.
