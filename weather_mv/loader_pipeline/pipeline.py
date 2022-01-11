@@ -382,16 +382,16 @@ def run(argv: t.List[str], save_main_session: bool = True):
         (
                 paths
                 | 'ExtractRows' >> beam.FlatMap(
-            extract_rows,
-            variables=known_args.variables,
-            area=known_args.area,
-            import_time=known_args.import_time)
+                    extract_rows,
+                    variables=known_args.variables,
+                    area=known_args.area,
+                    import_time=known_args.import_time)
                 | 'WriteToBigQuery' >> WriteToBigQuery(
-            project=table.project,
-            dataset=table.dataset_id,
-            table=table.table_id,
-            method='STREAMING_INSERTS',
-            write_disposition=BigQueryDisposition.WRITE_APPEND,
-            create_disposition=BigQueryDisposition.CREATE_NEVER)
+                    project=table.project,
+                    dataset=table.dataset_id,
+                    table=table.table_id,
+                    method='STREAMING_INSERTS',
+                    write_disposition=BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=BigQueryDisposition.CREATE_NEVER)
         )
     logger.info('Pipeline is finished.')
