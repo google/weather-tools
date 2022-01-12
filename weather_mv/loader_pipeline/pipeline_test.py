@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import datetime
+import logging
 import typing as t
 import unittest
 from collections import Counter
+from contextlib import contextmanager
 from functools import wraps
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -30,6 +33,8 @@ from .pipeline import (
     extract_rows,
     get_coordinates
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaCreationTests(unittest.TestCase):
@@ -224,6 +229,15 @@ def _handle_missing_grib_be(f):
     return decorated
 
 
+@contextmanager
+def timing(description: str) -> t.Iterator[None]:
+    logging.info(f"{description}: Starting profiler")
+    start = perf_counter()
+    yield
+    elapsed_time = perf_counter() - start
+    logging.info(f"{description}: Elapsed time: {elapsed_time:0.4f} seconds")
+
+
 class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
@@ -300,6 +314,23 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'valid_time': '2021-12-10T20:00:00+00:00'
         }
         self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_timing_profile(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        counter = 0
+        i = extract_rows(self.test_data_path)
+        # Read once to avoid counting dataset open times, etc.
+        _ = next(i)
+        with timing('Loop'):
+            for v in i:
+                # Don't do everything, 10K coordinates is enough for testing.
+                if counter >= 10000:
+                    break
+                if counter % 1000 == 0:
+                    logging.info(f'Processed {counter // 1000}k coordinates...')
+                counter += 1
+        logging.info(f'Finished {counter}')
 
 
 if __name__ == '__main__':

@@ -57,6 +57,16 @@ def _prod(xs: t.Iterable[int]) -> int:
     return reduce(operator.mul, xs, 1)
 
 
+def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
+    # Copies all the vars to in-memory to reduce disk seeks everytime a single row is processed.
+    # This also removes the need to keep the backing temp source file around.
+    data_ds = grib_ds.copy(deep=True)
+    for v in grib_ds.variables:
+        if v not in data_ds.coords:
+            data_ds[v].variable.values = grib_ds[v].variable.values
+    return data_ds
+
+
 def __open_dataset_file(filename: str) -> xr.Dataset:
     try:
         return xr.open_dataset(filename)
@@ -66,7 +76,8 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
             raise
     # Trying with explicit engine for cfgrib.
     try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
+        return _make_grib_dataset_inmem(
+            xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}))
     except ValueError as e:
         if "multiple values for key 'edition'" not in str(e):
             raise
@@ -75,8 +86,8 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
     # Try with edition 1
     # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
     # TODO(#54): Make this a more generic function that can take custom args from tool users.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+    return _make_grib_dataset_inmem(xr.open_dataset(filename, engine='cfgrib',
+                                                    backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}))
 
 
 @contextlib.contextmanager
