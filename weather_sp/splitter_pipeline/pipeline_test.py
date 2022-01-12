@@ -38,13 +38,19 @@ class PipelineTest(unittest.TestCase):
                 '/path/to/some')
 
     def test_get_output_base_name(self):
-        self.assertEqual(get_output_base_name('somewhere/somefile',
-                                              'somewhere', 'out/there').file_name_base,
-                         'out/there/somefile_')
+        self.assertEqual(get_output_base_name(
+                input_path='somewhere/somefile',
+                input_base='somewhere',
+                output_template=None,
+                output_dir='out/there').file_name_base, 'out/there/somefile_')
 
     @patch('weather_sp.splitter_pipeline.pipeline.get_splitter')
     def test_split_file(self, mock_get_splitter):
-        split_file('somewhere/somefile', 'somewhere', 'out/there', dry_run=True)
+        split_file(input_file='somewhere/somefile',
+                   input_base_dir='somewhere',
+                   output_dir='out/there',
+                   output_template=None,
+                   dry_run=True)
         mock_get_splitter.assert_called_with('somewhere/somefile',
                                              OutFileInfo('out/there/somefile_', ''),
                                              True)

@@ -1,3 +1,17 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import os
 import typing as t
@@ -15,8 +29,11 @@ class OutFileInfo(t.NamedTuple):
         return f'{self.file_name_base}/*/{self.ending}'
 
 
-def get_output_file_base_name(filename: str, out_pattern: str, input_base_dir: str) -> OutFileInfo:
-    '''
+def get_output_file_base_name(filename: str,
+                              out_pattern: t.Optional[str],
+                              out_dir: t.Optional[str],
+                              input_base_dir: str) -> OutFileInfo:
+    """
     Construct the base output file name by applying the out_pattern to the
     filename.
 
@@ -29,21 +46,26 @@ def get_output_file_base_name(filename: str, out_pattern: str, input_base_dir: s
     Args:
         filename: input file to be split
         out_pattern: pattern to apply when creating output file
+        out_dir: directory to replace input base directory
         input_base_dir: used if out_pattern does not contain any '{}' substitutions.
             The output file is then created by replacing this part of the input name
             with the output pattern.
-    '''
+    """
     file_ending = ''
-    for ending in _WEATHER_FILE_ENDINGS:
-        if filename.endswith(ending):
-            file_ending = ending
-            filename = filename[:-len(ending)]
-            break
-    if '{' not in out_pattern:
-        return OutFileInfo(f'{filename.replace(input_base_dir, out_pattern)}_', file_ending)
-    in_sections = []
-    path = filename
-    while path:
-        path, tail = os.path.split(path)
-        in_sections.append(tail)
-    return OutFileInfo(out_pattern.format(*in_sections), file_ending)
+    split_name, ending = os.path.splitext(filename)
+    if ending in _WEATHER_FILE_ENDINGS:
+        file_ending = ending
+        filename = split_name
+
+    if out_dir:
+        return OutFileInfo(f'{filename.replace(input_base_dir, out_dir)}_',
+                           file_ending)
+    if out_pattern:
+        in_sections = []
+        path = filename
+        while path:
+            path, tail = os.path.split(path)
+            in_sections.append(tail)
+        return OutFileInfo(out_pattern.format(*in_sections), file_ending)
+
+    raise ValueError('no output specified')
