@@ -37,6 +37,8 @@ weather_mv_requirements = [
     "xarray",
     "google-cloud-bigquery",
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
+    "cfgrib",
+    "netcdf4",
 ]
 
 weather_sp_requirements = [
