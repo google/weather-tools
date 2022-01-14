@@ -14,7 +14,7 @@
 """Setup weather-mv.
 
 This setup.py script makes use of Apache Beam's recommended way to install non-python dependencies to worker images.
-This is employed in order for a portable installation of cfgrib, which requires ecCodes.
+This is employed to enable a portable installation of cfgrib, which requires ecCodes.
 
 Please see this documentation and example code:
 - https://beam.apache.org/documentation/sdks/python-pipeline-dependencies/#nonpython
@@ -75,6 +75,7 @@ class build(_build):  # pylint: disable=invalid-name
 # TODO(BEAM-3237): Output from the custom commands are missing from the logs.
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
+"""Install the ecCodes binary from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
