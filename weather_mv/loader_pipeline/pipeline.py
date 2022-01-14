@@ -204,7 +204,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
     return dropped_ds
 
 
-def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
+def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
     """Generates normalized coordinate dictionaries that can be used to index Datasets with `.loc[]`."""
     # Creates flattened iterator of all coordinate positions in the Dataset.
     #
@@ -229,10 +229,10 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
     total_coords = _prod(ds.coords.dims.values())
     for idx, it in enumerate(coords):
         if idx % 1000 == 0:
-            logger.info(f'Processed {idx // 1000}k coordinates of {(total_coords / 1000):2f}k...')
+            logger.info(f'Processed {idx // 1000}k / {(total_coords / 1000):.2f}k coordinates for {uri!r}...')
         yield dict(zip(ds.coords.indexes, it))
 
-    logger.info(f'Finished processing all {(idx / 1000):2f}k coordinates.')
+    logger.info(f'Finished processing all {(idx / 1000):.2f}k coordinates.')
 
 
 def extract_rows(uri: str, *,
@@ -286,7 +286,7 @@ def extract_rows(uri: str, *,
             beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
             return row
 
-        yield from map(to_row, get_coordinates(data_ds))
+        yield from map(to_row, get_coordinates(data_ds, uri))
 
 
 def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
