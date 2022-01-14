@@ -244,7 +244,8 @@ def get_coordinates(ds: xr.Dataset) -> t.Iterator[t.Dict]:
 def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
-                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+                 open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
 
@@ -367,7 +368,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
         )
     else:
         logger.info('Inferring schema from data.')
-        with open_dataset(next(iter(all_uris))) as open_ds:
+        with open_dataset(next(iter(all_uris)), known_args.xarray_open_dataset_kwargs) as open_ds:
             ds: xr.Dataset = _only_target_vars(open_ds, known_args.variables)
             table_schema = dataset_to_table_schema(ds)
 
@@ -404,7 +405,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                     extract_rows,
                     variables=known_args.variables,
                     area=known_args.area,
-                    import_time=known_args.import_time)
+                    import_time=known_args.import_time,
+                    open_dataset_kwargs=known_args.xarray_open_dataset_kwargs)
                 | 'WriteToBigQuery' >> WriteToBigQuery(
                     project=table.project,
                     dataset=table.dataset_id,
