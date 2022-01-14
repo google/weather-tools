@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import datetime
 import itertools
+import json
 import logging
 import operator
 import shutil
@@ -67,7 +68,12 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 
-def __open_dataset_file(filename: str) -> xr.Dataset:
+def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
+
+    if open_dataset_kwargs:
+        return xr.open_dataset(filename, **open_dataset_kwargs)
+
+    # If no open kwargs are available, make educated guesses about the dataset.
     try:
         return xr.open_dataset(filename)
     except ValueError as e:
@@ -91,7 +97,7 @@ def __open_dataset_file(filename: str) -> xr.Dataset:
 
 
 @contextlib.contextmanager
-def open_dataset(uri: str) -> t.Iterator[xr.Dataset]:
+def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # Copy netcdf or grib object from cloud storage, like GCS, to local file
@@ -102,7 +108,7 @@ def open_dataset(uri: str) -> t.Iterator[xr.Dataset]:
                 shutil.copyfileobj(source_file, dest_file)
                 dest_file.flush()
                 dest_file.seek(0)
-                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name)
+                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name, open_dataset_kwargs)
 
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
@@ -324,6 +330,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                               "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
     parser.add_argument('--infer_schema', action='store_true', default=False,
                         help='Download one file in the URI pattern and infer a schema from that file. Default: off')
+    parser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
+                        help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
 
