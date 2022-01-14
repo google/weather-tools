@@ -76,6 +76,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --runner DataflowRunner \
            --project $PROJECT \
+           --region  $REGION \
            --temp_location gs://$BUCKET/tmp \
            --job_name $JOB_NAME 
 ```

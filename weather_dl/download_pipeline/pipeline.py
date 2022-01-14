@@ -24,6 +24,7 @@ import typing as t
 import warnings
 
 import apache_beam as beam
+from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import (
     DebugOptions,
     PipelineOptions,
@@ -243,7 +244,7 @@ def fetch_data(config: t.Dict,
             # upload blob to cloud storage
             logger.info(f'Uploading to store for {target!r}.')
             with store.open(target, 'wb') as dest:
-                shutil.copyfileobj(temp, dest)
+                shutil.copyfileobj(temp, dest, WRITE_CHUNK_SIZE)
 
             logger.info(f'Upload to store complete for {target!r}.')
 
