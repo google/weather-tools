@@ -71,7 +71,7 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
 def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
 
     if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs)
+        return _make_grib_dataset_inmem(xr.open_dataset(filename, **open_dataset_kwargs))
 
     # If no open kwargs are available, make educated guesses about the dataset.
     try:
@@ -253,7 +253,7 @@ def extract_rows(uri: str, *,
     if not import_time:
         import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-    with open_dataset(uri) as ds:
+    with open_dataset(uri, open_dataset_kwargs) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
         if area:
