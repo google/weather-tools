@@ -83,6 +83,16 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
     * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
+### Windows Developer Instructions
+
+Windows support for each CLI is currently under development (See [#64](https://github.com/google/weather-tools/issues/64)).
+However, there are workarounds available for running the weather tools outside of installation with `pip`.
+
+First, the would-be pip-installed script can be run directly with python like so:
+```shell
+python weather_dl/weather-dl --help
+```
+
 ## Testing
 
 For testing at development time, we make use of three tools:

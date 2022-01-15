@@ -159,8 +159,9 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
+    # Note: The order of processing is significant.
     logger.debug('Serializing to JSON')
-    if type(value) == np.float32 or type(value) == np.float64:
+    if np.issubdtype(type(value), np.floating):
         return float(value)
     elif type(value) == np.ndarray:
         # Will return a scaler if array is of size 1, else will return a list.
@@ -191,6 +192,10 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     elif type(value) == np.timedelta64:
         # Return time delta in seconds.
         return value / np.timedelta64(1, 's')
+    # This check must happen after processing np.timedelta64 and np.datetime64.
+    elif np.issubdtype(type(value), np.integer):
+        return int(value)
+
     return value
 
 
