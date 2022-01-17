@@ -268,10 +268,3 @@ to discover the kinds of requests that can be made.
 
 > **NOTE**: MARS data is stored on tape drives. It takes longer for multiple workers to request data than a single
 > worker. Thus, it's recommended _not_ to set a partition key when writing MARS data configurations.
-
-## Writing Efficient Data Requests
-
-TODO([#26](https://github.com/googlestaging/weather-tools/issues/26)). In the mean-time, please consult this ECMWF 
-documentation: 
-* [Web API Retrieval Efficiency](https://confluence.ecmwf.int/display/WEBAPI/Retrieval+efficiency)
-* [Era 5 daily data retrieval efficiency](https://confluence.ecmwf.int/display/WEBAPI/ERA5+daily+retrieval+efficiency)

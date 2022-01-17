@@ -16,6 +16,7 @@
    weather_sp/README
    Runners
    Configuration
+   Efficient-Requests
    CONTRIBUTING
    modules
 ```
