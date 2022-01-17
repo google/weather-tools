@@ -111,6 +111,8 @@ our [guide](CONTRIBUTING.md) to get started.
 
 ## License
 
+This is not an official Google product.
+
 ```
 Copyright 2021 Google LLC
 
