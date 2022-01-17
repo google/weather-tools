@@ -108,6 +108,7 @@ class ExtractRowsTestBase(unittest.TestCase):
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         for key in expected.keys():
             self.assertAlmostEqual(actual[key], expected[key], places=4)
+            self.assertNotIsInstance(actual[key], np.dtype)
 
 
 class ExtractRowsTest(ExtractRowsTestBase):
