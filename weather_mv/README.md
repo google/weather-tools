@@ -93,6 +93,10 @@ streaming ingestion, use the `--topic` flag (see above). Objects that don't matc
 ingestion. It's worth noting: when setting up PubSub, **make sure to create a topic for GCS `OBJECT_FINALIZE` events
 only.**
 
+Data is written into BigQuery using streaming inserts. It may
+take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
+for buffers to persist into storage. However, weather data will be available for querying immediately.
+
 > Note: It's recommended that you specify variables to ingest (`-v, --variables`) instead of inferring the schema for
 > streaming pipelines. Not all variables will be distributed with every file, especially when they are in Grib format.
 
