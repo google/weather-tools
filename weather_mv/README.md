@@ -71,6 +71,17 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --direct_num_workers 2
 ```
 
+Control how weather data is opened with XArray.
+
+```bash
+weather-mv --uris "gs://your-bucket/*.grib" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location gs://$BUCKET/tmp \ 
+           --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
+           --temp_location "gs://$BUCKET/tmp" \
+           --direct_num_workers 2
+```
+
 Using DataflowRunner
 
 ```bash
