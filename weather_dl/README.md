@@ -35,11 +35,13 @@ _Common options_:
 
 * `-f, --force-download`: Force redownload of partitions that were previously downloaded.
 * `-d, --dry-run`: Run pipeline steps without _actually_ downloading or writing to cloud storage.
-* `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI
-  ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
 * `-l, --local-run`: Run locally and download to local hard drive. The data and manifest directory is set by default
   to '<$CWD>/local_run'. The runner will be set to `DirectRunner`. The only other relevant option is the config
   and `--direct_num_workers`
+* `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI
+  ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
+* `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
+  client & config. Please see the client documentation for more details.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -61,6 +63,17 @@ Using DataflowRunner
 
 ```bash
 weather-dl configs/mars_example_config.cfg \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --job_name $JOB_NAME
+```
+
+Using the DataflowRunner and specifying 3 requests per license
+
+```bash
+weather-dl configs/mars_example_config.cfg \
+           -n 3 \
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \

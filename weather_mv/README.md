@@ -46,7 +46,7 @@ _Usage Examples_:
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location gs://$BUCKET/tmp \   # This is needed for BigQuery writes
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2
 ```
 
@@ -55,8 +55,8 @@ Upload only a subset of variables:
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location gs://$BUCKET/tmp \ 
-           --variables u10 v10 t \
+           --variables u10 v10 t
+           --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
 
@@ -67,6 +67,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --temp_location gs://$BUCKET/tmp \ 
            --area 49.34 -124.68 24.74 -66.95 \
+           --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
 
@@ -78,7 +79,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --runner DataflowRunner \
            --project $PROJECT \
            --region  $REGION \
-           --temp_location gs://$BUCKET/tmp \
+           --temp_location "gs://$BUCKET/tmp" \
            --job_name $JOB_NAME 
 ```
 
@@ -93,6 +94,10 @@ used to automate ingestion into BigQuery as soon as weather data is disseminated
 streaming ingestion, use the `--topic` flag (see above). Objects that don't match the `--uris` will be filtered out of
 ingestion. It's worth noting: when setting up PubSub, **make sure to create a topic for GCS `OBJECT_FINALIZE` events
 only.**
+
+Data is written into BigQuery using streaming inserts. It may
+take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
+for buffers to persist into storage. However, weather data will be available for querying immediately.
 
 > Note: It's recommended that you specify variables to ingest (`-v, --variables`) instead of inferring the schema for
 > streaming pipelines. Not all variables will be distributed with every file, especially when they are in Grib format.

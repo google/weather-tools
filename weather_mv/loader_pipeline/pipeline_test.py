@@ -106,8 +106,12 @@ class ExtractRowsTestBase(unittest.TestCase):
         self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
+        self.assertEqual(actual.keys(), expected.keys())
         for key in expected.keys():
             self.assertAlmostEqual(actual[key], expected[key], places=4)
+            self.assertNotIsInstance(actual[key], np.dtype)
+            self.assertNotIsInstance(actual[key], np.float64)
+            self.assertNotIsInstance(actual[key], np.float32)
 
 
 class ExtractRowsTest(ExtractRowsTestBase):
