@@ -185,7 +185,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return None
     elif type(value) == np.timedelta64:
         # Return time delta in seconds.
-        return value / np.timedelta64(1, 's')
+        return float(value / np.timedelta64(1, 's'))
     # This check must happen after processing np.timedelta64 and np.datetime64.
     elif np.issubdtype(type(value), np.integer):
         return int(value)
