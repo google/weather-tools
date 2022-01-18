@@ -11,9 +11,6 @@ Weather Mover loads weather data from cloud storage into [Google BigQuery](https
 * **Parallel Upload**: Each file will be processed in parallel. With Dataflow autoscaling, even large datasets can be
   processed in a reasonable amount of time.
 
-> Note: Data is written into BigQuery using streaming inserts. It may take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
-> for buffers to persist into storage. However, weather data will be available for querying immediately.
-
 ## Usage
 
 ```
@@ -48,6 +45,7 @@ _Usage Examples_:
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2
 ```
 
@@ -57,6 +55,7 @@ Upload only a subset of variables:
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --variables u10 v10 t
+           --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
 
@@ -66,6 +65,7 @@ Upload all variables, but for a specific geographic region (for example, the con
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --area 49.34 -124.68 24.74 -66.95 \
+           --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
 
@@ -77,7 +77,7 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --runner DataflowRunner \
            --project $PROJECT \
            --region  $REGION \
-           --temp_location gs://$BUCKET/tmp \
+           --temp_location "gs://$BUCKET/tmp" \
            --job_name $JOB_NAME 
 ```
 
@@ -92,6 +92,10 @@ used to automate ingestion into BigQuery as soon as weather data is disseminated
 streaming ingestion, use the `--topic` flag (see above). Objects that don't match the `--uris` will be filtered out of
 ingestion. It's worth noting: when setting up PubSub, **make sure to create a topic for GCS `OBJECT_FINALIZE` events
 only.**
+
+Data is written into BigQuery using streaming inserts. It may
+take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
+for buffers to persist into storage. However, weather data will be available for querying immediately.
 
 > Note: It's recommended that you specify variables to ingest (`-v, --variables`) instead of inferring the schema for
 > streaming pipelines. Not all variables will be distributed with every file, especially when they are in Grib format.

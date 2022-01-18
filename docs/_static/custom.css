@@ -1,3 +1,11 @@
 p {
     text-align: justify;
 }
+
+body {
+   min-width: 250px;
+}
+
+div.body {
+    min-width: 250px;
+}

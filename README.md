@@ -13,7 +13,7 @@ across Alphabet.
 The first tool created was the weather downloader (`weather-dl`). This makes it easier to ingest data from the European
 Center for Medium Range Forecasts (ECMWF). `weather-dl` enables users to describe very specifically what data they'd
 like to ingest from ECMWF's catalogs. It also offers them control over how to parallelize requests, empowering users to
-[retrieve data efficiently](Configuration.html#writing-efficient-data-requests). Downloads are driven from a
+[retrieve data efficiently](Efficient-Requests.md). Downloads are driven from a
 [configuration file](Configuration.md), which can be reviewed (and version-controlled) independently of pipeline or
 analysis code.
 
@@ -92,6 +92,7 @@ _Steps_:
    ```shell
    weather-mv --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
       --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
+      --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
       --direct_num_workers 2
    ```
 
@@ -110,6 +111,8 @@ The weather tools are under active development, and contributions are welcome! P
 our [guide](CONTRIBUTING.md) to get started.
 
 ## License
+
+This is not an official Google product.
 
 ```
 Copyright 2021 Google LLC
