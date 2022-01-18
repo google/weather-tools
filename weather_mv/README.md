@@ -35,6 +35,7 @@ _Common options_:
 * `--import_time`: When writing data to BigQuery, record that data import occurred at this time
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
+* `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -64,7 +65,19 @@ Upload all variables, but for a specific geographic region (for example, the con
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location gs://$BUCKET/tmp \ 
            --area 49.34 -124.68 24.74 -66.95 \
+           --temp_location "gs://$BUCKET/tmp" \
+           --direct_num_workers 2
+```
+
+Control how weather data is opened with XArray.
+
+```bash
+weather-mv --uris "gs://your-bucket/*.grib" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location gs://$BUCKET/tmp \ 
+           --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
            --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
