@@ -40,7 +40,8 @@ class GroupMessagesByFixedWindows(beam.PTransform):
 
     def __init__(self, window_size: int, num_shards: int = 5):
         # Set window size to 60 seconds.
-        self.window_size = int(window_size * 60)
+        # POC: quarter window size to see impact on test run time
+        self.window_size = int(window_size * 15)
         self.num_shards = num_shards
 
     def expand(self, pcoll):
