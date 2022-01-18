@@ -23,6 +23,8 @@ import typing as t
 from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
 
+from .file_name_utils import OutFileInfo, GRIB_FILE_ENDINGS, NETCDF_FILE_ENDINGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,15 +41,14 @@ class SplitKey(t.NamedTuple):
 class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
-    def __init__(self, input_path: str, output_path: str, file_suffix: str = "",
+    def __init__(self, input_path: str, output_info: OutFileInfo,
                  level: int = logging.INFO):
         self.input_path = input_path
-        self.output_path = output_path
-        self.file_suffix = file_suffix
+        self.output_info = output_info
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
         self.logger.debug('Splitter for path=%s, output base=%s',
-                          self.input_path, self.output_path)
+                          self.input_path, self.output_info)
 
     @abc.abstractmethod
     def split_data(self) -> None:
@@ -66,16 +67,16 @@ class FileSplitter(abc.ABC):
             shutil.copyfileobj(src_file, dest_file)
 
     def _get_output_file_path(self, key: SplitKey) -> str:
-        level = '_{level}'.format(level=key.level) if key.level else ''
-        return '{base}{level}_{sn}.{ending}'.format(
-            base=self.output_path, level=level, sn=key.short_name,
-            ending=self.file_suffix)
+        level = '{level}_'.format(level=key.level) if key.level else ''
+        return '{base}{level}{sn}{ending}'.format(
+            base=self.output_info.file_name_base, level=level, sn=key.short_name,
+            ending=self.output_info.ending)
 
 
 class GribSplitter(FileSplitter):
 
-    def __init__(self, input_path: str, output_folder: str):
-        super().__init__(input_path, output_folder, file_suffix='grib')
+    def __init__(self, input_path: str, output_info: OutFileInfo):
+        super().__init__(input_path, output_info)
 
     def split_data(self) -> None:
         outputs = dict()
@@ -105,8 +106,8 @@ class GribSplitter(FileSplitter):
 
 class NetCdfSplitter(FileSplitter):
 
-    def __init__(self, input_path: str, output_folder: str):
-        super().__init__(input_path, output_folder, file_suffix='nc')
+    def __init__(self, input_path: str, output_info: OutFileInfo):
+        super().__init__(input_path, output_info)
 
     def split_data(self) -> None:
         with self._open_dataset_locally() as nc_data:
@@ -149,28 +150,27 @@ class NetCdfSplitter(FileSplitter):
 
 
 class DrySplitter(FileSplitter):
-    def __init__(self, file_path: str, output_path: str, file_ending: str):
-        super().__init__(file_path, output_path, file_ending)
+    def __init__(self, file_path: str, output_info: OutFileInfo):
+        super().__init__(file_path, output_info)
 
     def split_data(self) -> None:
-        self.logger.info('input file: %s - output scheme: %s_level_shortname.%s',
-                         self.input_path, self.output_path, self.file_suffix)
+        self.logger.info('input file: %s - output scheme: %s',
+                         self.input_path, self._get_output_file_path(SplitKey('level', 'shortname')))
 
 
-def get_splitter(file_path: str, output_path: str,
+def get_splitter(file_path: str, output_info: OutFileInfo,
                  dry_run: bool) -> FileSplitter:
-    if file_path.endswith('.nc') or file_path.endswith('.cd'):
+    if output_info.ending in NETCDF_FILE_ENDINGS:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
         if dry_run:
-            return DrySplitter(file_path, output_path, "nc")
-        return NetCdfSplitter(file_path, output_path)
-    if file_path.endswith('grb') or file_path.endswith(
-            'grib') or file_path.endswith('grib2'):
+            return DrySplitter(file_path, output_info)
+        return NetCdfSplitter(file_path, output_info)
+    if output_info.ending in GRIB_FILE_ENDINGS:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
     else:
         logger.info('unspecified file type, assuming grib for %s', file_path)
         metrics.Metrics.counter('get_splitter',
                                 'unidentified grib').inc()
     if dry_run:
-        return DrySplitter(file_path, output_path, "grib")
-    return GribSplitter(file_path, output_path)
+        return DrySplitter(file_path, output_info)
+    return GribSplitter(file_path, output_info)
