@@ -565,6 +565,34 @@ class ProcessConfigTest(unittest.TestCase):
             config = process_config(f)
             self.assertTrue(bool(config))
 
+    def test_accepts_partition_keys_not_present(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=bar
+                [selection]
+                month=
+                    01
+                    02
+                    03
+                year=
+                    1950
+                    1960
+                    1970
+                    1980
+                    1990
+                    2000
+                    2010
+                    2020
+                """
+        ) as f:
+            config = process_config(f)
+            params = config.get('parameters', {})
+            self.assertTrue(bool(config))
+            self.assertIsInstance(params['partition_keys'], list)
+
     def test_treats_partition_keys_as_list(self):
         with io.StringIO(
                 """
