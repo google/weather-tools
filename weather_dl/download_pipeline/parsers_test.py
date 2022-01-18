@@ -711,6 +711,26 @@ class ProcessConfigTest(unittest.TestCase):
             "'append_date_dirs' set to true, but creating the date directory hierarchy",
             ctx.exception.args[0])
 
+    def test_append_date_dirs_without_partition_keys(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                target_filename=bar
+                append_date_dirs=true
+                [selection]
+                pressure=500
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'append_date_dirs' set to true, but creating the date directory hierarchy",
+            ctx.exception.args[0])
+
     def test_date_as_directory_target_directory_ends_in_slash(self):
         with io.StringIO(
             """

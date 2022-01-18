@@ -220,7 +220,8 @@ def _number_of_replacements(s: t.Text):
 
 
 def use_date_as_directory(config: t.Dict):
-    return 'date' in config['parameters']['partition_keys'] \
+    return 'partition_keys' in config['parameters'] \
+           and 'date' in config['parameters']['partition_keys'] \
            and config['parameters'].get('append_date_dirs', 'false') == 'true' \
            and 'target_filename' in config['parameters']
 
