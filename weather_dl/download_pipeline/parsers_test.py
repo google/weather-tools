@@ -589,9 +589,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
         ) as f:
             config = process_config(f)
-            params = config.get('parameters', {})
             self.assertTrue(bool(config))
-            self.assertIsInstance(params['partition_keys'], list)
 
     def test_treats_partition_keys_as_list(self):
         with io.StringIO(
