@@ -98,7 +98,7 @@ class FSStore(Store):
     """Store data into any store supported by Apache Beam's FileSystems."""
 
     @retry.with_exponential_backoff(
-        retry_filter=retry.retry_on_server_errors_and_timeout_filter)
+        retry_filter=retry.retry_if_valid_input_but_server_error_and_timeout_filter(ValueError))
     def open(self, filename: str, mode: str = 'r') -> t.IO:
         """Open object in cloud bucket (or local file system) as a read or write channel.
 
