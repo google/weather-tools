@@ -23,7 +23,7 @@ import typing as t
 from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
 
-from .file_name_utils import OutFileInfo
+from .file_name_utils import OutFileInfo, GRIB_FILE_ENDINGS, NETCDF_FILE_ENDINGS
 
 logger = logging.getLogger(__name__)
 
@@ -160,12 +160,12 @@ class DrySplitter(FileSplitter):
 
 def get_splitter(file_path: str, output_info: OutFileInfo,
                  dry_run: bool) -> FileSplitter:
-    if output_info.ending in ('.nc', '.cd'):
+    if output_info.ending in NETCDF_FILE_ENDINGS:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
         if dry_run:
             return DrySplitter(file_path, output_info)
         return NetCdfSplitter(file_path, output_info)
-    if output_info.ending in ('grb', 'grib', 'grib2', 'grb2'):
+    if output_info.ending in GRIB_FILE_ENDINGS:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
     else:
         logger.info('unspecified file type, assuming grib for %s', file_path)

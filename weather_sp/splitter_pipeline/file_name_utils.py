@@ -16,7 +16,8 @@ import logging
 import os
 import typing as t
 
-_WEATHER_FILE_ENDINGS = ('.nc', '.cd', '.grib', '.grb', '.grb2', '.grib2')
+GRIB_FILE_ENDINGS = ('.grib', '.grb', '.grb2', '.grib2', '.gb')
+NETCDF_FILE_ENDINGS = ('.nc', '.cd')
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,7 @@ def get_output_file_base_name(filename: str,
                               out_pattern: t.Optional[str],
                               out_dir: t.Optional[str],
                               input_base_dir: str) -> OutFileInfo:
-    """
-    Construct the base output file name by applying the out_pattern to the
+    """Construct the base output file name by applying the out_pattern to the
     filename.
 
     Example:
@@ -53,7 +53,7 @@ def get_output_file_base_name(filename: str,
     """
     file_ending = ''
     split_name, ending = os.path.splitext(filename)
-    if ending in _WEATHER_FILE_ENDINGS:
+    if ending in [*GRIB_FILE_ENDINGS, *NETCDF_FILE_ENDINGS]:
         file_ending = ending
         filename = split_name
 
