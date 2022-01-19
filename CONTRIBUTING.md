@@ -85,10 +85,12 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 ### Windows Developer Instructions
 
-Windows support for each CLI is currently under development (See [#64](https://github.com/google/weather-tools/issues/64)).
-However, there are workarounds available for running the weather tools outside of installation with `pip`.
+Windows support for each CLI is currently under development (
+See [#64](https://github.com/google/weather-tools/issues/64)). However, there are workarounds available for running the
+weather tools outside of installation with `pip`.
 
 First, the would-be pip-installed script can be run directly with python like so:
+
 ```shell
 python weather_dl/weather-dl --help
 ```
@@ -168,3 +170,13 @@ After the docs are re-generated, you can view them by starting a local file serv
 ```shell
 python -m http.server -d docs/_build/html
 ```
+
+## Developer Meetings
+
+To facilitate internal and community support of weather tools, we invite you to join our regular developer meetings.
+Since our contributors are in a wide range of time zones, we offer two bi-weekly meetings: Wednesdays at 8:30 AM PST and
+Fridays at 3:00 PM PST. Feel free to attend to only one meeting every two weeks, whichever best works with your
+schedule.
+
+[Here is a calendar](https://calendar.google.com/calendar/u/0?cid=Y19uYzJhNXVxMzE1ZnAzb2U1bWUwMGw2NTBxOEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t)
+of our regular developer meetings. 
