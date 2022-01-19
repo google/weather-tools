@@ -42,6 +42,20 @@ class TestDataBase(unittest.TestCase):
         self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
 
 
+def _handle_missing_grib_be(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
+            e_str = str(e)
+            if "Consider explicitly selecting one of the installed engines" not in e_str or "cfgrib" in e_str:
+                raise
+
+    return decorated
+
+
 class SchemaCreationTests(TestDataBase):
 
     def setUp(self) -> None:
@@ -56,10 +70,6 @@ class SchemaCreationTests(TestDataBase):
                 "d": {"dims": ("a",), "data": [3.0]},
             }
         }
-        self.test_single_var = xr.open_dataset(
-            f'{self.test_data_folder}/test_data_grib_single_timestep',
-            engine='cfgrib'
-        )
 
     def test_schema_generation(self):
         ds = xr.Dataset.from_dict(self.test_dataset)
@@ -109,8 +119,13 @@ class SchemaCreationTests(TestDataBase):
             target_variables = ['a', 'foobar', 'd']
             _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
 
+    @_handle_missing_grib_be
     def test_schema_generation__non_index_coords(self):
-        schema = dataset_to_table_schema(self.test_single_var)
+        test_single_var = xr.open_dataset(
+            f'{self.test_data_folder}/test_data_grib_single_timestep',
+            engine='cfgrib'
+        )
+        schema = dataset_to_table_schema(test_single_var)
         expected_schema = [
             SchemaField('number', 'INT64', 'NULLABLE', None, (), None),
             SchemaField('time', 'TIMESTAMP', 'NULLABLE', None, (), None),
@@ -242,20 +257,6 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738,
         }
         self.assertRowsEqual(actual, expected)
-
-
-def _handle_missing_grib_be(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except ValueError as e:
-            # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
-            e_str = str(e)
-            if "Consider explicitly selecting one of the installed engines" not in e_str or "cfgrib" in e_str:
-                raise
-
-    return decorated
 
 
 @contextmanager
