@@ -207,7 +207,8 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
         logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
         return ds
 
-    assert all([dv in ds.data_vars for dv in data_vars]), 'Target variable must be in original dataset.'
+    assert all([dv in ds.data_vars or dv in ds.coords for dv in data_vars]), 'Target variable must be in original ' \
+                                                                             'dataset. '
 
     dropped_ds = ds.drop_vars([v for v in ds.data_vars if v not in data_vars])
     logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
@@ -285,8 +286,9 @@ def extract_rows(uri: str, *,
             row.update(it)
             # Add un-indexed coordinates.
             for c in row_ds.coords:
-                if c not in it:
+                if c not in it and (not variables or c in variables):
                     row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+
             # Add import metadata.
             row[DATA_IMPORT_TIME_COLUMN] = import_time
             row[DATA_URI_COLUMN] = uri
@@ -318,8 +320,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table will be "
                              "created if it doesn't exist.")
     parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
-                        help='Target variables for the BigQuery schema. Default: will import all data variables as '
-                             'columns.')
+                        help='Target variables (or coordinates) for the BigQuery schema. Default: will import all '
+                             'data variables as columns.')
     parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
                         help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('--topic', type=str,
