@@ -42,7 +42,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install ecCodes for Grib support
       run: |
-        apt-get update
         apt-get --assume-yes install libeccodes-dev
     - name: Get pip cache dir
       id: pip-cache
