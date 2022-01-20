@@ -25,7 +25,8 @@ _Common options_:
 
 * `-i, --uris`: (required) URI prefix matching input netcdf objects. Ex: gs://ecmwf/era5/era5-2015-""
 * `-o, --output_table`: (required) Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
-* `-v, --variables`:  Target variables for the BigQuery schema. Default: will import all data variables as columns.
+* `-v, --variables`:  Target variables (or coordinates) for the BigQuery schema. Default: will import all data variables
+  as columns.
 * `-a, --area`:  Target area in [N, W, S, E]. Default: Will include all available area.
 * `--topic`: A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. E.g. 'projects/<
   PROJECT_ID>/topics/<TOPIC_ID>'.

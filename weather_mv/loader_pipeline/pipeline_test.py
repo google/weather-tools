@@ -37,9 +37,29 @@ from .pipeline import (
 logger = logging.getLogger(__name__)
 
 
-class SchemaCreationTests(unittest.TestCase):
+class TestDataBase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
+
+
+def _handle_missing_grib_be(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
+            e_str = str(e)
+            if "Consider explicitly selecting one of the installed engines" not in e_str or "cfgrib" in e_str:
+                raise
+
+    return decorated
+
+
+class SchemaCreationTests(TestDataBase):
 
     def setUp(self) -> None:
+        super().setUp()
         self.test_dataset = {
             "coords": {"a": {"dims": ("a",), "data": [pd.Timestamp(0)], "attrs": {}}},
             "attrs": {},
@@ -99,14 +119,34 @@ class SchemaCreationTests(unittest.TestCase):
             target_variables = ['a', 'foobar', 'd']
             _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
 
+    @_handle_missing_grib_be
+    def test_schema_generation__non_index_coords(self):
+        test_single_var = xr.open_dataset(
+            f'{self.test_data_folder}/test_data_grib_single_timestep',
+            engine='cfgrib'
+        )
+        schema = dataset_to_table_schema(test_single_var)
+        expected_schema = [
+            SchemaField('number', 'INT64', 'NULLABLE', None, (), None),
+            SchemaField('time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('step', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('surface', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('latitude', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('longitude', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('valid_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('z', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
 
-class ExtractRowsTestBase(unittest.TestCase):
+        ]
+        self.assertListEqual(schema, expected_schema)
 
-    def setUp(self) -> None:
-        self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
+
+class ExtractRowsTestBase(TestDataBase):
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
-        self.assertEqual(actual.keys(), expected.keys())
+        self.assertEqual(expected.keys(), actual.keys())
         for key in expected.keys():
             self.assertAlmostEqual(actual[key], expected[key], places=4)
             self.assertNotIsInstance(actual[key], np.dtype)
@@ -219,20 +259,6 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
 
-def _handle_missing_grib_be(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except ValueError as e:
-            # Some setups may not have Cfgrib installed properly. Ignore tests for these cases.
-            e_str = str(e)
-            if "Consider explicitly selecting one of the installed engines" not in e_str or "cfgrib" in e_str:
-                raise
-
-    return decorated
-
-
 @contextmanager
 def timing(description: str) -> t.Iterator[None]:
     logging.info(f"{description}: Starting profiler")
@@ -267,10 +293,36 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
+    def test_extract_rows__with_vars__excludes_non_index_coords(self):
+        actual = next(extract_rows(self.test_data_path, variables=['z']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'z': 1.42578125,
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_extract_rows__with_vars__includes_coordinates_in_vars(self):
+        actual = next(extract_rows(self.test_data_path, variables=['z', 'step']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'step': 0,
+            'z': 1.42578125,
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
     def test_multiple_editions(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
         actual = next(extract_rows(self.test_data_path))
-        print(actual)
         expected = {
             'cape': 0.0,
             'cbh': None,

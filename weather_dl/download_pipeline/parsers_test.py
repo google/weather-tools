@@ -565,6 +565,32 @@ class ProcessConfigTest(unittest.TestCase):
             config = process_config(f)
             self.assertTrue(bool(config))
 
+    def test_accepts_partition_keys_not_present(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=bar
+                [selection]
+                month=
+                    01
+                    02
+                    03
+                year=
+                    1950
+                    1960
+                    1970
+                    1980
+                    1990
+                    2000
+                    2010
+                    2020
+                """
+        ) as f:
+            config = process_config(f)
+            self.assertTrue(bool(config))
+
     def test_treats_partition_keys_as_list(self):
         with io.StringIO(
                 """
@@ -701,6 +727,26 @@ class ProcessConfigTest(unittest.TestCase):
                 append_date_dirs=true
                 partition_keys=
                     pressure
+                [selection]
+                pressure=500
+                """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "'append_date_dirs' set to true, but creating the date directory hierarchy",
+            ctx.exception.args[0])
+
+    def test_append_date_dirs_without_partition_keys(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                target_filename=bar
+                append_date_dirs=true
                 [selection]
                 pressure=500
                 """
