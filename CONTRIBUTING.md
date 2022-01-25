@@ -85,10 +85,12 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 ### Windows Developer Instructions
 
-Windows support for each CLI is currently under development (See [#64](https://github.com/google/weather-tools/issues/64)).
-However, there are workarounds available for running the weather tools outside of installation with `pip`.
+Windows support for each CLI is currently under development (
+See [#64](https://github.com/google/weather-tools/issues/64)). However, there are workarounds available for running the
+weather tools outside of installation with `pip`.
 
 First, the would-be pip-installed script can be run directly with python like so:
+
 ```shell
 python weather_dl/weather-dl --help
 ```
@@ -168,3 +170,17 @@ After the docs are re-generated, you can view them by starting a local file serv
 ```shell
 python -m http.server -d docs/_build/html
 ```
+
+## Versions & Releasing
+
+We aim to represent the version of each tool using [semver.org](https://semver.org/) semantic versions. To that end,
+let's abide by the following pattern:
+
+- When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file.
+- The version for _all the tools_ should be incremented on update to _any_ tool. If one tool changes, the
+  whole `google-weather-tools` package should have its version incremented.
+- The representation for the version of all of `google-weather-tools` is
+  via [git tags](https://git-scm.com/book/en/v2/Git-Basics-Tagging). To update the version of the package, please make
+  an annotated tag with a short description of the change.
+- When it's time for release, choose the latest tag and fill out the release description. Check out previous release
+  notes to get an idea of how to structure the next one. These release notes are the primary changelog for the project. 
