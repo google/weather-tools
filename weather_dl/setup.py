@@ -32,7 +32,7 @@ base_requirements = [
 setup(
     name='download_pipeline',
     packages=find_packages(),
-    version='0.1.0',
+    version='0.1.1',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
