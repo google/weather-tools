@@ -174,7 +174,7 @@ python -m http.server -d docs/_build/html
 ## Versions & Releasing
 
 We aim to represent the version of each tool using [semver.org](https://semver.org/) semantic versions. To that end,
-let's abide by the following pattern:
+we will abide by the following pattern:
 
 - When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file.
 - The version for _all the tools_ should be incremented on update to _any_ tool. If one tool changes, the
