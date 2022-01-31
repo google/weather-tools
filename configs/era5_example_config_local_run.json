@@ -1,0 +1,18 @@
+{
+  "parameters": {
+    "client": "cds",
+    "dataset": "reanalysis-era5-pressure-levels",
+    "target_path": "era5-{}{}{}-pressure-{}.nc",
+    "partition_keys": ["year","month","day","pressure_level"]
+  },
+  "selection": {
+    "product_type": "ensemble_mean",
+    "format": "netcdf",
+    "variable": ["divergence","fraction_of_cloud_cover","geopotential"],
+    "pressure_level": [500],
+    "year": [2016, 2017],
+    "month": [1],
+    "day": [1, 15],
+    "time": ["00:00", "12:00"]
+  }
+}

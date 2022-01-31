@@ -1,0 +1,26 @@
+{
+  "parameters": {
+    "client": "mars",
+    "dataset": "ecmwf-mars-output",
+    "target_filename": ".nc",
+    "target_path": "gs://ecmwf-downloads/hres-single-level",
+    "append_date_dirs": "true",
+    "partition_keys": "date"
+  },
+
+  "selection": {
+    "stream": "oper",
+    "levtype": "sfc",
+    "param": ["10fg6","10u","10v","100u","100vcrr","2t","2d","200u","200v","cp","dsrp","hcc","i10fg","lcc","lsp","lspf","lsrr","msl","ptype","sf","sp","ssr","tcrw","tclw","tcsw","tcw","tcwv","tp"],
+    "padding": 0,
+    "step": [0,1,2,3,4,5,6,7,8,9,10,11,12,24,48,72,96,120,144,168,192,216,240],
+    "grid": [0.125,0.125],
+    "expver": 1,
+    "time": ["0000","1800"],
+    "date": ["2017-01-01","2017-01-07"],
+    "type": "fc",
+    "class": "od",
+    "expect": "anymars",
+    "format": "netcdf"
+  }
+}
