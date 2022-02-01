@@ -27,6 +27,7 @@ from distutils.command.build import build as _build  # type: ignore
 
 base_requirements = [
     "apache-beam[gcp]",
+    "dataclasses",
     "numpy",
     "pandas",
     "xarray",
