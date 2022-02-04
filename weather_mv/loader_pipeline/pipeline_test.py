@@ -11,23 +11,63 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import unittest
+
+from .pipeline import run
 
 
 class TestCLI(unittest.TestCase):
 
+    def setUp(self) -> None:
+        self.base_cli_args = (
+            'weather-mv '
+            '-i weather_mv/test_data/test_data_2018*.nc '
+            '-o myproject.mydataset.mytable '
+            '--import_time 2022-02-04T22:22:12.125893'
+        ).split()
+        self.base_cli_known_args = {
+            'uris': 'weather_mv/test_data/test_data_2018*.nc',
+            'output_table': 'myproject.mydataset.mytable',
+            'dry_run': False,
+            'import_time': '2022-02-04T22:22:12.125893',
+            'infer_schema': False,
+            'num_shards': 5,
+            'topic': None,
+            'variables': [],
+            'window_size': 1.0,
+            'xarray_open_dataset_kwargs': {}
+        }
+
     def test_dry_runs_raise_error(self):
-        pass
+        with self.assertRaisesRegex(NotImplementedError, 'are currently not supported'):
+            run(self.base_cli_args + '--dry-run'.split())
 
     def test_area_only_allows_four(self):
-        pass
+        with self.assertRaisesRegex(AssertionError, 'Must specify exactly 4 lat/long .* N, W, S, E'):
+            run(self.base_cli_args + '--area 1 2 3'.split())
 
-    def topic_creates_a_streaming_pipeline(self):
-        pass
+        with self.assertRaisesRegex(AssertionError, 'Must specify exactly 4 lat/long .* N, W, S, E'):
+            run(self.base_cli_args + '--area 1 2 3 4 5'.split())
 
-    def accepts_json_string_for_xarray_open(self):
-        pass
+        known_args, pipeline_args = run(self.base_cli_args + '--area 1 2 3 4'.split())
+        self.assertEqual(pipeline_args, [])
+        self.assertEqual(vars(known_args), {
+            **self.base_cli_known_args,
+            'area': [1, 2, 3, 4]
+        })
+
+    def test_topic_creates_a_streaming_pipeline(self):
+        _, pipeline_args = run(self.base_cli_args + '--topic projects/myproject/topics/my-topic'.split())
+        self.assertEqual(pipeline_args, ['--streaming', 'true'])
+
+    def test_accepts_json_string_for_xarray_open(self):
+        xarray_kwargs = dict(engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}})
+        json_kwargs = json.dumps(xarray_kwargs)
+        known_args, _ = run(
+            self.base_cli_args + ["--xarray_open_dataset_kwargs", f"{json_kwargs}"]
+        )
+        self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
 
 
 if __name__ == '__main__':

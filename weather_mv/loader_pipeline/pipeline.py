@@ -70,7 +70,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     logger.info('Pipeline is finished.')
 
 
-def run(argv: t.List[str]) -> None:
+def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
         prog='weather-mv',
@@ -122,4 +122,4 @@ def run(argv: t.List[str]) -> None:
         # make sure we re-compute utcnow() every time rows are extracted from a file.
         known_args.import_time = None
 
-    pipeline(known_args, pipeline_args)
+    return known_args, pipeline_args
