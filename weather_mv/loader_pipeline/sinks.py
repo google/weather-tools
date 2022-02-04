@@ -94,5 +94,3 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')
         raise
-
-
