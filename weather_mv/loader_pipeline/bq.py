@@ -43,14 +43,35 @@ DATA_FIRST_STEP = 'data_first_step'
 class ToBigQuery(ToDataSink):
     """Load weather data into Google BigQuery.
 
-    TODO(alxr): Document
+    A sink that loads de-normalized weather data into BigQuery. First, this sink will
+    create a BigQuery table from user input (either from `variables` or by inferring the
+    schema). Next, it will convert the weather data into rows and then write each row to
+    the BigQuery table.
+
+    During a batch job, this transform will use the BigQueryWriter's file processing
+    step, which requires that a `temp_location` is passed into the main CLI. This
+    transform will perform streaming writes to BigQuery during a streaming Beam job. See
+    `these docs`_ for more.
+
+    Attributes:
+        example_uri: URI to a weather data file, used to infer the BigQuery schema.
+        output_table: The destination for where data should be written in BigQuery
+        infer_schema: If true, this sink will attempt to read in an example data file
+          read all its variables, and generate a BigQuery schema.
+        import_time: The time when data was imported. This is used as a simple way to
+          version data — variables can be distinguished based on import time. If None,
+          the system will recompute the current time upon row extraction for each file.
+
+    .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
     example_uri: str
     output_table: str
     infer_schema: bool
-    import_time: datetime.datetime
+    import_time: t.Optional[datetime.datetime]
 
     def __post_init__(self):
+        """Initializes Sink by creating a BigQuery table based on user input."""
+        # Define table from user input
         if self.variables and not self.infer_schema:
             logger.info('Creating schema from input variables.')
             table_schema = to_table_schema(
@@ -72,6 +93,7 @@ class ToBigQuery(ToDataSink):
             raise
 
     def expand(self, paths):
+        """Extract rows of variables from data paths into a BigQuery table."""
         (
                 paths
                 | 'ExtractRows' >> beam.FlatMap(
