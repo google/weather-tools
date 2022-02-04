@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import unittest
 from functools import wraps
 
 import weather_mv
+from .sinks import open_dataset
 
 
 class TestDataBase(unittest.TestCase):
@@ -37,25 +37,22 @@ def _handle_missing_grib_be(f):
     return decorated
 
 
-class OpenDatasetTest(unittest.TestCase):
+class OpenDatasetTest(TestDataBase):
 
-    def test_local_copy_created(self):
-        pass
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
+        self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
 
     def test_opens_grib_files(self):
-        pass
+        with open_dataset(self.test_grib_path) as ds:
+            self.assertIsNotNone(ds)
 
     def test_accepts_xarray_kwargs(self):
-        pass
-
-    def test_counts_success_metric(self):
-        pass
-
-    def test_counts_failure_metric(self):
-        pass
-
-    def test_opens_grib_in_memory(self):
-        pass
+        with open_dataset(self.test_data_path) as ds1:
+            self.assertIn('d2m', ds1)
+        with open_dataset(self.test_data_path, {'drop_variables': 'd2m'}) as ds2:
+            self.assertNotIn('d2m', ds2)
 
 
 if __name__ == '__main__':
