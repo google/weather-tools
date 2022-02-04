@@ -26,6 +26,8 @@ class ConfigTest(unittest.TestCase):
 
     def test_process_config_files(self):
         for filename in os.listdir(self.data_dir):
+            if filename.startswith('.'):
+                continue
             with self.subTest(filename=filename):
                 config = os.path.join(self.data_dir, filename)
                 try:
