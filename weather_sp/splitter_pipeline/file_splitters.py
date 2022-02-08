@@ -67,6 +67,8 @@ class FileSplitter(abc.ABC):
             shutil.copyfileobj(src_file, dest_file)
 
     def _get_output_file_path(self, key: SplitKey) -> str:
+        if self.output_info.output_dir and key.level:
+            key.level = f'{key.level}_'
         return self.output_info.file_name_template.format(**key._asdict())
 
 

@@ -32,7 +32,7 @@ class FileNameUtilsTest(unittest.TestCase):
                                              out_pattern=None,
                                              out_dir='gs://my_bucket/splits/',
                                              input_base_dir='gs://my_bucket/data_to_split/')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020/01/21_')
+        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020/01/21.{level}{shortname}.nc')
         self.assertEqual(out_info.ending, '.nc')
 
     def test_get_output_file_base_name_format_no_fileending(self):
@@ -48,8 +48,8 @@ class FileNameUtilsTest(unittest.TestCase):
                                              out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.',
                                              out_dir=None,
                                              input_base_dir='ignored')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020-01-21.T00z.stuff_old_data.')
-        self.assertEqual(out_info.ending, '')
+        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020-01-21.T00z_old_data.')
+        self.assertEqual(out_info.ending, '.stuff')
 
     def test_accepts_shortname(self):
         out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.nc',

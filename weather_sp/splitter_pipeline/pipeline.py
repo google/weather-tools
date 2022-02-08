@@ -63,7 +63,7 @@ def get_output_base_name(input_path: str,
                          input_base: str,
                          output_template: t.Optional[str],
                          output_dir: t.Optional[str]) -> OutFileInfo:
-    return get_output_file_base_name(input_path, output_template, output_dir, input_base)
+    return get_output_file_base_name(input_path, input_base, output_template, output_dir)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):

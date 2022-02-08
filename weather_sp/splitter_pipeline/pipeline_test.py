@@ -42,7 +42,7 @@ class PipelineTest(unittest.TestCase):
                 input_path='somewhere/somefile',
                 input_base='somewhere',
                 output_template=None,
-                output_dir='out/there').file_name_template, 'out/there/somefile_')
+                output_dir='out/there').file_name_template, 'out/there/somefile.{level}{shortname}')
 
     @unittest.skip
     @patch('weather_sp.splitter_pipeline.file_splitters.get_splitter')

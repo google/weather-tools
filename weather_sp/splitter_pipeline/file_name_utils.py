@@ -25,17 +25,17 @@ logger = logging.getLogger(__name__)
 class OutFileInfo(t.NamedTuple):
     file_name_template: str
     ending: str
+    output_dir: bool = False
 
     def __str__(self):
         return f'{self.file_name_template}/*/{self.ending}'
 
 
 def get_output_file_base_name(filename: str,
-                              out_pattern: t.Optional[str],
-                              out_dir: t.Optional[str],
-                              input_base_dir: str) -> OutFileInfo:
-    """Construct the base output file name by applying the out_pattern to the
-    filename.
+                              input_base_dir: str = '',
+                              out_pattern: t.Optional[str] = None,
+                              out_dir: t.Optional[str] = None) -> OutFileInfo:
+    """Construct the base output file name by applying the out_pattern to the filename.
 
     Example:
         filename = 'gs://my_bucket/data_to_split/2020/01/21.nc'
@@ -51,21 +51,21 @@ def get_output_file_base_name(filename: str,
             The output file is then created by replacing this part of the input name
             with the output pattern.
     """
-    file_ending = ''
-    split_name, ending = os.path.splitext(filename)
-    if ending in [*GRIB_FILE_ENDINGS, *NETCDF_FILE_ENDINGS]:
-        file_ending = ending
-        filename = split_name
+    filename, ending = os.path.splitext(filename)
 
     if out_dir:
-        return OutFileInfo(f'{filename.replace(input_base_dir, out_dir)}_',
-                           file_ending)
+        return OutFileInfo(
+            f'{filename.replace(input_base_dir, out_dir)}.{{level}}{{shortname}}{ending}',
+            ending,
+            output_dir=True
+        )
+
     if out_pattern:
         in_sections = []
         path = filename
         while path:
             path, tail = os.path.split(path)
             in_sections.append(tail)
-        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", level="{level}"), file_ending)
+        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", level="{level}"), ending)
 
     raise ValueError('no output specified.')
