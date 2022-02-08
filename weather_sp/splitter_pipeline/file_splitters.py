@@ -30,12 +30,12 @@ logger = logging.getLogger(__name__)
 
 class SplitKey(t.NamedTuple):
     level: str
-    short_name: str
+    shortname: str
 
     def __str__(self):
         if not self.level:
-            return f'field {self.short_name}'
-        return f'{self.level} - field {self.short_name}'
+            return f'field {self.shortname}'
+        return f'{self.level} - field {self.shortname}'
 
 
 class FileSplitter(abc.ABC):
@@ -67,10 +67,7 @@ class FileSplitter(abc.ABC):
             shutil.copyfileobj(src_file, dest_file)
 
     def _get_output_file_path(self, key: SplitKey) -> str:
-        level = '{level}_'.format(level=key.level) if key.level else ''
-        return '{base}{level}{sn}{ending}'.format(
-            base=self.output_info.file_name_base, level=level, sn=key.short_name,
-            ending=self.output_info.ending)
+        return self.output_info.file_name_template.format(**key._asdict())
 
 
 class GribSplitter(FileSplitter):
@@ -150,8 +147,7 @@ class DrySplitter(FileSplitter):
                          self.input_path, self._get_output_file_path(SplitKey('level', 'shortname')))
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo,
-                 dry_run: bool) -> FileSplitter:
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
 
@@ -160,6 +156,7 @@ def get_splitter(file_path: str, output_info: OutFileInfo,
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
         return NetCdfSplitter(file_path, output_info)
     except OSError:
+        logger.info('File was not a NetCDF file...')
         pass
 
     try:

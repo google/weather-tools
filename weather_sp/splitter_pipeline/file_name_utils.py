@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class OutFileInfo(t.NamedTuple):
-    file_name_base: str
+    file_name_template: str
     ending: str
 
     def __str__(self):
-        return f'{self.file_name_base}/*/{self.ending}'
+        return f'{self.file_name_template}/*/{self.ending}'
 
 
 def get_output_file_base_name(filename: str,
@@ -66,6 +66,6 @@ def get_output_file_base_name(filename: str,
         while path:
             path, tail = os.path.split(path)
             in_sections.append(tail)
-        return OutFileInfo(out_pattern.format(*in_sections), file_ending)
+        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", level="{level}"), file_ending)
 
-    raise ValueError('no output specified')
+    raise ValueError('no output specified.')
