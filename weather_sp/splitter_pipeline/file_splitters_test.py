@@ -32,18 +32,24 @@ from .file_splitters import get_splitter
 
 class GetSplitterTest(unittest.TestCase):
 
+    def setUp(self) -> None:
+        self._data_dir = f'{next(iter(weather_sp.__path__))}/test_data'
+
     def test_get_splitter_grib(self):
-        splitter = get_splitter('some/file/path/data.grib', OutFileInfo(file_name_base='some_out', ending='.grib'),
+        splitter = get_splitter(f'{self._data_dir}/era5_sample.grib',
+                                OutFileInfo(file_name_base='some_out', ending='.grib'),
                                 dry_run=False)
         self.assertIsInstance(splitter, GribSplitter)
 
     def test_get_splitter_nc(self):
-        splitter = get_splitter('some/file/path/data.nc', OutFileInfo(file_name_base='some_out', ending='.nc'),
+        splitter = get_splitter(f'{self._data_dir}/era5_sample.nc',
+                                OutFileInfo(file_name_base='some_out', ending='.nc'),
                                 dry_run=False)
         self.assertIsInstance(splitter, NetCdfSplitter)
 
-    def test_get_splitter_undetermined(self):
-        splitter = get_splitter('some/file/path/data', OutFileInfo(file_name_base='some_out', ending=''),
+    def test_get_splitter_undetermined_grib(self):
+        splitter = get_splitter(f'{self._data_dir}/era5_sample_grib',
+                                OutFileInfo(file_name_base='some_out', ending=''),
                                 dry_run=False)
         self.assertIsInstance(splitter, GribSplitter)
 

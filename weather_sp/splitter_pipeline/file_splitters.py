@@ -75,9 +75,6 @@ class FileSplitter(abc.ABC):
 
 class GribSplitter(FileSplitter):
 
-    def __init__(self, input_path: str, output_info: OutFileInfo):
-        super().__init__(input_path, output_info)
-
     def split_data(self) -> None:
         outputs = dict()
 
@@ -105,9 +102,6 @@ class GribSplitter(FileSplitter):
 
 
 class NetCdfSplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo):
-        super().__init__(input_path, output_info)
 
     def split_data(self) -> None:
         with self._open_dataset_locally() as nc_data:
@@ -150,8 +144,6 @@ class NetCdfSplitter(FileSplitter):
 
 
 class DrySplitter(FileSplitter):
-    def __init__(self, file_path: str, output_info: OutFileInfo):
-        super().__init__(file_path, output_info)
 
     def split_data(self) -> None:
         self.logger.info('input file: %s - output scheme: %s',
@@ -160,17 +152,20 @@ class DrySplitter(FileSplitter):
 
 def get_splitter(file_path: str, output_info: OutFileInfo,
                  dry_run: bool) -> FileSplitter:
-    if output_info.ending in NETCDF_FILE_ENDINGS:
-        metrics.Metrics.counter('get_splitter', 'netcdf').inc()
-        if dry_run:
-            return DrySplitter(file_path, output_info)
-        return NetCdfSplitter(file_path, output_info)
-    if output_info.ending in GRIB_FILE_ENDINGS:
-        metrics.Metrics.counter('get_splitter', 'grib').inc()
-    else:
-        logger.info('unspecified file type, assuming grib for %s', file_path)
-        metrics.Metrics.counter('get_splitter',
-                                'unidentified grib').inc()
     if dry_run:
         return DrySplitter(file_path, output_info)
-    return GribSplitter(file_path, output_info)
+
+    try:
+        nc.Dataset(file_path, 'r')
+        metrics.Metrics.counter('get_splitter', 'netcdf').inc()
+        return NetCdfSplitter(file_path, output_info)
+    except OSError:
+        pass
+
+    try:
+        pygrib.open(file_path).read(1)
+        metrics.Metrics.counter('get_splitter', 'grib').inc()
+        return GribSplitter(file_path, output_info)
+    except OSError:
+        logger.error('File was neither a NetCDF or Grib file...')
+        raise
