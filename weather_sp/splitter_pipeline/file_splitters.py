@@ -13,17 +13,18 @@
 # limitations under the License.
 
 import abc
-import apache_beam.metrics as metrics
 import logging
-import netCDF4 as nc
-import pygrib
 import shutil
 import tempfile
 import typing as t
-from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
 
-from .file_name_utils import OutFileInfo, GRIB_FILE_ENDINGS, NETCDF_FILE_ENDINGS
+import apache_beam.metrics as metrics
+import netCDF4 as nc
+import pygrib
+from apache_beam.io.filesystems import FileSystems
+
+from .file_name_utils import OutFileInfo
 
 logger = logging.getLogger(__name__)
 

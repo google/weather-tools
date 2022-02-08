@@ -16,9 +16,6 @@ import logging
 import os
 import typing as t
 
-GRIB_FILE_ENDINGS = ('.grib', '.grb', '.grb2', '.grib2', '.gb')
-NETCDF_FILE_ENDINGS = ('.nc', '.cd')
-
 logger = logging.getLogger(__name__)
 
 
