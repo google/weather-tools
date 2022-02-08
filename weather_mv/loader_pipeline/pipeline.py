@@ -65,7 +65,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         else:
             paths = p | 'Create' >> beam.Create(all_uris)
 
-        paths | "MoveToBigQuery" >> ToBigQuery(example_uri=next(iter(all_uris)), **vars(known_args))
+        paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(example_uri=next(iter(all_uris)), **vars(known_args))
 
     logger.info('Pipeline is finished.')
 

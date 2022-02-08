@@ -35,6 +35,11 @@ class ToDataSink(abc.ABC, beam.PTransform):
     area: t.Tuple[int, int, int, int]
     xarray_open_dataset_kwargs: t.Dict
 
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        fields = [f.name for f in dataclasses.fields(cls)]
+        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
+
 
 def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     # Copies all the vars to in-memory to reduce disk seeks everytime a single row is processed.
