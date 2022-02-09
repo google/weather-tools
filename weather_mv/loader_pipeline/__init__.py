@@ -15,9 +15,9 @@
 import logging
 import sys
 
-from .pipeline import run
+from .pipeline import run, pipeline
 
 
 def cli(extra=[]):
     logging.getLogger().setLevel(logging.INFO)
-    run(sys.argv + extra)
+    pipeline(*run(sys.argv + extra))

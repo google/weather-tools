@@ -32,6 +32,7 @@ weather_dl_requirements = [
 
 weather_mv_requirements = [
     "apache-beam[gcp]",
+    "dataclasses",
     "numpy",
     "pandas",
     "xarray",
