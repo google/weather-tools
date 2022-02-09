@@ -15,7 +15,6 @@ import datetime
 import logging
 import typing as t
 import unittest
-from collections import Counter
 from contextlib import contextmanager
 from time import perf_counter
 
@@ -24,8 +23,9 @@ import pandas as pd
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
-from .bq import dataset_to_table_schema, _only_target_vars, extract_rows, get_coordinates
+from .bq import dataset_to_table_schema, extract_rows
 from .sinks_test import TestDataBase, _handle_missing_grib_be
+from .util import _only_target_vars
 
 logger = logging.getLogger(__name__)
 
@@ -192,13 +192,6 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738
         }
         self.assertRowsEqual(actual, expected)
-
-    def test_extract_rows__no_duplicate_coordinates(self):
-        ds = xr.open_dataset(self.test_data_path)
-
-        # Assert that all the coordinates are unique.
-        counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
-        self.assertTrue(all((c == 1 for c in counts.values())))
 
     def test_extract_rows_single_point(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_single_point.nc'
