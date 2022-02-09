@@ -163,10 +163,5 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> Fil
         logger.info('File was not a NetCDF file...')
         pass
 
-    try:
-        pygrib.open(file_path).read(1)
-        metrics.Metrics.counter('get_splitter', 'grib').inc()
-        return GribSplitter(file_path, output_info)
-    except OSError:
-        logger.error('File was neither a NetCDF or Grib file...')
-        raise
+    metrics.Metrics.counter('get_splitter', 'grib').inc()
+    return GribSplitter(file_path, output_info)
