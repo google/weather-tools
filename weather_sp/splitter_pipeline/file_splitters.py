@@ -155,13 +155,17 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> Fil
     if dry_run:
         return DrySplitter(file_path, output_info)
 
-    try:
-        nc.Dataset(file_path, 'r')
+    with FileSystems.open(file_path) as f:
+        header = f.read(4)
+
+    if b'GRIB' in header:
+        metrics.Metrics.counter('get_splitter', 'grib').inc()
+        return GribSplitter(file_path, output_info)
+
+    # See the NetCDF Spec docs:
+    # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
+    if b'CDF' in header or b'HDF' in header:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
         return NetCdfSplitter(file_path, output_info)
-    except OSError:
-        logger.info('File was not a NetCDF file...')
-        pass
 
-    metrics.Metrics.counter('get_splitter', 'grib').inc()
-    return GribSplitter(file_path, output_info)
+    raise ValueError(f'cannot determine if file {file_path!r} is Grib or NetCDF.')
