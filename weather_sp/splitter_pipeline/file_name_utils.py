@@ -53,7 +53,6 @@ def get_output_file_base_name(filename: str,
     """
     split_name, ending = os.path.splitext(filename)
     if ending in GRIB_FILE_ENDINGS or ending in NETCDF_FILE_ENDINGS:
-        ending = ending
         filename = split_name
     else:
         ending = ''
