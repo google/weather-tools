@@ -102,8 +102,8 @@ for that split will be `gs://test-output/splits/2020/02/01.t.nc`
 Using Python-style substitution (e.g. `{1}`) allows for more flexibility when creating the output files. The
 substitutions are based on the directory structure of the input file, where each `{<x>}` stands for one directory name,
 counting backwards from the end, i.e. the file name is `{0}`, the immediate directory in which it is located is `{1}`,
-and so on. In addition, you may supply `{shortname}` or `{level}` in the output template. These will be filled by values
-found in each file (NetCDF files typically don't include a level).
+and so on. In addition, you may supply `{shortname}` or `{levelType}` in the output template. These will be filled by values
+found in each file (NetCDF files typically only have one type of level, so this variable is not needed).
 
 Example:
 
