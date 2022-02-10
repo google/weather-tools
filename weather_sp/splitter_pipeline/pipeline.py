@@ -94,6 +94,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
+    parser.add_argument('-f', '--force', action='store_true', default=False,
+                        help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
@@ -104,6 +106,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     input_base_dir = _get_base_input_directory(input_pattern)
     output_template = known_args.output_template
     output_dir = known_args.output_dir
+
     if not output_template and not output_dir:
         raise ValueError('No output specified')
     dry_run = known_args.dry_run
@@ -126,5 +129,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                                            input_base_dir,
                                            output_template,
                                            output_dir,
-                                           dry_run)
+                                           dry_run,
+                                           known_args.force)
         )
