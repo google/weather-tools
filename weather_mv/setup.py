@@ -35,6 +35,7 @@ base_requirements = [
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
     "cfgrib",
     "netcdf4",
+    "GDAL",
 ]
 
 
@@ -80,7 +81,8 @@ class build(_build):  # pylint: disable=invalid-name
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev'
+        'apt-get --assume-yes install libeccodes-dev',
+        'apt-get --assume-yes install libgdal-dev'
     ]
 ]
 
@@ -119,7 +121,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.1.3',
+    version='0.2.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=base_requirements,
