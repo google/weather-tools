@@ -63,7 +63,7 @@ def get_output_base_name(input_path: str,
                          input_base: str,
                          output_template: t.Optional[str],
                          output_dir: t.Optional[str]) -> OutFileInfo:
-    return get_output_file_base_name(input_path, output_template, output_dir, input_base)
+    return get_output_file_base_name(input_path, input_base, output_template, output_dir)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -80,9 +80,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
             help='Template specifying path to output files using '
                  'python-style formatting substitution of input '
                  'directory names. '
-                 'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
-                 'a template with formatting `/somewhere/{1}-{0}.` '
-                 'will give `somewhere/c-file.shortname.nc`'
+                 'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
+                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortname}.grib` '
+                 'will give `somewhere/c-file.level_shortname.nc`'
                  )
     output_options.add_argument(
             '--output-dir', type=str,
@@ -90,7 +90,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  'input_pattern. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
                  '`output_template /x/y/z` will create '
-                 'output files like `/x/y/z/c/file_shortname.nc`'
+                 'output files like `/x/y/z/c/file.shortname.nc`'
                  )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')

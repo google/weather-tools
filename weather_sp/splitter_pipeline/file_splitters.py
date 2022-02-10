@@ -13,29 +13,30 @@
 # limitations under the License.
 
 import abc
-import apache_beam.metrics as metrics
 import logging
-import netCDF4 as nc
-import pygrib
 import shutil
 import tempfile
 import typing as t
-from apache_beam.io.filesystems import FileSystems
 from contextlib import contextmanager
 
-from .file_name_utils import OutFileInfo, GRIB_FILE_ENDINGS, NETCDF_FILE_ENDINGS
+import apache_beam.metrics as metrics
+import netCDF4 as nc
+import pygrib
+from apache_beam.io.filesystems import FileSystems
+
+from .file_name_utils import OutFileInfo
 
 logger = logging.getLogger(__name__)
 
 
 class SplitKey(t.NamedTuple):
-    level: str
-    short_name: str
+    levelType: str
+    shortname: str
 
     def __str__(self):
-        if not self.level:
-            return f'field {self.short_name}'
-        return f'{self.level} - field {self.short_name}'
+        if not self.levelType:
+            return f'field {self.shortname}'
+        return f'{self.levelType} - field {self.shortname}'
 
 
 class FileSplitter(abc.ABC):
@@ -67,16 +68,13 @@ class FileSplitter(abc.ABC):
             shutil.copyfileobj(src_file, dest_file)
 
     def _get_output_file_path(self, key: SplitKey) -> str:
-        level = '{level}_'.format(level=key.level) if key.level else ''
-        return '{base}{level}{sn}{ending}'.format(
-            base=self.output_info.file_name_base, level=level, sn=key.short_name,
-            ending=self.output_info.ending)
+        split_keys = key._asdict()
+        if self.output_info.output_dir and key.levelType:
+            split_keys['levelType'] = f'{key.levelType}_'
+        return self.output_info.file_name_template.format(**split_keys)
 
 
 class GribSplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo):
-        super().__init__(input_path, output_info)
 
     def split_data(self) -> None:
         outputs = dict()
@@ -105,9 +103,6 @@ class GribSplitter(FileSplitter):
 
 
 class NetCdfSplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo):
-        super().__init__(input_path, output_info)
 
     def split_data(self) -> None:
         with self._open_dataset_locally() as nc_data:
@@ -150,27 +145,27 @@ class NetCdfSplitter(FileSplitter):
 
 
 class DrySplitter(FileSplitter):
-    def __init__(self, file_path: str, output_info: OutFileInfo):
-        super().__init__(file_path, output_info)
 
     def split_data(self) -> None:
         self.logger.info('input file: %s - output scheme: %s',
                          self.input_path, self._get_output_file_path(SplitKey('level', 'shortname')))
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo,
-                 dry_run: bool) -> FileSplitter:
-    if output_info.ending in NETCDF_FILE_ENDINGS:
-        metrics.Metrics.counter('get_splitter', 'netcdf').inc()
-        if dry_run:
-            return DrySplitter(file_path, output_info)
-        return NetCdfSplitter(file_path, output_info)
-    if output_info.ending in GRIB_FILE_ENDINGS:
-        metrics.Metrics.counter('get_splitter', 'grib').inc()
-    else:
-        logger.info('unspecified file type, assuming grib for %s', file_path)
-        metrics.Metrics.counter('get_splitter',
-                                'unidentified grib').inc()
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
-    return GribSplitter(file_path, output_info)
+
+    with FileSystems.open(file_path) as f:
+        header = f.read(4)
+
+    if b'GRIB' in header:
+        metrics.Metrics.counter('get_splitter', 'grib').inc()
+        return GribSplitter(file_path, output_info)
+
+    # See the NetCDF Spec docs:
+    # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
+    if b'CDF' in header or b'HDF' in header:
+        metrics.Metrics.counter('get_splitter', 'netcdf').inc()
+        return NetCdfSplitter(file_path, output_info)
+
+    raise ValueError(f'cannot determine if file {file_path!r} is Grib or NetCDF.')
