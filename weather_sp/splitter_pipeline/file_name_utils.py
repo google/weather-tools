@@ -52,7 +52,7 @@ def get_output_file_base_name(filename: str,
 
     if out_dir:
         return OutFileInfo(
-            f'{filename.replace(input_base_dir, out_dir)}.{{level}}{{shortname}}{ending}',
+            f'{filename.replace(input_base_dir, out_dir)}.{{levelType}}{{shortname}}{ending}',
             ending,
             output_dir=True
         )
@@ -63,6 +63,6 @@ def get_output_file_base_name(filename: str,
         while path:
             path, tail = os.path.split(path)
             in_sections.append(tail)
-        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", level="{level}"), ending)
+        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", levelType="{levelType}"), ending)
 
     raise ValueError('no output specified.')

@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 class SplitKey(t.NamedTuple):
-    level: str
+    levelType: str
     shortname: str
 
     def __str__(self):
-        if not self.level:
+        if not self.levelType:
             return f'field {self.shortname}'
-        return f'{self.level} - field {self.shortname}'
+        return f'{self.levelType} - field {self.shortname}'
 
 
 class FileSplitter(abc.ABC):
@@ -69,8 +69,8 @@ class FileSplitter(abc.ABC):
 
     def _get_output_file_path(self, key: SplitKey) -> str:
         split_keys = key._asdict()
-        if self.output_info.output_dir and key.level:
-            split_keys['level'] = f'{key.level}_'
+        if self.output_info.output_dir and key.levelType:
+            split_keys['levelType'] = f'{key.levelType}_'
         return self.output_info.file_name_template.format(**split_keys)
 
 

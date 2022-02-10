@@ -81,7 +81,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  'python-style formatting substitution of input '
                  'directory names. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
-                 'a template with formatting `/somewhere/{1}-{0}.{level}_{shortname}.grib` '
+                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortname}.grib` '
                  'will give `somewhere/c-file.level_shortname.nc`'
                  )
     output_options.add_argument(

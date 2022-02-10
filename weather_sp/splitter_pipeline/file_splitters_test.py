@@ -72,7 +72,7 @@ class GribSplitterTest(unittest.TestCase):
     def test_get_output_file_path(self):
         splitter = GribSplitter(
             'path/to/input',
-            OutFileInfo(file_name_template='path/output/file.{level}_{shortname}.grib', ending='.grib')
+            OutFileInfo(file_name_template='path/output/file.{levelType}_{shortname}.grib', ending='.grib')
         )
         out = splitter._get_output_file_path(SplitKey('surface', 'cc'))
         self.assertEqual(out, 'path/output/file.surface_cc.grib')
@@ -81,7 +81,7 @@ class GribSplitterTest(unittest.TestCase):
     def test_open_outfile(self, mock_io):
         splitter = GribSplitter(
             'path/to/input',
-            OutFileInfo(file_name_template='path/output/file_{level}_{shortname}.grib', ending='.grib')
+            OutFileInfo(file_name_template='path/output/file_{levelType}_{shortname}.grib', ending='.grib')
         )
         splitter._open_outfile(SplitKey('surface', 'cc'))
         mock_io.assert_called_with('path/output/file_surface_cc.grib')
@@ -90,7 +90,7 @@ class GribSplitterTest(unittest.TestCase):
         input_path = f'{self._data_dir}/era5_sample.grib'
         splitter = GribSplitter(
             input_path,
-            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{level}}_{{shortname}}.grib', '.grib')
+            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib')
         )
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
