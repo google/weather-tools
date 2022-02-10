@@ -94,7 +94,7 @@ class GribSplitter(FileSplitter):
         outputs = dict()
 
         if self.should_skip():
-            metrics.Metrics.counter('file_splitters', f'skipped').inc()
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
             self.logger.info('Skipping %s, file already split.', repr(self.input_path))
             return
 
@@ -125,7 +125,7 @@ class NetCdfSplitter(FileSplitter):
 
     def split_data(self) -> None:
         if self.should_skip():
-            metrics.Metrics.counter('file_splitters', f'skipped').inc()
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
             self.logger.info('Skipping %s, file already split.', repr(self.input_path))
             return
 
@@ -175,7 +175,7 @@ class DrySplitter(FileSplitter):
                          self.input_path, self._get_output_file_path(SplitKey('level', 'shortname')))
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool) -> FileSplitter:
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
 
@@ -193,5 +193,3 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
         return NetCdfSplitter(file_path, output_info, force_split)
 
     raise ValueError(f'cannot determine if file {file_path!r} is Grib or NetCDF.')
-
-
