@@ -39,7 +39,8 @@ def split_file(input_file: str,
                input_base_dir: str,
                output_template: t.Optional[str],
                output_dir: t.Optional[str],
-               dry_run: bool):
+               dry_run: bool,
+               force_split: bool = False):
     logger.info('Splitting file %s', input_file)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(input_file,
@@ -47,7 +48,8 @@ def split_file(input_file: str,
                                                  input_base=input_base_dir,
                                                  output_template=output_template,
                                                  output_dir=output_dir),
-                            dry_run)
+                            dry_run,
+                            force_split)
     splitter.split_data()
 
 
