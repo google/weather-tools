@@ -15,6 +15,7 @@
 import argparse
 import copy as cp
 import getpass
+import io
 import itertools
 import logging
 import os
@@ -32,11 +33,13 @@ from apache_beam.options.pipeline_options import (
     WorkerOptions,
     StandardOptions,
 )
+from apache_beam.utils import retry
 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, FSStore, LocalFileStore
+from .stores import Store, TempFileStore, FSStore, LocalFileStore, \
+    _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter
 
 logger = logging.getLogger(__name__)
 
@@ -216,14 +219,20 @@ def assemble_partition_config(partition: t.Tuple,
     return out
 
 
+@retry.with_exponential_backoff(
+    retry_filter=_retry_if_valid_input_but_server_or_socket_error_and_timeout_filter)
+def upload(store: Store, src: io.FileIO, dest: str) -> None:
+    """Upload blob to cloud storage."""
+    with store.open(dest, 'wb') as dest_:
+        shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
+
+
 def fetch_data(config: t.Dict,
                *,
                client_name: str,
                manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
                store: t.Optional[Store] = None) -> None:
-    """
-    Download data from a client to a temp file, then upload to Google Cloud Storage.
-    """
+    """Download data from a client to a temp file, then upload to Google Cloud Storage."""
     if not config:
         return
 
@@ -241,10 +250,8 @@ def fetch_data(config: t.Dict,
             logger.info(f'Fetching data for {target!r}.')
             client.retrieve(dataset, selection, temp.name)
 
-            # upload blob to cloud storage
             logger.info(f'Uploading to store for {target!r}.')
-            with store.open(target, 'wb') as dest:
-                shutil.copyfileobj(temp, dest, WRITE_CHUNK_SIZE)
+            upload(store, temp, target)
 
             logger.info(f'Upload to store complete for {target!r}.')
 
