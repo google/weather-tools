@@ -33,13 +33,12 @@ from apache_beam.options.pipeline_options import (
     WorkerOptions,
     StandardOptions,
 )
-from apache_beam.utils import retry
 
 from .clients import CLIENTS
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
 from .parsers import process_config, parse_manifest_location, use_date_as_directory
-from .stores import Store, TempFileStore, FSStore, LocalFileStore, \
-    _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter
+from .stores import Store, TempFileStore, FSStore, LocalFileStore
+from .util import retry_with_exponential_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -219,8 +218,7 @@ def assemble_partition_config(partition: t.Tuple,
     return out
 
 
-@retry.with_exponential_backoff(
-    retry_filter=_retry_if_valid_input_but_server_or_socket_error_and_timeout_filter)
+@retry_with_exponential_backoff
 def upload(store: Store, src: io.FileIO, dest: str) -> None:
     """Upload blob to cloud storage."""
     with store.open(dest, 'wb') as dest_:

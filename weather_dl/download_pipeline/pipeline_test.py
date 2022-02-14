@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import typing as t
 import io
+import socket
+import tempfile
+import typing as t
 import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
 from apache_beam.options.pipeline_options import PipelineOptions
-from .stores import InMemoryStore, Store
+
 from .manifest import MockManifest, Location
 from .pipeline import (
     assemble_partition_config,
@@ -28,7 +29,9 @@ from .pipeline import (
     prepare_partitions,
     prepare_target_name,
     skip_partition,
+    upload,
 )
+from .stores import InMemoryStore, Store, FSStore
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -313,6 +316,39 @@ class PreparePartitionTest(unittest.TestCase):
         cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
 
         self.assertEqual(len(research_configs), len(cloud_configs))
+
+
+class UploadTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.message = b'the quick brown fox jumped over the lazy dog'.split()
+        self.store = FSStore()
+
+    def test_upload_writes_to_store(self):
+        with tempfile.NamedTemporaryFile() as src:
+            src.writelines(self.message)
+            src.flush()
+            with tempfile.NamedTemporaryFile('wb') as dst:
+                upload(self.store, src, dst.name)
+                with open(dst.name, 'rb') as dst1:
+                    self.assertEqual(dst1.readlines()[0], b''.join(self.message))
+
+    def test_retries_after_socket_timeout_error(self):
+        class SocketTimeoutStore(InMemoryStore):
+            count = 0
+
+            def open(self, filename: str, mode: str = 'r') -> t.IO:
+                self.count += 1
+                raise socket.timeout('Deliberate error.')
+
+        socket_store = SocketTimeoutStore()
+
+        with tempfile.NamedTemporaryFile() as src:
+            src.writelines(self.message)
+            src.flush()
+            with tempfile.NamedTemporaryFile('wb') as dst:
+                with self.assertRaises(socket.timeout):
+                    upload(socket_store, src, dst.name)
+        self.assertEqual(socket_store.count, 8)
 
 
 class FetchDataTest(unittest.TestCase):

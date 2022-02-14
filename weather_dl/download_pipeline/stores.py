@@ -16,12 +16,12 @@
 import abc
 import io
 import os
-import socket
 import tempfile
 import typing as t
 
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.utils import retry
+
+from .util import retry_with_exponential_backoff
 
 
 class Store(abc.ABC):
@@ -95,19 +95,10 @@ class LocalFileStore(Store):
         return os.path.exists(os.sep.join([self.dir, filename]))
 
 
-def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
-    if isinstance(exception, socket.timeout):
-        return True
-    if isinstance(exception, TimeoutError):
-        return True
-    return retry.retry_if_valid_input_but_server_error_and_timeout_filter(exception)
-
-
 class FSStore(Store):
     """Store data into any store supported by Apache Beam's FileSystems."""
 
-    @retry.with_exponential_backoff(
-        retry_filter=_retry_if_valid_input_but_server_or_socket_error_and_timeout_filter)
+    @retry_with_exponential_backoff
     def open(self, filename: str, mode: str = 'r') -> t.IO:
         """Open object in cloud bucket (or local file system) as a read or write channel.
 
