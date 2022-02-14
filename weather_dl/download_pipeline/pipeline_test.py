@@ -327,6 +327,7 @@ class UploadTest(unittest.TestCase):
         with tempfile.NamedTemporaryFile() as src:
             src.writelines(self.message)
             src.flush()
+            src.seek(0)
             with tempfile.NamedTemporaryFile('wb') as dst:
                 upload(self.store, src, dst.name)
                 with open(dst.name, 'rb') as dst1:
