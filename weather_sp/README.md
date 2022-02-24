@@ -114,7 +114,7 @@ Example:
 
 For a file `gs://test-input/era5/2020/02/01.nc` the output file pattern is
 `gs://test-output/splits/2020.01.02T00.{shortname}.nc` and if the temperature is a variable in that data, the output
-file for that split will be `gs://test-output/splits/2020/01/02T00.t.nc`
+file for that split will be `gs://test-output/splits/2020.01.02T00.t.nc`
 
 ## Dry run
 
