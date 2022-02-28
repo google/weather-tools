@@ -15,10 +15,9 @@ import unittest
 from collections import Counter
 import json
 import xarray as xr
-import cmath
 from .sinks_test import TestDataBase
 from .util import get_coordinates
-from util import to_json_serializable_type
+from .util import to_json_serializable_type
 import numpy as np
 
 
@@ -53,10 +52,6 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
     def test_numpy_float_becomes_float(self):
         res = to_json_serializable_type(np.float(42))
-        self.assert_serializes_json(res)
-
-    def test_imaginary_number(self):
-        res = to_json_serializable_type(complex(4, 5))
         self.assert_serializes_json(res)
 
     def test_numpy_array(self):
