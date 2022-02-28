@@ -13,11 +13,13 @@
 # limitations under the License.
 import unittest
 from collections import Counter
-
+import json
 import xarray as xr
-
+import cmath
 from .sinks_test import TestDataBase
 from .util import get_coordinates
+from util import to_json_serializable_type
+import numpy as np
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -42,4 +44,21 @@ class GetCoordinatesTest(TestDataBase):
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
     # TODO(#106): Write tests...
-    pass
+    def assert_serializes_json(self, input):
+        try:
+            json.loads(json.dumps(input))
+            print("Successfully passed!")
+        except json.JSONDecodeError:
+            self.fail()
+
+    def test_numpy_float_becomes_float(self):
+        res = to_json_serializable_type(np.float(42))
+        self.assert_serializes_json(res)
+
+    def test_imaginary_number(self):
+        res = to_json_serializable_type(complex(4, 5))
+        self.assert_serializes_json(res)
+
+    def test_numpy_array(self):
+        res = to_json_serializable_type(np.array([1, 2, 3, 4, 5777, 7, 4252, 5426]))
+        self.assert_serializes_json(res)
