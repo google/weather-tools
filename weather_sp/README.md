@@ -23,6 +23,7 @@ _Common options_:
   with `--output-dir`.
 * `--output-dir`: Path to base folder for output files, see [Output section](#output) below. Mutually exclusive
   with `--output-template`
+* `-f, --force`: Force re-splitting of the pipeline. Turns of skipping of already split data.
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 
 Invoke with `-h` or `--help` to see the full range of options.

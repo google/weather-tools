@@ -43,9 +43,10 @@ class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
     def __init__(self, input_path: str, output_info: OutFileInfo,
-                 level: int = logging.INFO):
+                 force_split: bool = False, level: int = logging.INFO):
         self.input_path = input_path
         self.output_info = output_info
+        self.force_split = force_split
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
         self.logger.debug('Splitter for path=%s, output base=%s',
@@ -53,7 +54,7 @@ class FileSplitter(abc.ABC):
 
     @abc.abstractmethod
     def split_data(self) -> None:
-        pass
+        raise NotImplementedError()
 
     @contextmanager
     def _copy_to_local_file(self) -> t.Iterator[t.IO]:
@@ -73,11 +74,29 @@ class FileSplitter(abc.ABC):
             split_keys['levelType'] = f'{key.levelType}_'
         return self.output_info.file_name_template.format(**split_keys)
 
+    def should_skip(self):
+        """Skip splitting if the data was already split."""
+        if self.force_split:
+            return False
+
+        for match in FileSystems().match([
+            self._get_output_file_path(SplitKey('', '**')),
+            self._get_output_file_path(SplitKey('**', '**')),
+        ]):
+            if len(match.metadata_list) > 0:
+                return True
+        return False
+
 
 class GribSplitter(FileSplitter):
 
     def split_data(self) -> None:
         outputs = dict()
+
+        if self.should_skip():
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
+            self.logger.info('Skipping %s, file already split.', repr(self.input_path))
+            return
 
         with self._open_grib_locally() as grbs:
             for grb in grbs:
@@ -105,6 +124,11 @@ class GribSplitter(FileSplitter):
 class NetCdfSplitter(FileSplitter):
 
     def split_data(self) -> None:
+        if self.should_skip():
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
+            self.logger.info('Skipping %s, file already split.', repr(self.input_path))
+            return
+
         with self._open_dataset_locally() as nc_data:
             fields = [var for var in nc_data.variables.keys() if
                       var not in nc_data.dimensions.keys()]
@@ -151,7 +175,7 @@ class DrySplitter(FileSplitter):
                          self.input_path, self._get_output_file_path(SplitKey('level', 'shortname')))
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> FileSplitter:
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
 
@@ -160,12 +184,12 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool) -> Fil
 
     if b'GRIB' in header:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
-        return GribSplitter(file_path, output_info)
+        return GribSplitter(file_path, output_info, force_split)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
     if b'CDF' in header or b'HDF' in header:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
-        return NetCdfSplitter(file_path, output_info)
+        return NetCdfSplitter(file_path, output_info, force_split)
 
     raise ValueError(f'cannot determine if file {file_path!r} is Grib or NetCDF.')

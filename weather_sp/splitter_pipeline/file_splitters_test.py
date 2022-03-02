@@ -115,6 +115,29 @@ class GribSplitterTest(unittest.TestCase):
             self.assertEqual(orig.shape, split.shape)
             np.testing.assert_allclose(orig, split)
 
+    def test_skips_existing_split(self):
+        input_path = f'{self._data_dir}/era5_sample.grib'
+        splitter = GribSplitter(
+            input_path,
+            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib')
+        )
+        self.assertFalse(splitter.should_skip())
+        splitter.split_data()
+        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        self.assertTrue(splitter.should_skip())
+
+    def test_does_not_skip__if_forced(self):
+        input_path = f'{self._data_dir}/era5_sample.grib'
+        splitter = GribSplitter(
+            input_path,
+            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib'),
+            force_split=True
+        )
+        self.assertFalse(splitter.should_skip())
+        splitter.split_data()
+        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        self.assertFalse(splitter.should_skip())
+
 
 class NetCdfSplitterTest(unittest.TestCase):
 
@@ -142,6 +165,25 @@ class NetCdfSplitterTest(unittest.TestCase):
             split_file = f'{self._data_dir}/split_files/era5_sample_{sn}.nc'
             split_data = xr.open_dataset(split_file, engine='netcdf4')
             xr.testing.assert_allclose(input_data[sn], split_data[sn])
+
+    def test_skips_existing_split(self):
+        input_path = f'{self._data_dir}/era5_sample.nc'
+        splitter = NetCdfSplitter(input_path,
+                                  OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{shortname}}.nc', '.nc'))
+        self.assertFalse(splitter.should_skip())
+        splitter.split_data()
+        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        self.assertTrue(splitter.should_skip())
+
+    def test_does_not_skip__if_forced(self):
+        input_path = f'{self._data_dir}/era5_sample.nc'
+        splitter = NetCdfSplitter(input_path,
+                                  OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{shortname}}.nc', '.nc'),
+                                  force_split=True)
+        self.assertFalse(splitter.should_skip())
+        splitter.split_data()
+        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        self.assertFalse(splitter.should_skip())
 
 
 if __name__ == '__main__':
