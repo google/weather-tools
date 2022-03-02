@@ -175,15 +175,15 @@ class MarsClient(Client):
         """Number of requests per key (or user) for the Mars API.
 
         Mars allows 2 active requests per user and 20 queued requests per user, as of Sept 27, 2021.
-        To ensure we never hit a rate limit error during download, we return a slightly smaller
-        number of requests than the possible limit (20/22 requets).
+        To ensure we never hit a rate limit error during download, we only make use of the active
+        requests.
         See: https://confluence.ecmwf.int/display/UDOC/Total+number+of+requests+a+user+can+submit+-+Web+API+FAQ
 
         Queued requests can _only_ be canceled manually from a web dashboard. If the
         `ERROR 101 (USER_QUEUED_LIMIT_EXCEEDED)` error occurs in the Beam pipeline, then go to
         http://apps.ecmwf.int/webmars/joblist/ and cancel queued jobs.
         """
-        return 20
+        return 2
 
 
 class FakeClient(Client):
