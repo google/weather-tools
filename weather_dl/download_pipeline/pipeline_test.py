@@ -23,10 +23,11 @@ from apache_beam.options.pipeline_options import PipelineOptions
 
 from .manifest import MockManifest, Location
 from .pipeline import (
-    assemble_partition_config,
+    assemble_partition,
     configure_workers,
     fetch_data,
     prepare_partitions,
+    get_subsections,
     prepare_target_name,
     skip_partition,
     upload,
@@ -170,10 +171,11 @@ class PreparePartitionTest(unittest.TestCase):
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
+        params_list = get_subsections(config)
         partition_list = prepare_partitions(config, store=store)
         return [
-            assemble_partition_config(p, config, manifest=self.dummy_manifest)
-            for p in partition_list
+            assemble_partition(p, params_list[idx % len(params_list)], manifest=self.dummy_manifest)
+            for idx, p in enumerate(partition_list)
         ]
 
     def test_partition_single_key(self):
@@ -244,25 +246,26 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         actual = self.create_partition_configs(config)
-
-        self.assertListEqual(actual, [
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
+        expected = [
+            {'parameters': OrderedDict(config['parameters'], __index__=0, api_key='KKKK1',
                                        api_url='UUUU1'),
              'selection': {**config['selection'],
                            **{'year': ['2015'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2',
+            {'parameters': OrderedDict(config['parameters'],  __index__=1, api_key='KKKK2',
                                        api_url='UUUU2'),
              'selection': {**config['selection'],
                            **{'year': ['2015'], 'month': ['2']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3',
+            {'parameters': OrderedDict(config['parameters'],  __index__=2, api_key='KKKK3',
                                        api_url='UUUU3'),
              'selection': {**config['selection'],
                            **{'year': ['2016'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
+            {'parameters': OrderedDict(config['parameters'], __index__=3, api_key='KKKK1',
                                        api_url='UUUU1'),
              'selection': {**config['selection'],
                            **{'year': ['2016'], 'month': ['2']}}},
-        ])
+        ]
+
+        self.assertListEqual(actual, expected)
 
     def test_prepare_partition_records_download_status_to_manifest(self):
         config = {

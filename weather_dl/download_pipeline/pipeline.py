@@ -107,7 +107,7 @@ def prepare_target_name(config: t.Dict) -> str:
     return target
 
 
-def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
+def _create_partition_config(option: t.Tuple, config: t.Dict, index: int = -1) -> t.Dict:
     """Create a config for a single partition option.
 
     Output a config dictionary, overriding the range of values for
@@ -133,7 +133,18 @@ def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
         copy[key] = [option[idx]]
 
     out['selection'] = copy
+    if index != -1:
+        out['parameters']['__index__'] = index
+
     return out
+
+
+def partition_by_index(config: t.Dict, num_partitions: int) -> int:
+    """Split config partitions into groups based on their `__index__` value."""
+    index = config.get('parameters', {}).get('__index__', -1)
+    if index == -1:
+        return index
+    return index % num_partitions
 
 
 def skip_partition(config: t.Dict, store: Store) -> bool:
@@ -150,7 +161,32 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
     return False
 
 
-def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Iterator[t.Tuple]:
+def get_subsections(config: t.Dict) -> t.List[t.Dict]:
+    """Collect parameter subsections from main configuration.
+
+    If the `parameters` section contains subsections (e.g. '[parameters.1]',
+    '[parameters.2]'), collect a list of the subsection key-value
+    pairs. Otherwise, return a list of an empty dictionary (i.e. to address
+    the case where there are no subsections).
+
+    This is useful for specifying multiple API keys for your configuration.
+    For example:
+    ```
+      [parameters.deepmind]
+      api_key=KKKKK1
+      api_url=UUUUU1
+      [parameters.research]
+      api_key=KKKKK2
+      api_url=UUUUU2
+      [parameters.cloud]
+      api_key=KKKKK3
+      api_url=UUUUU3
+    ```
+    """
+    return [params for _, params in config['parameters'].items() if isinstance(params, dict)] or [{}]
+
+
+def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Iterator[t.Dict]:
     """Iterate over client parameters, partitioning over `partition_keys`."""
     if store is None:
         store = FSStore()
@@ -162,39 +198,17 @@ def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Ite
     # an iterable like: ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
     fan_out = itertools.product(*[selection[key] for key in partition_keys])
 
-    # If the `parameters` section contains subsections (e.g. '[parameters.1]',
-    # '[parameters.2]'), collect a repeating cycle of the subsection key-value
-    # pairs. Otherwise, store empty dictionaries.
-    #
-    # This is useful for specifying multiple API keys for your configuration.
-    # For example:
-    # ```
-    #   [parameters.deepmind]
-    #   api_key=KKKKK1
-    #   api_url=UUUUU1
-    #   [parameters.research]
-    #   api_key=KKKKK2
-    #   api_url=UUUUU2
-    #   [parameters.cloud]
-    #   api_key=KKKKK3
-    #   api_url=UUUUU3
-    # ```
-    extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
-    params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
-
     def new_downloads_only(candidate: t.Dict) -> bool:
         """Predicate function to skip already downloaded partitions."""
         return not skip_partition(candidate, store)
 
-    return zip(
-        filter(new_downloads_only, [_create_partition_config(option, config) for option in fan_out]),
-        params_loop
-    )
+    return filter(new_downloads_only,
+                  (_create_partition_config(option, config, idx) for idx, option in enumerate(fan_out)))
 
 
-def assemble_partition_config(partition: t.Tuple,
-                              config: t.Dict,
-                              manifest: Manifest) -> t.Dict:
+def assemble_partition(config_partition: t.Dict,
+                       params: t.Dict,
+                       manifest: Manifest) -> t.Dict:
     """Assemble the configuration for a single partition."""
     # For each of these 'selection' sections, the output dictionary will
     # overwrite parameters from the extra param subsections (above),
@@ -207,15 +221,14 @@ def assemble_partition_config(partition: t.Tuple,
     #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
     #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
     #   ...
-    out, params = partition
-    out['parameters'].update(params)
+    config_partition['parameters'].update(params)
 
-    location = prepare_target_name(out)
-    user = out['parameters'].get('user_id', 'unknown')
-    manifest.schedule(out['selection'], location, user)
+    location = prepare_target_name(config_partition)
+    user = config_partition['parameters'].get('user_id', 'unknown')
+    manifest.schedule(config_partition['selection'], location, user)
 
     logger.info(f'Created partition {location!r}.')
-    return out
+    return config_partition
 
 
 @retry_with_exponential_backoff
@@ -314,13 +327,19 @@ def run(argv: t.List[str], save_main_session: bool = True):
     pipeline_options = configure_workers(client_name, config, known_args.num_requests_per_key, pipeline_options)
 
     with beam.Pipeline(options=pipeline_options) as p:
-        (
-                p
-                | 'Create' >> beam.Create([config])
-                | 'Prepare' >> beam.FlatMap(prepare_partitions, store=store)
-                # Shuffling here prevents beam from fusing all steps,
-                # which would result in utilizing only a single worker.
-                | 'Shuffle' >> beam.Reshuffle()
-                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest)
-                | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
+
+        subsections = get_subsections(config)
+
+        dl_shards_by_keys = (
+            p
+            | 'Create' >> beam.Create([config])
+            | 'Prepare' >> beam.FlatMap(prepare_partitions, store=store)
+            | 'Partition' >> beam.Partition(partition_by_index, len(subsections))
         )
+
+        for idx, dl_shards in enumerate(dl_shards_by_keys):
+            (
+                    dl_shards
+                    | 'Assemble' >> beam.Map(assemble_partition, params=subsections[idx], manifest=manifest)
+                    | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
+            )
