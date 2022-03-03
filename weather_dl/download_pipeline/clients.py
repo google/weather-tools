@@ -96,7 +96,7 @@ class CdsClient(Client):
         CDS has dynamic, data-specific limits, defined here:
           https://cds.climate.copernicus.eu/live/limits
 
-        Typically, the reanalysis dataset allows for 3-5 simultaneous requets.
+        Typically, the reanalysis dataset allows for 3-5 simultaneous requests.
         For all standard CDS data (backed on disk drives), it's common that 2
         requests are allowed, though this is dynamically set, too.
 
