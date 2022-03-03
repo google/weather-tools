@@ -340,6 +340,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
         for idx, dl_shards in enumerate(dl_shards_by_keys):
             (
                     dl_shards
-                    | 'Assemble' >> beam.Map(assemble_partition, params=subsections[idx], manifest=manifest)
-                    | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
+                    | f'Assemble{idx}' >> beam.Map(assemble_partition, params=subsections[idx], manifest=manifest)
+                    | f'FetchData{idx}' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
             )
