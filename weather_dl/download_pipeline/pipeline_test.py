@@ -61,6 +61,10 @@ class ConfigureWorkersTest(unittest.TestCase):
             }
         }
 
+    def add_api_keys(self,  n: int) -> None:
+        for i in range(n):
+            self.config['parameters'][f'subsection{i}'] = {'api_key': f'A{i}', 'api_url': f'U{i}'}
+
     def test_fake_client(self):
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
@@ -72,7 +76,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
     def test_multiple_api_keys(self):
-        self.config['parameters']['num_api_keys'] = 4
+        self.add_api_keys(4)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -83,7 +87,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
     def test_multiple_api_keys__rounds_up(self):
-        self.config['parameters']['num_api_keys'] = 5
+        self.add_api_keys(5)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -105,7 +109,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_threads(self):
         args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
-        self.config['parameters']['num_api_keys'] = 15
+        self.add_api_keys(15)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -117,7 +121,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_threads__rounds_up(self):
         args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
-        self.config['parameters']['num_api_keys'] = 17
+        self.add_api_keys(17)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -129,7 +133,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers(self):
         args = '--max_num_workers 3'.split()
-        self.config['parameters']['num_api_keys'] = 6
+        self.add_api_keys(6)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -140,7 +144,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers__rounds_up(self):
         args = '--max_num_workers 3'.split()
-        self.config['parameters']['num_api_keys'] = 7
+        self.add_api_keys(7)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -151,7 +155,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers__large(self):
         args = '--max_num_workers 12'.split()
-        self.config['parameters']['num_api_keys'] = 7
+        self.add_api_keys(7)
         with self.assertWarnsRegex(
                 Warning,
                 "Max number of workers 12 with 2 threads each exceeds recommended 7 concurrent requests."

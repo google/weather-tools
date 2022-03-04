@@ -57,7 +57,7 @@ def configure_workers(client_name: str,
     """Configure the number of workers and threads for the pipeline, allowing for user control."""
 
     # The number of workers should always be proportional to the number of licenses.
-    num_api_keys = config.get('parameters', {}).get('num_api_keys', 1)
+    num_api_keys = len(get_subsections(config))
 
     # If user doesn't specify a number of requestors, make educated guess based on clients and dataset.
     if num_requesters_per_key == -1:
