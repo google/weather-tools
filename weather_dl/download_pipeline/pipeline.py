@@ -140,7 +140,14 @@ def _create_partition_config(option: t.Tuple, config: t.Dict, index: int = -1) -
 
 
 def partition_by_index(config: t.Dict, num_partitions: int) -> int:
-    """Split config partitions into groups based on their `__index__` value."""
+    """Split config partitions into groups based on their `__index__` value.
+
+    Args:
+       config: A sharded download config with an `__index__` int in the `parameters` section.
+       num_partitions: must be 1 or greater.
+    Returns:
+        The partition index.
+    """
     index = config.get('parameters', {}).get('__index__', -1)
     if index == -1:
         return index
