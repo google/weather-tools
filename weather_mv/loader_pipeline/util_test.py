@@ -15,30 +15,30 @@ import unittest
 from collections import Counter
 import json
 import xarray as xr
-# from .sinks_test import TestDataBase
-# from .util import get_coordinates
+from .sinks_test import TestDataBase
+from .util import get_coordinates
 from util import to_json_serializable_type
 import numpy as np
 
 
-# class GetCoordinatesTest(TestDataBase):
-#     def setUp(self) -> None:
-#         super().setUp()
-#         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
+class GetCoordinatesTest(TestDataBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
-#     def test_gets_indexed_coordinates(self):
-#         ds = xr.open_dataset(self.test_data_path)
-#         self.assertEqual(
-#             next(get_coordinates(ds)),
-#             {'latitude': 49.0, 'longitude': -108.0, 'time': '2018-01-02T06:00:00+00:00'}
-#         )
+    def test_gets_indexed_coordinates(self):
+        ds = xr.open_dataset(self.test_data_path)
+        self.assertEqual(
+            next(get_coordinates(ds)),
+            {'latitude': 49.0, 'longitude': -108.0, 'time': '2018-01-02T06:00:00+00:00'}
+        )
 
-#     def test_no_duplicate_coordinates(self):
-#         ds = xr.open_dataset(self.test_data_path)
+    def test_no_duplicate_coordinates(self):
+        ds = xr.open_dataset(self.test_data_path)
 
-#         # Assert that all the coordinates are unique.
-#         counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
-#         self.assertTrue(all((c == 1 for c in counts.values())))
+        # Assert that all the coordinates are unique.
+        counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
+        self.assertTrue(all((c == 1 for c in counts.values())))
 
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
