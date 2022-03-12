@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import json
 import socket
 import tempfile
 import typing as t
@@ -19,19 +20,23 @@ import unittest
 from collections import OrderedDict
 from unittest.mock import patch, ANY, MagicMock
 
+import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from .manifest import MockManifest, Location
+from .manifest import MockManifest, Location, LocalManifest
 from .pipeline import (
-    assemble_partition_config,
+    AssemblePartition,
     configure_workers,
     fetch_data,
+    get_subsections,
+    new_downloads_only,
     prepare_partitions,
     prepare_target_name,
     skip_partition,
     upload,
 )
 from .stores import InMemoryStore, Store, FSStore
+from .test_util import EagerPipeline
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -60,6 +65,10 @@ class ConfigureWorkersTest(unittest.TestCase):
             }
         }
 
+    def add_api_keys(self,  n: int) -> None:
+        for i in range(n):
+            self.config['parameters'][f'subsection{i}'] = {'api_key': f'A{i}', 'api_url': f'U{i}'}
+
     def test_fake_client(self):
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
@@ -71,7 +80,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
     def test_multiple_api_keys(self):
-        self.config['parameters']['num_api_keys'] = 4
+        self.add_api_keys(4)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -82,7 +91,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.assertEqual(expected, opts.get_all_options(drop_default=True))
 
     def test_multiple_api_keys__rounds_up(self):
-        self.config['parameters']['num_api_keys'] = 5
+        self.add_api_keys(5)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -104,7 +113,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_threads(self):
         args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
-        self.config['parameters']['num_api_keys'] = 15
+        self.add_api_keys(15)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -116,7 +125,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_threads__rounds_up(self):
         args = '--number_of_worker_harness_threads 3 --experiments use_runner_v2'.split()
-        self.config['parameters']['num_api_keys'] = 17
+        self.add_api_keys(17)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -128,7 +137,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers(self):
         args = '--max_num_workers 3'.split()
-        self.config['parameters']['num_api_keys'] = 6
+        self.add_api_keys(6)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -139,7 +148,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers__rounds_up(self):
         args = '--max_num_workers 3'.split()
-        self.config['parameters']['num_api_keys'] = 7
+        self.add_api_keys(7)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
             'experiments': ['use_runner_v2'],
@@ -150,7 +159,7 @@ class ConfigureWorkersTest(unittest.TestCase):
 
     def test_user_specifies_workers__large(self):
         args = '--max_num_workers 12'.split()
-        self.config['parameters']['num_api_keys'] = 7
+        self.add_api_keys(7)
         with self.assertWarnsRegex(
                 Warning,
                 "Max number of workers 12 with 2 threads each exceeds recommended 7 concurrent requests."
@@ -170,11 +179,21 @@ class PreparePartitionTest(unittest.TestCase):
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
-        partition_list = prepare_partitions(config, store=store)
-        return [
-            assemble_partition_config(p, config, manifest=self.dummy_manifest)
-            for p in partition_list
-        ]
+
+        subsections = get_subsections(config)
+
+        partitions = (
+            EagerPipeline()
+            | 'Create' >> beam.Create([config])
+            | 'Prepare' >> beam.FlatMap(prepare_partitions)
+            | 'Filter' >> beam.Filter(new_downloads_only, store=store)
+            # Shuffling here prevents beam from fusing all steps,
+            # which would result in utilizing only a single worker.
+            | 'Shuffle' >> beam.Reshuffle()
+            | 'AssemblePartition' >> beam.ParDo(AssemblePartition(subsections, self.dummy_manifest))
+        )
+
+        return partitions
 
     def test_partition_single_key(self):
         config = {
@@ -277,17 +296,23 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        self.create_partition_configs(config)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.dummy_manifest = LocalManifest(Location(tmpdir))
 
-        self.assertListEqual(
-            [d.selection for d in self.dummy_manifest.records.values()], [
-                {**config['selection'], **{'year': [str(i)]}}
-                for i in range(2015, 2021)
-            ])
+            self.create_partition_configs(config)
 
-        self.assertTrue(
-            all([d.status == 'scheduled' for d in self.dummy_manifest.records.values()])
-        )
+            with open(self.dummy_manifest.location, 'r') as f:
+                actual = json.load(f)
+
+            self.assertListEqual(
+                [d['selection'] for d in actual.values()], [
+                    {**config['selection'], **{'year': [str(i)]}}
+                    for i in range(2015, 2021)
+                ])
+
+            self.assertTrue(
+                all([d['status'] == 'scheduled' for d in actual.values()])
+            )
 
     def test_skip_partitions__never_unbalances_licenses(self):
         skip_odd_files = OddFilesDoNotExistStore()
