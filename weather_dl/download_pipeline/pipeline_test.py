@@ -72,6 +72,7 @@ class ConfigureWorkersTest(unittest.TestCase):
     def test_fake_client(self):
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 1,
@@ -83,6 +84,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(4)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 2,
@@ -94,6 +96,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(5)
         opts = configure_workers('fake', self.config, -1, PipelineOptions([]))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 3,
@@ -104,6 +107,7 @@ class ConfigureWorkersTest(unittest.TestCase):
     def test_user_specifies_requestors(self):
         opts = configure_workers('fake', self.config, 3, PipelineOptions([]))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 2,
@@ -116,6 +120,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(15)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 3,
             'max_num_workers': 5,
@@ -128,6 +133,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(17)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 3,
             'max_num_workers': 6,
@@ -140,6 +146,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(6)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 3,
@@ -151,6 +158,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         self.add_api_keys(7)
         opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 3,
@@ -166,6 +174,7 @@ class ConfigureWorkersTest(unittest.TestCase):
         ):
             opts = configure_workers('fake', self.config, -1, PipelineOptions(args))
         expected = {
+            'autoscaling_algorithm': 'NONE',
             'experiments': ['use_runner_v2'],
             'number_of_worker_harness_threads': 2,
             'max_num_workers': 12,

@@ -71,7 +71,7 @@ def configure_workers(client_name: str,
 
     max_num_requesters = num_requesters_per_key * num_api_keys
 
-    # Default: Assume user intends to have two thread per worker.
+    # Default: Assume user intends to have two threads per worker.
     if pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads is None:
         pipeline_options.view_as(DebugOptions).add_experiment('use_runner_v2')
         pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads = 2
@@ -88,6 +88,10 @@ def configure_workers(client_name: str,
             f'Max number of workers {pipeline_options.view_as(WorkerOptions).max_num_workers!r} with '
             f'{n_threads!r} threads each exceeds recommended {max_num_requesters!r} concurrent requests.'
         )
+
+    # Turn autoscaling off!
+    if pipeline_options.view_as(WorkerOptions).autoscaling_algorithm is None:
+        pipeline_options.view_as(WorkerOptions).autoscaling_algorithm = 'NONE'
 
     return pipeline_options
 
