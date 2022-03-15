@@ -27,6 +27,10 @@ from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 
+Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
+Config = t.Dict[str, t.Dict[str, Values]]
+
+
 def date(candidate: str) -> datetime.date:
     """Converts ECMWF-format date strings into a `datetime.date`.
 
@@ -66,7 +70,7 @@ def date(candidate: str) -> datetime.date:
     return converted
 
 
-def parse_config(file: io.StringIO) -> t.Dict:
+def parse_config(file: io.StringIO) -> Config:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
@@ -255,7 +259,7 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     return copy
 
 
-def process_config(file: io.StringIO) -> t.Dict:
+def process_config(file: io.StringIO) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
@@ -341,3 +345,20 @@ def process_config(file: io.StringIO) -> t.Dict:
     config['parameters']['partition_keys'] = partition_keys
 
     return config
+
+
+def prepare_target_name(config: t.Dict) -> str:
+    """Returns name of target location."""
+    target_path = config['parameters']['target_path']
+    target_filename = config['parameters'].get('target_filename', '')
+    partition_keys = config['parameters']['partition_keys'].copy()
+    if use_date_as_directory(config):
+        target_path = "{}/{}".format(
+            target_path,
+            ''.join(['/'.join(date_value for date_value in config['selection']['date'][0].split('-'))]))
+        partition_keys.remove('date')
+    target_path = "{}{}".format(target_path, target_filename)
+    partition_key_values = [config['selection'][key][0] for key in partition_keys]
+    target = target_path.format(*partition_key_values)
+
+    return target

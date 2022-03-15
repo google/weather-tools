@@ -15,17 +15,13 @@
 import argparse
 import copy as cp
 import getpass
-import io
 import itertools
 import logging
 import os
-import shutil
-import tempfile
 import typing as t
 import warnings
 
 import apache_beam as beam
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import (
     DebugOptions,
     PipelineOptions,
@@ -35,12 +31,19 @@ from apache_beam.options.pipeline_options import (
 )
 
 from .clients import CLIENTS
+from .fetcher import Fetcher
 from .manifest import Manifest, Location, NoOpManifest, LocalManifest
-from .parsers import process_config, parse_manifest_location, use_date_as_directory
+from .parsers import (
+    Config,
+    parse_manifest_location,
+    prepare_target_name,
+    process_config,
+)
 from .stores import Store, TempFileStore, FSStore, LocalFileStore
-from .util import retry_with_exponential_backoff
 
 logger = logging.getLogger(__name__)
+
+Partition = t.Tuple[str, t.Dict, Config]
 
 
 def configure_logger(verbosity: int) -> None:
@@ -67,7 +70,7 @@ def configure_workers(client_name: str,
 
     max_num_requesters = num_requesters_per_key * num_api_keys
 
-    # Default: Assume user intends to have two thread per worker.
+    # Default: Assume user intends to have two threads per worker.
     if pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads is None:
         pipeline_options.view_as(DebugOptions).add_experiment('use_runner_v2')
         pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads = 2
@@ -88,26 +91,7 @@ def configure_workers(client_name: str,
     return pipeline_options
 
 
-def prepare_target_name(config: t.Dict) -> str:
-    """Returns name of target location."""
-    target_path = config['parameters']['target_path']
-    target_filename = config['parameters'].get('target_filename', '')
-    partition_keys = config['parameters']['partition_keys'].copy()
-    if use_date_as_directory(config):
-        target_path = "{}/{}".format(
-            target_path,
-            ''.join(['/'.join(date_value for date_value in config['selection']['date'][0].split('-'))]))
-        logger.debug(f'target_path adjusted for date: {target_path}')
-        partition_keys.remove('date')
-    target_path = "{}{}".format(target_path, target_filename)
-    partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = target_path.format(*partition_key_values)
-    logger.debug(f'target name for partition: {target}')
-
-    return target
-
-
-def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
+def _create_partition_config(option: t.Tuple, config: Config) -> t.Dict:
     """Create a config for a single partition option.
 
     Output a config dictionary, overriding the range of values for
@@ -125,7 +109,7 @@ def _create_partition_config(option: t.Tuple, config: t.Dict) -> t.Dict:
     Returns:
         A configuration with that selects a single download partition.
     """
-    partition_keys = config['parameters']['partition_keys']
+    partition_keys = config.get('parameters', {}).get('partition_keys', [])
     selection = config.get('selection', {})
     copy = cp.deepcopy(selection)
     out = cp.deepcopy(config)
@@ -150,108 +134,112 @@ def skip_partition(config: t.Dict, store: Store) -> bool:
     return False
 
 
-def prepare_partitions(config: t.Dict, store: t.Optional[Store] = None) -> t.Iterator[t.Tuple]:
-    """Iterate over client parameters, partitioning over `partition_keys`."""
+def get_subsections(config: t.Dict) -> t.List[t.Tuple[str, t.Dict]]:
+    """Collect parameter subsections from main configuration.
+
+    If the `parameters` section contains subsections (e.g. '[parameters.1]',
+    '[parameters.2]'), collect the subsection key-value pairs. Otherwise,
+    return an empty dictionary (i.e. there are no subsections).
+
+    This is useful for specifying multiple API keys for your configuration.
+    For example:
+    ```
+      [parameters.alice]
+      api_key=KKKKK1
+      api_url=UUUUU1
+      [parameters.bob]
+      api_key=KKKKK2
+      api_url=UUUUU2
+      [parameters.eve]
+      api_key=KKKKK3
+      api_url=UUUUU3
+    ```
+    """
+    return [(name, params) for name, params in config['parameters'].items()
+            if isinstance(params, dict)] or [('default', {})]
+
+
+def prepare_partitions(config: Config, store: t.Optional[Store] = None) -> t.Iterator[Partition]:
+    """Iterate over client parameters, partitioning over `partition_keys`.
+
+    First, this produces a Cartesian-Cross over the range of keys.
+    For example, if the keys were 'year' and 'month', it would produce
+    an iterable like: ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
+
+    If the `parameters` section contains subsections (e.g. '[parameters.1]',
+    '[parameters.2]'), collect a repeating cycle of the subsection key-value
+    pairs. Otherwise, store empty dictionaries.
+
+    This is useful for specifying multiple API keys for your configuration.
+
+    For example:
+    ```
+      [parameters.alice]
+      api_key=KKKKK1
+      api_url=UUUUU1
+      [parameters.bob]
+      api_key=KKKKK2
+      api_url=UUUUU2
+      [parameters.eve]
+      api_key=KKKKK3
+      api_url=UUUUU3
+    ```
+    """
     if store is None:
         store = FSStore()
-    partition_keys = config['parameters']['partition_keys']
+    partition_keys = config.get('parameters', {}).get('partition_keys', [])
     selection = config.get('selection', {})
 
-    # Produce a Cartesian-Cross over the range of keys.
-    # For example, if the keys were 'year' and 'month', it would produce
-    # an iterable like: ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
     fan_out = itertools.product(*[selection[key] for key in partition_keys])
 
-    # If the `parameters` section contains subsections (e.g. '[parameters.1]',
-    # '[parameters.2]'), collect a repeating cycle of the subsection key-value
-    # pairs. Otherwise, store empty dictionaries.
-    #
-    # This is useful for specifying multiple API keys for your configuration.
-    # For example:
-    # ```
-    #   [parameters.deepmind]
-    #   api_key=KKKKK1
-    #   api_url=UUUUU1
-    #   [parameters.research]
-    #   api_key=KKKKK2
-    #   api_url=UUUUU2
-    #   [parameters.cloud]
-    #   api_key=KKKKK3
-    #   api_url=UUUUU3
-    # ```
-    extra_params = [params for _, params in config['parameters'].items() if isinstance(params, dict)]
-    params_loop = itertools.cycle(extra_params) if extra_params else itertools.repeat({})
+    params_loop = itertools.cycle(get_subsections(config))
 
-    def new_downloads_only(candidate: t.Dict) -> bool:
-        """Predicate function to skip already downloaded partitions."""
-        return not skip_partition(candidate, store)
-
-    return zip(
-        filter(new_downloads_only, [_create_partition_config(option, config) for option in fan_out]),
-        params_loop
+    partition_configs = filter(
+        lambda it: new_downloads_only(it, store),
+        (_create_partition_config(option, config) for option in fan_out)
     )
 
+    yield from ((*name_and_params, config) for name_and_params, config in zip(params_loop, partition_configs))
 
-def assemble_partition_config(partition: t.Tuple,
-                              config: t.Dict,
-                              manifest: Manifest) -> t.Dict:
-    """Assemble the configuration for a single partition."""
-    # For each of these 'selection' sections, the output dictionary will
-    # overwrite parameters from the extra param subsections (above),
-    # evenly cycling through each subsection.
-    # For example:
-    #   { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
-    #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
-    #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
-    #   { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
-    #   { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
-    #   { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
-    #   ...
-    out, params = partition
+
+def new_downloads_only(candidate: t.Dict, store: t.Optional[Store] = None) -> bool:
+    """Predicate function to skip already downloaded partitions."""
+    if store is None:
+        store = FSStore()
+    should_skip = skip_partition(candidate, store)
+    if should_skip:
+        beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
+    return not should_skip
+
+
+def assemble_config(partition: Partition, manifest: Manifest) -> Config:
+    """Assemble the configuration for a single partition.
+
+    For each cross product of the 'selection' sections, the output dictionary
+    will overwrite parameters from the extra param subsections, evenly cycling
+    through each subsection.
+
+    For example:
+      { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
+      { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
+      { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
+      { 'parameters': {... 'api_key': KKKKK1, ... }, ... }
+      { 'parameters': {... 'api_key': KKKKK2, ... }, ... }
+      { 'parameters': {... 'api_key': KKKKK3, ... }, ... }
+      ...
+    """
+    name, params, out = partition
     out['parameters'].update(params)
+    out['parameters']['__subsection__'] = name
 
     location = prepare_target_name(out)
     user = out['parameters'].get('user_id', 'unknown')
     manifest.schedule(out['selection'], location, user)
 
-    logger.info(f'Created partition {location!r}.')
+    logger.info(f'[{name}] Created partition {location!r}.')
+    beam.metrics.Metrics.counter('Subsection', name).inc()
+
     return out
-
-
-@retry_with_exponential_backoff
-def upload(store: Store, src: io.FileIO, dest: str) -> None:
-    """Upload blob to cloud storage."""
-    with store.open(dest, 'wb') as dest_:
-        shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
-
-
-def fetch_data(config: t.Dict,
-               *,
-               client_name: str,
-               manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
-               store: t.Optional[Store] = None) -> None:
-    """Download data from a client to a temp file, then upload to Google Cloud Storage."""
-    if not config:
-        return
-
-    if store is None:
-        store = FSStore()
-
-    client = CLIENTS[client_name](config)
-    target = prepare_target_name(config)
-    dataset = config['parameters'].get('dataset', '')
-    selection = config['selection']
-    user = config['parameters'].get('user_id', 'unknown')
-
-    with manifest.transact(selection, target, user):
-        with tempfile.NamedTemporaryFile() as temp:
-            logger.info(f'Fetching data for {target!r}.')
-            client.retrieve(dataset, selection, temp.name)
-
-            logger.info(f'Uploading to store for {target!r}.')
-            upload(store, temp, target)
-
-            logger.info(f'Upload to store complete for {target!r}.')
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -311,16 +299,24 @@ def run(argv: t.List[str], save_main_session: bool = True):
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
 
-    pipeline_options = configure_workers(client_name, config, known_args.num_requests_per_key, pipeline_options)
+    num_requesters_per_key = known_args.num_requests_per_key
+    if num_requesters_per_key == -1:
+        num_requesters_per_key = CLIENTS[client_name](config).num_requests_per_key(
+            config.get('parameters', {}).get('dataset', "")
+        )
+
+    request_idxs = {name: itertools.cycle(range(num_requesters_per_key)) for name, _ in get_subsections(config)}
+
+    def subsection_and_request(it: Config) -> t.Tuple[str, int]:
+        subsection = t.cast(str, it.get('parameters', {}).get('__subsection__', 'default'))
+        return subsection, next(request_idxs[subsection])
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
                 | 'Create' >> beam.Create([config])
                 | 'Prepare' >> beam.FlatMap(prepare_partitions, store=store)
-                # Shuffling here prevents beam from fusing all steps,
-                # which would result in utilizing only a single worker.
-                | 'Shuffle' >> beam.Reshuffle()
-                | 'Partition' >> beam.Map(assemble_partition_config, config=config, manifest=manifest)
-                | 'FetchData' >> beam.Map(fetch_data, client_name=client_name, manifest=manifest, store=store)
+                | 'Assemble' >> beam.Map(assemble_config, manifest=manifest)
+                | 'GroupBy' >> beam.GroupBy(subsection_and_request)
+                | 'FetchData' >> beam.ParDo(Fetcher(client_name, manifest, store))
         )

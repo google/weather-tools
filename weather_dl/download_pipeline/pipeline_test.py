@@ -11,27 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import io
-import socket
-import tempfile
 import typing as t
 import unittest
 from collections import OrderedDict
-from unittest.mock import patch, ANY, MagicMock
+from unittest.mock import MagicMock
 
 from apache_beam.options.pipeline_options import PipelineOptions
 
 from .manifest import MockManifest, Location
 from .pipeline import (
-    assemble_partition_config,
+    assemble_config,
     configure_workers,
-    fetch_data,
     prepare_partitions,
-    prepare_target_name,
     skip_partition,
-    upload,
 )
-from .stores import InMemoryStore, Store, FSStore
+from .stores import InMemoryStore, Store
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -172,7 +166,7 @@ class PreparePartitionTest(unittest.TestCase):
     def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
         partition_list = prepare_partitions(config, store=store)
         return [
-            assemble_partition_config(p, config, manifest=self.dummy_manifest)
+            assemble_config(p, manifest=self.dummy_manifest)
             for p in partition_list
         ]
 
@@ -245,24 +239,26 @@ class PreparePartitionTest(unittest.TestCase):
 
         actual = self.create_partition_configs(config)
 
-        self.assertListEqual(actual, [
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
-                                       api_url='UUUU1'),
+        expected = [
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1',
+                                       __subsection__='research'),
              'selection': {**config['selection'],
                            **{'year': ['2015'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2',
-                                       api_url='UUUU2'),
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2', api_url='UUUU2',
+                                       __subsection__='cloud'),
              'selection': {**config['selection'],
                            **{'year': ['2015'], 'month': ['2']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3',
-                                       api_url='UUUU3'),
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3', api_url='UUUU3',
+                                       __subsection__='deepmind'),
              'selection': {**config['selection'],
                            **{'year': ['2016'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1',
-                                       api_url='UUUU1'),
+            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1',
+                                       __subsection__='research'),
              'selection': {**config['selection'],
                            **{'year': ['2016'], 'month': ['2']}}},
-        ])
+        ]
+
+        self.assertListEqual(actual, expected)
 
     def test_prepare_partition_records_download_status_to_manifest(self):
         config = {
@@ -316,189 +312,6 @@ class PreparePartitionTest(unittest.TestCase):
         cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
 
         self.assertEqual(len(research_configs), len(cloud_configs))
-
-
-class UploadTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.message = b'the quick brown fox jumped over the lazy dog'.split()
-        self.store = FSStore()
-
-    def test_upload_writes_to_store(self):
-        with tempfile.NamedTemporaryFile() as src:
-            src.writelines(self.message)
-            src.flush()
-            src.seek(0)
-            with tempfile.NamedTemporaryFile('wb') as dst:
-                upload(self.store, src, dst.name)
-                with open(dst.name, 'rb') as dst1:
-                    self.assertEqual(dst1.readlines()[0], b''.join(self.message))
-
-    def test_retries_after_socket_timeout_error(self):
-        class SocketTimeoutStore(InMemoryStore):
-            count = 0
-
-            def open(self, filename: str, mode: str = 'r') -> t.IO:
-                self.count += 1
-                raise socket.timeout('Deliberate error.')
-
-        socket_store = SocketTimeoutStore()
-
-        with tempfile.NamedTemporaryFile() as src:
-            src.writelines(self.message)
-            src.flush()
-            with tempfile.NamedTemporaryFile('wb') as dst:
-                with self.assertRaises(socket.timeout):
-                    upload(socket_store, src, dst.name)
-        self.assertEqual(socket_store.count, 8)
-
-
-class FetchDataTest(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data(self, mock_retrieve, mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
-            }
-        }
-
-        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
-                   store=InMemoryStore())
-
-        mock_gcs_file.assert_called_with(
-            'gs://weather-dl-unittest/download-01-12.nc',
-            'wb'
-        )
-
-        mock_retrieve.assert_called_with(
-            'reanalysis-era5-pressure-levels',
-            config['selection'],
-            ANY)
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
-            }
-        }
-
-        fetch_data(config, client_name='cds', manifest=self.dummy_manifest,
-                   store=InMemoryStore())
-
-        self.assertDictContainsSubset(dict(
-            selection=config['selection'],
-            location='gs://weather-dl-unittest/download-01-12.nc',
-            status='success',
-            error=None,
-            user='unknown',
-        ), list(self.dummy_manifest.records.values())[0]._asdict())
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve,
-                                                            mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
-            }
-        }
-
-        error = IOError("We don't have enough permissions to download this.")
-        mock_retrieve.side_effect = error
-
-        with self.assertRaises(IOError) as e:
-            fetch_data(
-                config,
-                client_name='cds',
-                manifest=self.dummy_manifest,
-                store=InMemoryStore()
-            )
-
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
-
-            self.assertDictContainsSubset(dict(
-                selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
-                user='unknown',
-            ), actual)
-
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
-
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
-    @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve,
-                                                       mock_gcs_file):
-        config = {
-            'parameters': {
-                'dataset': 'reanalysis-era5-pressure-levels',
-                'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
-                'api_url': 'https//api-url.com/v1/',
-                'api_key': '12345',
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['01']
-            }
-        }
-
-        error = IOError("Can't open gcs file.")
-        mock_gcs_file.side_effect = error
-
-        with self.assertRaises(IOError) as e:
-            fetch_data(
-                config,
-                client_name='cds',
-                manifest=self.dummy_manifest,
-                store=InMemoryStore()
-            )
-
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
-            self.assertDictContainsSubset(dict(
-                selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
-                user='unknown',
-            ), actual)
-
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
 
 
 class SkipPartitionsTest(unittest.TestCase):
@@ -560,113 +373,6 @@ class SkipPartitionsTest(unittest.TestCase):
         actual = skip_partition(config, self.mock_store)
 
         self.assertEqual(actual, True)
-
-
-class PrepareTargetNameTest(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
-
-    def test_target_name_no_date(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year', 'month'],
-                'target_path': 'download-{}-{}.nc',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['02']
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "download-02-12.nc")
-
-    def test_target_name_date_no_target_directory(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['date'],
-                'target_path': 'download-{}.nc',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'date': ['2017-01-15'],
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "download-2017-01-15.nc")
-
-    def test_target_name_target_directory_no_date(self):
-        config = {
-            'parameters': {
-                'target_path': 'somewhere/',
-                'partition_keys': ['year', 'month'],
-                'target_filename': 'download/{}/{}.nc',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['02']
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "somewhere/download/02/12.nc")
-
-    def test_target_name_date_and_target_directory(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['date'],
-                'target_path': 'somewhere',
-                'target_filename': '-download.nc',
-                'append_date_dirs': 'true',
-                'force_download': False
-            },
-            'selection': {
-                'date': ['2017-01-15'],
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "somewhere/2017/01/15-download.nc")
-
-    def test_target_name_date_and_target_directory_additional_partitions(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['date', 'pressure_level'],
-                'target_path': 'somewhere',
-                'target_filename': '-pressure-{}.nc',
-                'append_date_dirs': 'true',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'pressure_level': ['500'],
-                'date': ['2017-01-15'],
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "somewhere/2017/01/15-pressure-500.nc")
-
-    def test_target_name_date_and_target_directory_additional_partitions_in_path(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['date', 'expver', 'pressure_level'],
-                'target_path': 'somewhere/expver-{}',
-                'target_filename': '-pressure-{}.nc',
-                'append_date_dirs': 'true',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'pressure_level': ['500'],
-                'date': ['2017-01-15'],
-                'expver': ['1'],
-            }
-        }
-        target_name = prepare_target_name(config)
-        self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
 
 
 if __name__ == '__main__':

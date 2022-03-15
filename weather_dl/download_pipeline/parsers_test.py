@@ -16,7 +16,15 @@ import datetime
 import io
 import unittest
 
-from .parsers import date, parse_config, process_config, _number_of_replacements, parse_subsections
+from .manifest import MockManifest, Location
+from .parsers import (
+    date,
+    parse_config,
+    process_config,
+    _number_of_replacements,
+    parse_subsections,
+    prepare_target_name,
+)
 
 
 class DateTest(unittest.TestCase):
@@ -815,6 +823,113 @@ class ProcessConfigTest(unittest.TestCase):
         self.assertIn(
             "Invalid 'client' parameter.",
             ctx.exception.args[0])
+
+
+class PrepareTargetNameTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
+
+    def test_target_name_no_date(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year', 'month'],
+                'target_path': 'download-{}-{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'month': ['12'],
+                'year': ['02']
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "download-02-12.nc")
+
+    def test_target_name_date_no_target_directory(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date'],
+                'target_path': 'download-{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "download-2017-01-15.nc")
+
+    def test_target_name_target_directory_no_date(self):
+        config = {
+            'parameters': {
+                'target_path': 'somewhere/',
+                'partition_keys': ['year', 'month'],
+                'target_filename': 'download/{}/{}.nc',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'month': ['12'],
+                'year': ['02']
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/download/02/12.nc")
+
+    def test_target_name_date_and_target_directory(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date'],
+                'target_path': 'somewhere',
+                'target_filename': '-download.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/2017/01/15-download.nc")
+
+    def test_target_name_date_and_target_directory_additional_partitions(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date', 'pressure_level'],
+                'target_path': 'somewhere',
+                'target_filename': '-pressure-{}.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+                'date': ['2017-01-15'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/2017/01/15-pressure-500.nc")
+
+    def test_target_name_date_and_target_directory_additional_partitions_in_path(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['date', 'expver', 'pressure_level'],
+                'target_path': 'somewhere/expver-{}',
+                'target_filename': '-pressure-{}.nc',
+                'append_date_dirs': 'true',
+                'force_download': False
+            },
+            'selection': {
+                'features': ['pressure'],
+                'pressure_level': ['500'],
+                'date': ['2017-01-15'],
+                'expver': ['1'],
+            }
+        }
+        target_name = prepare_target_name(config)
+        self.assertEqual(target_name, "somewhere/expver-1/2017/01/15-pressure-500.nc")
 
 
 if __name__ == '__main__':
