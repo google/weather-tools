@@ -19,14 +19,11 @@ import itertools
 import logging
 import os
 import typing as t
-import warnings
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import (
-    DebugOptions,
     PipelineOptions,
     SetupOptions,
-    WorkerOptions,
     StandardOptions,
 )
 
@@ -51,44 +48,6 @@ def configure_logger(verbosity: int) -> None:
     level = 40 - verbosity * 10
     logging.getLogger(__package__).setLevel(level)
     logger.setLevel(level)
-
-
-def configure_workers(client_name: str,
-                      config: t.Dict,
-                      num_requesters_per_key: int,
-                      pipeline_options: PipelineOptions) -> PipelineOptions:
-    """Configure the number of workers and threads for the pipeline, allowing for user control."""
-
-    # The number of workers should always be proportional to the number of licenses.
-    num_api_keys = config.get('parameters', {}).get('num_api_keys', 1)
-
-    # If user doesn't specify a number of requestors, make educated guess based on clients and dataset.
-    if num_requesters_per_key == -1:
-        num_requesters_per_key = CLIENTS[client_name](config).num_requests_per_key(
-            config.get('parameters', {}).get('dataset', "")
-        )
-
-    max_num_requesters = num_requesters_per_key * num_api_keys
-
-    # Default: Assume user intends to have two threads per worker.
-    if pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads is None:
-        pipeline_options.view_as(DebugOptions).add_experiment('use_runner_v2')
-        pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads = 2
-
-    n_threads = pipeline_options.view_as(DebugOptions).number_of_worker_harness_threads
-    max_num_workers_with_n_threads = max_num_requesters // n_threads + int(max_num_requesters % n_threads > 0)
-
-    if pipeline_options.view_as(WorkerOptions).max_num_workers is None:
-        pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers_with_n_threads
-        pipeline_options.view_as(WorkerOptions).num_workers = max_num_workers_with_n_threads
-
-    if pipeline_options.view_as(WorkerOptions).max_num_workers > max_num_workers_with_n_threads:
-        warnings.warn(
-            f'Max number of workers {pipeline_options.view_as(WorkerOptions).max_num_workers!r} with '
-            f'{n_threads!r} threads each exceeds recommended {max_num_requesters!r} concurrent requests.'
-        )
-
-    return pipeline_options
 
 
 def _create_partition_config(option: t.Tuple, config: Config) -> t.Dict:
