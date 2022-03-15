@@ -59,7 +59,7 @@ class Fetcher(beam.DoFn):
         with self.store.open(dest, 'wb') as dest_:
             shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
 
-    def fetch_data(self, config: t.Dict) -> None:
+    def fetch_data(self, config: t.Dict, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
         if not config:
             return
@@ -72,13 +72,13 @@ class Fetcher(beam.DoFn):
 
         with self.manifest.transact(selection, target, user):
             with tempfile.NamedTemporaryFile() as temp:
-                logger.info(f'Fetching data for {target!r}.')
+                logger.info(f'[{worker_name}] Fetching data for {target!r}.')
                 client.retrieve(dataset, selection, temp.name)
 
-                logger.info(f'Uploading to store for {target!r}.')
+                logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
                 self.upload(temp, target)
 
-                logger.info(f'Upload to store complete for {target!r}.')
+                logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
 
     def process(self, element) -> None:
         # element: Tuple[Tuple[str, int], Iterator[Config]]
@@ -89,5 +89,5 @@ class Fetcher(beam.DoFn):
         logger.info(f"[{worker_name}] Starting requests...")
 
         for partition in partitions:
-            self.fetch_data(partition)
             beam.metrics.Metrics.counter('Fetcher', worker_name).inc()
+            self.fetch_data(partition, worker_name=worker_name)
