@@ -152,17 +152,17 @@ class FetchDataTest(unittest.TestCase):
             fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
             fetcher.fetch_data(config)
 
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
+        actual = list(self.dummy_manifest.records.values())[0]._asdict()
 
-            self.assertDictContainsSubset(dict(
-                selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
-                user='unknown',
-            ), actual)
+        self.assertDictContainsSubset(dict(
+            selection=config['selection'],
+            location='gs://weather-dl-unittest/download-01-12.nc',
+            status='failure',
+            user='unknown',
+        ), actual)
 
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
+        self.assertIn(error.args[0], actual['error'])
+        self.assertIn(error.args[0], e.exception.args[0])
 
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
@@ -190,13 +190,13 @@ class FetchDataTest(unittest.TestCase):
             fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
             fetcher.fetch_data(config)
 
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
-            self.assertDictContainsSubset(dict(
-                selection=config['selection'],
-                location='gs://weather-dl-unittest/download-01-12.nc',
-                status='failure',
-                user='unknown',
-            ), actual)
+        actual = list(self.dummy_manifest.records.values())[0]._asdict()
+        self.assertDictContainsSubset(dict(
+            selection=config['selection'],
+            location='gs://weather-dl-unittest/download-01-12.nc',
+            status='failure',
+            user='unknown',
+        ), actual)
 
-            self.assertIn(error.args[0], actual['error'])
-            self.assertIn(error.args[0], e.exception.args[0])
+        self.assertIn(error.args[0], actual['error'])
+        self.assertIn(error.args[0], e.exception.args[0])
