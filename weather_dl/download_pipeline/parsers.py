@@ -16,6 +16,7 @@
 import configparser
 import copy as cp
 import datetime
+import os
 import io
 import json
 import string
@@ -349,15 +350,19 @@ def process_config(file: io.StringIO) -> Config:
 
 def prepare_target_name(config: t.Dict) -> str:
     """Returns name of target location."""
-    target_path = config['parameters']['target_path']
-    target_filename = config['parameters'].get('target_filename', '')
-    partition_keys = config['parameters']['partition_keys'].copy()
+    parameters = config['parameters']
+
+    target_path = parameters.get('target_path', '')
+    target_filename = parameters.get('target_filename', '')
+    partition_keys = parameters.get('partition_keys', list())
+
     if use_date_as_directory(config):
-        target_path = "{}/{}".format(
-            target_path,
-            ''.join(['/'.join(date_value for date_value in config['selection']['date'][0].split('-'))]))
+        date_vals = config['selection']['date'][0].split('-')
+        target_path = os.path.join(target_path, *date_vals)
         partition_keys.remove('date')
-    target_path = "{}{}".format(target_path, target_filename)
+
+    target_path += target_filename
+
     partition_key_values = [config['selection'][key][0] for key in partition_keys]
     target = target_path.format(*partition_key_values)
 
