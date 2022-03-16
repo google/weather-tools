@@ -50,7 +50,7 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def _create_partition_config(option: t.Tuple, config: Config) -> t.Dict:
+def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     """Create a config for a single partition option.
 
     Output a config dictionary, overriding the range of values for
@@ -79,7 +79,7 @@ def _create_partition_config(option: t.Tuple, config: Config) -> t.Dict:
     return out
 
 
-def skip_partition(config: t.Dict, store: Store) -> bool:
+def skip_partition(config: Config, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
     if config['parameters'].get('force_download', False):
@@ -118,50 +118,23 @@ def get_subsections(config: t.Dict) -> t.List[t.Tuple[str, t.Dict]]:
             if isinstance(params, dict)] or [('default', {})]
 
 
-def prepare_partitions(config: Config, store: t.Optional[Store] = None) -> t.Iterator[Partition]:
+def prepare_partitions(config: Config) -> t.Iterator[Config]:
     """Iterate over client parameters, partitioning over `partition_keys`.
 
-    First, this produces a Cartesian-Cross over the range of keys.
+    This produces a Cartesian-Cross over the range of keys.
+
     For example, if the keys were 'year' and 'month', it would produce
-    an iterable like: ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
-
-    If the `parameters` section contains subsections (e.g. '[parameters.1]',
-    '[parameters.2]'), collect a repeating cycle of the subsection key-value
-    pairs. Otherwise, store empty dictionaries.
-
-    This is useful for specifying multiple API keys for your configuration.
-
-    For example:
-    ```
-      [parameters.alice]
-      api_key=KKKKK1
-      api_url=UUUUU1
-      [parameters.bob]
-      api_key=KKKKK2
-      api_url=UUUUU2
-      [parameters.eve]
-      api_key=KKKKK3
-      api_url=UUUUU3
-    ```
+    an iterable like:
+        ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
     """
-    if store is None:
-        store = FSStore()
     partition_keys = config.get('parameters', {}).get('partition_keys', [])
     selection = config.get('selection', {})
 
-    fan_out = itertools.product(*[selection[key] for key in partition_keys])
-
-    params_loop = itertools.cycle(get_subsections(config))
-
-    partition_configs = filter(
-        lambda it: new_downloads_only(it, store),
-        (_create_partition_config(option, config) for option in fan_out)
-    )
-
-    yield from ((*name_and_params, config) for name_and_params, config in zip(params_loop, partition_configs))
+    for option in itertools.product(*[selection[key] for key in partition_keys]):
+        yield _create_partition_config(option, config)
 
 
-def new_downloads_only(candidate: t.Dict, store: t.Optional[Store] = None) -> bool:
+def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
     """Predicate function to skip already downloaded partitions."""
     if store is None:
         store = FSStore()
@@ -245,6 +218,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     store = None  # will default to using FileSystems()
     config['parameters']['force_download'] = known_args.force_download
     manifest = parse_manifest_location(known_args.manifest_location, pipeline_options.get_all_options())
+    subsections = get_subsections(config)
 
     if known_args.dry_run:
         client_name = 'fake'
@@ -264,18 +238,49 @@ def run(argv: t.List[str], save_main_session: bool = True):
             config.get('parameters', {}).get('dataset', "")
         )
 
-    request_idxs = {name: itertools.cycle(range(num_requesters_per_key)) for name, _ in get_subsections(config)}
+    logger.info(f"Using '{num_requesters_per_key}' requests per license (subsection).")
+
+    request_idxs = {name: itertools.cycle(range(num_requesters_per_key)) for name, _ in subsections}
 
     def subsection_and_request(it: Config) -> t.Tuple[str, int]:
         subsection = t.cast(str, it.get('parameters', {}).get('__subsection__', 'default'))
         return subsection, next(request_idxs[subsection])
 
+    subsections_cycle = itertools.cycle(subsections)
+
+    def loop_through_subsections(it: Config) -> Partition:
+        """Assign a subsection to each config in a loop.
+
+        If the `parameters` section contains subsections (e.g. '[parameters.1]',
+        '[parameters.2]'), collect a repeating cycle of the subsection key-value
+        pairs. Otherwise, assign a default section to each config.
+
+        This is useful for specifying multiple API keys for your configuration.
+
+        For example:
+        ```
+          [parameters.alice]
+          api_key=KKKKK1
+          api_url=UUUUU1
+          [parameters.bob]
+          api_key=KKKKK2
+          api_url=UUUUU2
+          [parameters.eve]
+          api_key=KKKKK3
+          api_url=UUUUU3
+        ```
+        """
+        name, params = next(subsections_cycle)
+        return name, params, it
+
     with beam.Pipeline(options=pipeline_options) as p:
         (
                 p
-                | 'Create' >> beam.Create([config])
-                | 'Prepare' >> beam.FlatMap(prepare_partitions, store=store)
-                | 'Assemble' >> beam.Map(assemble_config, manifest=manifest)
-                | 'GroupBy' >> beam.GroupBy(subsection_and_request)
-                | 'FetchData' >> beam.ParDo(Fetcher(client_name, manifest, store))
+                | 'Create the initial config' >> beam.Create([config])
+                | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
+                | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=store)
+                | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
+                | 'Assemble the data request' >> beam.Map(assemble_config, manifest=manifest)
+                | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
+                | 'Fetch data' >> beam.ParDo(Fetcher(client_name, manifest, store))
         )

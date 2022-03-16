@@ -348,13 +348,13 @@ def process_config(file: io.StringIO) -> Config:
     return config
 
 
-def prepare_target_name(config: t.Dict) -> str:
+def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
     parameters = config['parameters']
 
-    target_path = parameters.get('target_path', '')
-    target_filename = parameters.get('target_filename', '')
-    partition_keys = parameters.get('partition_keys', list())
+    target_path = t.cast(str, parameters.get('target_path', ''))
+    target_filename = t.cast(str, parameters.get('target_filename', ''))
+    partition_keys = t.cast(t.List[str], parameters.get('partition_keys', list()))
 
     if use_date_as_directory(config):
         date_vals = config['selection']['date'][0].split('-')

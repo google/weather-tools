@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import typing as t
 import unittest
 from collections import OrderedDict
@@ -19,6 +20,8 @@ from unittest.mock import MagicMock
 from .manifest import MockManifest, Location
 from .pipeline import (
     assemble_config,
+    get_subsections,
+    new_downloads_only,
     prepare_partitions,
     skip_partition,
 )
@@ -42,10 +45,17 @@ class PreparePartitionTest(unittest.TestCase):
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
-        partition_list = prepare_partitions(config, store=store)
+        subsections = get_subsections(config)
+        params_cycle = itertools.cycle(subsections)
+
+        def loop_through_subsection(it):
+            name, section = next(params_cycle)
+            return name, section, it
+
         return [
-            assemble_config(p, manifest=self.dummy_manifest)
-            for p in partition_list
+            assemble_config(loop_through_subsection(p), manifest=self.dummy_manifest)
+            for p in prepare_partitions(config)
+            if new_downloads_only(p, store=store)
         ]
 
     def test_partition_single_key(self):
