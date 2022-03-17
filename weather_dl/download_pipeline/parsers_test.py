@@ -16,7 +16,15 @@ import datetime
 import io
 import unittest
 
-from .parsers import date, parse_config, process_config, _number_of_replacements, parse_subsections
+from .manifest import MockManifest, Location
+from .parsers import (
+    date,
+    parse_config,
+    process_config,
+    _number_of_replacements,
+    parse_subsections,
+    prepare_target_name,
+)
 
 
 class DateTest(unittest.TestCase):
@@ -474,12 +482,12 @@ class ProcessConfigTest(unittest.TestCase):
     def test_requires_target_template_param_not_present(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_template=bar
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_template=bar
+                    """
             ) as f:
                 process_config(f)
 
@@ -675,18 +683,18 @@ class ProcessConfigTest(unittest.TestCase):
     def test_date_as_directory_key_mismatch(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=somewhere/
-                target_filename=bar-{}
-                append_date_dirs=true
-                partition_keys=
-                    date
-                [selection]
-                date=2017-01-01/to/2017-01-01
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=somewhere/
+                    target_filename=bar-{}
+                    append_date_dirs=true
+                    partition_keys=
+                        date
+                    [selection]
+                    date=2017-01-01/to/2017-01-01
+                    """
             ) as f:
                 process_config(f)
 
@@ -697,17 +705,17 @@ class ProcessConfigTest(unittest.TestCase):
     def test_append_date_dirs_without_filename(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=somewhere/
-                append_date_dirs=true
-                partition_keys=
-                    date
-                [selection]
-                date=2017-01-01/to/2017-01-01
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=somewhere/
+                    append_date_dirs=true
+                    partition_keys=
+                        date
+                    [selection]
+                    date=2017-01-01/to/2017-01-01
+                    """
             ) as f:
                 process_config(f)
 
@@ -718,18 +726,18 @@ class ProcessConfigTest(unittest.TestCase):
     def test_append_date_dirs_without_date_partition(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=somewhere/
-                target_filename=bar
-                append_date_dirs=true
-                partition_keys=
-                    pressure
-                [selection]
-                pressure=500
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=somewhere/
+                    target_filename=bar
+                    append_date_dirs=true
+                    partition_keys=
+                        pressure
+                    [selection]
+                    pressure=500
+                    """
             ) as f:
                 process_config(f)
 
@@ -740,16 +748,16 @@ class ProcessConfigTest(unittest.TestCase):
     def test_append_date_dirs_without_partition_keys(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=somewhere/
-                target_filename=bar
-                append_date_dirs=true
-                [selection]
-                pressure=500
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=somewhere/
+                    target_filename=bar
+                    append_date_dirs=true
+                    [selection]
+                    pressure=500
+                    """
             ) as f:
                 process_config(f)
 
@@ -759,18 +767,18 @@ class ProcessConfigTest(unittest.TestCase):
 
     def test_date_as_directory_target_directory_ends_in_slash(self):
         with io.StringIO(
-            """
-            [parameters]
-            dataset=foo
-            client=cds
-            target_path=somewhere/
-            target_filename=bar
-            append_date_dirs=true
-            partition_keys=
-                date
-            [selection]
-            date=2017-01-01/to/2017-01-01
-            """
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=somewhere/
+                target_filename=bar
+                append_date_dirs=true
+                partition_keys=
+                    date
+                [selection]
+                date=2017-01-01/to/2017-01-01
+                """
         ) as f:
             config = process_config(f)
             self.assertEqual(config['parameters']['target_path'], "somewhere")
@@ -778,16 +786,16 @@ class ProcessConfigTest(unittest.TestCase):
     def test_client_not_set(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                target_path=bar-{}
-                partition_keys=
-                    year
-                [selection]
-                year=
-                    1969
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    target_path=bar-{}
+                    partition_keys=
+                        year
+                    [selection]
+                    year=
+                        1969
+                    """
             ) as f:
                 process_config(f)
 
@@ -798,23 +806,127 @@ class ProcessConfigTest(unittest.TestCase):
     def test_client_invalid(self):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=nope
-                target_path=bar-{}
-                partition_keys=
-                    year
-                [selection]
-                year=
-                    1969
-                """
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=nope
+                    target_path=bar-{}
+                    partition_keys=
+                        year
+                    [selection]
+                    year=
+                        1969
+                    """
             ) as f:
                 process_config(f)
 
         self.assertIn(
             "Invalid 'client' parameter.",
             ctx.exception.args[0])
+
+
+class PrepareTargetNameTest(unittest.TestCase):
+    TEST_CASES = [
+        dict(case='No date.',
+             config={
+                 'parameters': {
+                     'partition_keys': ['year', 'month'],
+                     'target_path': 'download-{}-{}.nc',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'month': ['12'],
+                     'year': ['02']
+                 }
+             },
+             expected='download-02-12.nc'),
+        dict(case='Has date but no target directory.',
+             config={
+                 'parameters': {
+                     'partition_keys': ['date'],
+                     'target_path': 'download-{}.nc',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'date': ['2017-01-15'],
+                 }
+             },
+             expected='download-2017-01-15.nc'),
+        dict(case='Has Directory, but no date',
+             config={
+                 'parameters': {
+                     'target_path': 'somewhere/',
+                     'partition_keys': ['year', 'month'],
+                     'target_filename': 'download/{}/{}.nc',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'month': ['12'],
+                     'year': ['02']
+                 }
+             },
+             expected='somewhere/download/02/12.nc'),
+        dict(case='Had date and target directory',
+             config={
+                 'parameters': {
+                     'partition_keys': ['date'],
+                     'target_path': 'somewhere',
+                     'target_filename': '-download.nc',
+                     'append_date_dirs': 'true',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'date': ['2017-01-15'],
+                 }
+             },
+             expected='somewhere/2017/01/15-download.nc'),
+        dict(case='Had date, target directory, and additional params.',
+             config={
+                 'parameters': {
+                     'partition_keys': ['date', 'pressure_level'],
+                     'target_path': 'somewhere',
+                     'target_filename': '-pressure-{}.nc',
+                     'append_date_dirs': 'true',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'pressure_level': ['500'],
+                     'date': ['2017-01-15'],
+                 }
+             },
+             expected='somewhere/2017/01/15-pressure-500.nc'),
+        dict(case='Has date and target directory, including parameters in path.',
+             config={
+                 'parameters': {
+                     'partition_keys': ['date', 'expver', 'pressure_level'],
+                     'target_path': 'somewhere/expver-{}',
+                     'target_filename': '-pressure-{}.nc',
+                     'append_date_dirs': 'true',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'pressure_level': ['500'],
+                     'date': ['2017-01-15'],
+                     'expver': ['1'],
+                 }
+             },
+             expected='somewhere/expver-1/2017/01/15-pressure-500.nc'),
+
+    ]
+
+    def setUp(self) -> None:
+        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
+
+    def test_target_name(self):
+        for it in self.TEST_CASES:
+            with self.subTest(msg=it['case'], **it):
+                actual = prepare_target_name(it['config'])
+                self.assertEqual(actual, it['expected'])
 
 
 if __name__ == '__main__':
