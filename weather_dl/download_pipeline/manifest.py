@@ -15,6 +15,7 @@
 
 import abc
 import collections
+import dataclasses
 import json
 import logging
 import os
@@ -32,6 +33,8 @@ from google.cloud.firestore_v1.types import WriteResult
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
+
+logger = logging.getLogger(__name__)
 
 
 class ManifestException(Exception):
@@ -67,6 +70,7 @@ class DownloadStatus(t.NamedTuple):
     download_duration: t.Optional[int]
 
 
+@dataclasses.dataclass
 class Manifest(abc.ABC):
     """Abstract manifest of download statuses.
 
@@ -98,15 +102,15 @@ class Manifest(abc.ABC):
 
     Attributes:
         location: An implementation-specific manifest URI.
+        status: The current `DownloadStatus` of the Manifest.
     """
 
-    def __init__(self, location: Location) -> None:
+    location: Location
+    status: t.Optional[DownloadStatus] = None
+
+    def __post_init__(self):
         """Initialize the manifest."""
-        self.location = location
         self.start = 0
-        self.status = None
-        self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
-        self.logger.setLevel(logging.INFO)
         self.scheduled_times = {}
 
     def schedule(self, selection: t.Dict, location: str, user: str) -> None:
@@ -197,8 +201,8 @@ class GCSManifest(Manifest):
         with GCSManifest._lock:
             with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
                 json.dump(download_status._asdict(), gcs_file)
-        self.logger.debug('Manifest written to.')
-        self.logger.debug(download_status)
+        logger.debug('Manifest written to.')
+        logger.debug(download_status)
 
 
 class LocalManifest(Manifest):
@@ -228,8 +232,8 @@ class LocalManifest(Manifest):
 
             with open(self.location, 'w') as file:
                 json.dump(manifest, file)
-                self.logger.debug('Manifest written to.')
-                self.logger.debug(download_status)
+                logger.debug('Manifest written to.')
+                logger.debug(download_status)
 
 
 class MockManifest(Manifest):
@@ -241,8 +245,8 @@ class MockManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         self.records.update({download_status.location: download_status})
-        self.logger.debug('Manifest updated.')
-        self.logger.debug(download_status)
+        logger.debug('Manifest updated.')
+        logger.debug(download_status)
 
 
 class NoOpManifest(Manifest):
@@ -291,7 +295,7 @@ class FirestoreManifest(Manifest):
                 # The above call will fail with a value error when the firebase app is not initialized.
                 # Initialize the app here, and try again.
                 firebase_admin.initialize_app(options=self.get_firestore_config())
-                self.logger.info('Initialized Firebase App.')
+                logger.info('Initialized Firebase App.')
 
                 if attempts > 4:
                     raise ManifestException('Exceeded number of retries to get firestore client.') from e
@@ -304,7 +308,7 @@ class FirestoreManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Update or create a download status record."""
-        self.logger.debug('Updating Firestore Manifest.')
+        logger.debug('Updating Firestore Manifest.')
 
         # Get info for the document path
         parsed_location = urlparse(download_status.location)
@@ -319,9 +323,9 @@ class FirestoreManifest(Manifest):
         )
         result: WriteResult = download_doc_ref.set(download_status._asdict())
 
-        self.logger.debug(f'Firestore manifest updated. '
-                          f'update_time={result.update_time}, '
-                          f'filename={download_status.location}.')
+        logger.debug(f'Firestore manifest updated. '
+                     f'update_time={result.update_time}, '
+                     f'filename={download_status.location}.')
 
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""

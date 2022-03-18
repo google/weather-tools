@@ -11,256 +11,108 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import itertools
+import argparse
+import copy
+import dataclasses
+import getpass
+import os
 import typing as t
 import unittest
-from collections import OrderedDict
-from unittest.mock import MagicMock
 
-from .manifest import MockManifest, Location
-from .pipeline import (
-    assemble_config,
-    get_subsections,
-    new_downloads_only,
-    prepare_partitions,
-    skip_partition,
+from apache_beam.options.pipeline_options import PipelineOptions
+
+import weather_dl
+from .manifest import FirestoreManifest, Location, NoOpManifest, LocalManifest
+from .pipeline import run, PipelineArgs
+from .stores import TempFileStore, LocalFileStore
+
+PATH_TO_CONFIG = os.path.join(os.path.dirname(list(weather_dl.__path__)[0]), 'configs', 'era5_example_config.cfg')
+DEFAULT_ARGS = PipelineArgs(
+    known_args=argparse.Namespace(config=PATH_TO_CONFIG,
+                                  force_download=False,
+                                  dry_run=False,
+                                  local_run=False,
+                                  manifest_location='fs://downloader-manifest',
+                                  num_requests_per_key=-1),
+    pipeline_options=PipelineOptions('--save_main_session True'.split()),
+    config={
+        'parameters': {'client': 'cds',
+                       'dataset': 'reanalysis-era5-pressure-levels',
+                       'target_path': 'gs://ecmwf-output-test/era5/{}/{}/{}-pressure-{}.nc',
+                       'partition_keys': ['year', 'month', 'day', 'pressure_level'],
+                       'force_download': False,
+                       'user_id': getpass.getuser()},
+        'selection': {'product_type': 'reanalysis',
+                      'format': 'netcdf',
+                      'variable': ['divergence', 'fraction_of_cloud_cover', 'geopotential'],
+                      'pressure_level': ['500'],
+                      'year': ['2015', '2016', '2017'], 'month': ['01'],
+                      'day': ['01', '15'],
+                      'time': ['00:00', '06:00', '12:00', '18:00']}
+    },
+    client_name='cds',
+    store=None,
+    manifest=FirestoreManifest(Location('fs://downloader-manifest?projectId=None')),
+    num_requesters_per_key=5,
 )
-from .stores import InMemoryStore, Store
 
 
-class OddFilesDoNotExistStore(InMemoryStore):
-    def __init__(self):
-        super().__init__()
-        self.count = 0
-
-    def exists(self, filename: str) -> bool:
-        ret = self.count % 2 == 0
-        self.count += 1
-        return ret
-
-
-class PreparePartitionTest(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('mock://dummy'))
-
-    def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
-        subsections = get_subsections(config)
-        params_cycle = itertools.cycle(subsections)
-
-        def loop_through_subsection(it):
-            name, section = next(params_cycle)
-            return name, section, it
-
-        return [
-            assemble_config(loop_through_subsection(p), manifest=self.dummy_manifest)
-            for p in prepare_partitions(config)
-            if new_downloads_only(p, store=store)
-        ]
-
-    def test_partition_single_key(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year'],
-                'target_path': 'download-{}.nc',
-            },
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 13)],
-                'year': [str(i) for i in range(2015, 2021)]
-            }
-        }
-
-        actual = self.create_partition_configs(config)
-
-        self.assertListEqual([d['selection'] for d in actual], [
-            {**config['selection'], **{'year': [str(i)]}}
-            for i in range(2015, 2021)
-        ])
-
-    def test_partition_multi_key(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year', 'month'],
-                'target_path': 'download-{}-{}.nc',
-            },
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 3)],
-                'year': [str(i) for i in range(2015, 2017)]
-            }
-        }
-
-        actual = self.create_partition_configs(config)
-
-        self.assertListEqual([d['selection'] for d in actual], [
-            {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
-            {**config['selection'], **{'year': ['2015'], 'month': ['2']}},
-            {**config['selection'], **{'year': ['2016'], 'month': ['1']}},
-            {**config['selection'], **{'year': ['2016'], 'month': ['2']}},
-        ])
-
-    def test_partition_multi_params_multi_key(self):
-        config = {
-            'parameters': OrderedDict(
-                partition_keys=['year', 'month'],
-                target_path='download-{}-{}.nc',
-                research={
-                    'api_key': 'KKKK1',
-                    'api_url': 'UUUU1'
-                },
-                cloud={
-                    'api_key': 'KKKK2',
-                    'api_url': 'UUUU2'
-                },
-                deepmind={
-                    'api_key': 'KKKK3',
-                    'api_url': 'UUUU3'
-                }
-            ),
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 3)],
-                'year': [str(i) for i in range(2015, 2017)]
-            }
-        }
-
-        actual = self.create_partition_configs(config)
-
-        expected = [
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1',
-                                       __subsection__='research'),
-             'selection': {**config['selection'],
-                           **{'year': ['2015'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK2', api_url='UUUU2',
-                                       __subsection__='cloud'),
-             'selection': {**config['selection'],
-                           **{'year': ['2015'], 'month': ['2']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK3', api_url='UUUU3',
-                                       __subsection__='deepmind'),
-             'selection': {**config['selection'],
-                           **{'year': ['2016'], 'month': ['1']}}},
-            {'parameters': OrderedDict(config['parameters'], api_key='KKKK1', api_url='UUUU1',
-                                       __subsection__='research'),
-             'selection': {**config['selection'],
-                           **{'year': ['2016'], 'month': ['2']}}},
-        ]
-
-        self.assertListEqual(actual, expected)
-
-    def test_prepare_partition_records_download_status_to_manifest(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year'],
-                'target_path': 'download-{}.nc',
-            },
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 13)],
-                'year': [str(i) for i in range(2015, 2021)]
-            }
-        }
-
-        self.create_partition_configs(config)
-
-        self.assertListEqual(
-            [d.selection for d in self.dummy_manifest.records.values()], [
-                {**config['selection'], **{'year': [str(i)]}}
-                for i in range(2015, 2021)
-            ])
-
-        self.assertTrue(
-            all([d.status == 'scheduled' for d in self.dummy_manifest.records.values()])
-        )
-
-    def test_skip_partitions__never_unbalances_licenses(self):
-        skip_odd_files = OddFilesDoNotExistStore()
-        config = {
-            'parameters': OrderedDict(
-                partition_keys=['year', 'month'],
-                target_path='download-{}-{}.nc',
-                research={
-                    'api_key': 'KKKK1',
-                    'api_url': 'UUUU1'
-                },
-                cloud={
-                    'api_key': 'KKKK2',
-                    'api_url': 'UUUU2'
-                }
-            ),
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 3)],
-                'year': [str(i) for i in range(2016, 2020)]
-            }
-        }
-
-        actual = self.create_partition_configs(config, store=skip_odd_files)
-        research_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('1')]
-        cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
-
-        self.assertEqual(len(research_configs), len(cloud_configs))
+def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.Dict] = None,
+                 known_args: t.Optional[t.Dict] = None, **kwargs) -> PipelineArgs:
+    if parameters is None:
+        parameters = {}
+    if selection is None:
+        selection = {}
+    if known_args is None:
+        known_args = {}
+    args = dataclasses.replace(DEFAULT_ARGS, **kwargs)
+    args.config = copy.deepcopy(args.config)
+    args.config['parameters'].update(parameters)
+    args.config['selection'].update(selection)
+    args.known_args = copy.deepcopy(args.known_args)
+    for k, v in known_args.items():
+        setattr(args.known_args, k, v)
+    return args
 
 
-class SkipPartitionsTest(unittest.TestCase):
+class ParsePipelineArgs(unittest.TestCase):
+    DEFAULT_CMD = f'weather-dl {PATH_TO_CONFIG}'
 
-    def setUp(self) -> None:
-        self.mock_store = InMemoryStore()
+    TEST_CASES = [
+        ('happy path', DEFAULT_CMD, DEFAULT_ARGS),
+        ('force download', f'{DEFAULT_CMD} -f', default_args(
+            dict(force_download=True), known_args=dict(force_download=True))
+         ),
+        ('dry run', f'{DEFAULT_CMD} -d', default_args(
+            dict(force_download=True), known_args=dict(dry_run=True), client_name='fake',
+            store=TempFileStore('dry_run'), manifest=NoOpManifest(Location('noop://dry-run')),
+            num_requesters_per_key=1)
+         ),
+        ('local run', f'{DEFAULT_CMD} -l', default_args(
+            known_args=dict(local_run=True), store=LocalFileStore(f'{os.getcwd()}/local_run'),
+            manifest=LocalManifest(Location(f'{os.getcwd()}/local_run')),
+            pipeline_options=PipelineOptions('--runner DirectRunner --save_main_session True'.split()))
+         ),
+        ('user-specified number of requests per key', f'{DEFAULT_CMD} -n 7', default_args(
+            known_args=dict(num_requests_per_key=7), num_requesters_per_key=7)
+         ),
+    ]
 
-    def test_skip_partition_missing_force_download(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year', 'month'],
-                'target_path': 'download-{}-{}.nc',
-            },
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 13)],
-                'year': [str(i) for i in range(2015, 2021)]
-            }
-        }
-
-        actual = skip_partition(config, self.mock_store)
-
-        self.assertEqual(actual, False)
-
-    def test_skip_partition_force_download_true(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year', 'month'],
-                'target_path': 'download-{}-{}.nc',
-                'force_download': True
-            },
-            'selection': {
-                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
-                'month': [str(i) for i in range(1, 13)],
-                'year': [str(i) for i in range(2015, 2021)]
-            }
-        }
-
-        actual = skip_partition(config, self.mock_store)
-
-        self.assertEqual(actual, False)
-
-    def test_skip_partition_force_download_false(self):
-        config = {
-            'parameters': {
-                'partition_keys': ['year', 'month'],
-                'target_path': 'download-{}-{}.nc',
-                'force_download': False
-            },
-            'selection': {
-                'features': ['pressure'],
-                'month': ['12'],
-                'year': ['02']
-            }
-        }
-
-        self.mock_store.exists = MagicMock(return_value=True)
-
-        actual = skip_partition(config, self.mock_store)
-
-        self.assertEqual(actual, True)
+    def test_run(self):
+        for msg, args, expected in self.TEST_CASES:
+            with self.subTest(msg):
+                actual = run(args.split())
+                self.assertEqual(vars(actual.known_args), vars(expected.known_args))
+                self.assertEqual(
+                    actual.pipeline_options.get_all_options(drop_default=True),
+                    expected.pipeline_options.get_all_options(drop_default=True)
+                )
+                self.assertEqual(actual.config, expected.config)
+                self.assertEqual(actual.client_name, expected.client_name)
+                self.assertEqual(type(actual.store), type(expected.store))
+                self.assertEqual(actual.manifest, expected.manifest)
+                self.assertEqual(type(actual.manifest), type(expected.manifest))
+                self.assertEqual(actual.num_requesters_per_key, expected.num_requesters_per_key)
 
 
 if __name__ == '__main__':

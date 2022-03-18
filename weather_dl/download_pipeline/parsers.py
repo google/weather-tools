@@ -16,9 +16,8 @@
 import configparser
 import copy as cp
 import datetime
-import os
-import io
 import json
+import os
 import string
 import textwrap
 import typing as t
@@ -26,7 +25,6 @@ from urllib.parse import urlparse
 
 from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
-
 
 Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
 Config = t.Dict[str, t.Dict[str, Values]]
@@ -71,7 +69,7 @@ def date(candidate: str) -> datetime.date:
     return converted
 
 
-def parse_config(file: io.StringIO) -> Config:
+def parse_config(file: t.IO) -> Config:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
@@ -93,7 +91,7 @@ def parse_config(file: io.StringIO) -> Config:
     return {}
 
 
-def parse_manifest_location(location: Location, pipeline_opts: t.Dict) -> Manifest:
+def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
     """Constructs a manifest object by parsing the location."""
     project_id__exists = 'project' in pipeline_opts
     project_id__not_set = 'projectId' not in location
@@ -260,7 +258,7 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     return copy
 
 
-def process_config(file: io.StringIO) -> Config:
+def process_config(file: t.IO) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
@@ -367,3 +365,28 @@ def prepare_target_name(config: Config) -> str:
     target = target_path.format(*partition_key_values)
 
     return target
+
+
+def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
+    """Collect parameter subsections from main configuration.
+
+    If the `parameters` section contains subsections (e.g. '[parameters.1]',
+    '[parameters.2]'), collect the subsection key-value pairs. Otherwise,
+    return an empty dictionary (i.e. there are no subsections).
+
+    This is useful for specifying multiple API keys for your configuration.
+    For example:
+    ```
+      [parameters.alice]
+      api_key=KKKKK1
+      api_url=UUUUU1
+      [parameters.bob]
+      api_key=KKKKK2
+      api_url=UUUUU2
+      [parameters.eve]
+      api_key=KKKKK3
+      api_url=UUUUU3
+    ```
+    """
+    return [(name, params) for name, params in config['parameters'].items()
+            if isinstance(params, dict)] or [('default', {})]
