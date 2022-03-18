@@ -57,6 +57,8 @@ test_requirements = [
     "netcdf4",
     "numpy",
     "xarray",
+    "xarray-beam",
+    "absl-py",
 ]
 
 all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements

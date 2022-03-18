@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .pipeline import run
+from .pipeline import run, pipeline
 
 
 def cli(extra=[]):
     import sys
-    run(sys.argv + extra)
+    pipeline(run(sys.argv + extra))
