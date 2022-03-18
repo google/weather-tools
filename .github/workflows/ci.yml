@@ -57,11 +57,11 @@ jobs:
     - name: Install weather-tools
       run: |
         pip install -e .[test]
+    - name: Run unit tests
+      run: pytest
       env:
         - CDSAPI_URL: https://cds.climate.copernicus.eu/api/v2
         - CDSAPI_KEY: 12345:1234567-ab12-34cd-9876-4o4fake90909  # A fake key for testing
-    - name: Run unit tests
-      run: pytest
   lint:
     runs-on: ubuntu-latest
     strategy:
