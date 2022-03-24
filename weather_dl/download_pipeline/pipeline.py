@@ -23,7 +23,6 @@ import typing as t
 import apache_beam as beam
 from apache_beam.options.pipeline_options import (
     PipelineOptions,
-    SetupOptions,
     StandardOptions,
 )
 
@@ -136,8 +135,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
-    pipeline_options = PipelineOptions(pipeline_args)
-    pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
+    pipeline_options = PipelineOptions(pipeline_args + '--save_main_session True'.split())
 
     client_name = config['parameters']['client']
     store = None  # will default to using FileSystems()
