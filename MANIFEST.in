@@ -1,4 +1,4 @@
-global-exclude *_test.py
+global-exclude **_test.py
 global-exclude *.nc
 global-exclude *.gb
 global-exclude *.md
