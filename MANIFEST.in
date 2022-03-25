@@ -1,0 +1,9 @@
+global-exclude *_test.py
+global-exclude *.nc
+global-exclude *.gb
+global-exclude *.md
+prune .github
+prune bin
+prune docs
+prune **test_data
+exclude tox.ini
