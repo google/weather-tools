@@ -23,7 +23,7 @@ from unittest.mock import patch
 
 import weather_sp
 from .file_name_utils import OutFileInfo
-from .file_name_utils import get_output_file_base_name
+from .file_name_utils import get_output_file_info
 from .file_splitters import DrySplitter
 from .file_splitters import GribSplitter
 from .file_splitters import NetCdfSplitter
@@ -228,20 +228,32 @@ class DrySplitterTest(unittest.TestCase):
     def test_path_with_output_pattern(self):
         input_path = 'a/b/c/d/file.nc'
         out_pattern = 'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}.cd'
-        out_info = get_output_file_base_name(
+        out_info = get_output_file_info(
             filename=input_path, out_pattern=out_pattern)
         splitter = DrySplitter(input_path, out_info)
         keys = splitter._get_keys()
-        out_file = splitter._get_output_file_path(keys)
         self.assertEqual(keys, {'variable': 'variable'})
+        out_file = splitter._get_output_file_path(keys)
         self.assertEqual(
             out_file, 'gs://my_bucket/splits/c-d-file_old_data.variable.cd')
 
-    def test_path_with_output_dir_no_formatting(self):
+    def test_path_with_output_pattern_no_formatting(self):
         # OutFileInfo using pattern but without any formatting marks.
         with self.assertRaises(ValueError):
             DrySplitter("input_path/file.grib",
                         OutFileInfo("some/out/no/formatting"))
+
+    def test_path_with_output_dir_no_formatting(self):
+        input_path = 'a/b/c/d/file.nc'
+        out_dir = 'gs://my_bucket/splits/'
+        out_info = get_output_file_info(
+            filename=input_path, input_base_dir='a/b/c/', out_dir=out_dir)
+        splitter = DrySplitter(input_path, out_info)
+        keys = splitter._get_keys()
+        self.assertEqual(keys, {'default_for_filetype': 'default_for_filetype'})
+        out_file = splitter._get_output_file_path(keys)
+        self.assertEqual(
+            out_file, 'gs://my_bucket/splits/d/file_default_for_filetype.nc')
 
 
 if __name__ == '__main__':

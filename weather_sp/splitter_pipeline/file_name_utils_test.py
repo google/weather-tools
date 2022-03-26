@@ -14,64 +14,97 @@
 
 import unittest
 
-from .file_name_utils import get_output_file_base_name
+from .file_name_utils import get_output_file_info
 
 
 class FileNameUtilsTest(unittest.TestCase):
 
-    def test_get_output_file_base_name_format(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
-                                             out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}',
-                                             out_dir=None,
-                                             input_base_dir='ignored')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}')
-        self.assertEqual(out_info.template_folders, ['21', '01', '2020', 'data_to_split', 'my_bucket', 'gs:'])
+    def test_get_output_file_info_format(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}',
+                                        out_dir=None,
+                                        input_base_dir='ignored')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}')
+        self.assertEqual(out_info.template_folders, [
+                         '21', '01', '2020', 'data_to_split', 'my_bucket', 'gs:'])
         self.assertEqual(out_info.ending, '')
         self.assertEqual(out_info.formatting, '')
-        self.assertEqual(out_info.output_dir, False)
+        self.assertEqual(out_info.requires_formatting, False)
 
-    def test_get_output_file_base_name_replace(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
-                                             out_pattern=None,
-                                             out_dir='gs://my_bucket/splits/',
-                                             input_base_dir='gs://my_bucket/data_to_split/')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020/01/21')
+    def test_get_output_file_info_replace(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_pattern=None,
+                                        out_dir='gs://my_bucket/splits/',
+                                        input_base_dir='gs://my_bucket/data_to_split/')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/2020/01/21')
         self.assertEqual(out_info.ending, '.nc')
         self.assertEqual(out_info.formatting, '')
-        self.assertEqual(out_info.output_dir, True)
+        self.assertEqual(out_info.requires_formatting, True)
 
-    def test_get_output_file_base_name_format_no_fileending(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21',
-                                             out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.',
-                                             out_dir=None,
-                                             input_base_dir='ignored')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/{2}-{1}-{0}_old_data.')
+    def test_get_output_file_info_format_no_fileending(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21',
+                                        out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.',
+                                        out_dir=None,
+                                        input_base_dir='ignored')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/{2}-{1}-{0}_old_data.')
         self.assertEqual(out_info.ending, '')
 
-    def test_get_output_file_base_name_format_filecontainsdots(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.T00z.stuff',
-                                             out_dir='gs://my_bucket/splits/',
-                                             input_base_dir='gs://my_bucket/data_to_split/')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020/01/21.T00z.stuff')
+    def test_get_output_file_info_format_filecontainsdots(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.T00z.stuff',
+                                        out_dir='gs://my_bucket/splits/',
+                                        input_base_dir='gs://my_bucket/data_to_split/')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/2020/01/21.T00z.stuff')
         self.assertEqual(out_info.ending, '')
 
-    def test_output_dir_formatting(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
-                                             out_dir='gs://my_bucket/splits/',
-                                             input_base_dir='gs://my_bucket/data_to_split/',
-                                             formatting='_{time}_{level}hPa')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/2020/01/21')
+    def test_requires_formatting_formatting(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_dir='gs://my_bucket/splits/',
+                                        input_base_dir='gs://my_bucket/data_to_split/',
+                                        formatting='_{time}_{level}hPa')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/2020/01/21')
         self.assertEqual(out_info.formatting, '_{time}_{level}hPa')
         self.assertEqual(out_info.ending, '.nc')
 
     def test_output_pattern_ignores_formatting(self):
-        out_info = get_output_file_base_name(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
-                                             out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}',
-                                             out_dir=None,
-                                             input_base_dir='ignored',
-                                             formatting='_{time}_{level}hPa')
-        self.assertEqual(out_info.file_name_template, 'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}')
-        self.assertEqual(out_info.template_folders, ['21', '01', '2020', 'data_to_split', 'my_bucket', 'gs:'])
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}',
+                                        out_dir=None,
+                                        input_base_dir='ignored',
+                                        formatting='_{time}_{level}hPa')
+        self.assertEqual(out_info.file_name_template,
+                         'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}')
+        self.assertEqual(out_info.template_folders, [
+                         '21', '01', '2020', 'data_to_split', 'my_bucket', 'gs:'])
         self.assertEqual(out_info.ending, '')
         self.assertEqual(out_info.formatting, '')
-        self.assertEqual(out_info.output_dir, False)
+        self.assertEqual(out_info.requires_formatting, False)
+
+    def test_set_formatting_if_needed__sets(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_dir='gs://my_bucket/splits/',
+                                        input_base_dir='gs://my_bucket/data_to_split/')
+        self.assertEqual(out_info.formatting, '')
+        out_info.set_formatting_if_needed('_{format}')
+        self.assertEqual(out_info.formatting, '_{format}')
+
+    def test_set_formatting_if_needed__not_needed(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_pattern='gs://my_bucket/splits/{0}.{variable}',
+                                        input_base_dir='gs://my_bucket/data_to_split/')
+        self.assertEqual(out_info.formatting, '')
+        out_info.set_formatting_if_needed('_{format}')
+        self.assertEqual(out_info.formatting, '')
+
+    def test_set_formatting_if_needed__does_not_overwrite(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_dir='gs://my_bucket/splits/',
+                                        input_base_dir='gs://my_bucket/data_to_split/',
+                                        formatting='_{orig_format}')
+        self.assertEqual(out_info.formatting, '_{orig_format}')
+        out_info.set_formatting_if_needed('_{format}')
+        self.assertEqual(out_info.formatting, '_{orig_format}')

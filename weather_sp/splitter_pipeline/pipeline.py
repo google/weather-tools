@@ -22,7 +22,7 @@ from apache_beam.io.fileio import MatchFiles, ReadMatches
 import apache_beam.metrics as metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
-from .file_name_utils import OutFileInfo, get_output_file_base_name
+from .file_name_utils import OutFileInfo, get_output_file_info
 from .file_splitters import get_splitter
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def get_output_base_name(input_path: str,
                          input_base: str,
                          output_template: t.Optional[str],
                          output_dir: t.Optional[str]) -> OutFileInfo:
-    return get_output_file_base_name(input_path, input_base, output_template, output_dir)
+    return get_output_file_info(input_path, input_base, output_template, output_dir)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -83,8 +83,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  'python-style formatting substitution of input '
                  'directory names. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
-                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortName}.grib` '
-                 'will give `somewhere/c-file.level_shortName.nc`'
+                 'a template with formatting `/somewhere/{1}-{0}.{level}_{shortName}.grib` '
+                 'will give `somewhere/c-file.level_shortName.grib`'
                  )
     output_options.add_argument(
             '--output-dir', type=str,
@@ -92,7 +92,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  'input_pattern. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
                  '`outputdir /x/y/z` will create '
-                 'output files like `/x/y/z/c/file.shortname.nc`'
+                 'output files like `/x/y/z/c/file_variable.nc`'
                  )
     output_options.add_argument(
             '--formatting', type=str,

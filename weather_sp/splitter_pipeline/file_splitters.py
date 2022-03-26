@@ -62,15 +62,12 @@ class FileSplitter(abc.ABC):
         with FileSystems().create(target) as dest_file:
             shutil.copyfileobj(src_file, dest_file)
 
-    def _get_base_output_path(self) -> str:
-        return self.output_info.file_name_template + self.output_info.formatting + self.output_info.ending
-
     def _get_output_file_path(self, splits: t.Dict[str, str]) -> str:
-        return self._get_base_output_path().format(*self.output_info.template_folders, **splits)
+        return self.output_info.get_formatted_output_file_path(splits)
 
     def _get_split_dims(self) -> t.List[str]:
         all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self._get_base_output_path())]))
+            self.output_info.get_unformatted_output_name())]))
         return [key for key in all_format if not key.isdigit()]
 
     def should_skip(self):
@@ -92,8 +89,7 @@ class GribSplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        if self.output_info.output_dir and not self.output_info.formatting:
-            self.output_info.formatting = '_{typeOfLevel}_{shortName}'
+        self.output_info.set_formatting_if_needed('_{typeOfLevel}_{shortName}')
         self.split_dims = self._get_split_dims()
 
     def split_data(self) -> None:
@@ -142,8 +138,7 @@ class NetCdfSplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        if self.output_info.output_dir and not self.output_info.formatting:
-            self.output_info.formatting = '_{variable}'
+        self.output_info.set_formatting_if_needed('_{variable}')
         self.split_dims = self._get_split_dims()
 
     def split_data(self) -> None:
@@ -179,6 +174,7 @@ class NetCdfSplitter(FileSplitter):
                 self._write_dataset(selected)
             self.logger.info('split %s into %d files',
                              self.input_path, len(combinations))
+
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
         with self._copy_to_local_file() as local_file:
@@ -204,8 +200,7 @@ class DrySplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        if self.output_info.output_dir and not self.output_info.formatting:
-            self.output_info.formatting = '_<default_for_filetype>'
+        self.output_info.set_formatting_if_needed('_{default_for_filetype}')
         self.split_dims = self._get_split_dims()
         if not self.split_dims:
             raise ValueError('No splitting specified in template.')
