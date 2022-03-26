@@ -23,10 +23,10 @@ from unittest.mock import patch
 
 import weather_sp
 from .file_name_utils import OutFileInfo
+from .file_name_utils import get_output_file_base_name
 from .file_splitters import DrySplitter
 from .file_splitters import GribSplitter
 from .file_splitters import NetCdfSplitter
-from .file_splitters import SplitKey
 from .file_splitters import get_splitter
 
 
@@ -37,24 +37,29 @@ class GetSplitterTest(unittest.TestCase):
 
     def test_get_splitter_grib(self):
         splitter = get_splitter(f'{self._data_dir}/era5_sample.grib',
-                                OutFileInfo(file_name_template='some_out', ending='.grib'),
+                                OutFileInfo(
+                                    file_name_template='some_out_{split}', ending='.grib'),
                                 dry_run=False)
         self.assertIsInstance(splitter, GribSplitter)
 
     def test_get_splitter_nc(self):
         splitter = get_splitter(f'{self._data_dir}/era5_sample.nc',
-                                OutFileInfo(file_name_template='some_out', ending='.nc'),
+                                OutFileInfo(
+                                    file_name_template='some_out_{split}', ending='.nc'),
                                 dry_run=False)
         self.assertIsInstance(splitter, NetCdfSplitter)
 
     def test_get_splitter_undetermined_grib(self):
         splitter = get_splitter(f'{self._data_dir}/era5_sample_grib',
-                                OutFileInfo(file_name_template='some_out', ending=''),
+                                OutFileInfo(
+                                    file_name_template='some_out_{split}', ending=''),
                                 dry_run=False)
         self.assertIsInstance(splitter, GribSplitter)
 
     def test_get_splitter_dryrun(self):
-        splitter = get_splitter('some/file/path/data.grib', OutFileInfo(file_name_template='some_out', ending='.grib'),
+        splitter = get_splitter('some/file/path/data.grib',
+                                OutFileInfo(
+                                    file_name_template='some_out_{split}', ending='.grib'),
                                 dry_run=True)
         self.assertIsInstance(splitter, DrySplitter)
 
@@ -72,25 +77,31 @@ class GribSplitterTest(unittest.TestCase):
     def test_get_output_file_path(self):
         splitter = GribSplitter(
             'path/to/input',
-            OutFileInfo(file_name_template='path/output/file.{levelType}_{shortname}.grib', ending='.grib')
+            OutFileInfo(
+                file_name_template='path/output/file.{typeOfLevel}_{shortName}', ending='.grib')
         )
-        out = splitter._get_output_file_path(SplitKey('surface', 'cc'))
+        out = splitter._get_output_file_path(
+            {'typeOfLevel': 'surface', 'shortName': 'cc'})
         self.assertEqual(out, 'path/output/file.surface_cc.grib')
 
     @patch('apache_beam.io.filesystems.FileSystems.create')
     def test_open_outfile(self, mock_io):
         splitter = GribSplitter(
             'path/to/input',
-            OutFileInfo(file_name_template='path/output/file_{levelType}_{shortname}.grib', ending='.grib')
+            OutFileInfo(file_name_template='path/output/file',
+                        formatting='_{typeOfLevel}_{shortName}', ending='.grib')
         )
-        splitter._open_outfile(SplitKey('surface', 'cc'))
+        splitter._open_outfile(splitter._get_output_file_path(
+            {'typeOfLevel': 'surface', 'shortName': 'cc'}))
         mock_io.assert_called_with('path/output/file_surface_cc.grib')
 
     def test_split_data(self):
         input_path = f'{self._data_dir}/era5_sample.grib'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = GribSplitter(
             input_path,
-            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib')
+            OutFileInfo(
+                output_base, formatting='_{typeOfLevel}_{shortName}', ending='.grib')
         )
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
@@ -119,7 +130,8 @@ class GribSplitterTest(unittest.TestCase):
         input_path = f'{self._data_dir}/era5_sample.grib'
         splitter = GribSplitter(
             input_path,
-            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib')
+            OutFileInfo(f'{self._data_dir}/split_files/era5_sample',
+                        formatting='_{typeOfLevel}_{shortName}', ending='.grib')
         )
         self.assertFalse(splitter.should_skip())
         splitter.split_data()
@@ -128,9 +140,11 @@ class GribSplitterTest(unittest.TestCase):
 
     def test_does_not_skip__if_forced(self):
         input_path = f'{self._data_dir}/era5_sample.grib'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = GribSplitter(
             input_path,
-            OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{levelType}}_{{shortname}}.grib', '.grib'),
+            OutFileInfo(
+                output_base, formatting='_{levelType}_{shortName}', ending='.grib'),
             force_split=True
         )
         self.assertFalse(splitter.should_skip())
@@ -150,26 +164,47 @@ class NetCdfSplitterTest(unittest.TestCase):
             shutil.rmtree(split_dir)
 
     def test_get_output_file_path(self):
-        splitter = NetCdfSplitter('path/to/input', OutFileInfo('path/output/file_{shortname}.nc', '.nc'))
-        out = splitter._get_output_file_path(SplitKey('', 'cc'))
+        splitter = NetCdfSplitter(
+            'path/to/input', OutFileInfo('path/output/file_{variable}', '.nc'))
+        out = splitter._get_output_file_path({'variable': 'cc'})
         self.assertEqual(out, 'path/output/file_cc.nc')
 
     def test_split_data(self):
         input_path = f'{self._data_dir}/era5_sample.nc'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = NetCdfSplitter(input_path,
-                                  OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{shortname}}.nc', '.nc'))
+                                  OutFileInfo(output_base, formatting='_{time}_{variable}', ending='.nc'))
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
         input_data = xr.open_dataset(input_path, engine='netcdf4')
-        for sn in ['d', 'cc', 'z']:
-            split_file = f'{self._data_dir}/split_files/era5_sample_{sn}.nc'
-            split_data = xr.open_dataset(split_file, engine='netcdf4')
-            xr.testing.assert_allclose(input_data[sn], split_data[sn])
+        for time in ['2015-01-15T00:00', '2015-01-15T06:00', '2015-01-15T12:00', '2015-01-15T18:00']:
+            expect = input_data.sel(time=time)
+            for sn in ['d', 'cc', 'z']:
+                split_file = f'{self._data_dir}/split_files/era5_sample_{time}_{sn}.nc'
+                split_data = xr.open_dataset(split_file, engine='netcdf4')
+                xr.testing.assert_allclose(expect[sn], split_data[sn])
+
+    def test_split_data__not_in_dims_raises(self):
+        input_path = f'{self._data_dir}/era5_sample.nc'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
+        splitter = NetCdfSplitter(input_path,
+                                  OutFileInfo(output_base, formatting='_{level}', ending='.nc'))
+        with self.assertRaises(ValueError):
+            splitter.split_data()
+
+    def test_split_data__unknown_dim_raises(self):
+        input_path = f'{self._data_dir}/era5_sample.nc'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
+        splitter = NetCdfSplitter(input_path,
+                                  OutFileInfo(output_base, formatting='_{shortName}', ending='.nc'))
+        with self.assertRaises(ValueError):
+            splitter.split_data()
 
     def test_skips_existing_split(self):
         input_path = f'{self._data_dir}/era5_sample.nc'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = NetCdfSplitter(input_path,
-                                  OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{shortname}}.nc', '.nc'))
+                                  OutFileInfo(output_base, formatting='_{variable}', ending='.nc'))
         self.assertFalse(splitter.should_skip())
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
@@ -177,13 +212,36 @@ class NetCdfSplitterTest(unittest.TestCase):
 
     def test_does_not_skip__if_forced(self):
         input_path = f'{self._data_dir}/era5_sample.nc'
+        output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = NetCdfSplitter(input_path,
-                                  OutFileInfo(f'{self._data_dir}/split_files/era5_sample_{{shortname}}.nc', '.nc'),
+                                  OutFileInfo(
+                                      output_base, formatting='_{variable}', ending='.nc'),
                                   force_split=True)
         self.assertFalse(splitter.should_skip())
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
         self.assertFalse(splitter.should_skip())
+
+
+class DrySplitterTest(unittest.TestCase):
+
+    def test_path_with_output_pattern(self):
+        input_path = 'a/b/c/d/file.nc'
+        out_pattern = 'gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}.cd'
+        out_info = get_output_file_base_name(
+            filename=input_path, out_pattern=out_pattern)
+        splitter = DrySplitter(input_path, out_info)
+        keys = splitter._get_keys()
+        out_file = splitter._get_output_file_path(keys)
+        self.assertEqual(keys, {'variable': 'variable'})
+        self.assertEqual(
+            out_file, 'gs://my_bucket/splits/c-d-file_old_data.variable.cd')
+
+    def test_path_with_output_dir_no_formatting(self):
+        # OutFileInfo using pattern but without any formatting marks.
+        with self.assertRaises(ValueError):
+            DrySplitter("input_path/file.grib",
+                        OutFileInfo("some/out/no/formatting"))
 
 
 if __name__ == '__main__':

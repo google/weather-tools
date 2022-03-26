@@ -24,7 +24,9 @@ NETCDF_FILE_ENDINGS = ('.nc', '.cd')
 
 class OutFileInfo(t.NamedTuple):
     file_name_template: str
-    ending: str
+    formatting: str = ''
+    ending: str = ''
+    template_folders: t.List[str] = []
     output_dir: bool = False
 
     def __str__(self):
@@ -34,7 +36,8 @@ class OutFileInfo(t.NamedTuple):
 def get_output_file_base_name(filename: str,
                               input_base_dir: str = '',
                               out_pattern: t.Optional[str] = None,
-                              out_dir: t.Optional[str] = None) -> OutFileInfo:
+                              out_dir: t.Optional[str] = None,
+                              formatting: str = '') -> OutFileInfo:
     """Construct the base output file name by applying the out_pattern to the filename.
 
     Example:
@@ -47,6 +50,8 @@ def get_output_file_base_name(filename: str,
         filename: input file to be split
         out_pattern: pattern to apply when creating output file
         out_dir: directory to replace input base directory
+        formatting: output formatting of split fields. Required when using out_dir,
+             ignored when using out_pattern.
         input_base_dir: used if out_pattern does not contain any '{}' substitutions.
             The output file is then created by replacing this part of the input name
             with the output pattern.
@@ -59,8 +64,10 @@ def get_output_file_base_name(filename: str,
 
     if out_dir:
         return OutFileInfo(
-            f'{filename.replace(input_base_dir, out_dir)}.{{levelType}}{{shortname}}{ending}',
+            f'{filename.replace(input_base_dir, out_dir)}',
+            formatting,
             ending,
+            [],
             output_dir=True
         )
 
@@ -70,6 +77,8 @@ def get_output_file_base_name(filename: str,
         while path:
             path, tail = os.path.split(path)
             in_sections.append(tail)
-        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", levelType="{levelType}"), ending)
+        # setting formatting and ending to empty strings since they are
+        # part of the specified pattern.
+        return OutFileInfo(out_pattern, '', '', in_sections)
 
     raise ValueError('no output specified.')

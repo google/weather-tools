@@ -83,16 +83,22 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  'python-style formatting substitution of input '
                  'directory names. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
-                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortname}.grib` '
-                 'will give `somewhere/c-file.level_shortname.nc`'
+                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortName}.grib` '
+                 'will give `somewhere/c-file.level_shortName.nc`'
                  )
     output_options.add_argument(
             '--output-dir', type=str,
             help='Output directory that will replace the common path of the '
                  'input_pattern. '
                  'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
-                 '`output_template /x/y/z` will create '
+                 '`outputdir /x/y/z` will create '
                  'output files like `/x/y/z/c/file.shortname.nc`'
+                 )
+    output_options.add_argument(
+            '--formatting', type=str,
+            help='Used in combination with `output-dir`: specifies the how to '
+                 'split the data and format the output file. '
+                 'Example: `_{time}_{level}hPa`'
                  )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
