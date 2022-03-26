@@ -94,7 +94,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                  '`outputdir /x/y/z` will create '
                  'output files like `/x/y/z/c/file_variable.nc`'
                  )
-    output_options.add_argument(
+    parser.add_argument(
             '--formatting', type=str,
             help='Used in combination with `output-dir`: specifies the how to '
                  'split the data and format the output file. '
