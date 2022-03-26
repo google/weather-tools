@@ -19,6 +19,7 @@ base_requirements = [
     "pygrib",
     "numpy>=1.20.3",
     "xarray",
+    "scipy",
 ]
 
 setup(

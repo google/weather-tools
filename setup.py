@@ -47,6 +47,7 @@ weather_sp_requirements = [
     "numpy>=1.20.3",
     "pygrib",
     "xarray",
+    "scipy",
 ]
 
 test_requirements = [
