@@ -1,14 +1,10 @@
 global-exclude *.nc
 global-exclude *.gb *.grib
 global-exclude *.bz2
-global-exclude *.md
-global-exclude *.cfg
-global-exclude *.json
 global-exclude *.yaml *.yml
 global-exclude *_test.py
 prune .github
 prune bin
 prune docs
-prune configs
 prune weather_*/test_data
 exclude tox.ini
