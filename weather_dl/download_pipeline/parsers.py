@@ -328,8 +328,10 @@ def process_config(file: t.IO) -> Config:
     num_partition_keys = len(partition_keys)
     if use_date_as_directory(config):
         num_partition_keys -= 1
-        if str(params.get('target_path')).endswith('/'):
-            params['target_path'] = params.get('target_path')[:-1]
+        try:
+            params['target_path'] = params['target_path'].rstrip('/')
+        except KeyError:
+            pass
 
     require(num_template_replacements == num_partition_keys,
             """
@@ -352,7 +354,8 @@ def prepare_target_name(config: Config) -> str:
 
     target_path = t.cast(str, parameters.get('target_path', ''))
     target_filename = t.cast(str, parameters.get('target_filename', ''))
-    partition_keys = t.cast(t.List[str], parameters.get('partition_keys', list()))
+    partition_keys = t.cast(t.List[str],
+                            cp.copy(parameters.get('partition_keys', list())))
 
     if use_date_as_directory(config):
         date_vals = config['selection']['date'][0].split('-')
