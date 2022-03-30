@@ -35,6 +35,9 @@ DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datet
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
+S2_LOCATION = 's2_location'  # st_geog_point
+MIN_LATITUDE = -90
+MAX_LATITUDE = 90
 
 
 @dataclasses.dataclass
@@ -143,8 +146,21 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(S2_LOCATION, 'GEOGRAPHY', mode='NULLABLE'))
 
     return fields
+
+
+def fetch_s2_location(lat, long):
+    """
+    This function calculates and returns s2_location
+    from the input latitude and longitude values
+    """
+    if lat > MAX_LATITUDE or lat < MIN_LATITUDE:
+        raise ValueError(f"Invalid latitude value '{lat}'")
+    long = ((long + 180) % 360) - 180
+    row = '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (long, lat)
+    return row
 
 
 def extract_rows(uri: str, *,
@@ -193,6 +209,7 @@ def extract_rows(uri: str, *,
             row[DATA_IMPORT_TIME_COLUMN] = import_time
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
+            row[S2_LOCATION] = fetch_s2_location(row['latitude'], row['longitude'])
 
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,

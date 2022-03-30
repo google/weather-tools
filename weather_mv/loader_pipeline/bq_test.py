@@ -56,6 +56,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('s2_location', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -70,6 +71,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('s2_location', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -85,6 +87,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('s2_location', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -112,6 +115,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('s2_location', 'GEOGRAPHY', 'NULLABLE', None, (), None),
 
         ]
         self.assertListEqual(schema, expected_schema)
@@ -146,6 +150,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -108.0, 49.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -159,6 +165,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -108.0, 49.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -174,6 +182,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 2.73445987701416,
             'v10': 0.08277571201324463,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -103.0, 45.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -189,7 +199,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
-            'v10': 0.03294110298156738
+            'v10': 0.03294110298156738,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -108.0, 49.0)
         }
         self.assertRowsEqual(actual, expected)
 
@@ -206,6 +218,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -108.0, 49.0)
         }
         self.assertRowsEqual(actual, expected)
 
@@ -222,6 +236,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': None,
             'v10': 0.03294110298156738,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -108.0, 49.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -256,6 +272,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'time': '2021-10-18T06:00:00+00:00',
             'valid_time': '2021-10-18T06:00:00+00:00',
             'z': 1.42578125,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -180.0, 90.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -269,6 +287,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'latitude': 90.0,
             'longitude': -180.0,
             'z': 1.42578125,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -180.0, 90.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -283,6 +303,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'longitude': -180.0,
             'step': 0,
             'z': 1.42578125,
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -180.0, 90.0),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -334,7 +356,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'v10': -3.2414093017578125,
             'v100': -4.1650390625,
             'v200': -3.6647186279296875,
-            'valid_time': '2021-12-10T20:00:00+00:00'
+            'valid_time': '2021-12-10T20:00:00+00:00',
+            's2_location': '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (
+                -180.0, 90.0)
         }
         self.assertRowsEqual(actual, expected)
 
