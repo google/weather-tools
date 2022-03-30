@@ -37,10 +37,9 @@ _Common options_:
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
+* `-d, --dry-run`: Preview the load into BigQuery. Default: off.
 
 Invoke with `-h` or `--help` to see the full range of options.
-
-> Warning: Dry-runs are currently not supported. See [#22](https://github.com/googlestaging/weather-tools/issues/22).
 
 _Usage Examples_:
 
@@ -49,6 +48,16 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2
+```
+
+Preview load with a dry run:
+
+```bash
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
+           --direct_num_workers 2 \
+           --dry-run
 ```
 
 Upload only a subset of variables:
