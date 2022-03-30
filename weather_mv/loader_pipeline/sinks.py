@@ -34,6 +34,7 @@ class ToDataSink(abc.ABC, beam.PTransform):
     variables: t.List[str]
     area: t.Tuple[int, int, int, int]
     xarray_open_dataset_kwargs: t.Dict
+    dry_run: bool
 
     @classmethod
     def from_kwargs(cls, **kwargs):
