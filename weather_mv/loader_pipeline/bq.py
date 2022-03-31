@@ -27,6 +27,7 @@ from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
 from .util import to_json_serializable_type, _only_target_vars, get_coordinates
+from pprint import pformat
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -82,16 +83,18 @@ class ToBigQuery(ToDataSink):
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
-        if not self.dry_run:
-            # Create the table in BigQuery
-            try:
-                table = bigquery.Table(self.output_table, schema=table_schema)
-                self.table = bigquery.Client().create_table(table, exists_ok=True)
-            except Exception as e:
-                logger.error(f'Unable to create table in BigQuery: {e}')
-                raise
-        else:
-            logger.debug("Created the BigQuery table")
+        if self.dry_run:
+            logger.debug('Created the BigQuery table with schema...')
+            logger.debug(f'\n{pformat(table_schema)}')
+            return
+
+        # Create the table in BigQuery
+        try:
+            table = bigquery.Table(self.output_table, schema=table_schema)
+            self.table = bigquery.Client().create_table(table, exists_ok=True)
+        except Exception as e:
+            logger.error(f'Unable to create table in BigQuery: {e}')
+            raise
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
@@ -118,7 +121,7 @@ class ToBigQuery(ToDataSink):
         else:
             (
                 extracted_rows
-                | "Log Extracted Rows" >> beam.Map(logger.debug)
+                | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
 
 
