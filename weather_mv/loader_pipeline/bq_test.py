@@ -250,15 +250,17 @@ class ExtractRowsTest(ExtractRowsTestBase):
             '{"type": "Point", "coordinates": [-1, 90]}',
             '{"type": "Point", "coordinates": [0, 90]}'
         ]
-        for x in range(len(valid_lat_long)):
-            expected = fetch_geo_point(valid_lat_long[x][0], valid_lat_long[x][1])
-            self.assertEqual(actual_val[x], expected)
+        for actual, (lat, long) in zip(actual_val, valid_lat_long):
+            with self.subTest():
+                expected = fetch_geo_point(lat, long)
+                self.assertEqual(actual, expected)
 
     def test_extract_rows__with_invalid_lat(self):
         invalid_lat_long = [[-100, -2000], [-100, -500], [100, 500], [100, 2000]]
-        for x in range(len(invalid_lat_long)):
-            with self.assertRaises(ValueError):
-                fetch_geo_point(invalid_lat_long[x][0], invalid_lat_long[x][1])
+        for i, (lat, long) in enumerate(invalid_lat_long):
+            with self.subTest():
+                with self.assertRaises(ValueError):
+                    fetch_geo_point(lat, long)
 
 
 @contextmanager
