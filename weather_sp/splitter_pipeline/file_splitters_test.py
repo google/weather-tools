@@ -80,7 +80,7 @@ class GribSplitterTest(unittest.TestCase):
             OutFileInfo(
                 file_name_template='path/output/file.{typeOfLevel}_{shortName}', ending='.grib')
         )
-        out = splitter._get_output_file_path(
+        out = splitter.output_info.formatted_output_path(
             {'typeOfLevel': 'surface', 'shortName': 'cc'})
         self.assertEqual(out, 'path/output/file.surface_cc.grib')
 
@@ -91,7 +91,7 @@ class GribSplitterTest(unittest.TestCase):
             OutFileInfo(file_name_template='path/output/file',
                         formatting='_{typeOfLevel}_{shortName}', ending='.grib')
         )
-        splitter._open_outfile(splitter._get_output_file_path(
+        splitter._open_outfile(splitter.output_info.formatted_output_path(
             {'typeOfLevel': 'surface', 'shortName': 'cc'}))
         mock_io.assert_called_with('path/output/file_surface_cc.grib')
 
@@ -166,7 +166,7 @@ class NetCdfSplitterTest(unittest.TestCase):
     def test_get_output_file_path(self):
         splitter = NetCdfSplitter(
             'path/to/input', OutFileInfo('path/output/file_{variable}', '.nc'))
-        out = splitter._get_output_file_path({'variable': 'cc'})
+        out = splitter.output_info.formatted_output_path({'variable': 'cc'})
         self.assertEqual(out, 'path/output/file_cc.nc')
 
     def test_split_data(self):
@@ -233,7 +233,7 @@ class DrySplitterTest(unittest.TestCase):
         splitter = DrySplitter(input_path, out_info)
         keys = splitter._get_keys()
         self.assertEqual(keys, {'variable': 'variable'})
-        out_file = splitter._get_output_file_path(keys)
+        out_file = splitter.output_info.formatted_output_path(keys)
         self.assertEqual(
             out_file, 'gs://my_bucket/splits/c-d-file_old_data.variable.cd')
 
@@ -251,7 +251,7 @@ class DrySplitterTest(unittest.TestCase):
         splitter = DrySplitter(input_path, out_info)
         keys = splitter._get_keys()
         self.assertEqual(keys, {'default_for_filetype': 'default_for_filetype'})
-        out_file = splitter._get_output_file_path(keys)
+        out_file = splitter.output_info.formatted_output_path(keys)
         self.assertEqual(
             out_file, 'gs://my_bucket/splits/d/file_default_for_filetype.nc')
 

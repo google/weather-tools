@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass, field
 import logging
 import os
 import typing as t
@@ -22,25 +23,29 @@ GRIB_FILE_ENDINGS = ('.grib', '.grb', '.grb2', '.grib2', '.gb')
 NETCDF_FILE_ENDINGS = ('.nc', '.cd')
 
 
+@dataclass
 class OutFileInfo:
-    """Holds data required to construct an output file name."""
+    """Holds data required to construct an output file name.
 
-    def __init__(self, file_name_template: str,
-                 formatting: str = '',
-                 ending: str = '',
-                 template_folders: t.List[str] = [],
-                 requires_formatting: bool = False):
-        self.file_name_template = file_name_template
-        self.formatting = formatting
-        self.ending = ending
-        self.template_folders = template_folders
-        self.requires_formatting = requires_formatting
+    Attributes:
+        file_name_template: base output path, may contain python-style formatting
+                            marks. This can be a base directory or a full name.
+        formatting: added after file_name_template to add formatting. Only used
+                    when using --output-dir.
+        ending: file ending.
+        template_folders:
+    """
+    file_name_template: str
+    formatting: str = ''
+    ending: str = ''
+    template_folders: t.List[str] = field(default_factory=lambda: [])
+    requires_formatting: bool = False
 
-    def __str__(self):
-        return self.get_unformatted_output_name()
+    def __repr__(self):
+        return self.unformatted_output_path()
 
-    def get_unformatted_output_name(self):
-        """Construct base output file name with formatting marks."""
+    def unformatted_output_path(self):
+        """Construct output file name with formatting marks."""
         return self.file_name_template + self.formatting + self.ending
 
     def set_formatting_if_needed(self, formatting: str):
@@ -51,9 +56,9 @@ class OutFileInfo:
         if self.requires_formatting and not self.formatting:
             self.formatting = formatting
 
-    def get_formatted_output_file_path(self, splits: t.Dict[str, str]) -> str:
+    def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
-        return self.get_unformatted_output_name().format(*self.template_folders, **splits)
+        return self.unformatted_output_path().format(*self.template_folders, **splits)
 
 
 def get_output_file_info(filename: str,

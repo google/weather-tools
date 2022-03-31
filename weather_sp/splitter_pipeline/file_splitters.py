@@ -62,12 +62,9 @@ class FileSplitter(abc.ABC):
         with FileSystems().create(target) as dest_file:
             shutil.copyfileobj(src_file, dest_file)
 
-    def _get_output_file_path(self, splits: t.Dict[str, str]) -> str:
-        return self.output_info.get_formatted_output_file_path(splits)
-
     def _get_split_dims(self) -> t.List[str]:
         all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self.output_info.get_unformatted_output_name())]))
+            self.output_info.unformatted_output_path())]))
         return [key for key in all_format if not key.isdigit()]
 
     def should_skip(self):
@@ -76,7 +73,7 @@ class FileSplitter(abc.ABC):
             return False
 
         for match in FileSystems().match([
-            self._get_output_file_path({var: '*' for var in self.split_dims}),
+            self.output_info.formatted_output_path({var: '*' for var in self.split_dims}),
         ]):
             if len(match.metadata_list) > 0:
                 return True
@@ -112,7 +109,7 @@ class GribSplitter(FileSplitter):
                     except RuntimeError:
                         self.logger.error(
                             'Variable not found in grib: %s', dim)
-                key = self._get_output_file_path(splits)
+                key = self.output_info.formatted_output_path(splits)
                 if key not in outputs:
                     outputs[key] = self._open_outfile(key)
                 outputs[key].write(grb.tostring())
@@ -191,7 +188,7 @@ class NetCdfSplitter(FileSplitter):
         if 'time' in self.split_dims:
             splits['time'] = np.datetime_as_string(
                 dataset.time.values, unit='m')
-        return self._get_output_file_path(splits)
+        return self.output_info.formatted_output_path(splits)
 
 
 class DrySplitter(FileSplitter):
@@ -207,7 +204,7 @@ class DrySplitter(FileSplitter):
 
     def split_data(self) -> None:
         self.logger.info('input file: %s - output scheme: %s',
-                         self.input_path, self._get_output_file_path(self._get_keys()))
+                         self.input_path, self.output_info.formatted_output_path(self._get_keys()))
 
     def _get_keys(self) -> t.Dict[str, str]:
         return {name: name for name in self.split_dims}

@@ -11,9 +11,24 @@ Splits NetCDF and Grib files into several files by variable (_alpha_).
 ## Usage
 
 ```
-usage: weather-sp [-h] -i INPUT_PATTERN -output-dir OUTPUT_DIR [-d]
+usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR) [--formatting FORMATTING] [-d] [-f]
 
-Split weather data file into files by specified dimensions.
+Split weather data file into files by variable.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT_PATTERN, --input-pattern INPUT_PATTERN
+                        Pattern for input weather data.
+  --output-template OUTPUT_TEMPLATE
+                        Template specifying path to output files using python-style formatting substitution of input directory names. For `input_pattern a/b/c/**` and file
+                        `a/b/c/file.grib`, a template with formatting `/somewhere/{1}-{0}.{level}_{shortName}.grib` will give `somewhere/c-file.level_shortName.grib`
+  --output-dir OUTPUT_DIR
+                        Output directory that will replace the common path of the input_pattern. For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, `outputdir /x/y/z` will create
+                        output files like `/x/y/z/c/file_variable.nc`
+  --formatting FORMATTING
+                        Used in combination with `output-dir`: specifies the how to split the data and format the output file. Example: `_{time}_{level}hPa`
+  -d, --dry-run         Test the input file matching and the output file scheme without splitting.
+  -f, --force           Force re-splitting of the pipeline. Turns of skipping of already split data.
 ```
 
 _Common options_:
@@ -89,13 +104,14 @@ For example, adding `{time}` in the output template or formatting will cause the
 How a file can be split depends on the file type.
 
 #### GRIB
-GRIB files can be split along any dimension that is available in the file's metadata. \
-Examples: 'typeOfLevel', 'level', 'step', 'shortName', 'gridType', 'time', 'forecastTime'
+GRIB files can be split along any dimensions that is available in the file's metadata. \
+Examples: 'typeOfLevel', 'level', 'step', 'shortName', 'gridType', 'time', 'forecastTime' \
+Any available dimensions can be combined when splitting.
 
 #### NetCDF
 NetCDF files are already in a hypercube format and can only be split by one of the dimensions and by data variable.
 Since splitting by latitude or longitude would lead to a large number of small files, this is not supported,
-and it is recommended to use the weather-mv tool instead. \
+and it is recommended to use the `weather-mv` tool instead. \
 Supported splits for NetCDF files are thus 'variable', 'time', 'level'.
 
 
