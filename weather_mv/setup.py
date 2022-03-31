@@ -35,6 +35,7 @@ base_requirements = [
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
     "cfgrib",
     "netcdf4",
+    "geojson",
 ]
 
 

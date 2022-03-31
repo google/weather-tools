@@ -18,6 +18,7 @@ import logging
 import typing as t
 
 import apache_beam as beam
+import geojson
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -35,9 +36,8 @@ DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datet
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
-S2_LOCATION = 's2_location'  # st_geog_point
-MIN_LATITUDE = -90
-MAX_LATITUDE = 90
+GEO_POINT_COLUMN = 'geo_point'
+LATITUDE_RANGE = (-90, 90)
 
 
 @dataclasses.dataclass
@@ -146,21 +146,18 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
-    fields.append(bigquery.SchemaField(S2_LOCATION, 'GEOGRAPHY', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
 
     return fields
 
 
-def fetch_s2_location(lat, long):
-    """
-    This function calculates and returns s2_location
-    from the input latitude and longitude values
-    """
-    if lat > MAX_LATITUDE or lat < MIN_LATITUDE:
+def fetch_geo_point(lat: float, long: float) -> str:
+    """Calculates a geography point from an input latitude and longitude."""
+    if lat > LATITUDE_RANGE[1] or lat < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value '{lat}'")
     long = ((long + 180) % 360) - 180
-    row = '{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[%d,%d]}]}' % (long, lat)
-    return row
+    point = geojson.dumps(geojson.Point((long, lat)))
+    return point
 
 
 def extract_rows(uri: str, *,
@@ -209,7 +206,7 @@ def extract_rows(uri: str, *,
             row[DATA_IMPORT_TIME_COLUMN] = import_time
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
-            row[S2_LOCATION] = fetch_s2_location(row['latitude'], row['longitude'])
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
