@@ -39,9 +39,9 @@ class TestCLI(unittest.TestCase):
             'xarray_open_dataset_kwargs': {}
         }
 
-    def test_dry_runs_raise_error(self):
-        with self.assertRaisesRegex(NotImplementedError, 'are currently not supported'):
-            run(self.base_cli_args + '--dry-run'.split())
+    def test_dry_runs_are_allowed(self):
+        known_args, _ = run(self.base_cli_args + '--dry-run'.split())
+        self.assertEqual(known_args.dry_run, True)
 
     def test_area_only_allows_four(self):
         with self.assertRaisesRegex(AssertionError, 'Must specify exactly 4 lat/long .* N, W, S, E'):

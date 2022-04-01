@@ -109,9 +109,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
-    if known_args.dry_run:
-        raise NotImplementedError('dry-runs are currently not supported!')
-
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 

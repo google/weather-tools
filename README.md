@@ -98,8 +98,6 @@ _Steps_:
 
    See [these docs](weather_mv/README.md) for more about this tool.
 
-   > Warning: Dry-runs are currently not supported. See [#22](https://github.com/googlestaging/weather-tools/issues/22).
-
 That's it! Soon, you'll have your weather data ready for analysis in BigQuery.
 
 > Note: The exact interfaces for these CLIs are subject to change. For example, we plan to make the CLIs have more

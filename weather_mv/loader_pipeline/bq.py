@@ -27,6 +27,7 @@ from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
 from .util import to_json_serializable_type, _only_target_vars, get_coordinates
+from pprint import pformat
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -82,6 +83,11 @@ class ToBigQuery(ToDataSink):
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
+        if self.dry_run:
+            logger.debug('Created the BigQuery table with schema...')
+            logger.debug(f'\n{pformat(table_schema)}')
+            return
+
         # Create the table in BigQuery
         try:
             table = bigquery.Table(self.output_table, schema=table_schema)
@@ -92,7 +98,7 @@ class ToBigQuery(ToDataSink):
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
-        (
+        extracted_rows = (
                 paths
                 | 'ExtractRows' >> beam.FlatMap(
                     extract_rows,
@@ -100,14 +106,23 @@ class ToBigQuery(ToDataSink):
                     area=self.area,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs)
-                | 'WriteToBigQuery' >> WriteToBigQuery(
-                    project=self.table.project,
-                    dataset=self.table.dataset_id,
-                    table=self.table.table_id,
-                    write_disposition=BigQueryDisposition.WRITE_APPEND,
-                    create_disposition=BigQueryDisposition.CREATE_NEVER)
+            )
 
-        )
+        if not self.dry_run:
+            (
+                extracted_rows
+                | 'WriteToBigQuery' >> WriteToBigQuery(
+                        project=self.table.project,
+                        dataset=self.table.dataset_id,
+                        table=self.table.table_id,
+                        write_disposition=BigQueryDisposition.WRITE_APPEND,
+                        create_disposition=BigQueryDisposition.CREATE_NEVER)
+            )
+        else:
+            (
+                extracted_rows
+                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+            )
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
