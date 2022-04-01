@@ -84,6 +84,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
    cd weather-tools
    pip install -e ."[dev]"
    ```
+    > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version.
 
 1. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
 
