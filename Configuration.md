@@ -228,6 +228,8 @@ source's catalog is structured.
 
 ### Copernicus / CDS
 
+**Licence**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in [Licence](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
+
 **Catalog**: [https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset)
 
 Visit the follow to register / acquire API credentials:
@@ -246,6 +248,8 @@ See [this example](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis
 for what kind of requests one can make.
 
 ### MARS
+
+**Licence**: By using MARS Dataset, users agree to the terms and conditions specified in [Licence](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
 
 **Catalog**: [https://apps.ecmwf.int/archive-catalogue/](https://apps.ecmwf.int/archive-catalogue/)
 
