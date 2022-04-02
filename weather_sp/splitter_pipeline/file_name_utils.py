@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 import logging
 import os
+import string
 import typing as t
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,11 @@ class OutFileInfo:
     def unformatted_output_path(self):
         """Construct output file name with formatting marks."""
         return self.file_name_template + self.formatting + self.ending
+
+    def split_dims(self) -> t.List[str]:
+        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
+            self.unformatted_output_path())]))
+        return [key for key in all_format if not key.isdigit()]
 
     def set_formatting_if_needed(self, formatting: str):
         """If formatting string is required but not present, set formatting.

@@ -39,7 +39,6 @@ class FileSplitter(abc.ABC):
                  force_split: bool = False, logging_level: int = logging.INFO):
         self.input_path = input_path
         self.output_info = output_info
-        self.split_dims = self._get_split_dims()
         self.force_split = force_split
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(logging_level)
@@ -73,7 +72,7 @@ class FileSplitter(abc.ABC):
             return False
 
         for match in FileSystems().match([
-            self.output_info.formatted_output_path({var: '*' for var in self.split_dims}),
+            self.output_info.formatted_output_path({var: '*' for var in self.output_info.split_dims()}),
         ]):
             if len(match.metadata_list) > 0:
                 return True
@@ -87,10 +86,9 @@ class GribSplitter(FileSplitter):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
         self.output_info.set_formatting_if_needed('_{typeOfLevel}_{shortName}')
-        self.split_dims = self._get_split_dims()
 
     def split_data(self) -> None:
-        if not self.split_dims:
+        if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
         outputs = dict()
 
@@ -103,7 +101,7 @@ class GribSplitter(FileSplitter):
         with self._open_grib_locally() as grbs:
             for grb in grbs:
                 splits = dict()
-                for dim in self.split_dims:
+                for dim in self.output_info.split_dims():
                     try:
                         splits[dim] = getattr(grb, dim)
                     except RuntimeError:
@@ -111,7 +109,7 @@ class GribSplitter(FileSplitter):
                             'Variable not found in grib: %s', dim)
                 key = self.output_info.formatted_output_path(splits)
                 if key not in outputs:
-                    outputs[key] = self._open_outfile(key)
+                    outputs[key] = FileSystems.create(key)
                 outputs[key].write(grb.tostring())
                 outputs[key].flush()
 
@@ -125,9 +123,6 @@ class GribSplitter(FileSplitter):
         with self._copy_to_local_file() as local_file:
             yield pygrib.open(local_file.name)
 
-    def _open_outfile(self, key: str):
-        return FileSystems.create(key)
-
 
 class NetCdfSplitter(FileSplitter):
 
@@ -136,29 +131,28 @@ class NetCdfSplitter(FileSplitter):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
         self.output_info.set_formatting_if_needed('_{variable}')
-        self.split_dims = self._get_split_dims()
 
     def split_data(self) -> None:
-        if not self.split_dims:
+        if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
         if self.should_skip():
             metrics.Metrics.counter('file_splitters', 'skipped').inc()
             self.logger.info('Skipping %s, file already split.',
                              repr(self.input_path))
             return
-        if any(split not in ('time', 'level', 'variable') for split in self.split_dims):
+        if any(split not in ('time', 'level', 'variable') for split in self.output_info.split_dims()):
             raise ValueError(
                 'netcdf split: unknown split dimension, supported are time, level, variable')
 
         with self._open_dataset_locally() as dataset:
-            if any(split not in dataset.dims and split not in ('variable') for split in self.split_dims):
+            if any(split not in dataset.dims and split not in ('variable') for split in self.output_info.split_dims()):
                 raise ValueError(
                     'netcdf split: requested dimension not in dataset')
             iterlists = []
             iterlists.append([dataset[var].to_dataset(
-            ) for var in dataset.data_vars] if 'variable' in self.split_dims else [dataset])
+            ) for var in dataset.data_vars] if 'variable' in self.output_info.split_dims() else [dataset])
             for dim in ('time', 'level'):
-                if dim in self.split_dims:
+                if dim in self.output_info.split_dims():
                     iterlists.append(dataset[dim])
             combinations = list(itertools.product(*iterlists))
             for comb in combinations:
@@ -183,9 +177,9 @@ class NetCdfSplitter(FileSplitter):
 
     def _get_output_for_dataset(self, dataset: xr.Dataset) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}
-        if 'level' in self.split_dims:
+        if 'level' in self.output_info.split_dims():
             splits['level'] = dataset.level.values
-        if 'time' in self.split_dims:
+        if 'time' in self.output_info.split_dims():
             splits['time'] = np.datetime_as_string(
                 dataset.time.values, unit='m')
         return self.output_info.formatted_output_path(splits)
@@ -198,16 +192,15 @@ class DrySplitter(FileSplitter):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
         self.output_info.set_formatting_if_needed('_{default_for_filetype}')
-        self.split_dims = self._get_split_dims()
-        if not self.split_dims:
-            raise ValueError('No splitting specified in template.')
 
     def split_data(self) -> None:
+        if not self.output_info.split_dims():
+            raise ValueError('No splitting specified in template.')
         self.logger.info('input file: %s - output scheme: %s',
                          self.input_path, self.output_info.formatted_output_path(self._get_keys()))
 
     def _get_keys(self) -> t.Dict[str, str]:
-        return {name: name for name in self.split_dims}
+        return {name: name for name in self.output_info.split_dims()}
 
 
 def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:

@@ -108,3 +108,10 @@ class FileNameUtilsTest(unittest.TestCase):
         self.assertEqual(out_info.formatting, '_{orig_format}')
         out_info.set_formatting_if_needed('_{format}')
         self.assertEqual(out_info.formatting, '_{orig_format}')
+
+    def test_split_dims(self):
+        out_info = get_output_file_info(filename='gs://my_bucket/data_to_split/2020/01/21.nc',
+                                        out_pattern='gs://my_bucket/splits/{2}-{1}-{0}_old_data.{variable}',
+                                        out_dir=None,
+                                        input_base_dir='ignored')
+        self.assertEqual(out_info.split_dims(), ['variable'])

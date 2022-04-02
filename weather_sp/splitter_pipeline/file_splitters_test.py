@@ -19,7 +19,6 @@ import shutil
 import unittest
 import xarray as xr
 from collections import defaultdict
-from unittest.mock import patch
 
 import weather_sp
 from .file_name_utils import OutFileInfo
@@ -83,17 +82,6 @@ class GribSplitterTest(unittest.TestCase):
         out = splitter.output_info.formatted_output_path(
             {'typeOfLevel': 'surface', 'shortName': 'cc'})
         self.assertEqual(out, 'path/output/file.surface_cc.grib')
-
-    @patch('apache_beam.io.filesystems.FileSystems.create')
-    def test_open_outfile(self, mock_io):
-        splitter = GribSplitter(
-            'path/to/input',
-            OutFileInfo(file_name_template='path/output/file',
-                        formatting='_{typeOfLevel}_{shortName}', ending='.grib')
-        )
-        splitter._open_outfile(splitter.output_info.formatted_output_path(
-            {'typeOfLevel': 'surface', 'shortName': 'cc'}))
-        mock_io.assert_called_with('path/output/file_surface_cc.grib')
 
     def test_split_data(self):
         input_path = f'{self._data_dir}/era5_sample.grib'
@@ -239,9 +227,10 @@ class DrySplitterTest(unittest.TestCase):
 
     def test_path_with_output_pattern_no_formatting(self):
         # OutFileInfo using pattern but without any formatting marks.
+        splitter = DrySplitter("input_path/file.grib",
+                               OutFileInfo("some/out/no/formatting"))
         with self.assertRaises(ValueError):
-            DrySplitter("input_path/file.grib",
-                        OutFileInfo("some/out/no/formatting"))
+            splitter.split_data()
 
     def test_path_with_output_dir_no_formatting(self):
         input_path = 'a/b/c/d/file.nc'
@@ -250,7 +239,8 @@ class DrySplitterTest(unittest.TestCase):
             filename=input_path, input_base_dir='a/b/c/', out_dir=out_dir)
         splitter = DrySplitter(input_path, out_info)
         keys = splitter._get_keys()
-        self.assertEqual(keys, {'default_for_filetype': 'default_for_filetype'})
+        self.assertEqual(
+            keys, {'default_for_filetype': 'default_for_filetype'})
         out_file = splitter.output_info.formatted_output_path(keys)
         self.assertEqual(
             out_file, 'gs://my_bucket/splits/d/file_default_for_filetype.nc')
