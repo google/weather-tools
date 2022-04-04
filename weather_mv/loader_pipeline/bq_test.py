@@ -257,7 +257,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_extract_rows__with_invalid_lat(self):
         invalid_lat_long = [[-100, -2000], [-100, -500], [100, 500], [100, 2000]]
-        for i, (lat, long) in enumerate(invalid_lat_long):
+        for (lat, long) in invalid_lat_long:
             with self.subTest():
                 with self.assertRaises(ValueError):
                     fetch_geo_point(lat, long)
