@@ -18,6 +18,7 @@ import logging
 import typing as t
 
 import apache_beam as beam
+import geojson
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -36,6 +37,8 @@ DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datet
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
+GEO_POINT_COLUMN = 'geo_point'
+LATITUDE_RANGE = (-90, 90)
 
 
 @dataclasses.dataclass
@@ -158,8 +161,18 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
 
     return fields
+
+
+def fetch_geo_point(lat: float, long: float) -> str:
+    """Calculates a geography point from an input latitude and longitude."""
+    if lat > LATITUDE_RANGE[1] or lat < LATITUDE_RANGE[0]:
+        raise ValueError(f"Invalid latitude value '{lat}'")
+    long = ((long + 180) % 360) - 180
+    point = geojson.dumps(geojson.Point((long, lat)))
+    return point
 
 
 def extract_rows(uri: str, *,
@@ -208,6 +221,7 @@ def extract_rows(uri: str, *,
             row[DATA_IMPORT_TIME_COLUMN] = import_time
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,

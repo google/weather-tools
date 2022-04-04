@@ -17,13 +17,14 @@ import typing as t
 import unittest
 from contextlib import contextmanager
 from time import perf_counter
+import geojson
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
-from .bq import dataset_to_table_schema, extract_rows
+from .bq import dataset_to_table_schema, extract_rows, fetch_geo_point
 from .sinks_test import TestDataBase, _handle_missing_grib_be
 from .util import _only_target_vars
 
@@ -56,6 +57,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -70,6 +72,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -85,6 +88,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -112,6 +116,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
 
         ]
         self.assertListEqual(schema, expected_schema)
@@ -146,6 +151,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
+            'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -159,6 +165,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
+            'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -174,6 +181,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 2.73445987701416,
             'v10': 0.08277571201324463,
+            'geo_point': geojson.dumps(geojson.Point((-103.0, 45.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -189,7 +197,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': -108.0,
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
-            'v10': 0.03294110298156738
+            'v10': 0.03294110298156738,
+            'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0)))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -206,6 +215,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
+            'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0)))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -222,8 +232,35 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': None,
             'v10': 0.03294110298156738,
+            'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
         }
         self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows__with_valid_lat_long(self):
+        valid_lat_long = [[-90, -360], [-90, -359], [-45, -180], [-45, -45], [0, 0], [45, 45], [45, 180], [90, 359],
+                          [90, 360]]
+        actual_val = [
+            '{"type": "Point", "coordinates": [0, -90]}',
+            '{"type": "Point", "coordinates": [1, -90]}',
+            '{"type": "Point", "coordinates": [-180, -45]}',
+            '{"type": "Point", "coordinates": [-45, -45]}',
+            '{"type": "Point", "coordinates": [0, 0]}',
+            '{"type": "Point", "coordinates": [45, 45]}',
+            '{"type": "Point", "coordinates": [-180, 45]}',
+            '{"type": "Point", "coordinates": [-1, 90]}',
+            '{"type": "Point", "coordinates": [0, 90]}'
+        ]
+        for actual, (lat, long) in zip(actual_val, valid_lat_long):
+            with self.subTest():
+                expected = fetch_geo_point(lat, long)
+                self.assertEqual(actual, expected)
+
+    def test_extract_rows__with_invalid_lat(self):
+        invalid_lat_long = [[-100, -2000], [-100, -500], [100, 500], [100, 2000]]
+        for (lat, long) in invalid_lat_long:
+            with self.subTest():
+                with self.assertRaises(ValueError):
+                    fetch_geo_point(lat, long)
 
 
 @contextmanager
@@ -256,6 +293,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'time': '2021-10-18T06:00:00+00:00',
             'valid_time': '2021-10-18T06:00:00+00:00',
             'z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -269,6 +307,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'latitude': 90.0,
             'longitude': -180.0,
             'z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -283,6 +322,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'longitude': -180.0,
             'step': 0,
             'z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
         }
         self.assertRowsEqual(actual, expected)
 
@@ -334,7 +374,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'v10': -3.2414093017578125,
             'v100': -4.1650390625,
             'v200': -3.6647186279296875,
-            'valid_time': '2021-12-10T20:00:00+00:00'
+            'valid_time': '2021-12-10T20:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
         }
         self.assertRowsEqual(actual, expected)
 
