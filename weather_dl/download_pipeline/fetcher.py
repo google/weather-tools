@@ -65,8 +65,6 @@ class Fetcher(beam.DoFn):
             return
 
         client = CLIENTS[self.client_name](config)
-        logger.info(f'By using {self.client_name} datasets, \
-                    users agree to the terms and conditions specified in {client.get_license_url()}')
         target = prepare_target_name(config)
         dataset = config['parameters'].get('dataset', '')
         selection = config['selection']

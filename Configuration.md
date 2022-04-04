@@ -228,7 +228,7 @@ source's catalog is structured.
 
 ### Copernicus / CDS
 
-**Licence**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in [Licence](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
+**License**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in [License](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
 
 **Catalog**: [https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset)
 
@@ -249,7 +249,7 @@ for what kind of requests one can make.
 
 ### MARS
 
-**Licence**: By using MARS Dataset, users agree to the terms and conditions specified in [Licence](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
+**License**: By using MARS Dataset, users agree to the terms and conditions specified in [License](https://www.ecmwf.int/en/forecasts/accessing-forecasts/licences-available) document.
 
 **Catalog**: [https://apps.ecmwf.int/archive-catalogue/](https://apps.ecmwf.int/archive-catalogue/)
 

@@ -53,10 +53,10 @@ class Client(abc.ABC):
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
+    @property
     @abc.abstractmethod
-    def get_license_url(self) -> str:
-        """Specifies the Licence URL."""
-        pass
+    def license_url(self):
+        """Specifies the License URL."""
 
 
 class CdsClient(Client):
@@ -95,7 +95,8 @@ class CdsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
         self.c.retrieve(dataset, selection, target)
 
-    def get_license_url(self) -> str:
+    @property
+    def license_url(self):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
     def num_requests_per_key(self, dataset: str) -> int:
@@ -179,7 +180,8 @@ class MarsClient(Client):
         with StdoutLogger(self.logger, level=logging.DEBUG):
             self.c.execute(req=selection, target=output)
 
-    def get_license_url(self) -> str:
+    @property
+    def license_url(self):
         return 'https://apps.ecmwf.int/datasets/licences/general/'
 
     def num_requests_per_key(self, dataset: str) -> int:
@@ -205,7 +207,8 @@ class FakeClient(Client):
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
 
-    def get_license_url(self) -> str:
+    @property
+    def license_url(self):
         return 'lorem ipsum'
 
     def num_requests_per_key(self, dataset: str) -> int:

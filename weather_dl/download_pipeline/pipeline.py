@@ -163,6 +163,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
             config.get('parameters', {}).get('dataset', "")
         )
 
+    logger.warning(f'By using {client_name} datasets, '
+                   f'users agree to the terms and conditions specified in {CLIENTS[client_name](config).license_url}')
+
     return PipelineArgs(
         known_args, pipeline_options, config, client_name, store, manifest, num_requesters_per_key
     )
