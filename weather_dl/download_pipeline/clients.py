@@ -57,6 +57,7 @@ class Client(abc.ABC):
     @abc.abstractmethod
     def license_url(self):
         """Specifies the License URL."""
+        pass
 
 
 class CdsClient(Client):
