@@ -158,10 +158,14 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         manifest = LocalManifest(Location(local_dir))
 
     num_requesters_per_key = known_args.num_requests_per_key
+    client = CLIENTS[client_name](config)
     if num_requesters_per_key == -1:
-        num_requesters_per_key = CLIENTS[client_name](config).num_requests_per_key(
+        num_requesters_per_key = client.num_requests_per_key(
             config.get('parameters', {}).get('dataset', "")
         )
+
+    logger.warning(f'By using {client_name} datasets, '
+                   f'users agree to the terms and conditions specified in {client.license_url}')
 
     return PipelineArgs(
         known_args, pipeline_options, config, client_name, store, manifest, num_requesters_per_key

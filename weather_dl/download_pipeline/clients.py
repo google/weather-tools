@@ -53,6 +53,12 @@ class Client(abc.ABC):
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
+    @property
+    @abc.abstractmethod
+    def license_url(self):
+        """Specifies the License URL."""
+        pass
+
 
 class CdsClient(Client):
     """A client to access weather data from the Cloud Data Store (CDS).
@@ -89,6 +95,10 @@ class CdsClient(Client):
 
     def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
         self.c.retrieve(dataset, selection, target)
+
+    @property
+    def license_url(self):
+        return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
     def num_requests_per_key(self, dataset: str) -> int:
         """Number of requests per key from the CDS API.
@@ -171,6 +181,10 @@ class MarsClient(Client):
         with StdoutLogger(self.logger, level=logging.DEBUG):
             self.c.execute(req=selection, target=output)
 
+    @property
+    def license_url(self):
+        return 'https://apps.ecmwf.int/datasets/licences/general/'
+
     def num_requests_per_key(self, dataset: str) -> int:
         """Number of requests per key (or user) for the Mars API.
 
@@ -193,6 +207,10 @@ class FakeClient(Client):
         self.logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
+
+    @property
+    def license_url(self):
+        return 'lorem ipsum'
 
     def num_requests_per_key(self, dataset: str) -> int:
         return 1
