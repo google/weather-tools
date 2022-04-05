@@ -72,7 +72,8 @@ class FileSplitter(abc.ABC):
             return False
 
         for match in FileSystems().match([
-            self.output_info.formatted_output_path({var: '*' for var in self.output_info.split_dims()}),
+            self.output_info.formatted_output_path(
+                {var: '*' for var in self.output_info.split_dims()}),
         ]):
             if len(match.metadata_list) > 0:
                 return True
@@ -85,7 +86,6 @@ class GribSplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        self.output_info.set_formatting_if_needed('_{typeOfLevel}_{shortName}')
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -130,7 +130,6 @@ class NetCdfSplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        self.output_info.set_formatting_if_needed('_{variable}')
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -191,7 +190,6 @@ class DrySplitter(FileSplitter):
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
                          force_split, logging_level)
-        self.output_info.set_formatting_if_needed('_{default_for_filetype}')
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import os
 import string
@@ -34,13 +34,13 @@ class OutFileInfo:
         formatting: added after file_name_template to add formatting. Only used
                     when using --output-dir.
         ending: file ending.
-        template_folders:
+        template_folders: list of input file directory structure. Only used with
+                          --output-template
     """
     file_name_template: str
-    formatting: str = ''
-    ending: str = ''
-    template_folders: t.List[str] = field(default_factory=lambda: [])
-    requires_formatting: bool = False
+    formatting: str
+    ending: str
+    template_folders: t.List[str]
 
     def __repr__(self):
         return self.unformatted_output_path()
@@ -53,14 +53,6 @@ class OutFileInfo:
         all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
             self.unformatted_output_path())]))
         return [key for key in all_format if not key.isdigit()]
-
-    def set_formatting_if_needed(self, formatting: str):
-        """If formatting string is required but not present, set formatting.
-
-        Does not overwrite already present formatting.
-        """
-        if self.requires_formatting and not self.formatting:
-            self.formatting = formatting
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
@@ -98,13 +90,14 @@ def get_output_file_info(filename: str,
     else:
         ending = ''
 
+    if out_dir and not formatting:
+        raise ValueError('No formatting specified when using --output-dir.')
     if out_dir:
         return OutFileInfo(
             f'{filename.replace(input_base_dir, out_dir)}',
             formatting,
             ending,
-            [],
-            requires_formatting=True
+            []
         )
 
     if out_pattern:

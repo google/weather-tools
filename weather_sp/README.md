@@ -12,23 +12,6 @@ Splits NetCDF and Grib files into several files by variable (_alpha_).
 
 ```
 usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR) [--formatting FORMATTING] [-d] [-f]
-
-Split weather data file into files by variable.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -i INPUT_PATTERN, --input-pattern INPUT_PATTERN
-                        Pattern for input weather data.
-  --output-template OUTPUT_TEMPLATE
-                        Template specifying path to output files using python-style formatting substitution of input directory names. For `input_pattern a/b/c/**` and file
-                        `a/b/c/file.grib`, a template with formatting `/somewhere/{1}-{0}.{level}_{shortName}.grib` will give `somewhere/c-file.level_shortName.grib`
-  --output-dir OUTPUT_DIR
-                        Output directory that will replace the common path of the input_pattern. For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, `outputdir /x/y/z` will create
-                        output files like `/x/y/z/c/file_variable.nc`
-  --formatting FORMATTING
-                        Used in combination with `output-dir`: specifies the how to split the data and format the output file. Example: `_{time}_{level}hPa`
-  -d, --dry-run         Test the input file matching and the output file scheme without splitting.
-  -f, --force           Force re-splitting of the pipeline. Turns of skipping of already split data.
 ```
 
 _Common options_:
@@ -50,6 +33,7 @@ _Usage examples_:
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits'
+           --formatting '.{typeOfLevel}'
 ```
 
 Preview splits with a dry run:
@@ -57,6 +41,7 @@ Preview splits with a dry run:
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits' \
+           --formatting '.{typeOfLevel}'
            --dry-run
 ```
 
@@ -65,6 +50,7 @@ Using DataflowRunner
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --output-dir 'gs://test-tmp/era5/splits'
+           --formatting '.{typeOfLevel}'
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
@@ -122,21 +108,19 @@ Based on the output directory path, the directory structure of the input pattern
 To create the directory structure, the common path of the input pattern is removed from the input file path and replaced
 with the output path. \
 The formatting specified by the `--formatting` flag is added between file name and ending and is
-used to determine along which dimensions to split.\
-If `--formatting` is not specified, file type-specific defaults are used:
-* GRIB: '_{typeOfLevel}_{shortName}'
-* NetCFD: '_{variable}'
+used to determine along which dimensions to split.
 
 Example:
 
 ```bash
 --input-pattern 'gs://test-input/era5/2020/**' \
 --output-dir 'gs://test-output/splits'
+--formatting '.{variable}'
 ```
 
 For a file `gs://test-input/era5/2020/02/01.nc` the output file pattern is
-`gs://test-output/splits/2020/02/01_{variable}.nc` and if the temperature is a variable in that data, the output file
-for that split will be `gs://test-output/splits/2020/02/01_t.nc`.
+`gs://test-output/splits/2020/02/01.{variable}.nc` and if the temperature is a variable in that data, the output file
+for that split will be `gs://test-output/splits/2020/02/01.t.nc`.
 
 Example:
 

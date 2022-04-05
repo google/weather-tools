@@ -27,7 +27,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.1',
+    version='0.3.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_sp/',
     description='A tool to split weather data files into per-variable files.',
     install_requires=base_requirements,

@@ -42,7 +42,7 @@ class PipelineTest(unittest.TestCase):
             input_path='somewhere/somefile',
             input_base='somewhere',
             output_template=None,
-            formatting='',
+            formatting='.{shortName}',
             output_dir='out/there').file_name_template, 'out/there/somefile')
 
     @patch('weather_sp.splitter_pipeline.file_splitters.get_splitter')
@@ -57,7 +57,8 @@ class PipelineTest(unittest.TestCase):
         mock_get_splitter.assert_called_with('somewhere/somefile',
                                              OutFileInfo('out/there/somefile',
                                                          formatting='_{variable}',
-                                                         ending=''),
+                                                         ending='',
+                                                         template_folders=[]),
                                              True)
 
 
