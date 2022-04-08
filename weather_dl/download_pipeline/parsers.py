@@ -17,12 +17,12 @@ import configparser
 import copy as cp
 import datetime
 import json
-import os
+import ast
 import string
 import textwrap
 import typing as t
 from urllib.parse import urlparse
-
+from collections import OrderedDict
 from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
@@ -67,6 +67,86 @@ def date(candidate: str) -> datetime.date:
         )
 
     return converted
+
+
+def time(candidate: str) -> datetime.time:
+    """Converts ECMWF-format time strings into a `datetime.time`.
+
+    Accepted time formats:
+    - HH:MM
+    - HHMM
+    - HH
+
+    For example:
+    - 18:00
+    - 1820
+    - 18
+
+    Note: If MM is omitted it defaults to 00.
+    """
+    converted = None
+
+    accepted_formats = ["%H", "%H:%M", "%H%M"]
+
+    for fmt in accepted_formats:
+        try:
+            converted = datetime.datetime.strptime(candidate, fmt).time()
+            break
+        except ValueError:
+            pass
+
+    if converted is None:
+        raise ValueError(
+            f"Not a valid time: '{candidate}'. Please use valid format."
+        )
+
+    return converted
+
+
+def day_month_year(key: str, candidate: t.Any) -> int:
+    """Converts day, month and year strings into 'int'.
+
+    Also validates the day and month input.
+    """
+    converted = None
+
+    def validate(key: str, candidate: int) -> None:
+        nonlocal converted
+        try:
+            if key == "day":
+                assert 1 <= candidate <= 31
+            if key == "month":
+                assert 1 <= candidate <= 12
+        except AssertionError:
+            converted = None
+
+    if (isinstance(candidate, str) or isinstance(candidate, int)):
+        try:
+            converted = int(candidate)
+            validate(key, converted)
+        except ValueError:
+            pass
+
+    if converted is None:
+        raise ValueError(
+            f"Not a valid day or month or year: {candidate}. Please use valid value."
+        )
+
+    return converted
+
+
+def typecast(key: str, value: t.Any) -> t.Any:
+    """typed the value to its appropriate datatype"""
+    if key == "date":
+        return date(value)
+    if key == "time":
+        return time(value)
+    if key == "day" or key == "month" or key == "year":
+        return day_month_year(key, value)
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return value
 
 
 def parse_config(file: t.IO) -> Config:
@@ -210,7 +290,7 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
     config = dict(config_parser.items(section))
 
     for key, val in config.items():
-        if '/' in val and 'parameters' not in section:
+        if ('/' in val or key == 'date') and 'parameters' not in section:
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:
             config[key] = _splitlines(val)
@@ -220,13 +300,6 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
 
 def _number_of_replacements(s: t.Text):
     return len([v for v in string.Formatter().parse(s) if v[1] is not None])
-
-
-def use_date_as_directory(config: t.Dict):
-    return 'partition_keys' in config['parameters'] \
-           and 'date' in config['parameters']['partition_keys'] \
-           and config['parameters'].get('append_date_dirs', 'false') == 'true' \
-           and 'target_filename' in config['parameters']
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
@@ -303,12 +376,9 @@ def process_config(file: t.IO) -> Config:
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    if params.get('append_date_dirs', 'false') == 'true':
-        require(use_date_as_directory(config),
-                """
-                'append_date_dirs' set to true, but creating the date directory hierarchy also
-                requires that 'target_filename' is given and that 'date' is a partition_key.
-                """)
+    if 'append_date_dirs' in params:
+        raise NotImplementedError("We are no longer supporting \'append_date_dirs\'! Please refer to documentation for "
+                                  "creating date-based directory hierarchy.")
 
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
@@ -326,19 +396,11 @@ def process_config(file: t.IO) -> Config:
     if 'target_filename' in params:
         num_template_replacements += _number_of_replacements(params['target_filename'])
     num_partition_keys = len(partition_keys)
-    if use_date_as_directory(config):
-        num_partition_keys -= 1
-        target_path = t.cast(str, params.get('target_path', ''))
-        if target_path != '':
-            params['target_path'] = target_path.rstrip('/')
 
     require(num_template_replacements == num_partition_keys,
             """
             'target_path' has {0} replacements. Expected {1}, since there are {1}
             partition keys.
-
-            Note: If date is used to create a directory hierarchy
-            no replacement is needed for 'date')
             """.format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
@@ -350,22 +412,15 @@ def process_config(file: t.IO) -> Config:
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
     parameters = config['parameters']
-
     target_path = t.cast(str, parameters.get('target_path', ''))
     target_filename = t.cast(str, parameters.get('target_filename', ''))
     partition_keys = t.cast(t.List[str],
                             cp.copy(parameters.get('partition_keys', list())))
 
-    if use_date_as_directory(config):
-        date = t.cast(str, config['selection']['date'][0])
-        date_vals = date.split('-')
-        target_path = os.path.join(target_path, *date_vals)
-        partition_keys.remove('date')
-
     target_path += target_filename
 
-    partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = target_path.format(*partition_key_values)
+    partition_key_values = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
+    target = target_path.format(*partition_key_values.values(), **partition_key_values)
 
     return target
 

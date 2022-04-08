@@ -88,7 +88,7 @@ class FetchDataTest(unittest.TestCase):
         fetcher.fetch_data(config)
 
         mock_gcs_file.assert_called_with(
-            'gs://weather-dl-unittest/download-01-12.nc',
+            'gs://weather-dl-unittest/download-1-12.nc',
             'wb'
         )
 
@@ -104,7 +104,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -134,7 +134,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -172,7 +172,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },

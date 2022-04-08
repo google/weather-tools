@@ -680,8 +680,8 @@ class ProcessConfigTest(unittest.TestCase):
             "'target_path' has 1 replacements. Expected 2",
             ctx.exception.args[0])
 
-    def test_date_as_directory_key_mismatch(self):
-        with self.assertRaises(ValueError) as ctx:
+    def test_append_date_dirs_raise_error(self):
+        with self.assertRaises(NotImplementedError) as ctx:
             with io.StringIO(
                     """
                     [parameters]
@@ -699,89 +699,9 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "'target_path' has 1 replacements. Expected 0",
+            "We are no longer supporting 'append_date_dirs'! Please refer to documentation for "
+            "creating date-based directory hierarchy.",
             ctx.exception.args[0])
-
-    def test_append_date_dirs_without_filename(self):
-        with self.assertRaises(ValueError) as ctx:
-            with io.StringIO(
-                    """
-                    [parameters]
-                    dataset=foo
-                    client=cds
-                    target_path=somewhere/
-                    append_date_dirs=true
-                    partition_keys=
-                        date
-                    [selection]
-                    date=2017-01-01/to/2017-01-01
-                    """
-            ) as f:
-                process_config(f)
-
-        self.assertIn(
-            "'append_date_dirs' set to true, but creating the date directory hierarchy",
-            ctx.exception.args[0])
-
-    def test_append_date_dirs_without_date_partition(self):
-        with self.assertRaises(ValueError) as ctx:
-            with io.StringIO(
-                    """
-                    [parameters]
-                    dataset=foo
-                    client=cds
-                    target_path=somewhere/
-                    target_filename=bar
-                    append_date_dirs=true
-                    partition_keys=
-                        pressure
-                    [selection]
-                    pressure=500
-                    """
-            ) as f:
-                process_config(f)
-
-        self.assertIn(
-            "'append_date_dirs' set to true, but creating the date directory hierarchy",
-            ctx.exception.args[0])
-
-    def test_append_date_dirs_without_partition_keys(self):
-        with self.assertRaises(ValueError) as ctx:
-            with io.StringIO(
-                    """
-                    [parameters]
-                    dataset=foo
-                    client=cds
-                    target_path=somewhere/
-                    target_filename=bar
-                    append_date_dirs=true
-                    [selection]
-                    pressure=500
-                    """
-            ) as f:
-                process_config(f)
-
-        self.assertIn(
-            "'append_date_dirs' set to true, but creating the date directory hierarchy",
-            ctx.exception.args[0])
-
-    def test_date_as_directory_target_directory_ends_in_slash(self):
-        with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=somewhere/
-                target_filename=bar
-                append_date_dirs=true
-                partition_keys=
-                    date
-                [selection]
-                date=2017-01-01/to/2017-01-01
-                """
-        ) as f:
-            config = process_config(f)
-            self.assertEqual(config['parameters']['target_path'], "somewhere")
 
     def test_client_not_set(self):
         with self.assertRaises(ValueError) as ctx:
@@ -840,7 +760,7 @@ class PrepareTargetNameTest(unittest.TestCase):
                      'year': ['02']
                  }
              },
-             expected='download-02-12.nc'),
+             expected='download-2-12.nc'),
         dict(case='Has date but no target directory.',
              config={
                  'parameters': {
@@ -859,7 +779,7 @@ class PrepareTargetNameTest(unittest.TestCase):
                  'parameters': {
                      'target_path': 'somewhere/',
                      'partition_keys': ['year', 'month'],
-                     'target_filename': 'download/{}/{}.nc',
+                     'target_filename': 'download/{:02d}/{:02d}.nc',
                      'force_download': False
                  },
                  'selection': {
@@ -873,9 +793,8 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date'],
-                     'target_path': 'somewhere',
+                     'target_path': 'somewhere/{date:%Y/%m/%d}',
                      'target_filename': '-download.nc',
-                     'append_date_dirs': 'true',
                      'force_download': False
                  },
                  'selection': {
@@ -887,9 +806,8 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date', 'pressure_level'],
-                     'target_path': 'somewhere',
-                     'target_filename': '-pressure-{}.nc',
-                     'append_date_dirs': 'true',
+                     'target_path': 'somewhere/{date:%Y/%m/%d}',
+                     'target_filename': '-pressure-{pressure_level}.nc',
                      'force_download': False
                  },
                  'selection': {
@@ -903,9 +821,8 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date', 'expver', 'pressure_level'],
-                     'target_path': 'somewhere/expver-{}',
-                     'target_filename': '-pressure-{}.nc',
-                     'append_date_dirs': 'true',
+                     'target_path': 'somewhere/expver-{expver}/{date:%Y/%m/%d}',
+                     'target_filename': '-pressure-{pressure_level}.nc',
                      'force_download': False
                  },
                  'selection': {

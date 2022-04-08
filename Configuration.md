@@ -80,8 +80,6 @@ These describe which data source to download, where the data should live, and ho
     * Like `target_path`, `target_filename` can contain format symbols to be replaced by partition keys; if this is
       used, the total number of format symbols in both fields must match the number of partition keys.
     * This field is required when generating a date-based directory hierarchy (see below).
-* `append_date_dirs`: (optional) A boolean indicating whether a date-based directory hierarchy should be created (see
-  below); defaults to false if not used.
 * `partition_keys`: (optional) This determines how download jobs will be divided.
     * Value can be a single item or a list.
     * Each value must appear as a key in the `selection` section.
@@ -91,29 +89,24 @@ These describe which data source to download, where the data should live, and ho
         * E.g. `['year', 'month']` will lead to a config set like `[(2015, 01), (2015, 02), (2015, 03), ...]`.
     * The list of keys will be used to format the `target_path`.
 
+> **NOTE**: `target_path` and `target_filename` templates are totally compatible with Python's standard string formatting.
+> This includes being able to use named arguments (e.g. 'gs://bucket/{year}/{month}/{day}') as well as specifying formats for strings 
+> (e.g. 'gs://bucket/{year:04d}/{month:02d}/{day:02d}').
+
 ### Creating a date-based directory hierarchy
 
-The configuration can be set up to automatically generate a date-based directory hierarchy for the output files.
-
-To enable this feature, the `append_date_dirs` field has to be set to `true`. In addition, the `target_filename` needs
-to be specified, and `date` has to be a `partition_key`;
-`date` will not be used as a replacement in `target_template` but will instead be used to create a directory structure.
-
-The resulting target path will be `<target_path>/{year}/{month}/{day}<target_filename>`. The number of format symbols in
-this path has to match the number of partition keys excluding `date`.
+The date-based directory hierarchy can be created using Python's standard string formatting.
+Below are some examples of how to use `target_path` and `target_filename` with Python's standard string formatting.
 
 <details>
 <summary><strong>Examples</strong></summary>
-
-Below are more examples of how to use `target_path`, `target_filename`, and `append_date_dirs`.
 
 Note that any parameters that are not relevant to the target path have been omitted.
 
 ```
 [parameters]
 target_filename=.nc
-target_path=gs://ecmwf-output-test/era5/
-append_date_dirs=true
+target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}
 partition_keys=
      date
 [selection]
@@ -126,9 +119,8 @@ will create
 
 ```
 [parameters]
-target_filename=-pressure-{}.nc
-target_path=gs://ecmwf-output-test/era5/
-append_date_dirs=true
+target_filename=-pressure-{pressure_level}.nc
+target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}
 partition_keys=
      date
      pressure_level
@@ -145,8 +137,7 @@ will create
 ```
 [parameters]
 target_filename=.nc
-target_path=gs://ecmwf-output-test/pressure-{}/era5/
-append_date_dirs=true
+target_path=gs://ecmwf-output-test/pressure-{pressure_level}/era5/{date:%%Y/%%m/%%d}
 partition_keys=
      date
      pressure_level
@@ -160,12 +151,9 @@ will create
 `gs://ecmwf-output-test/pressure-500/era5/2017/01/01.nc` and  
 `gs://ecmwf-output-test/pressure-500/era5/2017/01/02.nc`.
 
-The above example also illustrates how to create a directory structure based on partition keys, even without using the
-date-based creation:
-
 ```
 [parameters]
-target_path=gs://ecmwf-output-test/era5/{}/{}/{}-pressure-{}.nc
+target_path=gs://ecmwf-output-test/era5/{year:04d}/{month:02d}/{day:02d}-pressure-{pressure_level}.nc
 partition_keys=
     year
     month
@@ -186,6 +174,14 @@ day=
 will create  
 `gs://ecmwf-output-test/era5/2017/01/01-pressure-500.nc` and  
 `gs://ecmwf-output-test/era5/2017/01/02-pressure-500.nc`.
+
+> **Note**: Replacing the `target_path` of the above example with this `target_path=gs://ecmwf-output-test/era5/{year}/{month}/{day}-pressure-
+>{pressure_level}.nc`
+>
+> will create
+>
+> `gs://ecmwf-output-test/era5/2017/1/1-pressure-500.nc` and  
+> `gs://ecmwf-output-test/era5/2017/1/2-pressure-500.nc`.
 
 </details>
 

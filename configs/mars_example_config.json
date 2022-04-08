@@ -3,8 +3,7 @@
     "client": "mars",
     "dataset": "ecmwf-mars-output",
     "target_filename": ".nc",
-    "target_path": "gs://ecmwf-downloads/hres-single-level",
-    "append_date_dirs": "true",
+    "target_path": "gs://ecmwf-downloads/hres-single-level/{:%Y/%m/%d}",
     "partition_keys": "date"
   },
 
