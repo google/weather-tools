@@ -18,7 +18,6 @@ import logging
 import numpy as np
 import pygrib
 import shutil
-import string
 import tempfile
 import typing as t
 import xarray as xr
@@ -60,11 +59,6 @@ class FileSplitter(abc.ABC):
     def _copy_dataset_to_storage(self, src_file: t.IO, target: str):
         with FileSystems().create(target) as dest_file:
             shutil.copyfileobj(src_file, dest_file)
-
-    def _get_split_dims(self) -> t.List[str]:
-        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self.output_info.unformatted_output_path())]))
-        return [key for key in all_format if not key.isdigit()]
 
     def should_skip(self):
         """Skip splitting if the data was already split."""
@@ -148,12 +142,15 @@ class NetCdfSplitter(FileSplitter):
                 raise ValueError(
                     'netcdf split: requested dimension not in dataset')
             iterlists = []
-            iterlists.append([dataset[var].to_dataset(
-            ) for var in dataset.data_vars] if 'variable' in self.output_info.split_dims() else [dataset])
+            if 'variable' in self.output_info.split_dims():
+                iterlists.append([dataset[var].to_dataset()
+                                  for var in dataset.data_vars])
+            else:
+                iterlists.append([dataset])
             for dim in ('time', 'level'):
                 if dim in self.output_info.split_dims():
                     iterlists.append(dataset[dim])
-            combinations = list(itertools.product(*iterlists))
+            combinations = itertools.product(*iterlists)
             for comb in combinations:
                 selected = comb[0]
                 for da in comb[1:]:
@@ -163,7 +160,7 @@ class NetCdfSplitter(FileSplitter):
                         selected = selected.sel(level=da.level)
                 self._write_dataset(selected)
             self.logger.info('split %s into %d files',
-                             self.input_path, len(combinations))
+                             self.input_path, len(list(combinations)))
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
