@@ -30,7 +30,8 @@ from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
 Config = t.Dict[str, t.Dict[str, Values]]
 
-@dataclasses.dataclass(init = False)
+
+@dataclasses.dataclass(init=False)
 class ConfigDC:
     """Contains pipeline parameters
 
