@@ -21,6 +21,7 @@ import os
 import string
 import textwrap
 import typing as t
+import dataclasses
 from urllib.parse import urlparse
 
 from .clients import CLIENTS
@@ -28,6 +29,39 @@ from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
 Config = t.Dict[str, t.Dict[str, Values]]
+
+@dataclasses.dataclass(init = False)
+class ConfigDC:
+    """Contains pipeline parameters
+
+    Attributes:
+        client: Name of the Weather-API-client. Supported values are, cds (for Copernicus), mars (for MARS).
+        dataset (optional): Name of the target dataset. Allowed options are dictated by the client.
+        target_path: Download artifact filename template. Can make use of Python's standard string formatting.
+        partition_keys (optional): This determines how download jobs will be divided.
+        target_filename (optional): This file name will be appended to target_path.
+        api_key (optional): 'api_key' of the particular subsection.
+        api_url (optional): 'api_url' of the particular subsection.
+        __subsection__: Name of the particular subsection. 'default' if there is no subsection.
+        num_api_keys (optional): Count of number of 'api_key' fields found.
+        force_download: Force redownload of partitions that were previously downloaded.
+        user_id: Username from the environment variables.
+        other_params (optional): For representing subsections or any other parameters.
+        selection: Contains parameters used to select desired data.
+    """
+    client: str
+    dataset: t.Optional[str]
+    target_path: str
+    partition_keys: t.Optional[t.List[str]]
+    target_filename: t.Optional[str]
+    api_key: t.Optional[str]
+    api_url: t.Optional[str]
+    __subsection__: str
+    num_api_keys: t.Optional[int]
+    force_download: bool
+    user_id: str
+    other_params: t.Optional[t.Dict[str, Values]]
+    selection: t.Dict[str, Values]
 
 
 def date(candidate: str) -> datetime.date:
