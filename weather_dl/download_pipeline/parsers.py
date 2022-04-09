@@ -383,7 +383,14 @@ def process_config(file: t.IO) -> Config:
             """.format(str(list(CLIENTS.keys()))))
     if 'append_date_dirs' in params:
         raise NotImplementedError("Current version of weather-tool is no longer supporting 'append_date_dirs'! "
-                                  "Please refer to documentation for creating date-based directory hierarchy.")
+                                  "Please refer to documentation for creating date-based directory hierarchy "
+                                  "(https://github.com/google/weather-tools/blob/main/Configuration.md"
+                                  "#creating-a-date-based-directory-hierarchy).")
+    if 'target_filename' in params:
+        raise NotImplementedError("Current version of weather-tool is no longer supporting 'target_filename'! "
+                                  "Please refer to documentation "
+                                  "(https://github.com/google/weather-tools/blob/main/Configuration.md"
+                                  "#parameters-section).")
 
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
@@ -398,8 +405,6 @@ def process_config(file: t.IO) -> Config:
             documentation for more information.""")
 
     num_template_replacements = _number_of_replacements(params['target_path'])
-    if 'target_filename' in params:
-        num_template_replacements += _number_of_replacements(params['target_filename'])
     num_partition_keys = len(partition_keys)
 
     require(num_template_replacements == num_partition_keys,
@@ -418,11 +423,8 @@ def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
     parameters = config['parameters']
     target_path = t.cast(str, parameters.get('target_path', ''))
-    target_filename = t.cast(str, parameters.get('target_filename', ''))
     partition_keys = t.cast(t.List[str],
                             cp.copy(parameters.get('partition_keys', list())))
-
-    target_path += target_filename
 
     partition_dict = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
     target = target_path.format(*partition_dict.values(), **partition_dict)

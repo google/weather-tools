@@ -687,8 +687,7 @@ class ProcessConfigTest(unittest.TestCase):
                     [parameters]
                     dataset=foo
                     client=cds
-                    target_path=somewhere/
-                    target_filename=bar-{}
+                    target_path=somewhere/bar-{}
                     append_date_dirs=true
                     partition_keys=
                         date
@@ -700,7 +699,33 @@ class ProcessConfigTest(unittest.TestCase):
 
         self.assertIn(
             "Current version of weather-tool is no longer supporting 'append_date_dirs'! "
-            "Please refer to documentation for creating date-based directory hierarchy.",
+            "Please refer to documentation for creating date-based directory hierarchy "
+            "(https://github.com/google/weather-tools/blob/main/Configuration.md"
+            "#creating-a-date-based-directory-hierarchy).",
+            ctx.exception.args[0])
+
+    def test_target_filename_raise_error(self):
+        with self.assertRaises(NotImplementedError) as ctx:
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=somewhere/
+                    target_filename=bar-{}
+                    partition_keys=
+                        date
+                    [selection]
+                    date=2017-01-01/to/2017-01-01
+                    """
+            ) as f:
+                process_config(f)
+
+        self.assertIn(
+            "Current version of weather-tool is no longer supporting 'target_filename'! "
+            "Please refer to documentation "
+            "(https://github.com/google/weather-tools/blob/main/Configuration.md"
+            "#parameters-section).",
             ctx.exception.args[0])
 
     def test_client_not_set(self):
@@ -777,9 +802,8 @@ class PrepareTargetNameTest(unittest.TestCase):
         dict(case='Has Directory, but no date',
              config={
                  'parameters': {
-                     'target_path': 'somewhere/',
+                     'target_path': 'somewhere/download/{:02d}/{:02d}.nc',
                      'partition_keys': ['year', 'month'],
-                     'target_filename': 'download/{:02d}/{:02d}.nc',
                      'force_download': False
                  },
                  'selection': {
@@ -793,8 +817,7 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date'],
-                     'target_path': 'somewhere/{date:%Y/%m/%d}',
-                     'target_filename': '-download.nc',
+                     'target_path': 'somewhere/{date:%Y/%m/%d}-download.nc',
                      'force_download': False
                  },
                  'selection': {
@@ -806,8 +829,7 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date', 'pressure_level'],
-                     'target_path': 'somewhere/{date:%Y/%m/%d}',
-                     'target_filename': '-pressure-{pressure_level}.nc',
+                     'target_path': 'somewhere/{date:%Y/%m/%d}-pressure-{pressure_level}.nc',
                      'force_download': False
                  },
                  'selection': {
@@ -821,8 +843,7 @@ class PrepareTargetNameTest(unittest.TestCase):
              config={
                  'parameters': {
                      'partition_keys': ['date', 'expver', 'pressure_level'],
-                     'target_path': 'somewhere/expver-{expver}/{date:%Y/%m/%d}',
-                     'target_filename': '-pressure-{pressure_level}.nc',
+                     'target_path': 'somewhere/expver-{expver}/{date:%Y/%m/%d}-pressure-{pressure_level}.nc',
                      'force_download': False
                  },
                  'selection': {

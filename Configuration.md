@@ -76,10 +76,6 @@ These describe which data source to download, where the data should live, and ho
 * `dataset`: (optional) Name of the target dataset. Allowed options are dictated by the client.
 * `target_path`: (required) Download artifact filename template. Can use Python string format symbols. Must have the
   same number of format symbols as the number of partition keys.
-* `target_filename`: (optional) This file name will be appended to `target_path`.
-    * Like `target_path`, `target_filename` can contain format symbols to be replaced by partition keys; if this is
-      used, the total number of format symbols in both fields must match the number of partition keys.
-    * This field is required when generating a date-based directory hierarchy (see below).
 * `partition_keys`: (optional) This determines how download jobs will be divided.
     * Value can be a single item or a list.
     * Each value must appear as a key in the `selection` section.
@@ -89,14 +85,14 @@ These describe which data source to download, where the data should live, and ho
         * E.g. `['year', 'month']` will lead to a config set like `[(2015, 01), (2015, 02), (2015, 03), ...]`.
     * The list of keys will be used to format the `target_path`.
 
-> **NOTE**: `target_path` and `target_filename` templates are totally compatible with Python's standard string formatting.
-> This includes being able to use named arguments (e.g. 'gs://bucket/{year}/{month}/{day}') as well as specifying formats for strings 
-> (e.g. 'gs://bucket/{year:04d}/{month:02d}/{day:02d}').
+> **NOTE**: `target_path` template is totally compatible with Python's standard string formatting.
+> This includes being able to use named arguments (e.g. 'gs://bucket/{year}/{month}/{day}.nc') as well as specifying formats for strings 
+> (e.g. 'gs://bucket/{year:04d}/{month:02d}/{day:02d}.nc').
 
 ### Creating a date-based directory hierarchy
 
 The date-based directory hierarchy can be created using Python's standard string formatting.
-Below are some examples of how to use `target_path` and `target_filename` with Python's standard string formatting.
+Below are some examples of how to use `target_path` with Python's standard string formatting.
 
 <details>
 <summary><strong>Examples</strong></summary>
@@ -105,8 +101,7 @@ Note that any parameters that are not relevant to the target path have been omit
 
 ```
 [parameters]
-target_filename=.nc
-target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}
+target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}.nc
 partition_keys=
      date
 [selection]
@@ -119,8 +114,7 @@ will create
 
 ```
 [parameters]
-target_filename=-pressure-{pressure_level}.nc
-target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}
+target_path=gs://ecmwf-output-test/era5/{date:%%Y/%%m/%%d}-pressure-{pressure_level}.nc
 partition_keys=
      date
      pressure_level
@@ -136,8 +130,7 @@ will create
 
 ```
 [parameters]
-target_filename=.nc
-target_path=gs://ecmwf-output-test/pressure-{pressure_level}/era5/{date:%%Y/%%m/%%d}
+target_path=gs://ecmwf-output-test/pressure-{pressure_level}/era5/{date:%%Y/%%m/%%d}.nc
 partition_keys=
      date
      pressure_level
