@@ -30,7 +30,7 @@ Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]
 Config = t.Dict[str, t.Dict[str, Values]]
 
 
-def date(candidate: str) -> datetime.date:
+def date(candidate: str, key: t.Optional[str] = None) -> datetime.date:
     """Converts ECMWF-format date strings into a `datetime.date`.
 
     Accepted absolute date formats:
@@ -69,7 +69,7 @@ def date(candidate: str) -> datetime.date:
     return converted
 
 
-def time(candidate: str) -> datetime.time:
+def time(candidate: str, key: t.Optional[str] = None) -> datetime.time:
     """Converts ECMWF-format time strings into a `datetime.time`.
 
     Accepted time formats:
@@ -103,7 +103,7 @@ def time(candidate: str) -> datetime.time:
     return converted
 
 
-def day_month_year(key: str, candidate: t.Any) -> int:
+def day_month_year(candidate: t.Any, key: str) -> int:
     """Converts day, month and year strings into 'int'.
 
     Also validates the day and month input.
@@ -111,42 +111,47 @@ def day_month_year(key: str, candidate: t.Any) -> int:
     converted = None
 
     def validate(key: str, candidate: int) -> None:
-        nonlocal converted
         try:
             if key == "day":
-                assert 1 <= candidate <= 31
+                assert 1 <= candidate <= 31, "Day value must be between 1 to 31."
             if key == "month":
-                assert 1 <= candidate <= 12
-        except AssertionError:
-            converted = None
+                assert 1 <= candidate <= 12, "Month value must be between 1 to 12."
+        except AssertionError as msg:
+            raise ValueError(msg)
 
-    if (isinstance(candidate, str) or isinstance(candidate, int)):
+    if isinstance(candidate, str) or isinstance(candidate, int):
         try:
             converted = int(candidate)
-            validate(key, converted)
         except ValueError:
             pass
+        if converted is not None:
+            validate(key, converted)
 
     if converted is None:
         raise ValueError(
-            f"Not a valid day or month or year: {candidate}. Please use valid value."
+            f"Not a valid {key} value: {candidate}. Please use valid value."
         )
 
     return converted
 
 
-def typecast(key: str, value: t.Any) -> t.Any:
-    """typed the value to its appropriate datatype"""
-    if key == "date":
-        return date(value)
-    if key == "time":
-        return time(value)
-    if key == "day" or key == "month" or key == "year":
-        return day_month_year(key, value)
+def literal_eval(candidate: t.Any, key: t.Optional[str] = None) -> t.Any:
     try:
-        return ast.literal_eval(value)
+        return ast.literal_eval(candidate)
     except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
-        return value
+        return candidate
+
+
+def typecast(key: str, value: t.Any) -> t.Any:
+    """Typed the value to its appropriate datatype."""
+    SWITCHER = {
+        'date': date,
+        'time': time,
+        'day': day_month_year,
+        'month': day_month_year,
+        'year': day_month_year,
+    }
+    return SWITCHER.get(key, literal_eval)(value, key)
 
 
 def parse_config(file: t.IO) -> Config:
@@ -377,8 +382,8 @@ def process_config(file: t.IO) -> Config:
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
     if 'append_date_dirs' in params:
-        raise NotImplementedError("We are no longer supporting \'append_date_dirs\'! Please refer to documentation for "
-                                  "creating date-based directory hierarchy.")
+        raise NotImplementedError("Current version of weather-tool is no longer supporting 'append_date_dirs'! "
+                                  "Please refer to documentation for creating date-based directory hierarchy.")
 
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
@@ -419,8 +424,8 @@ def prepare_target_name(config: Config) -> str:
 
     target_path += target_filename
 
-    partition_key_values = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
-    target = target_path.format(*partition_key_values.values(), **partition_key_values)
+    partition_dict = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
+    target = target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 

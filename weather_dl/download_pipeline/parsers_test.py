@@ -699,8 +699,8 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "We are no longer supporting 'append_date_dirs'! Please refer to documentation for "
-            "creating date-based directory hierarchy.",
+            "Current version of weather-tool is no longer supporting 'append_date_dirs'! "
+            "Please refer to documentation for creating date-based directory hierarchy.",
             ctx.exception.args[0])
 
     def test_client_not_set(self):
