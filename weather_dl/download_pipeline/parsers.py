@@ -31,20 +31,21 @@ Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]
 Config = t.Dict[str, t.Dict[str, Values]]
 
 
-@dataclasses.dataclass(init=False)
-class ConfigDC:
+@dataclasses.dataclass()
+class Config:
     """Contains pipeline parameters
 
     Attributes:
-        client: Name of the Weather-API-client. Supported values are, cds (for Copernicus), mars (for MARS).
+        client: Name of the Weather-API-client. Supported clients are mentioned in the 'CLIENTS' variable.
         dataset (optional): Name of the target dataset. Allowed options are dictated by the client.
+        partition_keys (optional): Choose the keys from the selection section to partition the data request.
+                                   This will compute a cartesian cross product of the selected keys
+                                   and assign each as their own download.
         target_path: Download artifact filename template. Can make use of Python's standard string formatting.
-        partition_keys (optional): This determines how download jobs will be divided.
+                     It can contain format symbols to be replaced by partition keys;
+                     if this is used, the total number of format symbols must match the number of partition keys.
         target_filename (optional): This file name will be appended to target_path.
-        api_key (optional): 'api_key' of the particular subsection.
-        api_url (optional): 'api_url' of the particular subsection.
-        __subsection__: Name of the particular subsection. 'default' if there is no subsection.
-        num_api_keys (optional): Count of number of 'api_key' fields found.
+        subsection_name: Name of the particular subsection. 'default' if there is no subsection.
         force_download: Force redownload of partitions that were previously downloaded.
         user_id: Username from the environment variables.
         other_params (optional): For representing subsections or any other parameters.
@@ -55,13 +56,10 @@ class ConfigDC:
     target_path: str
     partition_keys: t.Optional[t.List[str]]
     target_filename: t.Optional[str]
-    api_key: t.Optional[str]
-    api_url: t.Optional[str]
-    __subsection__: str
-    num_api_keys: t.Optional[int]
+    subsection_name: str
     force_download: bool
     user_id: str
-    other_params: t.Optional[t.Dict[str, Values]]
+    kwargs: t.Optional[t.Dict[str, Values]]
     selection: t.Dict[str, Values]
 
 
@@ -270,11 +268,8 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     Also counts number of 'api_key' fields found.
     """
     copy = cp.deepcopy(config)
-    num_api_keys = 0
     for key, val in copy.items():
         path = key.split('.')
-        if val.get('api_key', ''):
-            num_api_keys += 1
         runner = copy
         parent = {}
         p = None
@@ -288,8 +283,6 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     for_cleanup = [key for key, _ in copy.items() if '.' in key]
     for target in for_cleanup:
         del copy[target]
-    if num_api_keys:
-        copy['parameters']['num_api_keys'] = num_api_keys
     return copy
 
 

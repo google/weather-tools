@@ -376,7 +376,6 @@ class ParseConfigTest(unittest.TestCase):
                     'api_url': 'https://google.com/',
                     'alice': {'api_key': '123'},
                     'bob': {'api_key': '456'},
-                    'num_api_keys': 2,
                 },
             })
 
@@ -418,8 +417,7 @@ class ApiKeyCountingTest(unittest.TestCase):
         self.assertEqual(actual,
                          {'parameters': {'a': 1, 'b': 2,
                                          'param1': {'api_key': 'key1'},
-                                         'param2': {'api_key': 'key2'},
-                                         'num_api_keys': 2}})
+                                         'param2': {'api_key': 'key2'}}})
 
 
 class ProcessConfigTest(unittest.TestCase):
