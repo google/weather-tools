@@ -78,7 +78,7 @@ On the other hand, to specify a specific pattern use
 --input-pattern 'gs://test-tmp/era5/2017/*/*.nc'
 ```
 
-## Output & Dimensions to split
+## Output & Split Dimensions
 
 The base output file names are specified using the `--output-template` or `--output-dir` flags. These flags are mutually
 exclusive, and one of them is required. \
