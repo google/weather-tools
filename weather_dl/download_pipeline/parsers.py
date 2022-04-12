@@ -109,10 +109,10 @@ def day_month_year(candidate: t.Any) -> int:
         if isinstance(candidate, str) or isinstance(candidate, int):
             return int(candidate)
         raise
-    except ValueError:
+    except ValueError as e:
         raise ValueError(
-            f"Not a valid day or month or year value: {candidate}. Please use valid value."
-        )
+            f"Not a valid day, month, or year value: {candidate}. Please use valid value."
+        ) from e
 
 
 def parse_literal(candidate: t.Any) -> t.Any:
@@ -330,7 +330,7 @@ def process_config(file: t.IO) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
-    def require(condition: bool, message: str, error_type: t.Any = ValueError) -> None:
+    def require(condition: bool, message: str, error_type: t.Type[Exception] = ValueError) -> None:
         """A assert-like helper that wraps text and throws an error."""
         if not condition:
             raise error_type(textwrap.dedent(message))
@@ -376,7 +376,7 @@ def process_config(file: t.IO) -> Config:
             The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
 
             Please refer to documentation for creating date-based directory hierarchy :
-            https://github.com/google/weather-tools/blob/main/Configuration.md#"""
+            https://weather-tools.readthedocs.io/en/latest/Configuration.html#"""
             """creating-a-date-based-directory-hierarchy.""",
             NotImplementedError)
     require('target_filename' not in params,
@@ -384,7 +384,7 @@ def process_config(file: t.IO) -> Config:
             The current version of 'google-weather-tools' no longer supports 'target_filename'!
 
             Please refer to documentation :
-            https://github.com/google/weather-tools/blob/main/Configuration.md#parameters-section.""",
+            https://weather-tools.readthedocs.io/en/latest/Configuration.html#parameters-section.""",
             NotImplementedError)
 
     partition_keys = params.get('partition_keys', list())
