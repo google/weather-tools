@@ -30,7 +30,7 @@ Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]
 Config = t.Dict[str, t.Dict[str, Values]]
 
 
-def date(candidate: str, key: t.Optional[str] = None) -> datetime.date:
+def date(candidate: str) -> datetime.date:
     """Converts ECMWF-format date strings into a `datetime.date`.
 
     Accepted absolute date formats:
@@ -69,7 +69,7 @@ def date(candidate: str, key: t.Optional[str] = None) -> datetime.date:
     return converted
 
 
-def time(candidate: str, key: t.Optional[str] = None) -> datetime.time:
+def time(candidate: str) -> datetime.time:
     """Converts ECMWF-format time strings into a `datetime.time`.
 
     Accepted time formats:
@@ -103,47 +103,35 @@ def time(candidate: str, key: t.Optional[str] = None) -> datetime.time:
     return converted
 
 
-def day_month_year(candidate: t.Any, key: str) -> int:
-    """Converts day, month and year strings into 'int'.
-
-    Also validates the day and month input.
-    """
-    converted = None
-
-    def validate(key: str, candidate: int) -> None:
-        try:
-            if key == "day":
-                assert 1 <= candidate <= 31, "Day value must be between 1 to 31."
-            if key == "month":
-                assert 1 <= candidate <= 12, "Month value must be between 1 to 12."
-        except AssertionError as msg:
-            raise ValueError(msg)
-
-    if isinstance(candidate, str) or isinstance(candidate, int):
-        try:
-            converted = int(candidate)
-        except ValueError:
-            pass
-        if converted is not None:
-            validate(key, converted)
-
-    if converted is None:
+def day_month_year(candidate: t.Any) -> int:
+    """Converts day, month and year strings into 'int'."""
+    try:
+        if isinstance(candidate, str) or isinstance(candidate, int):
+            return int(candidate)
+        raise
+    except ValueError:
         raise ValueError(
-            f"Not a valid {key} value: {candidate}. Please use valid value."
+            f"Not a valid day or month or year value: {candidate}. Please use valid value."
         )
 
-    return converted
 
-
-def literal_eval(candidate: t.Any, key: t.Optional[str] = None) -> t.Any:
+def parse_literal(candidate: t.Any) -> t.Any:
     try:
         return ast.literal_eval(candidate)
     except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
         return candidate
 
 
+def validate(key: str, value: int) -> None:
+    """Validates value based on the key."""
+    if key == "day":
+        assert 1 <= value <= 31, "Day value must be between 1 to 31."
+    if key == "month":
+        assert 1 <= value <= 12, "Month value must be between 1 to 12."
+
+
 def typecast(key: str, value: t.Any) -> t.Any:
-    """Typed the value to its appropriate datatype."""
+    """Type the value to its appropriate datatype."""
     SWITCHER = {
         'date': date,
         'time': time,
@@ -151,7 +139,9 @@ def typecast(key: str, value: t.Any) -> t.Any:
         'month': day_month_year,
         'year': day_month_year,
     }
-    return SWITCHER.get(key, literal_eval)(value, key)
+    converted = SWITCHER.get(key, parse_literal)(value)
+    validate(key, converted)
+    return converted
 
 
 def parse_config(file: t.IO) -> Config:
@@ -340,10 +330,10 @@ def process_config(file: t.IO) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
-    def require(condition: bool, message: str) -> None:
-        """A assert-like helper that wraps text and throws a `ValueError`."""
+    def require(condition: bool, message: str, error_type: t.Any = ValueError) -> None:
+        """A assert-like helper that wraps text and throws an error."""
         if not condition:
-            raise ValueError(textwrap.dedent(message))
+            raise error_type(textwrap.dedent(message))
 
     require(bool(config), "Unable to parse configuration file.")
     require('parameters' in config,
@@ -381,16 +371,21 @@ def process_config(file: t.IO) -> Config:
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    if 'append_date_dirs' in params:
-        raise NotImplementedError("Current version of weather-tool is no longer supporting 'append_date_dirs'! "
-                                  "Please refer to documentation for creating date-based directory hierarchy "
-                                  "(https://github.com/google/weather-tools/blob/main/Configuration.md"
-                                  "#creating-a-date-based-directory-hierarchy).")
-    if 'target_filename' in params:
-        raise NotImplementedError("Current version of weather-tool is no longer supporting 'target_filename'! "
-                                  "Please refer to documentation "
-                                  "(https://github.com/google/weather-tools/blob/main/Configuration.md"
-                                  "#parameters-section).")
+    require('append_date_dirs' not in params,
+            """
+            The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
+
+            Please refer to documentation for creating date-based directory hierarchy :
+            https://github.com/google/weather-tools/blob/main/Configuration.md#"""
+            """creating-a-date-based-directory-hierarchy.""",
+            NotImplementedError)
+    require('target_filename' not in params,
+            """
+            The current version of 'google-weather-tools' no longer supports 'target_filename'!
+
+            Please refer to documentation :
+            https://github.com/google/weather-tools/blob/main/Configuration.md#parameters-section.""",
+            NotImplementedError)
 
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):

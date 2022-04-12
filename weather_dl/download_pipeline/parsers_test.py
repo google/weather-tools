@@ -698,10 +698,10 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "Current version of weather-tool is no longer supporting 'append_date_dirs'! "
-            "Please refer to documentation for creating date-based directory hierarchy "
-            "(https://github.com/google/weather-tools/blob/main/Configuration.md"
-            "#creating-a-date-based-directory-hierarchy).",
+            "The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!"
+            "\n\nPlease refer to documentation for creating date-based directory hierarchy :\n"
+            "https://github.com/google/weather-tools/blob/main/Configuration.md"
+            "#creating-a-date-based-directory-hierarchy.",
             ctx.exception.args[0])
 
     def test_target_filename_raise_error(self):
@@ -722,10 +722,9 @@ class ProcessConfigTest(unittest.TestCase):
                 process_config(f)
 
         self.assertIn(
-            "Current version of weather-tool is no longer supporting 'target_filename'! "
-            "Please refer to documentation "
-            "(https://github.com/google/weather-tools/blob/main/Configuration.md"
-            "#parameters-section).",
+            "The current version of 'google-weather-tools' no longer supports 'target_filename'!"
+            "\n\nPlease refer to documentation :\n"
+            "https://github.com/google/weather-tools/blob/main/Configuration.md#parameters-section.",
             ctx.exception.args[0])
 
     def test_client_not_set(self):
