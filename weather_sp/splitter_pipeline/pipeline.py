@@ -22,7 +22,7 @@ from apache_beam.io.fileio import MatchFiles, ReadMatches
 import apache_beam.metrics as metrics
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
-from .file_name_utils import OutFileInfo, get_output_file_base_name
+from .file_name_utils import OutFileInfo, get_output_file_info
 from .file_splitters import get_splitter
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ def split_file(input_file: str,
                input_base_dir: str,
                output_template: t.Optional[str],
                output_dir: t.Optional[str],
+               formatting: str,
                dry_run: bool,
                force_split: bool = False):
     logger.info('Splitting file %s', input_file)
@@ -47,7 +48,8 @@ def split_file(input_file: str,
                             get_output_base_name(input_path=input_file,
                                                  input_base=input_base_dir,
                                                  output_template=output_template,
-                                                 output_dir=output_dir),
+                                                 output_dir=output_dir,
+                                                 formatting=formatting),
                             dry_run,
                             force_split)
     splitter.split_data()
@@ -64,8 +66,13 @@ def _get_base_input_directory(input_pattern: str) -> str:
 def get_output_base_name(input_path: str,
                          input_base: str,
                          output_template: t.Optional[str],
-                         output_dir: t.Optional[str]) -> OutFileInfo:
-    return get_output_file_base_name(input_path, input_base, output_template, output_dir)
+                         output_dir: t.Optional[str],
+                         formatting: str) -> OutFileInfo:
+    return get_output_file_info(input_path,
+                                input_base_dir=input_base,
+                                out_pattern=output_template,
+                                out_dir=output_dir,
+                                formatting=formatting)
 
 
 def run(argv: t.List[str], save_main_session: bool = True):
@@ -78,22 +85,28 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Pattern for input weather data.')
     output_options = parser.add_mutually_exclusive_group(required=True)
     output_options.add_argument(
-            '--output-template', type=str,
-            help='Template specifying path to output files using '
-                 'python-style formatting substitution of input '
-                 'directory names. '
-                 'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
-                 'a template with formatting `/somewhere/{1}-{0}.{levelType}_{shortname}.grib` '
-                 'will give `somewhere/c-file.level_shortname.nc`'
-                 )
+        '--output-template', type=str,
+        help='Template specifying path to output files using '
+        'python-style formatting substitution of input '
+        'directory names. '
+        'For `input_pattern a/b/c/**` and file `a/b/c/file.grib`, '
+        'a template with formatting `/somewhere/{1}-{0}.{level}_{shortName}.grib` '
+        'will give `somewhere/c-file.level_shortName.grib`'
+    )
     output_options.add_argument(
-            '--output-dir', type=str,
-            help='Output directory that will replace the common path of the '
-                 'input_pattern. '
-                 'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
-                 '`output_template /x/y/z` will create '
-                 'output files like `/x/y/z/c/file.shortname.nc`'
-                 )
+        '--output-dir', type=str,
+        help='Output directory that will replace the common path of the '
+        'input_pattern. '
+        'For `input_pattern a/b/c/**` and file `a/b/c/file.nc`, '
+        '`outputdir /x/y/z` will create '
+        'output files like `/x/y/z/c/file_variable.nc`'
+    )
+    parser.add_argument(
+        '--formatting', type=str, default='',
+        help='Used in combination with `output-dir`: specifies the how to '
+        'split the data and format the output file. '
+        'Example: `_{time}_{level}hPa`'
+    )
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Test the input file matching and the output file scheme without splitting.')
     parser.add_argument('-f', '--force', action='store_true', default=False,
@@ -108,6 +121,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     input_base_dir = _get_base_input_directory(input_pattern)
     output_template = known_args.output_template
     output_dir = known_args.output_dir
+    formatting = known_args.formatting
 
     if not output_template and not output_dir:
         raise ValueError('No output specified')
@@ -122,15 +136,16 @@ def run(argv: t.List[str], save_main_session: bool = True):
     logger.debug('dry_run: %s', known_args.dry_run)
     with beam.Pipeline(options=pipeline_options) as p:
         (
-                p
-                | 'MatchFiles' >> MatchFiles(input_pattern)
-                | 'ReadMatches' >> ReadMatches()
-                | 'Shuffle' >> beam.Reshuffle()
-                | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
-                | 'SplitFiles' >> beam.Map(split_file,
-                                           input_base_dir,
-                                           output_template,
-                                           output_dir,
-                                           dry_run,
-                                           known_args.force)
+            p
+            | 'MatchFiles' >> MatchFiles(input_pattern)
+            | 'ReadMatches' >> ReadMatches()
+            | 'Shuffle' >> beam.Reshuffle()
+            | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
+            | 'SplitFiles' >> beam.Map(split_file,
+                                       input_base_dir,
+                                       output_template,
+                                       output_dir,
+                                       formatting,
+                                       dry_run,
+                                       known_args.force)
         )

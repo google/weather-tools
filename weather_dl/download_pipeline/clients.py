@@ -21,9 +21,14 @@ import json
 import logging
 import os
 import typing as t
+import urllib3
+import warnings
 
 import cdsapi
 from ecmwfapi import ECMWFService
+
+warnings.simplefilter(
+    "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
 
 
 class Client(abc.ABC):

@@ -48,7 +48,13 @@ logger = logging.getLogger(__name__)
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
     level = 40 - verbosity * 10
-    logging.getLogger(__package__).setLevel(level)
+    logger = logging.getLogger(__package__)
+    fmt = '%(levelname)s %(asctime)s %(name)s: %(message)s'
+    datefmt = '%y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.root.addHandler(handler)
     logger.setLevel(level)
 
 

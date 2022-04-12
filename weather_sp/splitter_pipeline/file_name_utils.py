@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 import logging
 import os
+import string
 import typing as t
 
 logger = logging.getLogger(__name__)
@@ -22,20 +24,48 @@ GRIB_FILE_ENDINGS = ('.grib', '.grb', '.grb2', '.grib2', '.gb')
 NETCDF_FILE_ENDINGS = ('.nc', '.cd')
 
 
-class OutFileInfo(t.NamedTuple):
+@dataclass
+class OutFileInfo:
+    """Holds data required to construct an output file name.
+
+    Attributes:
+        file_name_template: base output path, may contain python-style formatting
+                            marks. This can be a base directory or a full name.
+        formatting: added after file_name_template to add formatting. Only used
+                    when using --output-dir.
+        ending: file ending.
+        template_folders: list of input file directory structure. Only used with
+                          --output-template
+    """
     file_name_template: str
+    formatting: str
     ending: str
-    output_dir: bool = False
+    template_folders: t.List[str]
 
-    def __str__(self):
-        return f'{self.file_name_template}/*/{self.ending}'
+    def __repr__(self):
+        return self.unformatted_output_path()
+
+    def unformatted_output_path(self):
+        """Construct output file name with formatting marks."""
+        return self.file_name_template + self.formatting + self.ending
+
+    def split_dims(self) -> t.List[str]:
+        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
+            self.unformatted_output_path())]))
+        return [key for key in all_format if not key.isdigit()]
+
+    def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
+        """Construct output file name with formatting applied"""
+        return self.unformatted_output_path().format(*self.template_folders, **splits)
 
 
-def get_output_file_base_name(filename: str,
-                              input_base_dir: str = '',
-                              out_pattern: t.Optional[str] = None,
-                              out_dir: t.Optional[str] = None) -> OutFileInfo:
-    """Construct the base output file name by applying the out_pattern to the filename.
+def get_output_file_info(filename: str,
+                         input_base_dir: str = '',
+                         out_pattern: t.Optional[str] = None,
+                         out_dir: t.Optional[str] = None,
+                         formatting: str = '') -> OutFileInfo:
+    """Construct the base output file name by applying the out_pattern to the
+    filename.
 
     Example:
         filename = 'gs://my_bucket/data_to_split/2020/01/21.nc'
@@ -47,9 +77,12 @@ def get_output_file_base_name(filename: str,
         filename: input file to be split
         out_pattern: pattern to apply when creating output file
         out_dir: directory to replace input base directory
-        input_base_dir: used if out_pattern does not contain any '{}' substitutions.
-            The output file is then created by replacing this part of the input name
-            with the output pattern.
+        formatting: output formatting of split fields. Required when using
+            out_dir, ignored when using out_pattern.
+        input_base_dir: used if out_pattern does not contain any '{}'
+            substitutions.
+            The output file is then created by replacing this part of the input
+            name with the output pattern.
     """
     split_name, ending = os.path.splitext(filename)
     if ending in GRIB_FILE_ENDINGS or ending in NETCDF_FILE_ENDINGS:
@@ -57,11 +90,14 @@ def get_output_file_base_name(filename: str,
     else:
         ending = ''
 
+    if out_dir and not formatting:
+        raise ValueError('No formatting specified when using --output-dir.')
     if out_dir:
         return OutFileInfo(
-            f'{filename.replace(input_base_dir, out_dir)}.{{levelType}}{{shortname}}{ending}',
+            f'{filename.replace(input_base_dir, out_dir)}',
+            formatting,
             ending,
-            output_dir=True
+            []
         )
 
     if out_pattern:
@@ -70,6 +106,8 @@ def get_output_file_base_name(filename: str,
         while path:
             path, tail = os.path.split(path)
             in_sections.append(tail)
-        return OutFileInfo(out_pattern.format(*in_sections, shortname="{shortname}", levelType="{levelType}"), ending)
+        # setting formatting and ending to empty strings since they are
+        # part of the specified pattern.
+        return OutFileInfo(out_pattern, '', '', in_sections)
 
     raise ValueError('no output specified.')

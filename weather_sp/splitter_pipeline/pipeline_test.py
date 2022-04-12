@@ -25,24 +25,25 @@ class PipelineTest(unittest.TestCase):
 
     def test_get_base_input_directory(self):
         self.assertEqual(
-                _get_base_input_directory(
-                    '/path/to/some/wild/*/card/??[0-1].nc'),
-                '/path/to/some')
+            _get_base_input_directory(
+                '/path/to/some/wild/*/card/??[0-1].nc'),
+            '/path/to/some')
         self.assertEqual(
-                _get_base_input_directory(
-                    '/path/to/some/wild/??/card/*[0-1].nc'),
-                '/path/to/some')
+            _get_base_input_directory(
+                '/path/to/some/wild/??/card/*[0-1].nc'),
+            '/path/to/some')
         self.assertEqual(
-                _get_base_input_directory(
-                    '/path/to/some/wild/201[8,9]/card/??.nc'),
-                '/path/to/some')
+            _get_base_input_directory(
+                '/path/to/some/wild/201[8,9]/card/??.nc'),
+            '/path/to/some')
 
     def test_get_output_base_name(self):
         self.assertEqual(get_output_base_name(
-                input_path='somewhere/somefile',
-                input_base='somewhere',
-                output_template=None,
-                output_dir='out/there').file_name_template, 'out/there/somefile.{levelType}{shortname}')
+            input_path='somewhere/somefile',
+            input_base='somewhere',
+            output_template=None,
+            formatting='.{shortName}',
+            output_dir='out/there').file_name_template, 'out/there/somefile')
 
     @patch('weather_sp.splitter_pipeline.file_splitters.get_splitter')
     @unittest.skip('bad mocks')
@@ -51,9 +52,13 @@ class PipelineTest(unittest.TestCase):
                    input_base_dir='somewhere',
                    output_dir='out/there',
                    output_template=None,
+                   formatting='_{variable}',
                    dry_run=True)
         mock_get_splitter.assert_called_with('somewhere/somefile',
-                                             OutFileInfo('out/there/somefile_', ''),
+                                             OutFileInfo('out/there/somefile',
+                                                         formatting='_{variable}',
+                                                         ending='',
+                                                         template_folders=[]),
                                              True)
 
 
