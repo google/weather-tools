@@ -17,12 +17,12 @@ import configparser
 import copy as cp
 import datetime
 import json
-import os
+import ast
 import string
 import textwrap
 import typing as t
 from urllib.parse import urlparse
-
+from collections import OrderedDict
 from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
@@ -66,6 +66,81 @@ def date(candidate: str) -> datetime.date:
             f"Not a valid date: '{candidate}'. Please use valid relative or absolute format."
         )
 
+    return converted
+
+
+def time(candidate: str) -> datetime.time:
+    """Converts ECMWF-format time strings into a `datetime.time`.
+
+    Accepted time formats:
+    - HH:MM
+    - HHMM
+    - HH
+
+    For example:
+    - 18:00
+    - 1820
+    - 18
+
+    Note: If MM is omitted it defaults to 00.
+    """
+    converted = None
+
+    accepted_formats = ["%H", "%H:%M", "%H%M"]
+
+    for fmt in accepted_formats:
+        try:
+            converted = datetime.datetime.strptime(candidate, fmt).time()
+            break
+        except ValueError:
+            pass
+
+    if converted is None:
+        raise ValueError(
+            f"Not a valid time: '{candidate}'. Please use valid format."
+        )
+
+    return converted
+
+
+def day_month_year(candidate: t.Any) -> int:
+    """Converts day, month and year strings into 'int'."""
+    try:
+        if isinstance(candidate, str) or isinstance(candidate, int):
+            return int(candidate)
+        raise
+    except ValueError as e:
+        raise ValueError(
+            f"Not a valid day, month, or year value: {candidate}. Please use valid value."
+        ) from e
+
+
+def parse_literal(candidate: t.Any) -> t.Any:
+    try:
+        return ast.literal_eval(candidate)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return candidate
+
+
+def validate(key: str, value: int) -> None:
+    """Validates value based on the key."""
+    if key == "day":
+        assert 1 <= value <= 31, "Day value must be between 1 to 31."
+    if key == "month":
+        assert 1 <= value <= 12, "Month value must be between 1 to 12."
+
+
+def typecast(key: str, value: t.Any) -> t.Any:
+    """Type the value to its appropriate datatype."""
+    SWITCHER = {
+        'date': date,
+        'time': time,
+        'day': day_month_year,
+        'month': day_month_year,
+        'year': day_month_year,
+    }
+    converted = SWITCHER.get(key, parse_literal)(value)
+    validate(key, converted)
     return converted
 
 
@@ -210,7 +285,7 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
     config = dict(config_parser.items(section))
 
     for key, val in config.items():
-        if '/' in val and 'parameters' not in section:
+        if ('/' in val or key == 'date') and 'parameters' not in section:
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:
             config[key] = _splitlines(val)
@@ -220,13 +295,6 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
 
 def _number_of_replacements(s: t.Text):
     return len([v for v in string.Formatter().parse(s) if v[1] is not None])
-
-
-def use_date_as_directory(config: t.Dict):
-    return 'partition_keys' in config['parameters'] \
-           and 'date' in config['parameters']['partition_keys'] \
-           and config['parameters'].get('append_date_dirs', 'false') == 'true' \
-           and 'target_filename' in config['parameters']
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
@@ -262,10 +330,10 @@ def process_config(file: t.IO) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
-    def require(condition: bool, message: str) -> None:
-        """A assert-like helper that wraps text and throws a `ValueError`."""
+    def require(condition: bool, message: str, error_type: t.Type[Exception] = ValueError) -> None:
+        """A assert-like helper that wraps text and throws an error."""
         if not condition:
-            raise ValueError(textwrap.dedent(message))
+            raise error_type(textwrap.dedent(message))
 
     require(bool(config), "Unable to parse configuration file.")
     require('parameters' in config,
@@ -303,12 +371,21 @@ def process_config(file: t.IO) -> Config:
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    if params.get('append_date_dirs', 'false') == 'true':
-        require(use_date_as_directory(config),
-                """
-                'append_date_dirs' set to true, but creating the date directory hierarchy also
-                requires that 'target_filename' is given and that 'date' is a partition_key.
-                """)
+    require('append_date_dirs' not in params,
+            """
+            The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
+
+            Please refer to documentation for creating date-based directory hierarchy :
+            https://weather-tools.readthedocs.io/en/latest/Configuration.html#"""
+            """creating-a-date-based-directory-hierarchy.""",
+            NotImplementedError)
+    require('target_filename' not in params,
+            """
+            The current version of 'google-weather-tools' no longer supports 'target_filename'!
+
+            Please refer to documentation :
+            https://weather-tools.readthedocs.io/en/latest/Configuration.html#parameters-section.""",
+            NotImplementedError)
 
     partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
@@ -323,22 +400,12 @@ def process_config(file: t.IO) -> Config:
             documentation for more information.""")
 
     num_template_replacements = _number_of_replacements(params['target_path'])
-    if 'target_filename' in params:
-        num_template_replacements += _number_of_replacements(params['target_filename'])
     num_partition_keys = len(partition_keys)
-    if use_date_as_directory(config):
-        num_partition_keys -= 1
-        target_path = t.cast(str, params.get('target_path', ''))
-        if target_path != '':
-            params['target_path'] = target_path.rstrip('/')
 
     require(num_template_replacements == num_partition_keys,
             """
             'target_path' has {0} replacements. Expected {1}, since there are {1}
             partition keys.
-
-            Note: If date is used to create a directory hierarchy
-            no replacement is needed for 'date')
             """.format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
@@ -350,22 +417,12 @@ def process_config(file: t.IO) -> Config:
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
     parameters = config['parameters']
-
     target_path = t.cast(str, parameters.get('target_path', ''))
-    target_filename = t.cast(str, parameters.get('target_filename', ''))
     partition_keys = t.cast(t.List[str],
                             cp.copy(parameters.get('partition_keys', list())))
 
-    if use_date_as_directory(config):
-        date = t.cast(str, config['selection']['date'][0])
-        date_vals = date.split('-')
-        target_path = os.path.join(target_path, *date_vals)
-        partition_keys.remove('date')
-
-    target_path += target_filename
-
-    partition_key_values = [config['selection'][key][0] for key in partition_keys]
-    target = target_path.format(*partition_key_values)
+    partition_dict = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
+    target = target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 

@@ -73,7 +73,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -104,7 +104,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -132,7 +132,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -169,7 +169,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -205,7 +205,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{year:02d}-{month:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
