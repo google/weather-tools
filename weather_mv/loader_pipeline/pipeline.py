@@ -102,6 +102,9 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                         help='Download one file in the URI pattern and infer a schema from that file. Default: off')
     parser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                         help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
+    parser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
+                        help='The size of the chunk of coordinates used for extracting vector data into BigQuery. '
+                             'Used to tune parallel uploads.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
 

@@ -41,6 +41,7 @@ weather_mv_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
+    "more-itertools",
 ]
 
 weather_sp_requirements = [

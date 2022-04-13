@@ -36,7 +36,8 @@ class TestCLI(unittest.TestCase):
             'topic': None,
             'variables': [],
             'window_size': 1.0,
-            'xarray_open_dataset_kwargs': {}
+            'xarray_open_dataset_kwargs': {},
+            'coordinate_chunk_size': 10_000,
         }
 
     def test_dry_runs_are_allowed(self):

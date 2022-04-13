@@ -25,6 +25,7 @@ import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
+import more_itertools as mitertools
 
 from .sinks import ToDataSink, open_dataset
 from .util import to_json_serializable_type, _only_target_vars, get_coordinates
@@ -63,6 +64,9 @@ class ToBigQuery(ToDataSink):
         import_time: The time when data was imported. This is used as a simple way to
           version data — variables can be distinguished based on import time. If None,
           the system will recompute the current time upon row extraction for each file.
+        coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
+          xr.Dataset coordinate indexes) to group together into chunks. Used to tune
+          how data is loaded into BigQuery in parallel.
 
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
@@ -70,6 +74,7 @@ class ToBigQuery(ToDataSink):
     output_table: str
     infer_schema: bool
     import_time: t.Optional[datetime.datetime]
+    coordinate_chunk_size: int = 10_000
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -103,28 +108,37 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
-                | 'ExtractRows' >> beam.FlatMap(
+                | 'PrepareCoordinates' >>
+                beam.FlatMap(
+                    prepare_coordinates,
+                    coordinate_chunk_size=self.coordinate_chunk_size,
+                    area=self.area,
+                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                )
+                | 'ExtractRows' >>
+                beam.FlatMapTuple(
                     extract_rows,
                     variables=self.variables,
-                    area=self.area,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs)
-            )
+        )
 
         if not self.dry_run:
             (
-                extracted_rows
-                | 'WriteToBigQuery' >> WriteToBigQuery(
+                    extracted_rows
+                    | 'WriteToBigQuery' >>
+                    WriteToBigQuery(
                         project=self.table.project,
                         dataset=self.table.dataset_id,
                         table=self.table.table_id,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
+                        create_disposition=BigQueryDisposition.CREATE_NEVER
+                    )
             )
         else:
             (
-                extracted_rows
-                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+                    extracted_rows
+                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
 
 
@@ -175,13 +189,29 @@ def fetch_geo_point(lat: float, long: float) -> str:
     return point
 
 
-def extract_rows(uri: str, *,
+def prepare_coordinates(uri: str, *,
+                        coordinate_chunk_size: int,
+                        area: t.Optional[t.List[int]] = None,
+                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
+    """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
+    logger.info(f'Preparing coordinates for: {uri!r}.')
+    with open_dataset(uri, open_dataset_kwargs) as data_ds:
+
+        if area:
+            n, w, s, e = area
+            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+
+        for chunk in mitertools.ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
+            yield uri, list(chunk)
+
+
+def extract_rows(uri: str, coordinates: t.List[t.Dict],
                  variables: t.Optional[t.List[str]] = None,
-                 area: t.Optional[t.List[int]] = None,
                  import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
                  open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Dict]:
-    """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    logger.info(f'Extracting rows as dicts: {uri!r}.')
+    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
+    logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
 
     # re-calculate import time for streaming extractions.
     if not import_time:
@@ -189,11 +219,6 @@ def extract_rows(uri: str, *,
 
     with open_dataset(uri, open_dataset_kwargs) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
-
-        if area:
-            n, w, s, e = area
-            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
@@ -229,4 +254,4 @@ def extract_rows(uri: str, *,
             beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
             return row
 
-        yield from map(to_row, get_coordinates(data_ds, uri))
+        yield from map(to_row, coordinates)

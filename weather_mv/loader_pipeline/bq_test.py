@@ -24,7 +24,12 @@ import pandas as pd
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
-from .bq import dataset_to_table_schema, extract_rows, fetch_geo_point
+from .bq import (
+    dataset_to_table_schema,
+    extract_rows,
+    fetch_geo_point,
+    prepare_coordinates, DEFAULT_IMPORT_TIME,
+)
 from .sinks_test import TestDataBase, _handle_missing_grib_be
 from .util import _only_target_vars
 
@@ -124,9 +129,20 @@ class SchemaCreationTests(TestDataBase):
 
 class ExtractRowsTestBase(TestDataBase):
 
+    def extract(self, data_path, *, variables=None, area=None,
+                open_dataset_kwargs=None, import_time=DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area,
+                                     open_dataset_kwargs=open_dataset_kwargs)
+        for uri, cs in coords:
+            yield from extract_rows(uri, cs, variables=variables, import_time=import_time,
+                                    open_dataset_kwargs=open_dataset_kwargs)
+
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         self.assertEqual(expected.keys(), actual.keys())
         for key in expected.keys():
+            if isinstance(expected[key], str):
+                self.assertEqual(actual[key], expected[key])
+                continue
             self.assertAlmostEqual(actual[key], expected[key], places=4)
             self.assertNotIsInstance(actual[key], np.dtype)
             self.assertNotIsInstance(actual[key], np.float64)
@@ -140,7 +156,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def test_extract_rows(self):
-        actual = next(extract_rows(self.test_data_path))
+        actual = next(self.extract(self.test_data_path))
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -156,7 +172,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     def test_extract_rows__with_subset_variables(self):
-        actual = next(extract_rows(self.test_data_path, variables=['u10']))
+        actual = next(self.extract(self.test_data_path, variables=['u10']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2018-01-02T06:00:00+00:00',
@@ -170,7 +186,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     def test_extract_rows__specific_area(self):
-        actual = next(extract_rows(self.test_data_path, area=[45, -103, 33, -92]))
+        actual = next(self.extract(self.test_data_path, area=[45, -103, 33, -92]))
         expected = {
             'd2m': 246.19993591308594,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -187,7 +203,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_extract_rows__specify_import_time(self):
         now = datetime.datetime.utcnow().isoformat()
-        actual = next(extract_rows(self.test_data_path, import_time=now))
+        actual = next(self.extract(self.test_data_path, import_time=now))
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': now,
@@ -204,7 +220,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_extract_rows_single_point(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_single_point.nc'
-        actual = next(extract_rows(self.test_data_path))
+        actual = next(self.extract(self.test_data_path))
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -221,7 +237,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_extract_rows_nan(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
-        actual = next(extract_rows(self.test_data_path))
+        actual = next(self.extract(self.test_data_path))
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -280,7 +296,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     @_handle_missing_grib_be
     def test_extract_rows(self):
-        actual = next(extract_rows(self.test_data_path))
+        actual = next(self.extract(self.test_data_path))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -299,7 +315,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     @_handle_missing_grib_be
     def test_extract_rows__with_vars__excludes_non_index_coords(self):
-        actual = next(extract_rows(self.test_data_path, variables=['z']))
+        actual = next(self.extract(self.test_data_path, variables=['z']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -313,7 +329,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     @_handle_missing_grib_be
     def test_extract_rows__with_vars__includes_coordinates_in_vars(self):
-        actual = next(extract_rows(self.test_data_path, variables=['z', 'step']))
+        actual = next(self.extract(self.test_data_path, variables=['z', 'step']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -329,7 +345,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     @_handle_missing_grib_be
     def test_multiple_editions(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(extract_rows(self.test_data_path))
+        actual = next(self.extract(self.test_data_path))
         expected = {
             'cape': 0.0,
             'cbh': None,
@@ -383,7 +399,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     def test_timing_profile(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         counter = 0
-        i = extract_rows(self.test_data_path)
+        i = self.extract(self.test_data_path)
         # Read once to avoid counting dataset open times, etc.
         _ = next(i)
         with timing('Loop'):
