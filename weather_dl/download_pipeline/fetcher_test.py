@@ -73,7 +73,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -104,7 +104,7 @@ class FetchDataTest(unittest.TestCase):
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -126,15 +126,13 @@ class FetchDataTest(unittest.TestCase):
             user='unknown',
         ), list(self.dummy_manifest.records.values())[0]._asdict())
 
-    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve,
-                                                            mock_gcs_file):
+    def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
         config = {
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -166,13 +164,12 @@ class FetchDataTest(unittest.TestCase):
 
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
-    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve,
-                                                       mock_gcs_file):
+    def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve, mock_gcs_file):
         config = {
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
-                'target_path': 'gs://weather-dl-unittest/download-{}-{}.nc',
+                'target_path': 'gs://weather-dl-unittest/download-{:02d}-{:02d}.nc',
                 'api_url': 'https//api-url.com/v1/',
                 'api_key': '12345',
             },
@@ -200,3 +197,31 @@ class FetchDataTest(unittest.TestCase):
 
         self.assertIn(error.args[0], actual['error'])
         self.assertIn(error.args[0], e.exception.args[0])
+
+    @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
+    @patch('cdsapi.Client.retrieve')
+    def test_fetch_data__skips_existing_download(self, mock_retrieve, mock_gcs_file):
+        config = {
+            'parameters': {
+                'dataset': 'reanalysis-era5-pressure-levels',
+                'partition_keys': ['year', 'month'],
+                'target_path': 'gs://weather-dl-unittest/download-{year:02d}-{month:02d}.nc',
+                'api_url': 'https//api-url.com/v1/',
+                'api_key': '12345',
+            },
+            'selection': {
+                'features': ['pressure'],
+                'month': ['12'],
+                'year': ['01']
+            }
+        }
+
+        # target file already exists in store...
+        store = InMemoryStore()
+        store.store['gs://weather-dl-unittest/download-01-12.nc'] = ''
+
+        fetcher = Fetcher('cds', self.dummy_manifest, store)
+        fetcher.fetch_data(config)
+
+        self.assertFalse(mock_gcs_file.called)
+        self.assertFalse(mock_retrieve.called)

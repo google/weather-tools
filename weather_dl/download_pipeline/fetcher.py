@@ -11,19 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import apache_beam as beam
 import dataclasses
 import io
 import logging
 import shutil
 import tempfile
 import typing as t
-
-import apache_beam as beam
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
-from .clients import CLIENTS
+from .clients import CLIENTS, Client
 from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
+from .partition import skip_partition
 from .stores import Store, FSStore
 from .util import retry_with_exponential_backoff
 
@@ -59,9 +59,17 @@ class Fetcher(beam.DoFn):
         with self.store.open(dest, 'wb') as dest_:
             shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
 
+    @retry_with_exponential_backoff
+    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
+        """Retrieve from download client, with retries."""
+        client.retrieve(dataset, selection, dest)
+
     def fetch_data(self, config: t.Dict, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
         if not config:
+            return
+
+        if skip_partition(config, self.store):
             return
 
         client = CLIENTS[self.client_name](config)
@@ -73,7 +81,7 @@ class Fetcher(beam.DoFn):
         with self.manifest.transact(selection, target, user):
             with tempfile.NamedTemporaryFile() as temp:
                 logger.info(f'[{worker_name}] Fetching data for {target!r}.')
-                client.retrieve(dataset, selection, temp.name)
+                self.retrieve(client, dataset, selection, temp.name)
 
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
                 self.upload(temp, target)
