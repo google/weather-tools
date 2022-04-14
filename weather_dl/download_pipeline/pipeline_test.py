@@ -25,17 +25,10 @@ import weather_dl
 from .manifest import FirestoreManifest, Location, NoOpManifest, LocalManifest
 from .pipeline import run, PipelineArgs
 from .stores import TempFileStore, LocalFileStore
+from .config import Config
 
 PATH_TO_CONFIG = os.path.join(os.path.dirname(list(weather_dl.__path__)[0]), 'configs', 'era5_example_config.cfg')
-DEFAULT_ARGS = PipelineArgs(
-    known_args=argparse.Namespace(config=PATH_TO_CONFIG,
-                                  force_download=False,
-                                  dry_run=False,
-                                  local_run=False,
-                                  manifest_location='fs://downloader-manifest',
-                                  num_requests_per_key=-1),
-    pipeline_options=PipelineOptions('--save_main_session True'.split()),
-    config={
+CONFIG = {
         'parameters': {'client': 'cds',
                        'dataset': 'reanalysis-era5-pressure-levels',
                        'target_path': 'gs://ecmwf-output-test/era5/{year:04d}/{month:02d}/{day:02d}'
@@ -50,7 +43,16 @@ DEFAULT_ARGS = PipelineArgs(
                       'year': ['2015', '2016', '2017'], 'month': ['01'],
                       'day': ['01', '15'],
                       'time': ['00:00', '06:00', '12:00', '18:00']}
-    },
+    }
+DEFAULT_ARGS = PipelineArgs(
+    known_args=argparse.Namespace(config=PATH_TO_CONFIG,
+                                  force_download=False,
+                                  dry_run=False,
+                                  local_run=False,
+                                  manifest_location='fs://downloader-manifest',
+                                  num_requests_per_key=-1),
+    pipeline_options=PipelineOptions('--save_main_session True'.split()),
+    config=Config.from_config(CONFIG),
     client_name='cds',
     store=None,
     manifest=FirestoreManifest(Location('fs://downloader-manifest?projectId=None')),
@@ -67,9 +69,10 @@ def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.
     if known_args is None:
         known_args = {}
     args = dataclasses.replace(DEFAULT_ARGS, **kwargs)
-    args.config = copy.deepcopy(args.config)
-    args.config['parameters'].update(parameters)
-    args.config['selection'].update(selection)
+    temp_config = copy.deepcopy(CONFIG)
+    temp_config['parameters'].update(parameters)
+    temp_config['selection'].update(selection)
+    args.config = Config.from_config(temp_config)
     args.known_args = copy.deepcopy(args.known_args)
     for k, v in known_args.items():
         setattr(args.known_args, k, v)

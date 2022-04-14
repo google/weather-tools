@@ -25,6 +25,7 @@ from .manifest import MockManifest, Location, LocalManifest
 from .parsers import get_subsections
 from .partition import skip_partition, PartitionConfig
 from .stores import InMemoryStore, Store
+from .config import Config
 
 
 class OddFilesDoNotExistStore(InMemoryStore):
@@ -43,7 +44,7 @@ class PreparePartitionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
-    def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[t.Dict]:
+    def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[Config]:
         subsections = get_subsections(config)
         params_cycle = itertools.cycle(subsections)
 
@@ -64,9 +65,10 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = self.create_partition_configs(config)
+        config_obj = Config.from_config(config)
+        actual = self.create_partition_configs(config_obj)
 
-        self.assertListEqual([d['selection'] for d in actual], [
+        self.assertListEqual([d.selection for d in actual], [
             {**config['selection'], **{'year': [str(i)]}}
             for i in range(2015, 2021)
         ])
@@ -84,9 +86,10 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = self.create_partition_configs(config)
+        config_obj = Config.from_config(config)
+        actual = self.create_partition_configs(config_obj)
 
-        self.assertListEqual([d['selection'] for d in actual], [
+        self.assertListEqual([d.selection for d in actual], [
             {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
             {**config['selection'], **{'year': ['2015'], 'month': ['2']}},
             {**config['selection'], **{'year': ['2016'], 'month': ['1']}},
@@ -118,21 +121,26 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = self.create_partition_configs(config)
+        config_obj = Config.from_config(config)
+        actual = self.create_partition_configs(config_obj)
 
         expected = [
-            {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', __subsection__='research'),
-             'selection': {**config['selection'],
-                           **{'year': ['2015'], 'month': ['1']}}},
-            {'parameters': dict(config['parameters'], api_key='KKKK2', api_url='UUUU2', __subsection__='cloud'),
-             'selection': {**config['selection'],
-                           **{'year': ['2015'], 'month': ['2']}}},
-            {'parameters': dict(config['parameters'], api_key='KKKK3', api_url='UUUU3', __subsection__='deepmind'),
-             'selection': {**config['selection'],
-                           **{'year': ['2016'], 'month': ['1']}}},
-            {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', __subsection__='research'),
-             'selection': {**config['selection'],
-                           **{'year': ['2016'], 'month': ['2']}}},
+            Config.from_config(
+                {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
+                 'selection': {**config['selection'],
+                               **{'year': ['2015'], 'month': ['1']}}}),
+            Config.from_config(
+                {'parameters': dict(config['parameters'], api_key='KKKK2', api_url='UUUU2', subsection_name='cloud'),
+                 'selection': {**config['selection'],
+                               **{'year': ['2015'], 'month': ['2']}}}),
+            Config.from_config(
+                {'parameters': dict(config['parameters'], api_key='KKKK3', api_url='UUUU3', subsection_name='deepmind'),
+                 'selection': {**config['selection'],
+                               **{'year': ['2016'], 'month': ['1']}}}),
+            Config.from_config(
+                {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
+                 'selection': {**config['selection'],
+                               **{'year': ['2016'], 'month': ['2']}}}),
         ]
 
         self.assertListEqual(actual, expected)
@@ -150,10 +158,12 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
+        config_obj = Config.from_config(config)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             self.dummy_manifest = LocalManifest(Location(tmpdir))
 
-            self.create_partition_configs(config)
+            self.create_partition_configs(config_obj)
 
             with open(self.dummy_manifest.location, 'r') as f:
                 actual = json.load(f)
@@ -190,9 +200,10 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        actual = self.create_partition_configs(config, store=skip_odd_files)
-        research_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('1')]
-        cloud_configs = [cfg for cfg in actual if cfg and cfg['parameters']['api_url'].endswith('2')]
+        config_obj = Config.from_config(config)
+        actual = self.create_partition_configs(config_obj, store=skip_odd_files)
+        research_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('1')]
+        cloud_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('2')]
 
         self.assertEqual(len(research_configs), len(cloud_configs))
 
@@ -215,7 +226,8 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        actual = skip_partition(config, self.mock_store)
+        config_obj = Config.from_config(config)
+        actual = skip_partition(config_obj, self.mock_store)
 
         self.assertEqual(actual, False)
 
@@ -233,7 +245,8 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        actual = skip_partition(config, self.mock_store)
+        config_obj = Config.from_config(config)
+        actual = skip_partition(config_obj, self.mock_store)
 
         self.assertEqual(actual, False)
 
@@ -251,9 +264,11 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
+        config_obj = Config.from_config(config)
+
         self.mock_store.exists = MagicMock(return_value=True)
 
-        actual = skip_partition(config, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store)
 
         self.assertEqual(actual, True)
 

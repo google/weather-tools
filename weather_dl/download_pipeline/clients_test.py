@@ -15,26 +15,27 @@
 import unittest
 
 from .clients import FakeClient, CdsClient, MarsClient
+from .config import Config
 
 
 class MaxWorkersTest(unittest.TestCase):
     def test_cdsclient_internal(self):
-        client = CdsClient({'parameters': {'api_url': 'url', 'api_key': 'key'}})
+        client = CdsClient(Config.from_config({'parameters': {'api_url': 'url', 'api_key': 'key'}}))
         self.assertEqual(
             client.num_requests_per_key("reanalysis-era5-some-data"), 5)
 
     def test_cdsclient_mars_hosted(self):
-        client = CdsClient({'parameters': {'api_url': 'url', 'api_key': 'key'}})
+        client = CdsClient(Config.from_config({'parameters': {'api_url': 'url', 'api_key': 'key'}}))
         self.assertEqual(
             client.num_requests_per_key("reanalysis-carra-height-levels"), 2)
 
     def test_marsclient(self):
-        client = MarsClient({'parameters': {}})
+        client = MarsClient(Config.from_config({'parameters': {}}))
         self.assertEqual(
             client.num_requests_per_key("reanalysis-era5-some-data"), 2)
 
     def test_fakeclient(self):
-        client = FakeClient({'parameters': {}})
+        client = FakeClient(Config.from_config({'parameters': {}}))
         self.assertEqual(
             client.num_requests_per_key("reanalysis-era5-some-data"), 1)
 
