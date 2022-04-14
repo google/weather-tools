@@ -23,6 +23,7 @@ from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from .clients import CLIENTS, Client
 from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
+from .config import Config
 from .partition import skip_partition
 from .stores import Store, FSStore
 from .util import retry_with_exponential_backoff
@@ -64,7 +65,7 @@ class Fetcher(beam.DoFn):
         """Retrieve from download client, with retries."""
         client.retrieve(dataset, selection, dest)
 
-    def fetch_data(self, config: t.Dict, *, worker_name: str = 'default') -> None:
+    def fetch_data(self, config: Config, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
         if not config:
             return
@@ -74,9 +75,9 @@ class Fetcher(beam.DoFn):
 
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
-        dataset = config['parameters'].get('dataset', '')
-        selection = config['selection']
-        user = config['parameters'].get('user_id', 'unknown')
+        dataset = config.dataset
+        selection = config.selection
+        user = config.user_id
 
         with self.manifest.transact(selection, target, user):
             with tempfile.NamedTemporaryFile() as temp:

@@ -21,46 +21,11 @@ import ast
 import string
 import textwrap
 import typing as t
-import dataclasses
+from .config import Config
 from urllib.parse import urlparse
 from collections import OrderedDict
 from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
-
-Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
-Config = t.Dict[str, t.Dict[str, Values]]
-
-
-@dataclasses.dataclass()
-class Config:
-    """Contains pipeline parameters
-
-    Attributes:
-        client: Name of the Weather-API-client. Supported clients are mentioned in the 'CLIENTS' variable.
-        dataset (optional): Name of the target dataset. Allowed options are dictated by the client.
-        partition_keys (optional): Choose the keys from the selection section to partition the data request.
-                                   This will compute a cartesian cross product of the selected keys
-                                   and assign each as their own download.
-        target_path: Download artifact filename template. Can make use of Python's standard string formatting.
-                     It can contain format symbols to be replaced by partition keys;
-                     if this is used, the total number of format symbols must match the number of partition keys.
-        target_filename (optional): This file name will be appended to target_path.
-        subsection_name: Name of the particular subsection. 'default' if there is no subsection.
-        force_download: Force redownload of partitions that were previously downloaded.
-        user_id: Username from the environment variables.
-        other_params (optional): For representing subsections or any other parameters.
-        selection: Contains parameters used to select desired data.
-    """
-    client: str
-    dataset: t.Optional[str]
-    target_path: str
-    partition_keys: t.Optional[t.List[str]]
-    target_filename: t.Optional[str]
-    subsection_name: str
-    force_download: bool
-    user_id: str
-    kwargs: t.Optional[t.Dict[str, Values]]
-    selection: t.Dict[str, Values]
 
 
 def date(candidate: str) -> datetime.date:
@@ -181,7 +146,8 @@ def parse_config(file: t.IO) -> Config:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
-        return json.load(file)
+        config = json.load(file)
+        return Config.from_config(config)
     except json.JSONDecodeError:
         pass
 
@@ -192,11 +158,11 @@ def parse_config(file: t.IO) -> Config:
         config.read_file(file)
         config_by_section = {s: _parse_lists(config, s) for s in config.sections()}
         config_with_nesting = parse_subsections(config_by_section)
-        return config_with_nesting
+        return Config.from_config(config_with_nesting)
     except configparser.ParsingError:
         pass
 
-    return {}
+    return Config.from_config({})
 
 
 def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
@@ -331,10 +297,7 @@ def _number_of_replacements(s: t.Text):
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
-    """Interprets [section.subsection] as nested dictionaries in `.cfg` files.
-
-    Also counts number of 'api_key' fields found.
-    """
+    """Interprets [section.subsection] as nested dictionaries in `.cfg` files."""
     copy = cp.deepcopy(config)
     for key, val in copy.items():
         path = key.split('.')
@@ -363,23 +326,25 @@ def process_config(file: t.IO) -> Config:
         if not condition:
             raise error_type(textwrap.dedent(message))
 
-    require(bool(config), "Unable to parse configuration file.")
-    require('parameters' in config,
+    require(
+        config.client or config.dataset or config.target_path or config.partition_keys or
+        config.kwargs or config.selection,
+        "Unable to parse configuration file.")
+    require(config.client or config.dataset or config.target_path or config.partition_keys or config.kwargs,
             """
             'parameters' section required in configuration file.
 
-            The 'parameters' section specifies the 'dataset', 'target_path', and
+            The 'parameters' section specifies the 'client', 'dataset', 'target_path', and
             'partition_key' for the API client.
 
             Please consult the documentation for more information.""")
 
-    params = config.get('parameters', {})
-    require('target_template' not in params,
+    require('target_template' not in config.kwargs,
             """
             'target_template' is deprecated, use 'target_path' instead.
 
             Please consult the documentation for more information.""")
-    require('target_path' in params,
+    require(bool(config.target_path),
             """
             'parameters' section requires a 'target_path' key.
 
@@ -387,19 +352,19 @@ def process_config(file: t.IO) -> Config:
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
             are used to create the templates.""")
-    require('client' in params,
+    require(bool(config.client),
             """
             'parameters' section requires a 'client' key.
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    require(params.get('client') in CLIENTS.keys(),
+    require(config.client in CLIENTS.keys(),
             """
             Invalid 'client' parameter.
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    require('append_date_dirs' not in params,
+    require('append_date_dirs' not in config.kwargs,
             """
             The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
 
@@ -407,7 +372,7 @@ def process_config(file: t.IO) -> Config:
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#"""
             """creating-a-date-based-directory-hierarchy.""",
             NotImplementedError)
-    require('target_filename' not in params,
+    require('target_filename' not in config.kwargs,
             """
             The current version of 'google-weather-tools' no longer supports 'target_filename'!
 
@@ -415,11 +380,11 @@ def process_config(file: t.IO) -> Config:
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#parameters-section.""",
             NotImplementedError)
 
-    partition_keys = params.get('partition_keys', list())
+    partition_keys = config.partition_keys
     if isinstance(partition_keys, str):
         partition_keys = [partition_keys.strip()]
 
-    selection = config.get('selection', dict())
+    selection = config.selection
     require(all((key in selection for key in partition_keys)),
             """
             All 'partition_keys' must appear in the 'selection' section.
@@ -427,7 +392,7 @@ def process_config(file: t.IO) -> Config:
             'partition_keys' specify how to split data for workers. Please consult
             documentation for more information.""")
 
-    num_template_replacements = _number_of_replacements(params['target_path'])
+    num_template_replacements = _number_of_replacements(config.target_path)
     num_partition_keys = len(partition_keys)
 
     require(num_template_replacements == num_partition_keys,
@@ -437,19 +402,17 @@ def process_config(file: t.IO) -> Config:
             """.format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
-    config['parameters']['partition_keys'] = partition_keys
+    config.partition_keys = partition_keys
 
     return config
 
 
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
-    parameters = config['parameters']
-    target_path = t.cast(str, parameters.get('target_path', ''))
-    partition_keys = t.cast(t.List[str],
-                            cp.copy(parameters.get('partition_keys', list())))
+    target_path = config.target_path
+    partition_keys = config.partition_keys
 
-    partition_dict = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
+    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in partition_keys)
     target = target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
@@ -476,5 +439,5 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
       api_url=UUUUU3
     ```
     """
-    return [(name, params) for name, params in config['parameters'].items()
+    return [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]
