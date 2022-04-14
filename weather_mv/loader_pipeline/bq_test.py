@@ -25,10 +25,11 @@ import xarray as xr
 from google.cloud.bigquery import SchemaField
 
 from .bq import (
+    DEFAULT_IMPORT_TIME,
     dataset_to_table_schema,
     extract_rows,
     fetch_geo_point,
-    prepare_coordinates, DEFAULT_IMPORT_TIME,
+    prepare_coordinates,
 )
 from .sinks_test import TestDataBase, _handle_missing_grib_be
 from .util import _only_target_vars
