@@ -25,6 +25,7 @@ from .parsers import (
     parse_subsections,
     prepare_target_name,
 )
+from .config import Config
 
 
 class DateTest(unittest.TestCase):
@@ -376,7 +377,6 @@ class ParseConfigTest(unittest.TestCase):
                     'api_url': 'https://google.com/',
                     'alice': {'api_key': '123'},
                     'bob': {'api_key': '456'},
-                    'num_api_keys': 2,
                 },
             })
 
@@ -418,8 +418,7 @@ class ApiKeyCountingTest(unittest.TestCase):
         self.assertEqual(actual,
                          {'parameters': {'a': 1, 'b': 2,
                                          'param1': {'api_key': 'key1'},
-                                         'param2': {'api_key': 'key2'},
-                                         'num_api_keys': 2}})
+                                         'param2': {'api_key': 'key2'}}})
 
 
 class ProcessConfigTest(unittest.TestCase):
@@ -439,7 +438,7 @@ class ProcessConfigTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
-                    [otherSection]
+                    [selection]
                     key=value
                     """
             ) as f:
@@ -615,37 +614,7 @@ class ProcessConfigTest(unittest.TestCase):
                 """
         ) as f:
             config = process_config(f)
-            params = config.get('parameters', {})
-            self.assertIsInstance(params['partition_keys'], list)
-
-    def test_params_in_config(self):
-        with io.StringIO(
-                """
-                [parameters]
-                dataset=foo
-                client=cds
-                target_path=bar-{}-{}
-                partition_keys=
-                    year
-                    month
-                [selection]
-                month=
-                    01
-                    02
-                    03
-                year=
-                    1950
-                    1960
-                    1970
-                    1980
-                    1990
-                    2000
-                    2010
-                    2020
-                """
-        ) as f:
-            config = process_config(f)
-            self.assertIn('parameters', config)
+            self.assertIsInstance(config.partition_keys, list)
 
     def test_mismatched_template_partition_keys(self):
         with self.assertRaises(ValueError) as ctx:
@@ -862,7 +831,7 @@ class PrepareTargetNameTest(unittest.TestCase):
     def test_target_name(self):
         for it in self.TEST_CASES:
             with self.subTest(msg=it['case'], **it):
-                actual = prepare_target_name(it['config'])
+                actual = prepare_target_name(Config.from_dict(it['config']))
                 self.assertEqual(actual, it['expected'])
 
 

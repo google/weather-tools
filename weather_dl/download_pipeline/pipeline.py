@@ -35,10 +35,10 @@ from .manifest import (
     NoOpManifest,
 )
 from .parsers import (
-    Config,
     parse_manifest,
     process_config, get_subsections,
 )
+from .config import Config
 from .partition import PartitionConfig
 from .stores import TempFileStore, LocalFileStore
 
@@ -91,7 +91,7 @@ def pipeline(args: PipelineArgs) -> None:
     request_idxs = {name: itertools.cycle(range(args.num_requesters_per_key)) for name, _ in subsections}
 
     def subsection_and_request(it: Config) -> t.Tuple[str, int]:
-        subsection = t.cast(builtins.str, it.get('parameters', {}).get('__subsection__', 'default'))
+        subsection = it.subsection_name
         return subsection, builtins.next(request_idxs[subsection])
 
     subsections_cycle = itertools.cycle(subsections)
@@ -138,23 +138,23 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     with open(known_args.config, 'r', encoding='utf-8') as f:
         config = process_config(f)
 
-    config['parameters']['force_download'] = known_args.force_download
-    config['parameters']['user_id'] = getpass.getuser()
+    config.force_download = known_args.force_download
+    config.user_id = getpass.getuser()
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
     save_main_session_args = ['--save_main_session'] + ['True' if save_main_session else 'False']
     pipeline_options = PipelineOptions(pipeline_args + save_main_session_args)
 
-    client_name = config['parameters']['client']
+    client_name = config.client
     store = None  # will default to using FileSystems()
-    config['parameters']['force_download'] = known_args.force_download
+    config.force_download = known_args.force_download
     manifest = parse_manifest(known_args.manifest_location, pipeline_options.get_all_options())
 
     if known_args.dry_run:
         client_name = 'fake'
         store = TempFileStore('dry_run')
-        config['parameters']['force_download'] = True
+        config.force_download = True
         manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:
@@ -167,7 +167,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     client = CLIENTS[client_name](config)
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(
-            config.get('parameters', {}).get('dataset', "")
+            config.dataset
         )
 
     logger.warning(f'By using {client_name} datasets, '

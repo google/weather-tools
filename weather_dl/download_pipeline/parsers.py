@@ -21,13 +21,11 @@ import ast
 import string
 import textwrap
 import typing as t
+from .config import Config
 from urllib.parse import urlparse
 from collections import OrderedDict
 from .clients import CLIENTS
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
-
-Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
-Config = t.Dict[str, t.Dict[str, Values]]
 
 
 def date(candidate: str) -> datetime.date:
@@ -144,7 +142,7 @@ def typecast(key: str, value: t.Any) -> t.Any:
     return converted
 
 
-def parse_config(file: t.IO) -> Config:
+def parse_config(file: t.IO) -> t.Dict:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
@@ -298,16 +296,10 @@ def _number_of_replacements(s: t.Text):
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
-    """Interprets [section.subsection] as nested dictionaries in `.cfg` files.
-
-    Also counts number of 'api_key' fields found.
-    """
+    """Interprets [section.subsection] as nested dictionaries in `.cfg` files."""
     copy = cp.deepcopy(config)
-    num_api_keys = 0
     for key, val in copy.items():
         path = key.split('.')
-        if val.get('api_key', ''):
-            num_api_keys += 1
         runner = copy
         parent = {}
         p = None
@@ -321,8 +313,6 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     for_cleanup = [key for key, _ in copy.items() if '.' in key]
     for target in for_cleanup:
         del copy[target]
-    if num_api_keys:
-        copy['parameters']['num_api_keys'] = num_api_keys
     return copy
 
 
@@ -340,7 +330,7 @@ def process_config(file: t.IO) -> Config:
             """
             'parameters' section required in configuration file.
 
-            The 'parameters' section specifies the 'dataset', 'target_path', and
+            The 'parameters' section specifies the 'client', 'dataset', 'target_path', and
             'partition_key' for the API client.
 
             Please consult the documentation for more information.""")
@@ -411,18 +401,13 @@ def process_config(file: t.IO) -> Config:
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
 
-    return config
+    return Config.from_dict(config)
 
 
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
-    parameters = config['parameters']
-    target_path = t.cast(str, parameters.get('target_path', ''))
-    partition_keys = t.cast(t.List[str],
-                            cp.copy(parameters.get('partition_keys', list())))
-
-    partition_dict = OrderedDict((key, typecast(key, config['selection'][key][0])) for key in partition_keys)
-    target = target_path.format(*partition_dict.values(), **partition_dict)
+    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in config.partition_keys)
+    target = config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 
@@ -448,5 +433,5 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
       api_url=UUUUU3
     ```
     """
-    return [(name, params) for name, params in config['parameters'].items()
+    return [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]

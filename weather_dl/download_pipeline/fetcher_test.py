@@ -22,6 +22,7 @@ from unittest.mock import patch, ANY
 from .fetcher import Fetcher
 from .manifest import MockManifest, Location
 from .stores import InMemoryStore, FSStore
+from .config import Config
 
 
 class UploadTest(unittest.TestCase):
@@ -69,7 +70,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve, mock_gcs_file):
-        config = {
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -82,7 +83,7 @@ class FetchDataTest(unittest.TestCase):
                 'month': ['12'],
                 'year': ['01']
             }
-        }
+        })
 
         fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
         fetcher.fetch_data(config)
@@ -94,13 +95,13 @@ class FetchDataTest(unittest.TestCase):
 
         mock_retrieve.assert_called_with(
             'reanalysis-era5-pressure-levels',
-            config['selection'],
+            config.selection,
             ANY)
 
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
-        config = {
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -113,13 +114,13 @@ class FetchDataTest(unittest.TestCase):
                 'month': ['12'],
                 'year': ['01']
             }
-        }
+        })
 
         fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
         fetcher.fetch_data(config)
 
         self.assertDictContainsSubset(dict(
-            selection=config['selection'],
+            selection=config.selection,
             location='gs://weather-dl-unittest/download-01-12.nc',
             status='success',
             error=None,
@@ -128,7 +129,7 @@ class FetchDataTest(unittest.TestCase):
 
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
-        config = {
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -141,7 +142,7 @@ class FetchDataTest(unittest.TestCase):
                 'month': ['12'],
                 'year': ['01']
             }
-        }
+        })
 
         error = IOError("We don't have enough permissions to download this.")
         mock_retrieve.side_effect = error
@@ -153,7 +154,7 @@ class FetchDataTest(unittest.TestCase):
         actual = list(self.dummy_manifest.records.values())[0]._asdict()
 
         self.assertDictContainsSubset(dict(
-            selection=config['selection'],
+            selection=config.selection,
             location='gs://weather-dl-unittest/download-01-12.nc',
             status='failure',
             user='unknown',
@@ -165,7 +166,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve, mock_gcs_file):
-        config = {
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -178,7 +179,7 @@ class FetchDataTest(unittest.TestCase):
                 'month': ['12'],
                 'year': ['01']
             }
-        }
+        })
 
         error = IOError("Can't open gcs file.")
         mock_gcs_file.side_effect = error
@@ -189,7 +190,7 @@ class FetchDataTest(unittest.TestCase):
 
         actual = list(self.dummy_manifest.records.values())[0]._asdict()
         self.assertDictContainsSubset(dict(
-            selection=config['selection'],
+            selection=config.selection,
             location='gs://weather-dl-unittest/download-01-12.nc',
             status='failure',
             user='unknown',
@@ -201,7 +202,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__skips_existing_download(self, mock_retrieve, mock_gcs_file):
-        config = {
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -214,7 +215,7 @@ class FetchDataTest(unittest.TestCase):
                 'month': ['12'],
                 'year': ['01']
             }
-        }
+        })
 
         # target file already exists in store...
         store = InMemoryStore()
