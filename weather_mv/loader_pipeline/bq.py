@@ -115,6 +115,7 @@ class ToBigQuery(ToDataSink):
                     area=self.area,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                 )
+                | beam.Reshuffle()
                 | 'ExtractRows' >>
                 beam.FlatMapTuple(
                     extract_rows,
