@@ -75,14 +75,11 @@ class Fetcher(beam.DoFn):
 
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
-        dataset = config.dataset
-        selection = config.selection
-        user = config.user_id
 
-        with self.manifest.transact(selection, target, user):
+        with self.manifest.transact(config.selection, target, config.user_id):
             with tempfile.NamedTemporaryFile() as temp:
                 logger.info(f'[{worker_name}] Fetching data for {target!r}.')
-                self.retrieve(client, dataset, selection, temp.name)
+                self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
                 self.upload(temp, target)

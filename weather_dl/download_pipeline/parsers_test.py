@@ -66,12 +66,12 @@ class ParseConfigTest(unittest.TestCase):
     def test_json(self):
         with io.StringIO('{"key": "value"}') as f:
             actual = parse_config(f)
-            self.assertEqual(actual, Config.from_config({'key': 'value'}))
+            self.assertDictEqual(actual, {'key': 'value'})
 
     def test_bad_json(self):
         with io.StringIO('{"key": "value", "brokenKey": }') as f:
             actual = parse_config(f)
-            self.assertEqual(actual, Config.from_config({}))
+            self.assertDictEqual(actual, {})
 
     def test_cfg(self):
         with io.StringIO(
@@ -81,7 +81,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            self.assertEqual(actual, Config.from_config({'section': {'key': 'value'}}))
+            self.assertDictEqual(actual, {'section': {'key': 'value'}})
 
     def test_bad_cfg(self):
         with io.StringIO(
@@ -90,12 +90,12 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            self.assertEqual(actual, Config.from_config({}))
+            self.assertDictEqual(actual, {})
 
     def test_cfg_produces_lists(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=00
                     10
@@ -105,124 +105,124 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['00', '10', '20', '30', '40'])
+            self.assertListEqual(actual['section']['list'], ['00', '10', '20', '30', '40'])
 
     def test_cfg_parses_mars_list(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=1/2/3
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1', '2', '3'])
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
 
     def test_cfg_parses_mars_int_range(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=1/to/5
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1', '2', '3', '4', '5'])
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_mars_int_range_padded(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=00/to/05
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['00', '01', '02', '03', '04', '05'])
+            self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
 
     def test_cfg_parses_mars_int_range_incremented(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=1/to/5/by/2
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1', '3', '5'])
+            self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
 
     def test_cfg_parses_mars_float_range(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=1.0/to/5.0
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
+            self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=1.0/to/5.0/by/2.0
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1.0', '3.0', '5.0'])
+            self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented_by_float(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=0.0/to/0.5/by/0.1
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertEqual(actual.selection['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
+            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
 
     def test_cfg_parses_mars_date_range(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=2020-01-07/to/2020-01-09
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
 
     def test_cfg_parses_mars_relative_date_range(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=-3/to/-1
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
 
             dates = [
@@ -231,26 +231,26 @@ class ParseConfigTest(unittest.TestCase):
                 datetime.date.today() + datetime.timedelta(-1),
             ]
 
-            self.assertListEqual(actual.selection['list'], [d.strftime("%Y-%m-%d") for d in dates])
+            self.assertListEqual(actual['section']['list'], [d.strftime("%Y-%m-%d") for d in dates])
 
     def test_cfg_parses_mars_date_range_incremented(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=2020-01-07/to/2020-01-12/by/2
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_cfg_raises_syntax_error_missing_right(self):
         with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=2020-01-07/to/
                     """
@@ -263,7 +263,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=/to/2020-01-07
                     """
@@ -276,7 +276,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=2020-01-07/to/2020-01-11/by/
                     """
@@ -289,7 +289,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=2020-01-07/by/2020-01-11
                     """
@@ -302,7 +302,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=2020-01-07/to/2020-01-11/by/2.0
                     """
@@ -318,7 +318,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=1.0/to/10.0/by/2020-01-07
                     """
@@ -334,7 +334,7 @@ class ParseConfigTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             with io.StringIO(
                     """
-                    [selection]
+                    [section]
                     key=value
                     list=1/to/10/by/2.0
                     """
@@ -349,16 +349,16 @@ class ParseConfigTest(unittest.TestCase):
     def test_cfg_parses_accidental_extra_whitespace(self):
         with io.StringIO(
                 """
-                [selection]
+                [section]
                 key=value
                 list=
                     1/to/5
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual.selection.items():
+            for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertListEqual(actual.selection['list'], ['1', '2', '3', '4', '5'])
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_parameter_subsections(self):
         with io.StringIO(
@@ -372,13 +372,13 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            self.assertEqual(actual, Config.from_config({
+            self.assertEqual(actual, {
                 'parameters': {
                     'api_url': 'https://google.com/',
                     'alice': {'api_key': '123'},
                     'bob': {'api_key': '456'},
                 },
-            }))
+            })
 
 
 class HelpersTest(unittest.TestCase):
@@ -831,7 +831,7 @@ class PrepareTargetNameTest(unittest.TestCase):
     def test_target_name(self):
         for it in self.TEST_CASES:
             with self.subTest(msg=it['case'], **it):
-                actual = prepare_target_name(Config.from_config(it['config']))
+                actual = prepare_target_name(Config.from_dict(it['config']))
                 self.assertEqual(actual, it['expected'])
 
 

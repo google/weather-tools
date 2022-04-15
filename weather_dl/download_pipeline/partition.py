@@ -102,11 +102,9 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     Returns:
         A configuration with that selects a single download partition.
     """
-    partition_keys = config.partition_keys
-    selection = config.selection
-    copy = cp.deepcopy(selection)
+    copy = cp.deepcopy(config.selection)
     out = cp.deepcopy(config)
-    for idx, key in enumerate(partition_keys):
+    for idx, key in enumerate(config.partition_keys):
         copy[key] = [option[idx]]
 
     out.selection = copy
@@ -139,10 +137,7 @@ def prepare_partitions(config: Config) -> t.Iterator[Config]:
     Returns:
         An iterator of `Config`s.
     """
-    partition_keys = config.partition_keys
-    selection = config.selection
-
-    for option in itertools.product(*[selection[key] for key in partition_keys]):
+    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
         yield _create_partition_config(option, config)
 
 

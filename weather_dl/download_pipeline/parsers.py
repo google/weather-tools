@@ -142,12 +142,11 @@ def typecast(key: str, value: t.Any) -> t.Any:
     return converted
 
 
-def parse_config(file: t.IO) -> Config:
+def parse_config(file: t.IO) -> t.Dict:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
-        config = json.load(file)
-        return Config.from_config(config)
+        return json.load(file)
     except json.JSONDecodeError:
         pass
 
@@ -158,11 +157,11 @@ def parse_config(file: t.IO) -> Config:
         config.read_file(file)
         config_by_section = {s: _parse_lists(config, s) for s in config.sections()}
         config_with_nesting = parse_subsections(config_by_section)
-        return Config.from_config(config_with_nesting)
+        return config_with_nesting
     except configparser.ParsingError:
         pass
 
-    return Config.from_config({})
+    return {}
 
 
 def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
@@ -326,11 +325,8 @@ def process_config(file: t.IO) -> Config:
         if not condition:
             raise error_type(textwrap.dedent(message))
 
-    require(
-        config.client or config.dataset or config.target_path or config.partition_keys or
-        config.kwargs or config.selection,
-        "Unable to parse configuration file.")
-    require(config.client or config.dataset or config.target_path or config.partition_keys or config.kwargs,
+    require(bool(config), "Unable to parse configuration file.")
+    require('parameters' in config,
             """
             'parameters' section required in configuration file.
 
@@ -339,12 +335,13 @@ def process_config(file: t.IO) -> Config:
 
             Please consult the documentation for more information.""")
 
-    require('target_template' not in config.kwargs,
+    params = config.get('parameters', {})
+    require('target_template' not in params,
             """
             'target_template' is deprecated, use 'target_path' instead.
 
             Please consult the documentation for more information.""")
-    require(bool(config.target_path),
+    require('target_path' in params,
             """
             'parameters' section requires a 'target_path' key.
 
@@ -352,19 +349,19 @@ def process_config(file: t.IO) -> Config:
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
             are used to create the templates.""")
-    require(bool(config.client),
+    require('client' in params,
             """
             'parameters' section requires a 'client' key.
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    require(config.client in CLIENTS.keys(),
+    require(params.get('client') in CLIENTS.keys(),
             """
             Invalid 'client' parameter.
 
             Supported clients are {}
             """.format(str(list(CLIENTS.keys()))))
-    require('append_date_dirs' not in config.kwargs,
+    require('append_date_dirs' not in params,
             """
             The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
 
@@ -372,7 +369,7 @@ def process_config(file: t.IO) -> Config:
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#"""
             """creating-a-date-based-directory-hierarchy.""",
             NotImplementedError)
-    require('target_filename' not in config.kwargs,
+    require('target_filename' not in params,
             """
             The current version of 'google-weather-tools' no longer supports 'target_filename'!
 
@@ -380,11 +377,11 @@ def process_config(file: t.IO) -> Config:
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#parameters-section.""",
             NotImplementedError)
 
-    partition_keys = config.partition_keys
+    partition_keys = params.get('partition_keys', list())
     if isinstance(partition_keys, str):
         partition_keys = [partition_keys.strip()]
 
-    selection = config.selection
+    selection = config.get('selection', dict())
     require(all((key in selection for key in partition_keys)),
             """
             All 'partition_keys' must appear in the 'selection' section.
@@ -392,7 +389,7 @@ def process_config(file: t.IO) -> Config:
             'partition_keys' specify how to split data for workers. Please consult
             documentation for more information.""")
 
-    num_template_replacements = _number_of_replacements(config.target_path)
+    num_template_replacements = _number_of_replacements(params['target_path'])
     num_partition_keys = len(partition_keys)
 
     require(num_template_replacements == num_partition_keys,
@@ -402,18 +399,15 @@ def process_config(file: t.IO) -> Config:
             """.format(num_template_replacements, num_partition_keys))
 
     # Ensure consistent lookup.
-    config.partition_keys = partition_keys
+    config['parameters']['partition_keys'] = partition_keys
 
-    return config
+    return Config.from_dict(config)
 
 
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
-    target_path = config.target_path
-    partition_keys = config.partition_keys
-
-    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in partition_keys)
-    target = target_path.format(*partition_dict.values(), **partition_dict)
+    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in config.partition_keys)
+    target = config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 

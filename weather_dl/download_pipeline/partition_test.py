@@ -65,7 +65,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = self.create_partition_configs(config_obj)
 
         self.assertListEqual([d.selection for d in actual], [
@@ -86,7 +86,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = self.create_partition_configs(config_obj)
 
         self.assertListEqual([d.selection for d in actual], [
@@ -121,27 +121,23 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = self.create_partition_configs(config_obj)
 
-        expected = [
-            Config.from_config(
+        expected = [Config.from_dict(it) for it in [
                 {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
                  'selection': {**config['selection'],
-                               **{'year': ['2015'], 'month': ['1']}}}),
-            Config.from_config(
+                               **{'year': ['2015'], 'month': ['1']}}},
                 {'parameters': dict(config['parameters'], api_key='KKKK2', api_url='UUUU2', subsection_name='cloud'),
                  'selection': {**config['selection'],
-                               **{'year': ['2015'], 'month': ['2']}}}),
-            Config.from_config(
+                               **{'year': ['2015'], 'month': ['2']}}},
                 {'parameters': dict(config['parameters'], api_key='KKKK3', api_url='UUUU3', subsection_name='deepmind'),
                  'selection': {**config['selection'],
-                               **{'year': ['2016'], 'month': ['1']}}}),
-            Config.from_config(
+                               **{'year': ['2016'], 'month': ['1']}}},
                 {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
                  'selection': {**config['selection'],
-                               **{'year': ['2016'], 'month': ['2']}}}),
-        ]
+                               **{'year': ['2016'], 'month': ['2']}}},
+        ]]
 
         self.assertListEqual(actual, expected)
 
@@ -158,7 +154,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             self.dummy_manifest = LocalManifest(Location(tmpdir))
@@ -200,7 +196,7 @@ class PreparePartitionTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = self.create_partition_configs(config_obj, store=skip_odd_files)
         research_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('1')]
         cloud_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('2')]
@@ -226,7 +222,7 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = skip_partition(config_obj, self.mock_store)
 
         self.assertEqual(actual, False)
@@ -245,7 +241,7 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
         actual = skip_partition(config_obj, self.mock_store)
 
         self.assertEqual(actual, False)
@@ -264,7 +260,7 @@ class SkipPartitionsTest(unittest.TestCase):
             }
         }
 
-        config_obj = Config.from_config(config)
+        config_obj = Config.from_dict(config)
 
         self.mock_store.exists = MagicMock(return_value=True)
 

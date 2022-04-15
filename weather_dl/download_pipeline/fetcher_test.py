@@ -70,7 +70,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve, mock_gcs_file):
-        config = Config.from_config({
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -101,7 +101,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__returns_success(self, mock_retrieve, mock_gcs_file):
-        config = Config.from_config({
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -129,7 +129,7 @@ class FetchDataTest(unittest.TestCase):
 
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
-        config = Config.from_config({
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -166,7 +166,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve, mock_gcs_file):
-        config = Config.from_config({
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],
@@ -202,7 +202,7 @@ class FetchDataTest(unittest.TestCase):
     @patch('weather_dl.download_pipeline.stores.InMemoryStore.open', return_value=io.StringIO())
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__skips_existing_download(self, mock_retrieve, mock_gcs_file):
-        config = Config.from_config({
+        config = Config.from_dict({
             'parameters': {
                 'dataset': 'reanalysis-era5-pressure-levels',
                 'partition_keys': ['year', 'month'],

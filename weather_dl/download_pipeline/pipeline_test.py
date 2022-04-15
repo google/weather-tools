@@ -52,7 +52,7 @@ DEFAULT_ARGS = PipelineArgs(
                                   manifest_location='fs://downloader-manifest',
                                   num_requests_per_key=-1),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
-    config=Config.from_config(CONFIG),
+    config=Config.from_dict(CONFIG),
     client_name='cds',
     store=None,
     manifest=FirestoreManifest(Location('fs://downloader-manifest?projectId=None')),
@@ -72,7 +72,7 @@ def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.
     temp_config = copy.deepcopy(CONFIG)
     temp_config['parameters'].update(parameters)
     temp_config['selection'].update(selection)
-    args.config = Config.from_config(temp_config)
+    args.config = Config.from_dict(temp_config)
     args.known_args = copy.deepcopy(args.known_args)
     for k, v in known_args.items():
         setattr(args.known_args, k, v)

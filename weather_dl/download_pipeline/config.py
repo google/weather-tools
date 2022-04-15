@@ -57,7 +57,7 @@ class Config:
     selection: t.Dict[str, Values] = dataclasses.field(default_factory=dict)
 
     @classmethod
-    def from_config(cls, config: dict):
+    def from_dict(cls, config: t.Dict) -> 'Config':
         config_instance = cls()
         for section_key, section_value in config.items():
             if section_key == "parameters":
