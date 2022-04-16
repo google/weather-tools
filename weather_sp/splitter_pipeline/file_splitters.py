@@ -159,8 +159,7 @@ class NetCdfSplitter(FileSplitter):
                     for dim in da.coords:
                         selected = selected.sel({dim: getattr(da, dim)})
                 self._write_dataset(selected, filtered_split_dims)
-            self.logger.info('split %s into %d files',
-                             self.input_path, len(list(combinations)))
+            self.logger.info('Finished splitting %s', self.input_path)
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
