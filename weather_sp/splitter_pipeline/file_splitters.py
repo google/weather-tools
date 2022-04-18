@@ -166,7 +166,7 @@ class NetCdfSplitter(FileSplitter):
         with self._copy_to_local_file() as local_file:
             yield xr.open_dataset(local_file.name, engine='netcdf4')
 
-    def _write_dataset(self, dataset: xr.Dataset(), split_dims: t.List[str]) -> None:
+    def _write_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> None:
         with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
             dest_file.write(dataset.to_netcdf())
 
