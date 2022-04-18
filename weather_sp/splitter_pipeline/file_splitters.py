@@ -120,6 +120,8 @@ class GribSplitter(FileSplitter):
 
 class NetCdfSplitter(FileSplitter):
 
+    _UNSUPPORTED_DIMENSIONS = ('latitude', 'longitude', 'lat', 'lon')
+
     def __init__(self, input_path: str, output_info: OutFileInfo,
                  force_split: bool = False, logging_level: int = logging.INFO):
         super().__init__(input_path, output_info,
@@ -128,14 +130,13 @@ class NetCdfSplitter(FileSplitter):
     def split_data(self) -> None:
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
+        if any(dim in self._UNSUPPORTED_DIMENSIONS for dim in self.output_info.split_dims()):
+            raise ValueError('Unsupported split dimension (lat, lng).')
         if self.should_skip():
             metrics.Metrics.counter('file_splitters', 'skipped').inc()
             self.logger.info('Skipping %s, file already split.',
                              repr(self.input_path))
             return
-        if any(split not in ('time', 'level', 'variable') for split in self.output_info.split_dims()):
-            raise ValueError(
-                'netcdf split: unknown split dimension, supported are time, level, variable')
 
         with self._open_dataset_locally() as dataset:
             if any(split not in dataset.dims and split not in ('variable') for split in self.output_info.split_dims()):
@@ -147,37 +148,35 @@ class NetCdfSplitter(FileSplitter):
                                   for var in dataset.data_vars])
             else:
                 iterlists.append([dataset])
-            for dim in ('time', 'level'):
-                if dim in self.output_info.split_dims():
-                    iterlists.append(dataset[dim])
+            filtered_split_dims = [
+                x for x in self.output_info.split_dims() if x not in ('variable', self._UNSUPPORTED_DIMENSIONS)]
+            for dim in filtered_split_dims:
+                iterlists.append(dataset[dim])
             combinations = itertools.product(*iterlists)
             for comb in combinations:
                 selected = comb[0]
                 for da in comb[1:]:
-                    if 'time' in da.coords:
-                        selected = selected.sel(time=da.time)
-                    if 'level' in da.coords:
-                        selected = selected.sel(level=da.level)
-                self._write_dataset(selected)
-            self.logger.info('split %s into %d files',
-                             self.input_path, len(list(combinations)))
+                    for dim in da.coords:
+                        selected = selected.sel({dim: getattr(da, dim)})
+                self._write_dataset(selected, filtered_split_dims)
+            self.logger.info('Finished splitting %s', self.input_path)
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
         with self._copy_to_local_file() as local_file:
-            yield xr.open_dataset(local_file.name)
+            yield xr.open_dataset(local_file.name, engine='netcdf4')
 
-    def _write_dataset(self, dataset: xr.Dataset()) -> None:
-        with FileSystems().create(self._get_output_for_dataset(dataset)) as dest_file:
+    def _write_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> None:
+        with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
             dest_file.write(dataset.to_netcdf())
 
-    def _get_output_for_dataset(self, dataset: xr.Dataset) -> str:
+    def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}
-        if 'level' in self.output_info.split_dims():
-            splits['level'] = dataset.level.values
-        if 'time' in self.output_info.split_dims():
-            splits['time'] = np.datetime_as_string(
-                dataset.time.values, unit='m')
+        for dim in split_dims:
+            value = dataset[dim].values
+            if dim == 'time':
+                value = np.datetime_as_string(value, unit='m')
+            splits[dim] = value
         return self.output_info.formatted_output_path(splits)
 
 
