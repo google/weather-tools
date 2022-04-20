@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Fetcher(beam.DoFn):
+class Fetcher(beam.PTransform):
     """Executes client download requests.
 
     Given a sequence of configs (keyed by subsection parameters and number of allowed
@@ -44,29 +44,68 @@ class Fetcher(beam.DoFn):
         client_name: The name of the download client to construct per each request.
         manifest: A manifest to keep track of the status of requests
         store: To manage where downloads are persisted.
+        optimise_download: Optimised the download.
     """
 
     client_name: str
     manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
     store: t.Optional[Store] = None
+    optimise_download: bool = False
 
     def __post_init__(self):
         if self.store is None:
             self.store = FSStore()
 
-    @retry_with_exponential_backoff
-    def upload(self, src: io.FileIO, dest: str) -> None:
-        """Upload blob to cloud storage, with retries."""
-        with self.store.open(dest, 'wb') as dest_:
-            shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
+    def expand(self, element):
+        request = (
+            element
+            | 'EachPartition' >> beam.ParDo(EachPartition())
+        )
+
+        if self.optimise_download:
+            downloaded_data = (
+                request
+                | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
+                | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
+            )
+        else:
+            downloaded_data = (
+                request
+                | 'Fetch+Download' >> beam.ParDo(Retrieve(self.client_name, self.manifest, self.store))
+            )
+        (
+            downloaded_data
+            | 'Upload' >> beam.ParDo(Upload(self.client_name, self.manifest, self.store))
+        )
+
+
+class EachPartition(beam.DoFn):
+    def process(self, element) -> t.Iterator[t.Tuple[t.Any, str]]:
+        # element: Tuple[Tuple[str, int], Iterator[Config]]
+        """Execute download requests one-by-one."""
+        (subsection, request_idx), partitions = element
+        worker_name = f'{subsection}.{request_idx}'
+        logger.info(f"[{worker_name}] Starting requests...")
+        for partition in partitions:
+            beam.metrics.Metrics.counter('Fetcher', subsection).inc()
+            yield (partition, worker_name)
+
+
+@dataclasses.dataclass
+class FetchData(beam.DoFn):
+    client_name: str
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    store: t.Optional[Store] = None
 
     @retry_with_exponential_backoff
-    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
-        """Retrieve from download client, with retries."""
-        client.retrieve(dataset, selection, dest)
+    def fetch(self, client: Client, dataset: str, selection: t.Dict) -> t.Dict:
+        """Fetch data from download client, with retries."""
+        return client.fetch(dataset, selection)
 
-    def fetch_data(self, config: Config, *, worker_name: str = 'default') -> None:
-        """Download data from a client to a temp file, then upload to Cloud Storage."""
+    def process(self, element) -> t.Iterator[t.Tuple[t.Dict, Config, str, str, str]]:
+        """Fetch data from client."""
+        config, worker_name = element
+
         if not config:
             return
 
@@ -79,21 +118,83 @@ class Fetcher(beam.DoFn):
         with self.manifest.transact(config.selection, target, config.user_id):
             with tempfile.NamedTemporaryFile() as temp:
                 logger.info(f'[{worker_name}] Fetching data for {target!r}.')
+                result = self.fetch(client, config.dataset, config.selection)
+                yield (result, config, worker_name, temp.name, target)
+
+
+@dataclasses.dataclass
+class DownloadData(beam.DoFn):
+    client_name: str
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    store: t.Optional[Store] = None
+
+    @retry_with_exponential_backoff
+    def download(self, client: Client, dataset: str, result: t.Dict, dest: str) -> None:
+        """Download data from download client, with retries."""
+        client.download(dataset, result, dest)
+
+    def process(self, element) -> t.Iterator[t.Tuple[Config, str, str, str]]:
+        """Download data from a client to a temp file."""
+        result, config, worker_name, temp_name, target = element
+
+        client = CLIENTS[self.client_name](config)
+
+        with self.manifest.transact(config.selection, target, config.user_id):
+            logger.info(f'[{worker_name}] Downloading data for {target!r}.')
+            self.download(client, config.dataset, result, temp_name)
+            yield (config, worker_name, temp_name, target)
+
+
+@dataclasses.dataclass
+class Retrieve(beam.DoFn):
+    client_name: str
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    store: t.Optional[Store] = None
+
+    @retry_with_exponential_backoff
+    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
+        """Retrieve from download client, with retries."""
+        client.retrieve(dataset, selection, dest)
+
+    def process(self, element) -> t.Iterator[t.Tuple[Config, str, str, str]]:
+        """Download data from a client to a temp file."""
+        config, worker_name = element
+
+        if not config:
+            return
+
+        if skip_partition(config, self.store):
+            return
+
+        client = CLIENTS[self.client_name](config)
+        target = prepare_target_name(config)
+
+        with self.manifest.transact(config.selection, target, config.user_id):
+            with tempfile.NamedTemporaryFile() as temp:
+                logger.info(f'[{worker_name}] Fetching and Downloading data for {target!r}.')
                 self.retrieve(client, config.dataset, config.selection, temp.name)
+                yield (config, worker_name, temp.name, target)
 
-                logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
-                self.upload(temp, target)
 
-                logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
+@dataclasses.dataclass
+class Upload(beam.DoFn):
+    client_name: str
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    store: t.Optional[Store] = None
+
+    @retry_with_exponential_backoff
+    def upload(self, src: str, dest: str) -> None:
+        """Upload blob to cloud storage, with retries."""
+        with io.FileIO(src, 'rb') as src_:
+            with self.store.open(dest, 'wb') as dest_:
+                shutil.copyfileobj(src_, dest_, WRITE_CHUNK_SIZE)
 
     def process(self, element) -> None:
-        # element: Tuple[Tuple[str, int], Iterator[Config]]
-        """Execute download requests one-by-one."""
-        (subsection, request_idx), partitions = element
-        worker_name = f'{subsection}.{request_idx}'
+        """Upload to Cloud Storage."""
+        config, worker_name, temp_name, target = element
 
-        logger.info(f"[{worker_name}] Starting requests...")
+        with self.manifest.transact(config.selection, target, config.user_id):
+            logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
+            self.upload(temp_name, target)
 
-        for partition in partitions:
-            beam.metrics.Metrics.counter('Fetcher', subsection).inc()
-            self.fetch_data(partition, worker_name=worker_name)
+            logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')

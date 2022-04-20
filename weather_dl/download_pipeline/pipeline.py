@@ -102,7 +102,8 @@ def pipeline(args: PipelineArgs) -> None:
                 | 'Create the initial config' >> beam.Create([args.config])
                 | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest)
                 | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
+                | 'Fetch data' >> Fetcher(args.client_name, args.manifest, args.store,
+                                          args.known_args.optimise_download)
         )
 
 
@@ -129,6 +130,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
                              'Please see the client documentation for more details.')
+    parser.add_argument('-o', '--optimise-download', action='store_true', default=False,
+                        help="Optimised the downloads.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -137,6 +140,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     config = {}
     with open(known_args.config, 'r', encoding='utf-8') as f:
         config = process_config(f)
+
+    if known_args.optimise_download and config.client == 'cds':
+        raise NotImplementedError('Optimised downloads are currently not supported for CDS client!')
 
     config.force_download = known_args.force_download
     config.user_id = getpass.getuser()
