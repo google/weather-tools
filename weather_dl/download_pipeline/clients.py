@@ -20,16 +20,23 @@ import io
 import json
 import logging
 import os
-import time
+import shutil
 import typing as t
 import warnings
+from contextlib import closing
 from urllib.parse import urljoin
+from urllib.request import (
+    Request,
+    urlopen,
+)
 
 import cdsapi
 import urllib3
+from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 from ecmwfapi import ECMWFService, api
 
 from .config import Config, optimize_selection_partition
+from .util import retry_with_exponential_backoff
 
 warnings.simplefilter(
     "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
@@ -117,10 +124,10 @@ class CdsClient(Client):
         self.c.retrieve(dataset, selection_, target)
 
     def fetch(self, dataset: str, selection: t.Dict) -> None:
-        pass
+        raise NotImplementedError()
 
     def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        pass
+        raise NotImplementedError()
 
     @property
     def license_url(self):
@@ -172,11 +179,30 @@ class StdoutLogger(io.StringIO):
         self._redirector.__exit__(exc_type, exc_value, traceback)
 
 
-class APIRequestExtended(api.APIRequest):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class SplitMARSRequest(api.APIRequest):
+    """Extended MARS APIRequest class that separates fetch and download stage."""
+    @retry_with_exponential_backoff
+    def _download(self, url, path: str, size: int) -> None:
+        existing_size = 0
+        req = Request(url)
 
-    def fetch(self, request):
+        if os.path.exists(path):
+            mode = "ab"
+            existing_size = os.path.getsize(path)
+            req.add_header("Range", "bytes=%s-" % existing_size)
+        else:
+            mode = "wb"
+
+        self.log(
+            "Transfering %s into %s" % (self._bytename(size), path)
+        )
+        self.log("From %s" % (url,))
+
+        with open(path, mode) as f:
+            with closing(urlopen(req)) as http:
+                shutil.copyfileobj(http, f, DEFAULT_READ_BUFFER_SIZE)
+
+    def fetch(self, request: t.Dict) -> t.Dict:
         status = None
 
         self.connection.submit("%s/%s/requests" % (self.url, self.service), request)
@@ -199,7 +225,7 @@ class APIRequestExtended(api.APIRequest):
         result = self.connection.result()
         return result
 
-    def download(self, result, target=None):
+    def download(self, result: t.Dict, target: t.Optional[str] = None) -> None:
         if target:
             if os.path.exists(target):
                 # Empty the target file, if it already exists, otherwise the
@@ -207,32 +233,15 @@ class APIRequestExtended(api.APIRequest):
                 # an interrupted download.
                 open(target, "w").close()
 
-            size = -1
-            tries = 0
-            while size != result["size"] and tries < 10:
-                size = self._transfer(
-                    urljoin(self.url, result["href"]), target, result["size"]
-                )
-                if size != result["size"] and tries < 10:
-                    tries += 1
-                    self.log("Transfer interrupted, resuming in 60s...")
-                    time.sleep(60)
-                else:
-                    break
-
-            assert size == result["size"]
-
+            self._download(urljoin(self.url, result["href"]), target, result["size"])
         self.connection.cleanup()
 
-        return result
 
-
-class ECMWFServiceExtended(ECMWFService):
+class MARSECMWFServiceExtended(ECMWFService):
+    """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-    def fetch(self, req):
-        c = APIRequestExtended(
+        self.c = SplitMARSRequest(
             self.url,
             "services/%s" % (self.service,),
             email=self.email,
@@ -241,19 +250,12 @@ class ECMWFServiceExtended(ECMWFService):
             verbose=self.verbose,
             quiet=self.quiet,
         )
-        return c.fetch(req)
 
-    def download(self, res, target):
-        c = APIRequestExtended(
-            self.url,
-            "services/%s" % (self.service,),
-            email=self.email,
-            key=self.key,
-            log=self.log,
-            verbose=self.verbose,
-            quiet=self.quiet,
-        )
-        c.download(res, target)
+    def fetch(self, req: t.Dict) -> t.Dict:
+        return self.c.fetch(req)
+
+    def download(self, res: t.Dict, target: str) -> None:
+        self.c.download(res, target)
 
 
 class MarsClient(Client):
@@ -278,7 +280,7 @@ class MarsClient(Client):
 
     def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
-        self.c = ECMWFServiceExtended(
+        self.c = MARSECMWFServiceExtended(
             "mars",
             key=config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             url=config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
@@ -328,10 +330,10 @@ class FakeClient(Client):
             json.dump({dataset: selection}, f)
 
     def fetch(self, dataset: str, selection: t.Dict) -> None:
-        pass
+        raise NotImplementedError()
 
     def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        pass
+        raise NotImplementedError()
 
     @property
     def license_url(self):
