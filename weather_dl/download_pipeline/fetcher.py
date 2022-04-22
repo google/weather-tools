@@ -72,6 +72,7 @@ class Fetcher(beam.PTransform):
             downloaded_data = (
                 request
                 | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
+                | 'Reshuffle Fetch' >> beam.Reshuffle()
                 | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
             )
         else:
@@ -81,6 +82,7 @@ class Fetcher(beam.PTransform):
             )
         (
             downloaded_data
+            | 'Reshuffle Download' >> beam.Reshuffle()
             | 'Upload' >> beam.ParDo(Upload(self.client_name, self.manifest, self.store))
         )
 
@@ -131,7 +133,7 @@ class FetchData(beam.DoFn):
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
 
-        with self.manifest.transact(config.selection, target, config.user_id):
+        with self.manifest.transact(config.selection, target, config.user_id, 'fetch'):
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
             result = self.fetch(client, config.dataset, config.selection)
             yield (config, worker_name, result)
@@ -164,7 +166,7 @@ class DownloadData(beam.DoFn):
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
 
-        with self.manifest.transact(config.selection, target, config.user_id):
+        with self.manifest.transact(config.selection, target, config.user_id, 'download'):
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 logger.info(f'[{worker_name}] Downloading data for {target!r}.')
                 self.download(client, config.dataset, result, temp.name)
@@ -205,7 +207,7 @@ class RetrieveData(beam.DoFn):
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
 
-        with self.manifest.transact(config.selection, target, config.user_id):
+        with self.manifest.transact(config.selection, target, config.user_id, 'retrieve'):
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 logger.info(f'[{worker_name}] Fetching & Downloading data for {target!r}.')
                 self.retrieve(client, config.dataset, config.selection, temp.name)
@@ -240,7 +242,7 @@ class Upload(beam.DoFn):
         """Upload to Cloud Storage."""
         config, worker_name, temp_name = element
         target = prepare_target_name(config)
-        with self.manifest.transact(config.selection, target, config.user_id):
+        with self.manifest.transact(config.selection, target, config.user_id, 'upload'):
             logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
             self.upload(temp_name, target)
 

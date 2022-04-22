@@ -31,6 +31,7 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
     return DownloadStatus(
         selection={},
         location=rand_str() if location is None else location,
+        stage=random.choice(['fetch', 'download', 'retrieve', 'upload', None]),
         status=random.choice(['scheduled', 'in-progress', 'success', 'failure']),
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
         user=random.choice(['user', 'alice', 'bob', 'root']),
