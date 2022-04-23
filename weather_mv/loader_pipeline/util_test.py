@@ -13,12 +13,14 @@
 # limitations under the License.
 import unittest
 from collections import Counter
-import json
+
 import xarray as xr
+import json
 from .sinks_test import TestDataBase
 from .util import get_coordinates
-from util import to_json_serializable_type
+from .util import to_json_serializable_type
 import numpy as np
+import datetime
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -43,12 +45,12 @@ class GetCoordinatesTest(TestDataBase):
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
 
-    def assert_value_and_type(self,input,output):
-        # check if it retains the original value
-        self.assertEqual(input,output)
+    # def assert_value_and_type(self,input,output):
+    #     # check if it retains the original value
+    #     self.assertEqual(input,output)
 
-        # check if it retains the original type
-        self.assertEqual(type(input), type(output))
+    #     # check if it retains the original type
+    #     self.assertEqual(type(input), type(output))
 
     def assert_serializes_json(self, input):
         try:
@@ -59,51 +61,56 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
     def test_numpy_float_becomes_float(self):
         input = np.float(42)
-        
+
         # genrate output from the function being tested
         output = to_json_serializable_type(input)
 
         # assert the output with set of given conditions
 
-        # check if it is serialized in json 
+        # check if it is serialized in json
         self.assert_serializes_json(output)
 
         # check if it retains the original value and type
-        self.assert_value_and_type(input,output)
-       
+        self.assertEquals(input, output)
+        self.assertEquals(type(output), float)
 
     def test_numpy_array(self):
         input = np.array([1, 2, 3, 4, 5777, 7, 4252, 5426])
         output = to_json_serializable_type(input)
         self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
+        self.assertEqual([1, 2, 3, 4, 5777, 7, 4252, 5426], output)
+        self.assertEqual(list, type(output))
 
     def test_strings(self):
         input = "hello there"
         output = to_json_serializable_type(input)
         self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
+        self.assertEquals(input, output)
+        self.assertEquals(str, type(output))
+
+    def test_integer_becomes_integer(self):
+        input = 1234
+        output = to_json_serializable_type(input)
+        self.assert_serializes_json(output)
+        self.assertEquals(input, output)
+        self.assertEquals(int, type(output))
 
     def test_date_and_time(self):
+
+        # check of a simple date input
         input = datetime.datetime.now().isoformat()
         output = to_json_serializable_type(input)
         self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
+        if not input in output:
+            self.fail()
+        self.assertEquals(str, type(output))
 
-    def test_dictionary(self):
-        input = {"a": 1, "b": 2, "c": 3, "d": 4}
+        input = np.datetime64('2022-04-22')
         output = to_json_serializable_type(input)
         self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
+        if not '2022-04-22' in output:
+            self.fail()
+        self.assertEquals(str, type(output))
 
-    def test_dictionary(self):
-        input = {"a": 1, "b": 2, "c": 3, "d": 4}
-        output = to_json_serializable_type(input)
-        self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
-
-    def test_None(self):
-        input = None
-        output = to_json_serializable_type(input)
-        self.assert_serializes_json(output)
-        self.assert_value_and_type(input,output)
+    def test_none(self):
+        pass
