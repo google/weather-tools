@@ -14,8 +14,10 @@
 """Parsers for ECMWF download configuration."""
 
 import configparser
+import copy
 import copy as cp
 import datetime
+import calendar
 import json
 import ast
 import string
@@ -435,3 +437,22 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
     """
     return [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]
+
+
+def substitute_selection_partition(selection: t.Dict) -> t.Dict:
+    """Compute right-hand-side values for the selection section.
+
+    Used to support custom syntax, such as 'all'.
+    """
+    selection_ = copy.deepcopy(selection)
+
+    if 'day' in selection_.keys() and selection_['day'] == 'all':
+        year, month = selection_['year'], selection_['month']
+        assert '/' not in year, "Cannot use keyword 'all' on selections with multiple 'year's."
+        assert '/' not in month, "Cannot use keyword 'all' on selections with multiple 'month's."
+
+        _, n_days_in_month = calendar.monthrange(int(year), int(month))
+
+        selection_['day'] = f'{year}-{month}-01/to/{year}-{month}-{n_days_in_month:02d}'
+
+    return selection_
