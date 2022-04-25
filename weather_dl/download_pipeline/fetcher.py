@@ -69,20 +69,22 @@ class Fetcher(beam.PTransform):
         )
 
         if self.async_downloads:
+            # downloaded_data = (
+            #     request
+            #     | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
+            #     | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
+            # )
             downloaded_data = (
                 request
-                | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
-                | 'Reshuffle Fetch' >> beam.Reshuffle()
-                | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
+                | 'Fetch+Download' >> beam.ParDo(FetchDownloadData(self.client_name, self.manifest, self.store))
             )
         else:
             downloaded_data = (
                 request
-                | 'Fetch+Download' >> beam.ParDo(RetrieveData(self.client_name, self.manifest, self.store))
+                | 'Retrieve' >> beam.ParDo(RetrieveData(self.client_name, self.manifest, self.store))
             )
         (
             downloaded_data
-            | 'Reshuffle Download' >> beam.Reshuffle()
             | 'Upload' >> beam.ParDo(Upload(self.manifest, self.store))
         )
 
@@ -137,6 +139,53 @@ class FetchData(beam.DoFn):
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
             result = self.fetch(client, config.dataset, config.selection)
             yield (config, worker_name, result)
+
+
+@dataclasses.dataclass
+class FetchDownloadData(beam.DoFn):
+    """Fetch + Download data from client.
+
+    Attributes:
+        client_name:
+            The name of the download client to construct per each request.
+        manifest:
+            A manifest to keep track of the status of requests
+        store:
+            To manage where downloads are persisted.
+    """
+    client_name: str
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    store: t.Optional[Store] = None
+
+    @retry_with_exponential_backoff
+    def download(self, client: Client, dataset: str, result: t.Dict, dest: str) -> None:
+        """Download data from client, with retries."""
+        client.download(dataset, result, dest)
+
+    @retry_with_exponential_backoff
+    def fetch(self, client: Client, dataset: str, selection: t.Dict) -> t.Dict:
+        """Fetch data from download client, with retries."""
+        return client.fetch(dataset, selection)
+
+    def process(self, element) -> t.Iterator[t.Tuple[Config, str, str]]:
+        """Fetch data from client."""
+        config, worker_name = element
+
+        if not config:
+            return
+
+        if skip_partition(config, self.store):
+            return
+
+        client = CLIENTS[self.client_name](config)
+        target = prepare_target_name(config)
+
+        with self.manifest.transact(config.selection, target, config.user_id, 'fetch+download'):
+            with tempfile.NamedTemporaryFile(delete=False) as temp:
+                logger.info(f'[{worker_name}] Fetching data for {target!r}.')
+                result = self.fetch(client, config.dataset, config.selection)
+                self.download(client, config.dataset, result, temp.name)
+                yield (config, worker_name, temp.name)
 
 
 @dataclasses.dataclass
