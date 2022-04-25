@@ -184,6 +184,7 @@ class FetchDownloadData(beam.DoFn):
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 logger.info(f'[{worker_name}] Fetching data for {target!r}.')
                 result = self.fetch(client, config.dataset, config.selection)
+                logger.info(f'[{worker_name}] Downloading data for {target!r}.')
                 self.download(client, config.dataset, result, temp.name)
                 yield (config, worker_name, temp.name)
 
