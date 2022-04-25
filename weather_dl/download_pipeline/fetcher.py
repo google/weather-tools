@@ -83,7 +83,7 @@ class Fetcher(beam.PTransform):
         (
             downloaded_data
             | 'Reshuffle Download' >> beam.Reshuffle()
-            | 'Upload' >> beam.ParDo(Upload(self.client_name, self.manifest, self.store))
+            | 'Upload' >> beam.ParDo(Upload(self.manifest, self.store))
         )
 
 
@@ -195,7 +195,7 @@ class RetrieveData(beam.DoFn):
         client.retrieve(dataset, selection, dest)
 
     def process(self, element) -> t.Iterator[t.Tuple[Config, str, str]]:
-        """Download data from a client to a temp file."""
+        """Retrieve data from a client to a temp file."""
         config, worker_name = element
 
         if not config:
@@ -219,14 +219,11 @@ class Upload(beam.DoFn):
     """Upload downloaded data to target path.
 
     Attributes:
-        client_name:
-            The name of the download client to construct per each request.
         manifest:
             A manifest to keep track of the status of requests
         store:
             To manage where downloads are persisted.
     """
-    client_name: str
     manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
     store: t.Optional[Store] = None
 
