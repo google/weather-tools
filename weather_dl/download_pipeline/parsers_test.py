@@ -736,6 +736,28 @@ class ProcessConfigTest(unittest.TestCase):
             "Invalid 'client' parameter.",
             ctx.exception.args[0])
 
+    def test_partition_cannot_include_all(self):
+        with self.assertRaisesRegex(ValueError, 'cannot appear as a partition key.'):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=bar-{}-{}
+                    partition_keys=
+                        month
+                        day
+                    [selection]
+                    year=2012
+                    month=
+                        01
+                        02
+                        03
+                    day=all
+                    """
+            ) as f:
+                process_config(f)
+
 
 class PrepareTargetNameTest(unittest.TestCase):
     TEST_CASES = [

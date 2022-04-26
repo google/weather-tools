@@ -13,18 +13,19 @@
 # limitations under the License.
 """Parsers for ECMWF download configuration."""
 
+import ast
 import configparser
 import copy as cp
 import datetime
 import json
-import ast
 import string
 import textwrap
 import typing as t
-from .config import Config
-from urllib.parse import urlparse
 from collections import OrderedDict
+from urllib.parse import urlparse
+
 from .clients import CLIENTS
+from .config import Config
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 
@@ -401,6 +402,12 @@ def process_config(file: t.IO) -> Config:
             'target_path' has {0} replacements. Expected {1}, since there are {1}
             partition keys.
             """.format(num_template_replacements, num_partition_keys))
+
+    if 'day' in partition_keys:
+        require(selection['day'] != 'all',
+                """
+                If 'all' is used for a selection value, it cannot appear as a partition key. 
+                """)
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
