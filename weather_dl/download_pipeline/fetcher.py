@@ -66,18 +66,19 @@ class Fetcher(beam.PTransform):
         request = (
             element
             | 'EachPartition' >> beam.ParDo(EachPartition())
+            | 'Reshuffle Partitions' >> beam.Reshuffle()
         )
 
         if self.async_downloads:
-            # downloaded_data = (
-            #     request
-            #     | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
-            #     | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
-            # )
             downloaded_data = (
                 request
-                | 'Fetch+Download' >> beam.ParDo(FetchDownloadData(self.client_name, self.manifest, self.store))
+                | 'Fetch' >> beam.ParDo(FetchData(self.client_name, self.manifest, self.store))
+                | 'Download' >> beam.ParDo(DownloadData(self.client_name, self.manifest, self.store))
             )
+            # downloaded_data = (
+            #     request
+            #     | 'Fetch+Download' >> beam.ParDo(FetchDownloadData(self.client_name, self.manifest, self.store))
+            # )
         else:
             downloaded_data = (
                 request
