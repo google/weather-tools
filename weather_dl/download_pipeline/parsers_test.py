@@ -394,7 +394,6 @@ class HelpersTest(unittest.TestCase):
                 self.assertEqual(actual, want)
 
 
-
 class SubsectionsTest(unittest.TestCase):
     def test_parses_config_subsections(self):
         config = {"parsers": {'a': 1, 'b': 2}, "parsers.1": {'b': 3}}
