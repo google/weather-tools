@@ -98,7 +98,8 @@ Any available dimensions can be combined when splitting.
 NetCDF files are already in a hypercube format and can only be split by one of the dimensions and by data variable.
 Since splitting by latitude or longitude would lead to a large number of small files, this is not supported,
 and it is recommended to use the `weather-mv` tool instead. \
-Supported splits for NetCDF files are thus 'variable', 'time', 'level'.
+Supported splits for NetCDF files are thus 'variable' to split by data variable, and any dimension 
+other than latitude and longitude.
 
 
 ### Output directory

@@ -215,12 +215,12 @@ class NetCdfSplitterTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             splitter.split_data()
 
-    def test_split_data__unknown_dim_raises(self):
+    def test_split_data__unsupported_dim_raises(self):
         input_path = f'{self._data_dir}/era5_sample.nc'
         output_base = f'{self._data_dir}/split_files/era5_sample'
         splitter = NetCdfSplitter(input_path,
                                   OutFileInfo(output_base,
-                                              formatting='_{shortName}',
+                                              formatting='_{longitude}',
                                               ending='.nc',
                                               template_folders=[]))
         with self.assertRaises(ValueError):

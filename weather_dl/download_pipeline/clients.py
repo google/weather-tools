@@ -26,6 +26,7 @@ import warnings
 
 import cdsapi
 from ecmwfapi import ECMWFService
+from .config import Config
 
 warnings.simplefilter(
     "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
@@ -42,7 +43,7 @@ class Client(abc.ABC):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.config = config
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
@@ -87,11 +88,11 @@ class CdsClient(Client):
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
         self.c = cdsapi.Client(
-            url=config['parameters'].get('api_url', os.environ.get('CDSAPI_URL')),
-            key=config['parameters'].get('api_key', os.environ.get('CDSAPI_KEY')),
+            url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
+            key=config.kwargs.get('api_key', os.environ.get('CDSAPI_KEY')),
             debug_callback=self.logger.debug,
             info_callback=self.logger.info,
             warning_callback=self.logger.warning,
@@ -171,13 +172,13 @@ class MarsClient(Client):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: t.Dict, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
         self.c = ECMWFService(
             "mars",
-            key=config['parameters'].get('api_key', os.environ.get("MARSAPI_KEY")),
-            url=config['parameters'].get('api_url', os.environ.get("MARSAPI_URL")),
-            email=config['parameters'].get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            key=config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
+            url=config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
+            email=config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
             log=self.logger.debug,
             verbose=True
         )

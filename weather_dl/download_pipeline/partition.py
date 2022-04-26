@@ -20,7 +20,8 @@ import typing as t
 import apache_beam as beam
 
 from .manifest import Manifest
-from .parsers import Config, prepare_target_name
+from .parsers import prepare_target_name
+from .config import Config
 from .stores import Store, FSStore
 
 Partition = t.Tuple[str, t.Dict, Config]
@@ -101,21 +102,19 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     Returns:
         A configuration with that selects a single download partition.
     """
-    partition_keys = config.get('parameters', {}).get('partition_keys', [])
-    selection = config.get('selection', {})
-    copy = cp.deepcopy(selection)
+    copy = cp.deepcopy(config.selection)
     out = cp.deepcopy(config)
-    for idx, key in enumerate(partition_keys):
+    for idx, key in enumerate(config.partition_keys):
         copy[key] = [option[idx]]
 
-    out['selection'] = copy
+    out.selection = copy
     return out
 
 
 def skip_partition(config: Config, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
-    if config['parameters'].get('force_download', False):
+    if config.force_download:
         return False
 
     target = prepare_target_name(config)
@@ -138,10 +137,7 @@ def prepare_partitions(config: Config) -> t.Iterator[Config]:
     Returns:
         An iterator of `Config`s.
     """
-    partition_keys = config.get('parameters', {}).get('partition_keys', [])
-    selection = config.get('selection', {})
-
-    for option in itertools.product(*[selection[key] for key in partition_keys]):
+    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
         yield _create_partition_config(option, config)
 
 
@@ -175,12 +171,12 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
         An `Config` assembled out of subsection parameters and config shards.
     """
     name, params, out = partition
-    out['parameters'].update(params)
-    out['parameters']['__subsection__'] = name
+    out.kwargs.update(params)
+    out.subsection_name = name
 
     location = prepare_target_name(out)
-    user = out['parameters'].get('user_id', 'unknown')
-    manifest.schedule(out['selection'], location, user)
+    user = out.user_id
+    manifest.schedule(out.selection, location, user)
 
     logger.info(f'[{name}] Created partition {location!r}.')
     beam.metrics.Metrics.counter('Subsection', name).inc()
