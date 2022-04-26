@@ -74,7 +74,7 @@ class Config:
 
 
 def optimize_selection_partition(selection: t.Dict) -> t.Dict:
-    """Compute right-hand-side values for the selection section.
+    """Compute right-hand-side values for the selection section of a single partition.
 
     Used to support custom syntax and optimizations, such as 'all'.
     """

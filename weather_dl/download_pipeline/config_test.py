@@ -79,7 +79,7 @@ class SelectionSyntaxTest(unittest.TestCase):
         selection_with_multiple_years = {'year': '2020/2021', 'month': '2', 'day': 'all'}
         with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
             optimize_selection_partition(selection_with_multiple_years)
-            j
+
         selection_with_multiple_years = {'year': ['2020/2021'], 'month': '2', 'day': 'all'}
         with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
             optimize_selection_partition(selection_with_multiple_years)
