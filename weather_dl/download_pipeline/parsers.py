@@ -14,10 +14,8 @@
 """Parsers for ECMWF download configuration."""
 
 import configparser
-import copy
 import copy as cp
 import datetime
-import calendar
 import json
 import ast
 import string
@@ -294,7 +292,11 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
 
 
 def _number_of_replacements(s: t.Text):
-    return len([v for v in string.Formatter().parse(s) if v[1] is not None])
+    format_names = [v[1] for v in string.Formatter().parse(s) if v[1] is not None]
+    num_empty_names = len([empty for empty in format_names if empty is ''])
+    if num_empty_names != 0:
+        num_empty_names -= 1
+    return len(set(format_names)) + num_empty_names
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
@@ -439,20 +441,3 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
             if isinstance(params, dict)] or [('default', {})]
 
 
-def substitute_selection_partition(selection: t.Dict) -> t.Dict:
-    """Compute right-hand-side values for the selection section.
-
-    Used to support custom syntax, such as 'all'.
-    """
-    selection_ = copy.deepcopy(selection)
-
-    if 'day' in selection_.keys() and selection_['day'] == 'all':
-        year, month = selection_['year'], selection_['month']
-        assert '/' not in year, "Cannot use keyword 'all' on selections with multiple 'year's."
-        assert '/' not in month, "Cannot use keyword 'all' on selections with multiple 'month's."
-
-        _, n_days_in_month = calendar.monthrange(int(year), int(month))
-
-        selection_['day'] = f'{year}-{month}-01/to/{year}-{month}-{n_days_in_month:02d}'
-
-    return selection_

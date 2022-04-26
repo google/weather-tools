@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing as t
+import calendar
+import copy
 import dataclasses
+import typing as t
 
 Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -69,3 +71,41 @@ class Config:
             if section_key == "selection":
                 config_instance.selection = section_value
         return config_instance
+
+
+def optimize_selection_partition(selection: t.Dict) -> t.Dict:
+    """Compute right-hand-side values for the selection section.
+
+    Used to support custom syntax and optimizations, such as 'all'.
+    """
+    selection_ = copy.deepcopy(selection)
+
+    if 'day' in selection_.keys() and selection_['day'] == 'all':
+        year, month = selection_['year'], selection_['month']
+
+        multiples_error = "Cannot use keyword 'all' on selections with multiple '{type}'s."
+
+        if isinstance(year, list):
+            assert len(year) == 1, multiples_error.format(type='year')
+            year = year[0]
+
+        if isinstance(month, list):
+            assert len(month) == 1, multiples_error.format(type='month')
+            month = month[0]
+
+        if isinstance(year, str):
+            assert '/' not in year, multiples_error.format(type='year')
+
+        if isinstance(month, str):
+            assert '/' not in month, multiples_error.format(type='month')
+
+        year, month = int(year), int(month)
+
+        _, n_days_in_month = calendar.monthrange(year, month)
+
+        selection_['date'] = f'{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{n_days_in_month:02d}'
+        del selection_['day']
+        del selection_['month']
+        del selection_['year']
+
+    return selection_

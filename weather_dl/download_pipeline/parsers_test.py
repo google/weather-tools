@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import calendar
 import datetime
 import io
 import unittest
@@ -23,7 +22,7 @@ from .parsers import (
     process_config,
     _number_of_replacements,
     parse_subsections,
-    prepare_target_name, substitute_selection_partition,
+    prepare_target_name,
 )
 from .config import Config
 
@@ -833,33 +832,6 @@ class PrepareTargetNameTest(unittest.TestCase):
             with self.subTest(msg=it['case'], **it):
                 actual = prepare_target_name(Config.from_dict(it['config']))
                 self.assertEqual(actual, it['expected'])
-
-
-class SelectionSyntaxTest(unittest.TestCase):
-
-    ALL_DAYS = [
-        ({'year': f'{y:04d}', 'month': f'{m:02d}', 'day': 'all'}, calendar.monthrange(y, m)[1])
-        for m in range(1, 13)
-        for y in range(1900, 2023)
-    ]
-
-    def test_all_days(self):
-        for selection, n_days in self.ALL_DAYS:
-            year, month = selection["year"], selection["month"]
-            with self.subTest(msg=f'{year}-{month} == {n_days}'):
-                actual = substitute_selection_partition(selection)
-                expected = f'{year}-{month}-01/to/{year}-{month}-{n_days:02d}'
-                self.assertEqual(actual['day'], expected)
-
-    def test_all_days__invalid_year(self):
-        selection_with_multiple_years = {'year': '2020/2021', 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
-            substitute_selection_partition(selection_with_multiple_years)
-
-    def test_all_days__invalid_month(self):
-        selection_with_multiple_years = {'year': '2020', 'month': '1/2/3', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'month's."):
-            substitute_selection_partition(selection_with_multiple_years)
 
 
 if __name__ == '__main__':
