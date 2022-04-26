@@ -16,7 +16,6 @@ import datetime
 import io
 import unittest
 
-from .manifest import MockManifest, Location
 from .parsers import (
     date,
     parse_config,
@@ -824,9 +823,6 @@ class PrepareTargetNameTest(unittest.TestCase):
              expected='somewhere/expver-1/2017/01/15-pressure-500.nc'),
 
     ]
-
-    def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
 
     def test_target_name(self):
         for it in self.TEST_CASES:

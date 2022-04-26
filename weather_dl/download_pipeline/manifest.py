@@ -247,10 +247,11 @@ class MockManifest(Manifest):
 
     def __init__(self, location: Location) -> None:
         super().__init__(location)
-        self.records = {}
 
     def _update(self, download_status: DownloadStatus) -> None:
-        self.records.update({download_status.location: download_status})
+        with open(self.location, 'w') as f:
+            json.dump(download_status._asdict(), f)
+
         logger.debug('Manifest updated.')
         logger.debug(download_status)
 

@@ -171,7 +171,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         manifest = LocalManifest(Location(local_dir))
 
     if known_args.async_downloads and client_name != 'mars':
-        raise NotImplementedError(f'Async downloads are currently not supported for {client_name} client!')
+        raise NotImplementedError(f'\'async downloads\' are currently not supported for {client_name} client!')
 
     num_requesters_per_key = known_args.num_requests_per_key
     client = CLIENTS[client_name](config)
