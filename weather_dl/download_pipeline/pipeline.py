@@ -102,7 +102,8 @@ def pipeline(args: PipelineArgs) -> None:
                 | 'Create the initial config' >> beam.Create([args.config])
                 | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest)
                 | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
+                | 'Fetch data' >> Fetcher(args.client_name, args.manifest, args.store,
+                                          args.known_args.async_downloads)
         )
 
 
@@ -129,6 +130,12 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
                              'Please see the client documentation for more details.')
+    parser.add_argument('-a', '--async-downloads', action='store_true', default=False,
+                        help='Optimize the download by enhancing the fetch-stage such that '
+                             'subsequent requests don\'t have to wait on current downloads. '
+                             'As soon as data has been fetched from the Client archive '
+                             'and is available for download, next data request has been initiated. '
+                             'Default: False.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -162,6 +169,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         store = LocalFileStore(local_dir)
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
         manifest = LocalManifest(Location(local_dir))
+
+    if known_args.async_downloads and client_name != 'mars':
+        raise NotImplementedError(f'\'async downloads\' are currently not supported for {client_name} client!')
 
     num_requesters_per_key = known_args.num_requests_per_key
     client = CLIENTS[client_name](config)

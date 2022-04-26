@@ -51,6 +51,9 @@ class DownloadStatus(t.NamedTuple):
     """Location of the downloaded data."""
     location: str
 
+    """Current stage of request : 'fetch', 'download', 'retrieve', 'upload' or 'None'."""
+    stage: t.Optional[str]
+
     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
     status: str
 
@@ -125,6 +128,7 @@ class Manifest(abc.ABC):
                 selection=selection,
                 location=location,
                 user=user,
+                stage=None,
                 status='scheduled',
                 error=None,
                 download_scheduled_time=scheduled_time,
@@ -133,13 +137,14 @@ class Manifest(abc.ABC):
             )
         )
 
-    def _set_for_transaction(self, selection: t.Dict, location: str, user: str) -> None:
+    def _set_for_transaction(self, selection: t.Dict, location: str, user: str, stage: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
         self.start = 0
         self.status = DownloadStatus(
             selection=selection,
             location=location,
             user=user,
+            stage=stage,
             status='in-progress',
             error=None,
             download_scheduled_time=self.scheduled_times.pop(location, None),
@@ -167,6 +172,7 @@ class Manifest(abc.ABC):
             selection=self.status.selection,
             location=self.status.location,
             user=self.status.user,
+            stage=self.status.stage,
             status=status,
             error=error,
             download_scheduled_time=self.status.download_scheduled_time,
@@ -175,9 +181,9 @@ class Manifest(abc.ABC):
         )
         self._update(self.status)
 
-    def transact(self, selection: t.Dict, location: str, user: str) -> 'Manifest':
+    def transact(self, selection: t.Dict, location: str, user: str, stage: str) -> 'Manifest':
         """Create a download transaction."""
-        self._set_for_transaction(selection, location, user)
+        self._set_for_transaction(selection, location, user, stage)
         return self
 
     @abc.abstractmethod
@@ -241,10 +247,11 @@ class MockManifest(Manifest):
 
     def __init__(self, location: Location) -> None:
         super().__init__(location)
-        self.records = {}
 
     def _update(self, download_status: DownloadStatus) -> None:
-        self.records.update({download_status.location: download_status})
+        with open(self.location, 'w') as f:
+            json.dump(download_status._asdict(), f)
+
         logger.debug('Manifest updated.')
         logger.debug(download_status)
 

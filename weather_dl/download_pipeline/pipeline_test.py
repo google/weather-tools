@@ -50,7 +50,8 @@ DEFAULT_ARGS = PipelineArgs(
                                   dry_run=False,
                                   local_run=False,
                                   manifest_location='fs://downloader-manifest',
-                                  num_requests_per_key=-1),
+                                  num_requests_per_key=-1,
+                                  async_downloads=False),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
     config=Config.from_dict(CONFIG),
     client_name='cds',
@@ -117,6 +118,11 @@ class ParsePipelineArgs(unittest.TestCase):
                 self.assertEqual(actual.manifest, expected.manifest)
                 self.assertEqual(type(actual.manifest), type(expected.manifest))
                 self.assertEqual(actual.num_requesters_per_key, expected.num_requesters_per_key)
+
+    def test_async_downloads_for_cds_client_raise_error(self):
+        with self.assertRaisesRegex(NotImplementedError,
+                                    '\'async downloads\' are currently not supported for cds client!'):
+            run((self.DEFAULT_CMD + ' --async-downloads').split())
 
 
 if __name__ == '__main__':

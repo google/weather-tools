@@ -16,6 +16,7 @@ import json
 import tempfile
 import typing as t
 import unittest
+import os
 from unittest.mock import MagicMock
 
 import apache_beam as beam
@@ -42,7 +43,11 @@ class OddFilesDoNotExistStore(InMemoryStore):
 class PreparePartitionTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('mock://dummy'))
+        self.temp_file = tempfile.NamedTemporaryFile(delete=False)
+        self.dummy_manifest = MockManifest(Location(self.temp_file.name))
+
+    def tearDown(self) -> None:
+        os.remove(self.temp_file.name)
 
     def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[Config]:
         subsections = get_subsections(config)
