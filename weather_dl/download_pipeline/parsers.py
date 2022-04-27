@@ -410,6 +410,11 @@ def process_config(file: t.IO) -> Config:
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
 
+    # Ensure the cartesian-cross can be taken on singleton values for the partition.
+    for key in partition_keys:
+        if isinstance(selection[key], str):
+            selection[key] = [selection[key]]
+
     return Config.from_dict(config)
 
 
