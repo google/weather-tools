@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import datetime
 import io
 import unittest
@@ -383,9 +382,13 @@ class ParseConfigTest(unittest.TestCase):
 
 class HelpersTest(unittest.TestCase):
 
+    CASES = [('', 0), ('{} blah', 1), ('{} {}', 2),
+             ('{0}, {1}', 2), ('%s hello', 0), ('hello {.2f}', 1),
+             ('ear5-{year}{year}-{month}', 2), ('era5-{year}/{year}-{}-{}', 3),
+             ('{year}{year}{year}{year}', 1)]
+
     def test_number_of_replacements(self):
-        for (s, want) in [('', 0), ('{} blah', 1), ('{} {}', 2),
-                          ('{0}, {1}', 2), ('%s hello', 0), ('hello {.2f}', 1)]:
+        for s, want in self.CASES:
             with self.subTest(s=s, want=want):
                 actual = _number_of_replacements(s)
                 self.assertEqual(actual, want)
@@ -736,6 +739,28 @@ class ProcessConfigTest(unittest.TestCase):
         self.assertIn(
             "Invalid 'client' parameter.",
             ctx.exception.args[0])
+
+    def test_partition_cannot_include_all(self):
+        with self.assertRaisesRegex(ValueError, 'cannot appear as a partition key.'):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=cds
+                    target_path=bar-{}-{}
+                    partition_keys=
+                        month
+                        day
+                    [selection]
+                    year=2012
+                    month=
+                        01
+                        02
+                        03
+                    day=all
+                    """
+            ) as f:
+                process_config(f)
 
 
 class PrepareTargetNameTest(unittest.TestCase):

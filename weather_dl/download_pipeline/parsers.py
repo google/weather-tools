@@ -13,18 +13,19 @@
 # limitations under the License.
 """Parsers for ECMWF download configuration."""
 
+import ast
 import configparser
 import copy as cp
 import datetime
 import json
-import ast
 import string
 import textwrap
 import typing as t
-from .config import Config
-from urllib.parse import urlparse
 from collections import OrderedDict
+from urllib.parse import urlparse
+
 from .clients import CLIENTS
+from .config import Config
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 
@@ -292,7 +293,11 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
 
 
 def _number_of_replacements(s: t.Text):
-    return len([v for v in string.Formatter().parse(s) if v[1] is not None])
+    format_names = [v[1] for v in string.Formatter().parse(s) if v[1] is not None]
+    num_empty_names = len([empty for empty in format_names if empty == ''])
+    if num_empty_names != 0:
+        num_empty_names -= 1
+    return len(set(format_names)) + num_empty_names
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
@@ -397,6 +402,10 @@ def process_config(file: t.IO) -> Config:
             'target_path' has {0} replacements. Expected {1}, since there are {1}
             partition keys.
             """.format(num_template_replacements, num_partition_keys))
+
+    if 'day' in partition_keys:
+        require(selection['day'] != 'all',
+                """If 'all' is used for a selection value, it cannot appear as a partition key.""")
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
