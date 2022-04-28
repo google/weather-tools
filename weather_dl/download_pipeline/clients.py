@@ -21,12 +21,13 @@ import json
 import logging
 import os
 import typing as t
-import urllib3
 import warnings
 
 import cdsapi
+import urllib3
 from ecmwfapi import ECMWFService
-from .config import Config
+
+from .config import Config, optimize_selection_partition
 
 warnings.simplefilter(
     "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
@@ -100,7 +101,8 @@ class CdsClient(Client):
         )
 
     def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
-        self.c.retrieve(dataset, selection, target)
+        selection_ = optimize_selection_partition(selection)
+        self.c.retrieve(dataset, selection_, target)
 
     @property
     def license_url(self):
@@ -184,8 +186,9 @@ class MarsClient(Client):
         )
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            self.c.execute(req=selection, target=output)
+            self.c.execute(req=selection_, target=output)
 
     @property
     def license_url(self):
