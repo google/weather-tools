@@ -226,8 +226,6 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
 
         # Applying serialization function over entire dataset
         data_ds.map_blocks(to_json_serializable_type)
-        # Applying astype & None-value check over entire dataset
-        data_ds.astype(object).where(data_ds.notnull(), None)
 
         def to_row(it: t.Dict) -> t.Dict:
             """Produce a single row, or a dictionary of all variables at a point."""
@@ -238,8 +236,8 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
             # Create a Name-Value map for data columns. Result looks like:
             # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
             temp_row = row_ds.to_pandas()
-            # Converting pd.DataFrame to Dict
-            row = temp_row.to_dict()
+            # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
+            row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
 
             # Add indexed coordinates.
             row.update(it)
