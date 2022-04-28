@@ -820,11 +820,11 @@ class PrepareTargetNameTest(unittest.TestCase):
                  },
                  'selection': {
                      'features': ['pressure'],
-                     'month': ['12'],
+                     'month': ['02'],
                      'year': ['02']
                  }
              },
-             expected='somewhere/download/02/12.nc'),
+             expected='somewhere/download/02/02.nc'),
         dict(case='Had date and target directory',
              config={
                  'parameters': {

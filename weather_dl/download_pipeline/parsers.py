@@ -107,7 +107,7 @@ def day_month_year(candidate: t.Any) -> int:
     try:
         if isinstance(candidate, str) or isinstance(candidate, int):
             return int(candidate)
-        raise
+        raise ValueError('must be a str or int.')
     except ValueError as e:
         raise ValueError(
             f"Not a valid day, month, or year value: {candidate}. Please use valid value."
@@ -116,6 +116,9 @@ def day_month_year(candidate: t.Any) -> int:
 
 def parse_literal(candidate: t.Any) -> t.Any:
     try:
+        # Support parsing ints with leading zeros, e.g. '01'
+        if isinstance(candidate, str) and candidate.isdigit():
+            return int(candidate)
         return ast.literal_eval(candidate)
     except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
         return candidate
