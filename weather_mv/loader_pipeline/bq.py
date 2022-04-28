@@ -224,9 +224,6 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
-        # Applying serialization function over entire dataset
-        data_ds.map_blocks(to_json_serializable_type)
-
         def to_row(it: t.Dict) -> t.Dict:
             """Produce a single row, or a dictionary of all variables at a point."""
 
