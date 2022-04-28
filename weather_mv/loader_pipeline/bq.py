@@ -16,20 +16,19 @@ import dataclasses
 import datetime
 import logging
 import typing as t
+from pprint import pformat
 
 import apache_beam as beam
 import geojson
+import more_itertools as mitertools
 import numpy as np
-import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
-import more_itertools as mitertools
 
 from .sinks import ToDataSink, open_dataset
 from .util import to_json_serializable_type, _only_target_vars, get_coordinates
-from pprint import pformat
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
