@@ -108,38 +108,34 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
-                | 'PrepareCoordinates' >>
-                beam.FlatMap(
+                | 'PrepareCoordinates' >> beam.FlatMap(
                     prepare_coordinates,
                     coordinate_chunk_size=self.coordinate_chunk_size,
                     area=self.area,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                 )
                 | beam.Reshuffle()
-                | 'ExtractRows' >>
-                beam.FlatMapTuple(
+                | 'ExtractRows' >> beam.FlatMapTuple(
                     extract_rows,
                     variables=self.variables,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs)
-        )
+            )
 
         if not self.dry_run:
             (
-                    extracted_rows
-                    | 'WriteToBigQuery' >>
-                    WriteToBigQuery(
+                extracted_rows
+                | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=self.table.project,
                         dataset=self.table.dataset_id,
                         table=self.table.table_id,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER
-                    )
+                        create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
         else:
             (
-                    extracted_rows
-                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
+                extracted_rows
+                | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
 
 
@@ -232,9 +228,8 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
 
             # Create a Name-Value map for data columns. Result looks like:
             # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            temp_row = row_ds.to_pandas()
-            # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
-            row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
+            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                   for n, v in row_ds.data_vars.items()}
 
             # Add indexed coordinates.
             row.update(it)
