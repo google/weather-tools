@@ -160,3 +160,34 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --temp_location gs://$BUCKET/tmp \
            --job_name $JOB_NAME 
 ```
+
+## Private Network Configuration
+
+While running `weather-mv` pipeline in GCP, there is a possibility that you may receive following error -
+"Quotas were exceeded: IN_USE_ADDRESSES"
+
+This error occurs when GCP is trying to add new worker-instances and finds that, “Public IP” quota (assigned to your project) is exhausted.
+
+To solve this, it is recommended to use private IP while running your dataflow pipelines.
+
+```shell
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location gs://$BUCKET/tmp \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region $REGION \
+           --no_use_public_ips \
+           --network=$NETWORK \
+           --subnetwork=regions/$REGION/subnetworks/$SUBNETWORK
+```
+
+_Common options_:
+
+* `--no_use_public_ips`: To make Dataflow workers use private IP addresses for all communication, specify the command-line flag: --no_use_public_ips. Make sure that the specified network or subnetwork has Private Google Access enabled.
+* `--network`: The Compute Engine network for launching Compute Engine instances to run your pipeline.
+* `--subnetwork`:  The Compute Engine subnetwork for launching Compute Engine instances to run your pipeline.
+
+For more information regarding how to configure Private IP, please refer to [Private IP Configuration Guide for Dataflow Pipeline Execution](https://docs.google.com/document/d/1MHzDSsV2EwsyvPSsW1rsxVzi9z91JmT_JOFQ7HZPBQ8/edit?usp=sharing).
+
+For more information regarding Pipeline options, please refer to [pipeline-options](https://cloud.google.com/dataflow/docs/reference/pipeline-options).

@@ -22,6 +22,7 @@ import apache_beam as beam
 import geojson
 import more_itertools as mitertools
 import numpy as np
+import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from google.cloud import bigquery
@@ -219,6 +220,9 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
+        # Applying serialization function over entire dataset
+        data_ds.map_blocks(to_json_serializable_type)
+
         def to_row(it: t.Dict) -> t.Dict:
             """Produce a single row, or a dictionary of all variables at a point."""
 
@@ -227,8 +231,9 @@ def extract_rows(uri: str, coordinates: t.List[t.Dict],
 
             # Create a Name-Value map for data columns. Result looks like:
             # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                   for n, v in row_ds.data_vars.items()}
+            temp_row = row_ds.to_pandas()
+            # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
+            row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
 
             # Add indexed coordinates.
             row.update(it)

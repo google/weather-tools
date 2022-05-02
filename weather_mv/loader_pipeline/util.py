@@ -30,10 +30,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.
     logger.debug('Serializing to JSON')
-
-    if np.isnan(value) or value is None:
-        return None
-    elif np.issubdtype(type(value), np.floating):
+    if np.issubdtype(type(value), np.floating):
         return float(value)
     elif type(value) == np.ndarray:
         # Will return a scaler if array is of size 1, else will return a list.
@@ -59,6 +56,8 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
 
         # We assume here that naive timestamps are in UTC timezone.
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
+    elif np.isnan(value) or value is None:
+        return None
     elif type(value) == np.timedelta64:
         # Return time delta in seconds.
         return float(value / np.timedelta64(1, 's'))
