@@ -38,6 +38,7 @@ _Common options_:
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
+* `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -58,6 +59,16 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
            --dry-run
+```
+
+Restrict in-memory copying of dataset:
+
+```bash
+weather-mv --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
+           --direct_num_workers 2 \
+           --disable_in_memory_copy
 ```
 
 Upload only a subset of variables:
