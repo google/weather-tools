@@ -35,7 +35,6 @@ class ToDataSink(abc.ABC, beam.PTransform):
     area: t.Tuple[int, int, int, int]
     xarray_open_dataset_kwargs: t.Dict
     dry_run: bool
-    disable_in_memory_copy: bool
 
     @classmethod
     def from_kwargs(cls, **kwargs):
@@ -53,27 +52,21 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 
-def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        disable_in_memory_copy: bool = False) -> xr.Dataset:
+def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
     if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename, **open_dataset_kwargs))
+        return _make_grib_dataset_inmem(xr.open_dataset(filename, **open_dataset_kwargs))
 
     # If no open kwargs are available, make educated guesses about the dataset.
     try:
-        return xr.open_dataset(filename) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename))
+        return xr.open_dataset(filename)
     except ValueError as e:
         e_str = str(e)
         if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
             raise
     # Trying with explicit engine for cfgrib.
     try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}))
+        return _make_grib_dataset_inmem(
+            xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}))
     except ValueError as e:
         if "multiple values for key 'edition'" not in str(e):
             raise
@@ -81,16 +74,12 @@ def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] =
     logger.warning("Assuming grib edition 1.")
     # Try with edition 1
     # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}) \
-        if disable_in_memory_copy \
-        else _make_grib_dataset_inmem(
-        xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}))
+    return _make_grib_dataset_inmem(xr.open_dataset(filename, engine='cfgrib',
+                                                    backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}))
 
 
 @contextlib.contextmanager
-def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False) \
-        -> t.Iterator[xr.Dataset]:
+def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # Copy netcdf or grib object from cloud storage, like GCS, to local file
@@ -101,8 +90,7 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disab
                 shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
                 dest_file.flush()
                 dest_file.seek(0)
-                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name, open_dataset_kwargs,
-                                                             disable_in_memory_copy)
+                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name, open_dataset_kwargs)
 
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 

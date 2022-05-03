@@ -104,8 +104,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                         help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
-    parser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
-                        help="To disable in-memory copying of dataset. Default: False")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

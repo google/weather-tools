@@ -36,8 +36,7 @@ class TestCLI(unittest.TestCase):
             'topic': None,
             'variables': [],
             'window_size': 1.0,
-            'xarray_open_dataset_kwargs': {},
-            'disable_in_memory_copy': False
+            'xarray_open_dataset_kwargs': {}
         }
 
     def test_dry_runs_are_allowed(self):
