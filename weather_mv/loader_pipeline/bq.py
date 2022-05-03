@@ -82,7 +82,8 @@ class ToBigQuery(ToDataSink):
             )
         else:
             logger.info('Inferring schema from data.')
-            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs) as open_ds:
+            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs,
+                              self.disable_in_memory_copy) as open_ds:
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
@@ -108,8 +109,9 @@ class ToBigQuery(ToDataSink):
                     variables=self.variables,
                     area=self.area,
                     import_time=self.import_time,
-                    open_dataset_kwargs=self.xarray_open_dataset_kwargs)
-            )
+                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                    disable_in_memory_copy=self.disable_in_memory_copy)
+        )
 
         if not self.dry_run:
             (
@@ -179,7 +181,8 @@ def extract_rows(uri: str, *,
                  variables: t.Optional[t.List[str]] = None,
                  area: t.Optional[t.List[int]] = None,
                  import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                 open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Dict]:
+                 open_dataset_kwargs: t.Optional[t.Dict] = None,
+                 disable_in_memory_copy: bool = False) -> t.Iterator[t.Dict]:
     """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
     logger.info(f'Extracting rows as dicts: {uri!r}.')
 
@@ -187,7 +190,7 @@ def extract_rows(uri: str, *,
     if not import_time:
         import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-    with open_dataset(uri, open_dataset_kwargs) as ds:
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
         if area:
