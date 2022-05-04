@@ -17,11 +17,14 @@ import argparse
 import datetime
 import json
 import logging
+import tempfile
 import typing as t
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+from google.cloud import bigquery, storage
+from google.api_core.exceptions import BadRequest, NotFound
 
 from .bq import ToBigQuery
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
@@ -41,12 +44,75 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
         yield from [x.path for x in match.metadata_list]
 
 
+def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
+    """Validates non-compatible regions scenarios by performing sanity check."""
+
+    def do_cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, dummy_output_table: str,
+                   dummy_bucket_name: str) -> None:
+        bigquery_client.delete_table(dummy_output_table, not_found_ok=True)
+        try:
+            storage_client.get_bucket(dummy_bucket_name).delete(force=True)
+        except NotFound:
+            pass
+
+    if not region and not temp_location:
+        raise ValueError('Invalid GCS location: None.')
+
+    bigquery_client = bigquery.Client()
+    storage_client = storage.Client()
+
+    bucket_region = region
+    table_region = None
+
+    if temp_location:
+        bucket = temp_location.split('gs://')
+        if len(bucket) < 2:
+            raise ValueError(f'Invalid GCS location: \'{bucket[0]}\'.')
+        bucket_name = bucket[1].split('/')[0]
+        bucket_region = storage_client.get_bucket(bucket_name).location
+
+    try:
+        DUMMY_BUCKET_NAME = 'anthromet_dummy_bucket'
+        DUMMY_RECORD = {'foo': 'bar'}
+        DUMMY_OUTPUT_TABLE = output_table + '_dummy_table'
+        DUMMY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
+
+        do_cleanup(bigquery_client, storage_client, DUMMY_OUTPUT_TABLE, DUMMY_BUCKET_NAME)
+
+        bucket = storage_client.create_bucket(DUMMY_BUCKET_NAME, location=bucket_region)
+        with tempfile.NamedTemporaryFile(mode='w+') as temp:
+            json.dump(DUMMY_RECORD, temp)
+            temp.flush()
+            blob = bucket.blob('dummy_record.json')
+            blob.upload_from_filename(temp.name)
+
+        dummy_table = bigquery.Table(DUMMY_OUTPUT_TABLE, schema=DUMMY_TABLE_SCHEMA)
+        dummy_table = bigquery_client.create_table(dummy_table, exists_ok=True)
+        table_region = dummy_table.location
+
+        load_job = bigquery_client.load_table_from_uri(
+            f'gs://{DUMMY_BUCKET_NAME}/dummy_record.json',
+            DUMMY_OUTPUT_TABLE,
+        )
+        load_job.result()
+    except BadRequest:
+        raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
+    finally:
+        do_cleanup(bigquery_client, storage_client, DUMMY_OUTPUT_TABLE, DUMMY_BUCKET_NAME)
+
+
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
     all_uris = list(pattern_to_uris(known_args.uris))
     if not all_uris:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
 
     pipeline_options = PipelineOptions(pipeline_args)
+    pipeline_options_dict = pipeline_options.get_all_options()
+
+    if not known_args.dry_run:
+        # Program execution will terminate on failure of region validation.
+        validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
+                        region=pipeline_options_dict.get('region'))
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
