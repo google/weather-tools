@@ -37,7 +37,6 @@ weather_mv_requirements = [
     "pandas",
     "xarray",
     "google-cloud-bigquery",
-    "google-cloud-storage",
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
     "cfgrib",
     "netcdf4",

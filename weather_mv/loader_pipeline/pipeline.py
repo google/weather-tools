@@ -25,9 +25,16 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import BadRequest, NotFound
+from urllib.parse import urlparse
 
 from .bq import ToBigQuery
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
+
+CANARY_BUCKET_NAME = 'anthromet_dummy_bucket'
+CANARY_RECORD = {'foo': 'bar'}
+CANARY_RECORD_FILE_NAME = 'dummy_record.json'
+CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_dummy_table'
+CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +54,11 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
 def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
     """Validates non-compatible regions scenarios by performing sanity check."""
 
-    def do_cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, dummy_output_table: str,
-                   dummy_bucket_name: str) -> None:
-        bigquery_client.delete_table(dummy_output_table, not_found_ok=True)
+    def __do_cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client,
+                     canary_output_table: str) -> None:
+        bigquery_client.delete_table(canary_output_table, not_found_ok=True)
         try:
-            storage_client.get_bucket(dummy_bucket_name).delete(force=True)
+            storage_client.get_bucket(CANARY_BUCKET_NAME).delete(force=True)
         except NotFound:
             pass
 
@@ -65,40 +72,36 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
     table_region = None
 
     if temp_location:
-        bucket = temp_location.split('gs://')
-        if len(bucket) < 2:
-            raise ValueError(f'Invalid GCS location: \'{bucket[0]}\'.')
-        bucket_name = bucket[1].split('/')[0]
+        parsed_temp_location = urlparse(temp_location)
+        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
+            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
+        bucket_name = parsed_temp_location.netloc
         bucket_region = storage_client.get_bucket(bucket_name).location
 
     try:
-        DUMMY_BUCKET_NAME = 'anthromet_dummy_bucket'
-        DUMMY_RECORD = {'foo': 'bar'}
-        DUMMY_OUTPUT_TABLE = output_table + '_dummy_table'
-        DUMMY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
+        CANARY_OUTPUT_TABLE = output_table + CANARY_OUTPUT_TABLE_SUFFIX
+        __do_cleanup(bigquery_client, storage_client, CANARY_OUTPUT_TABLE)
 
-        do_cleanup(bigquery_client, storage_client, DUMMY_OUTPUT_TABLE, DUMMY_BUCKET_NAME)
-
-        bucket = storage_client.create_bucket(DUMMY_BUCKET_NAME, location=bucket_region)
+        bucket = storage_client.create_bucket(CANARY_BUCKET_NAME, location=bucket_region)
         with tempfile.NamedTemporaryFile(mode='w+') as temp:
-            json.dump(DUMMY_RECORD, temp)
+            json.dump(CANARY_RECORD, temp)
             temp.flush()
-            blob = bucket.blob('dummy_record.json')
+            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
             blob.upload_from_filename(temp.name)
 
-        dummy_table = bigquery.Table(DUMMY_OUTPUT_TABLE, schema=DUMMY_TABLE_SCHEMA)
-        dummy_table = bigquery_client.create_table(dummy_table, exists_ok=True)
-        table_region = dummy_table.location
+        table = bigquery.Table(CANARY_OUTPUT_TABLE, schema=CANARY_TABLE_SCHEMA)
+        table = bigquery_client.create_table(table, exists_ok=True)
+        table_region = table.location
 
         load_job = bigquery_client.load_table_from_uri(
-            f'gs://{DUMMY_BUCKET_NAME}/dummy_record.json',
-            DUMMY_OUTPUT_TABLE,
+            f'gs://{CANARY_BUCKET_NAME}/{CANARY_RECORD_FILE_NAME}',
+            CANARY_OUTPUT_TABLE,
         )
         load_job.result()
     except BadRequest:
         raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
     finally:
-        do_cleanup(bigquery_client, storage_client, DUMMY_OUTPUT_TABLE, DUMMY_BUCKET_NAME)
+        __do_cleanup(bigquery_client, storage_client, CANARY_OUTPUT_TABLE)
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -109,10 +112,12 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options_dict = pipeline_options.get_all_options()
 
-    if not known_args.dry_run:
+    if not (known_args.dry_run or known_args.skip_region_validation):
         # Program execution will terminate on failure of region validation.
+        logger.info('Validating regions for data migration. This might take few seconds.')
         validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
                         region=pipeline_options_dict.get('region'))
+        logger.info('Region validation completed successfully.')
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
@@ -170,6 +175,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                         help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
+    parser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
+                        help='Skip validation of regions for data migration. Default: off')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
