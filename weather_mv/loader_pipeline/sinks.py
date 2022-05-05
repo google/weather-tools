@@ -55,37 +55,36 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
 
 def __open_dataset_file(filename: str, open_dataset_kwargs: t.Optional[t.Dict] = None,
                         disable_in_memory_copy: bool = False) -> xr.Dataset:
-    if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename, **open_dataset_kwargs))
+    def open_interim_dataset():
+        if open_dataset_kwargs:
+            return xr.open_dataset(filename, **open_dataset_kwargs)
 
-    # If no open kwargs are available, make educated guesses about the dataset.
-    try:
-        return xr.open_dataset(filename) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename))
-    except ValueError as e:
-        e_str = str(e)
-        if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
-            raise
-    # Trying with explicit engine for cfgrib.
-    try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}) \
-            if disable_in_memory_copy \
-            else _make_grib_dataset_inmem(xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}))
-    except ValueError as e:
-        if "multiple values for key 'edition'" not in str(e):
-            raise
+        # If no open kwargs are available, make educated guesses about the dataset.
+        try:
+            return xr.open_dataset(filename)
+        except ValueError as e:
+            e_str = str(e)
+            if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
+                raise
+        # Trying with explicit engine for cfgrib.
+        try:
+            return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
+        except ValueError as e:
+            if "multiple values for key 'edition'" not in str(e):
+                raise
 
-    logger.warning("Assuming grib edition 1.")
-    # Try with edition 1
-    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}) \
-        if disable_in_memory_copy \
-        else _make_grib_dataset_inmem(
-        xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}))
+        logger.warning("Assuming grib edition 1.")
+        # Try with edition 1
+        # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+        return xr.open_dataset(filename, engine='cfgrib',
+                               backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+
+    ds = open_interim_dataset()
+    # If disable_in_memory_copy flag is not passed, invoke _make_grib_dataset_inmem function
+    if not disable_in_memory_copy:
+        return _make_grib_dataset_inmem(ds)
+
+    return ds
 
 
 @contextlib.contextmanager

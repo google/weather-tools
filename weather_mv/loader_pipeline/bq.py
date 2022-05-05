@@ -83,7 +83,7 @@ class ToBigQuery(ToDataSink):
         else:
             logger.info('Inferring schema from data.')
             with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs,
-                              self.disable_in_memory_copy) as open_ds:
+                              True) as open_ds:
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
