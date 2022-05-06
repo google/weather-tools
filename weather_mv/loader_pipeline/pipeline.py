@@ -54,8 +54,7 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
 def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
     """Validates non-compatible regions scenarios by performing sanity check."""
 
-    def __cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client,
-                     canary_output_table: str) -> None:
+    def __cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, canary_output_table: str) -> None:
         bigquery_client.delete_table(canary_output_table, not_found_ok=True)
         try:
             storage_client.get_bucket(CANARY_BUCKET_NAME).delete(force=True)
