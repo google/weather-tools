@@ -30,10 +30,10 @@ from urllib.parse import urlparse
 from .bq import ToBigQuery
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
-CANARY_BUCKET_NAME = 'anthromet_dummy_bucket'
+CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
 CANARY_RECORD = {'foo': 'bar'}
-CANARY_RECORD_FILE_NAME = 'dummy_record.json'
-CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_dummy_table'
+CANARY_RECORD_FILE_NAME = 'canary_record.json'
+CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
 CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
 def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
     """Validates non-compatible regions scenarios by performing sanity check."""
 
-    def __do_cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client,
+    def __cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client,
                      canary_output_table: str) -> None:
         bigquery_client.delete_table(canary_output_table, not_found_ok=True)
         try:
@@ -79,8 +79,8 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
         bucket_region = storage_client.get_bucket(bucket_name).location
 
     try:
-        CANARY_OUTPUT_TABLE = output_table + CANARY_OUTPUT_TABLE_SUFFIX
-        __do_cleanup(bigquery_client, storage_client, CANARY_OUTPUT_TABLE)
+        canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX
+        __cleanup(bigquery_client, storage_client, canary_output_table)
 
         bucket = storage_client.create_bucket(CANARY_BUCKET_NAME, location=bucket_region)
         with tempfile.NamedTemporaryFile(mode='w+') as temp:
@@ -89,19 +89,19 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
             blob = bucket.blob(CANARY_RECORD_FILE_NAME)
             blob.upload_from_filename(temp.name)
 
-        table = bigquery.Table(CANARY_OUTPUT_TABLE, schema=CANARY_TABLE_SCHEMA)
+        table = bigquery.Table(canary_output_table, schema=CANARY_TABLE_SCHEMA)
         table = bigquery_client.create_table(table, exists_ok=True)
         table_region = table.location
 
         load_job = bigquery_client.load_table_from_uri(
             f'gs://{CANARY_BUCKET_NAME}/{CANARY_RECORD_FILE_NAME}',
-            CANARY_OUTPUT_TABLE,
+            canary_output_table,
         )
         load_job.result()
     except BadRequest:
         raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
     finally:
-        __do_cleanup(bigquery_client, storage_client, CANARY_OUTPUT_TABLE)
+        __cleanup(bigquery_client, storage_client, canary_output_table)
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
