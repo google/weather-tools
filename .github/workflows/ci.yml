@@ -48,6 +48,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get --assume-yes install libeccodes-dev
+    - name: Install Cython for dependencies installation (e.g. PyArrow)
+      run: |
+        pip install Cython --install-option="--no-cython-compile"
     - name: Get pip cache dir
       id: pip-cache
       run: |
