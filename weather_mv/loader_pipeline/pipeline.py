@@ -19,6 +19,11 @@ import json
 import logging
 import tempfile
 import typing as t
+import signal
+import sys
+import uuid
+import traceback
+from functools import partial
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -51,21 +56,32 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
         yield from [x.path for x in match.metadata_list]
 
 
+def _cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, canary_output_table: str,
+             canay_bucket_name: str, sig: t.Optional[t.Any] = None, frame: t.Optional[t.Any] = None) -> None:
+    bigquery_client.delete_table(canary_output_table, not_found_ok=True)
+    try:
+        storage_client.get_bucket(canay_bucket_name).delete(force=True)
+    except NotFound:
+        pass
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
 def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
     """Validates non-compatible regions scenarios by performing sanity check."""
-
-    def __cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, canary_output_table: str) -> None:
-        bigquery_client.delete_table(canary_output_table, not_found_ok=True)
-        try:
-            storage_client.get_bucket(CANARY_BUCKET_NAME).delete(force=True)
-        except NotFound:
-            pass
-
     if not region and not temp_location:
         raise ValueError('Invalid GCS location: None.')
 
     bigquery_client = bigquery.Client()
     storage_client = storage.Client()
+    canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX + str(uuid.uuid4())
+    canay_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
+
+    # Doing cleanup if operation get cut off midway.
+    # TODO : Should we handle some other signals ?
+    do_cleanup = partial(_cleanup, bigquery_client, storage_client, canary_output_table, canay_bucket_name)
+    signal.signal(signal.SIGINT, do_cleanup)
 
     bucket_region = region
     table_region = None
@@ -78,10 +94,7 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
         bucket_region = storage_client.get_bucket(bucket_name).location
 
     try:
-        canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX
-        __cleanup(bigquery_client, storage_client, canary_output_table)
-
-        bucket = storage_client.create_bucket(CANARY_BUCKET_NAME, location=bucket_region)
+        bucket = storage_client.create_bucket(canay_bucket_name, location=bucket_region)
         with tempfile.NamedTemporaryFile(mode='w+') as temp:
             json.dump(CANARY_RECORD, temp)
             temp.flush()
@@ -93,14 +106,14 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
         table_region = table.location
 
         load_job = bigquery_client.load_table_from_uri(
-            f'gs://{CANARY_BUCKET_NAME}/{CANARY_RECORD_FILE_NAME}',
+            f'gs://{canay_bucket_name}/{CANARY_RECORD_FILE_NAME}',
             canary_output_table,
         )
         load_job.result()
     except BadRequest:
         raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
     finally:
-        __cleanup(bigquery_client, storage_client, canary_output_table)
+        _cleanup(bigquery_client, storage_client, canary_output_table, canay_bucket_name)
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
