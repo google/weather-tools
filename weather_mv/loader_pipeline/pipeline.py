@@ -81,7 +81,10 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
     # Doing cleanup if operation get cut off midway.
     # TODO : Should we handle some other signals ?
     do_cleanup = partial(_cleanup, bigquery_client, storage_client, canary_output_table, canay_bucket_name)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
     signal.signal(signal.SIGINT, do_cleanup)
+    signal.signal(signal.SIGTSTP, do_cleanup)
 
     bucket_region = region
     table_region = None
@@ -114,6 +117,8 @@ def validate_region(output_table: str, temp_location: t.Optional[str] = None, re
         raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
     finally:
         _cleanup(bigquery_client, storage_client, canary_output_table, canay_bucket_name)
+        signal.signal(signal.SIGINT, original_sigint_handler)
+        signal.signal(signal.SIGINT, original_sigtstp_handler)
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -126,7 +131,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
 
     if not (known_args.dry_run or known_args.skip_region_validation):
         # Program execution will terminate on failure of region validation.
-        logger.info('Validating regions for data migration. This might take few seconds.')
+        logger.info('Validating regions for data migration. This might take a few seconds...')
         validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
                         region=pipeline_options_dict.get('region'))
         logger.info('Region validation completed successfully.')
