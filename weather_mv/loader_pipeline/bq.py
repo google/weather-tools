@@ -17,18 +17,19 @@ import datetime
 import logging
 import typing as t
 from pprint import pformat
+import pandas as pd
+import math
+import pytz
 
 import apache_beam as beam
 import geojson
-import more_itertools as mitertools
 import numpy as np
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from google.cloud import bigquery
-from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
-from .util import to_json_serializable_type, _only_target_vars, get_coordinates
+from .util import to_json_serializable_type, _only_target_vars
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -111,15 +112,15 @@ class ToBigQuery(ToDataSink):
                     prepare_coordinates,
                     coordinate_chunk_size=self.coordinate_chunk_size,
                     area=self.area,
+                    import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                    variables=self.variables
                 )
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(
-                    extract_rows,
-                    variables=self.variables,
-                    import_time=self.import_time,
-                    open_dataset_kwargs=self.xarray_open_dataset_kwargs)
-            )
+                    extract_rows
+                )
+        )
 
         if not self.dry_run:
             (
@@ -188,65 +189,69 @@ def fetch_geo_point(lat: float, long: float) -> str:
 def prepare_coordinates(uri: str, *,
                         coordinate_chunk_size: int,
                         area: t.Optional[t.List[int]] = None,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
+                        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+                        open_dataset_kwargs: t.Optional[t.Dict] = None,
+                        variables: t.Optional[t.List[str]] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
-    with open_dataset(uri, open_dataset_kwargs) as data_ds:
-
+    with open_dataset(uri, open_dataset_kwargs) as ds:
+        data_ds: xr.Dataset = _only_target_vars(ds, variables)
         if area:
             n, w, s, e = area
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
             logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        for chunk in mitertools.ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
-            yield uri, list(chunk)
-
-
-def extract_rows(uri: str, coordinates: t.List[t.Dict],
-                 variables: t.Optional[t.List[str]] = None,
-                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                 open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[t.Dict]:
-    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
-    logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
-
-    # re-calculate import time for streaming extractions.
-    if not import_time:
-        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
-
-    with open_dataset(uri, open_dataset_kwargs) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
+        # re-calculate import time for streaming extractions.
+        if not import_time:
+            import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
-        def to_row(it: t.Dict) -> t.Dict:
-            """Produce a single row, or a dictionary of all variables at a point."""
+        # add co-ordinates for 0-dimension file.
+        if (len(data_ds.to_array().shape) == 1):
+            for coord in data_ds.coords:
+                data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
 
-            # Use those index values to select a Dataset containing one row of data.
-            row_ds = data_ds.loc[it]
+        df = data_ds.to_dataframe().reset_index()
 
-            # Create a Name-Value map for data columns. Result looks like:
-            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                   for n, v in row_ds.data_vars.items()}
+        # Add un-indexed coordinates.
+        if variables:
+            indices = list(ds.coords.indexes.keys())
+            to_keep = variables + indices
+            to_drop = set(df.columns) - set(to_keep)
+            df.drop(to_drop, axis=1, inplace=True)
 
-            # Add indexed coordinates.
-            row.update(it)
-            # Add un-indexed coordinates.
-            for c in row_ds.coords:
-                if c not in it and (not variables or c in variables):
-                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+        num_chunks = math.ceil(len(df) / coordinate_chunk_size)
+        for i in range(num_chunks):
+            chunk = df[i * coordinate_chunk_size:(i + 1) * coordinate_chunk_size]
+            yield uri, import_time, first_time_step, chunk
 
-            # Add import metadata.
-            row[DATA_IMPORT_TIME_COLUMN] = import_time
-            row[DATA_URI_COLUMN] = uri
-            row[DATA_FIRST_STEP] = first_time_step
-            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
-            # 'row' ends up looking like:
-            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-            return row
+def __convert_time(val) -> t.Any:
+    """Converts pandas Timestamp values to ISO format."""
+    if isinstance(val, pd.Timestamp):
+        return val.tz_localize(pytz.UTC).isoformat()
+    elif isinstance(val, pd.Timedelta):
+        return val.total_seconds()
+    else:
+        return val
 
-        yield from map(to_row, coordinates)
+
+def extract_rows(uri: str,
+                 import_time: str,
+                 first_time_step: str,
+                 rows: pd.DataFrame) -> t.Iterator[t.Dict]:
+    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
+    for _, row in rows.iterrows():
+        row = row.astype(object).where(pd.notnull(row), None)
+        row = row.to_dict()
+        row = {k: __convert_time(v) for k, v in row.items()}
+
+        row[DATA_IMPORT_TIME_COLUMN] = import_time
+        row[DATA_URI_COLUMN] = uri
+        row[DATA_FIRST_STEP] = first_time_step
+        row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
+
+        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+        yield row

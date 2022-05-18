@@ -132,11 +132,10 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None,
                 open_dataset_kwargs=None, import_time=DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
-        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area,
-                                     open_dataset_kwargs=open_dataset_kwargs)
-        for uri, cs in coords:
-            yield from extract_rows(uri, cs, variables=variables, import_time=import_time,
-                                    open_dataset_kwargs=open_dataset_kwargs)
+        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area, import_time=import_time,
+                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables)
+        for uri, import_time, first_time_step, chunk in coords:
+            yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         self.assertEqual(expected.keys(), actual.keys())
