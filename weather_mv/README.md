@@ -39,6 +39,7 @@ _Common options_:
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
+* `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
