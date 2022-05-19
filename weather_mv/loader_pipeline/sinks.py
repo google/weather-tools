@@ -44,8 +44,10 @@ class ToDataSink(abc.ABC, beam.PTransform):
 
 
 def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
-    """Copies all the vars to in-memory to reduce disk seeks everytime a single row is processed.
-    This also removes the need to keep the backing temp source file around."""
+    """Copies all the vars in-memory to reduce disk seeks every time a single row is processed.
+
+    This also removes the need to keep the backing temp source file around.
+    """
     data_ds = grib_ds.copy(deep=True)
     for v in grib_ds.variables:
         if v not in data_ds.coords:
