@@ -168,7 +168,7 @@ While running `weather-mv` pipeline in GCP, there is a possibility that you may 
 
 This error occurs when GCP is trying to add new worker-instances and finds that, “Public IP” quota (assigned to your project) is exhausted.
 
-To solve this, it is recommended to use private IP while running your dataflow pipelines.
+To solve this, we recommend using private IP while running your dataflow pipelines.
 
 ```shell
 weather-mv --uris "gs://your-bucket/*.nc" \

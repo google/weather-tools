@@ -19,7 +19,6 @@ import typing as t
 from pprint import pformat
 import pandas as pd
 import math
-import pytz
 
 import apache_beam as beam
 import geojson
@@ -117,9 +116,7 @@ class ToBigQuery(ToDataSink):
                     variables=self.variables
                 )
                 | beam.Reshuffle()
-                | 'ExtractRows' >> beam.FlatMapTuple(
-                    extract_rows
-                )
+                | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
         )
 
         if not self.dry_run:
@@ -188,10 +185,11 @@ def fetch_geo_point(lat: float, long: float) -> str:
 
 def prepare_coordinates(uri: str, *,
                         coordinate_chunk_size: int,
+                        variables: t.Optional[t.List[str]] = None,
                         area: t.Optional[t.List[int]] = None,
                         import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        variables: t.Optional[t.List[str]] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
+                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[
+                                                                            t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
     with open_dataset(uri, open_dataset_kwargs) as ds:
@@ -201,21 +199,21 @@ def prepare_coordinates(uri: str, *,
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
             logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        # re-calculate import time for streaming extractions.
+        # Re-calculate import time for streaming extractions.
         if not import_time:
             import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
-        # add co-ordinates for 0-dimension file.
-        if (len(data_ds.to_array().shape) == 1):
+        # Add coordinates for 0-dimension file.
+        if len(data_ds.to_array().shape) == 1:
             for coord in data_ds.coords:
                 data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
 
         df = data_ds.to_dataframe().reset_index()
 
-        # Add un-indexed coordinates.
+        # Add un-indexed coordinates and drop unwanted variables.
         if variables:
             indices = list(ds.coords.indexes.keys())
             to_keep = variables + indices
@@ -228,10 +226,10 @@ def prepare_coordinates(uri: str, *,
             yield uri, import_time, first_time_step, chunk
 
 
-def __convert_time(val) -> t.Any:
+def _convert_time(val) -> t.Any:
     """Converts pandas Timestamp values to ISO format."""
     if isinstance(val, pd.Timestamp):
-        return val.tz_localize(pytz.UTC).isoformat()
+        return val.replace(tzinfo=datetime.timezone.utc).isoformat()
     elif isinstance(val, pd.Timedelta):
         return val.total_seconds()
     else:
@@ -245,8 +243,7 @@ def extract_rows(uri: str,
     """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
     for _, row in rows.iterrows():
         row = row.astype(object).where(pd.notnull(row), None)
-        row = row.to_dict()
-        row = {k: __convert_time(v) for k, v in row.items()}
+        row = {k: _convert_time(v) for k, v in row.iteritems()}
 
         row[DATA_IMPORT_TIME_COLUMN] = import_time
         row[DATA_URI_COLUMN] = uri
