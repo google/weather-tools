@@ -192,6 +192,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                         help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
+    parser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
+                        help="To disable in-memory copying of dataset. Default: False")
     parser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                         help='Skip validation of regions for data migration. Default: off')
 
