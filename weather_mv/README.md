@@ -37,6 +37,8 @@ _Common options_:
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
+* `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. 
+  Used to tune parallel uploads.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
