@@ -86,7 +86,7 @@ class ToBigQuery(ToDataSink):
             )
         else:
             logger.info('Inferring schema from data.')
-            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs) as open_ds:
+            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True) as open_ds:
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
@@ -113,8 +113,8 @@ class ToBigQuery(ToDataSink):
                     area=self.area,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                    variables=self.variables
-                )
+                    variables=self.variables,
+                    disable_in_memory_copy=self.disable_in_memory_copy)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
         )
@@ -188,11 +188,13 @@ def prepare_coordinates(uri: str, *,
                         variables: t.Optional[t.List[str]] = None,
                         area: t.Optional[t.List[int]] = None,
                         import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Iterator[
+                        open_dataset_kwargs: t.Optional[t.Dict] = None,
+                        disable_in_memory_copy: bool = False) -> t.Iterator[
                                                                             t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
-    with open_dataset(uri, open_dataset_kwargs) as ds:
+
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
         if area:
             n, w, s, e = area

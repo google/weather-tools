@@ -96,6 +96,26 @@ class PreparePartitionTest(unittest.TestCase):
             {**config['selection'], **{'year': ['2016'], 'month': ['2']}},
         ])
 
+    def test_partition_multi_key_single_values(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year', 'month'],
+                'target_path': 'download-{}-{}.nc',
+            },
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': ['1'],
+                'year': ['2015'],
+            }
+        }
+
+        config_obj = Config.from_dict(config)
+        actual = self.create_partition_configs(config_obj)
+
+        self.assertListEqual([d.selection for d in actual], [
+            {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
+        ])
+
     def test_partition_multi_params_multi_key(self):
         config = {
             'parameters': dict(

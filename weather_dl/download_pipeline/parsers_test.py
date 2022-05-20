@@ -762,6 +762,25 @@ class ProcessConfigTest(unittest.TestCase):
             ) as f:
                 process_config(f)
 
+    def test_singleton_partitions_are_converted_to_lists(self):
+        with io.StringIO(
+                """
+                [parameters]
+                dataset=foo
+                client=cds
+                target_path=bar-{}-{}
+                partition_keys=
+                    month
+                    year
+                [selection]
+                month=01
+                year=2018
+                """
+        ) as f:
+            config = process_config(f)
+            self.assertEqual(config.selection['month'], ['01'])
+            self.assertEqual(config.selection['year'], ['2018'])
+
 
 class PrepareTargetNameTest(unittest.TestCase):
     TEST_CASES = [
@@ -801,11 +820,11 @@ class PrepareTargetNameTest(unittest.TestCase):
                  },
                  'selection': {
                      'features': ['pressure'],
-                     'month': ['12'],
+                     'month': ['02'],
                      'year': ['02']
                  }
              },
-             expected='somewhere/download/02/12.nc'),
+             expected='somewhere/download/02/02.nc'),
         dict(case='Had date and target directory',
              config={
                  'parameters': {

@@ -30,6 +30,7 @@ class TestCLI(unittest.TestCase):
             'uris': 'weather_mv/test_data/test_data_2018*.nc',
             'output_table': 'myproject.mydataset.mytable',
             'dry_run': False,
+            'skip_region_validation': False,
             'import_time': '2022-02-04T22:22:12.125893',
             'infer_schema': False,
             'num_shards': 5,
@@ -38,6 +39,7 @@ class TestCLI(unittest.TestCase):
             'window_size': 1.0,
             'xarray_open_dataset_kwargs': {},
             'coordinate_chunk_size': 10_000,
+            'disable_in_memory_copy': False
         }
 
     def test_dry_runs_are_allowed(self):
