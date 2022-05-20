@@ -38,6 +38,7 @@ class TestCLI(unittest.TestCase):
             'variables': [],
             'window_size': 1.0,
             'xarray_open_dataset_kwargs': {},
+            'coordinate_chunk_size': 10_000,
             'disable_in_memory_copy': False
         }
 

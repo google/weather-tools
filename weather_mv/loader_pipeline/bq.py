@@ -16,19 +16,19 @@ import dataclasses
 import datetime
 import logging
 import typing as t
+from pprint import pformat
+import pandas as pd
+import math
 
 import apache_beam as beam
 import geojson
 import numpy as np
-import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from google.cloud import bigquery
-from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
-from .util import to_json_serializable_type, _only_target_vars, get_coordinates
-from pprint import pformat
+from .util import to_json_serializable_type, _only_target_vars
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -63,6 +63,9 @@ class ToBigQuery(ToDataSink):
         import_time: The time when data was imported. This is used as a simple way to
           version data — variables can be distinguished based on import time. If None,
           the system will recompute the current time upon row extraction for each file.
+        coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
+          xr.Dataset coordinate indexes) to group together into chunks. Used to tune
+          how data is loaded into BigQuery in parallel.
 
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
@@ -70,6 +73,7 @@ class ToBigQuery(ToDataSink):
     output_table: str
     infer_schema: bool
     import_time: t.Optional[datetime.datetime]
+    coordinate_chunk_size: int = 10_000
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -103,13 +107,16 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
-                | 'ExtractRows' >> beam.FlatMap(
-                    extract_rows,
-                    variables=self.variables,
+                | 'PrepareCoordinates' >> beam.FlatMap(
+                    prepare_coordinates,
+                    coordinate_chunk_size=self.coordinate_chunk_size,
                     area=self.area,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                    variables=self.variables,
                     disable_in_memory_copy=self.disable_in_memory_copy)
+                | beam.Reshuffle()
+                | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
         )
 
         if not self.dry_run:
@@ -176,59 +183,74 @@ def fetch_geo_point(lat: float, long: float) -> str:
     return point
 
 
-def extract_rows(uri: str, *,
-                 variables: t.Optional[t.List[str]] = None,
-                 area: t.Optional[t.List[int]] = None,
-                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                 open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_in_memory_copy: bool = False) -> t.Iterator[t.Dict]:
-    """Reads named netcdf then yields each of its rows as a dict mapping column names to values."""
-    logger.info(f'Extracting rows as dicts: {uri!r}.')
-
-    # re-calculate import time for streaming extractions.
-    if not import_time:
-        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+def prepare_coordinates(uri: str, *,
+                        coordinate_chunk_size: int,
+                        variables: t.Optional[t.List[str]] = None,
+                        area: t.Optional[t.List[int]] = None,
+                        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+                        open_dataset_kwargs: t.Optional[t.Dict] = None,
+                        disable_in_memory_copy: bool = False) -> t.Iterator[
+                                                                            t.Tuple[str, str, str, pd.DataFrame]]:
+    """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
+    logger.info(f'Preparing coordinates for: {uri!r}.')
 
     with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
-
         if area:
             n, w, s, e = area
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
             logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
+        # Re-calculate import time for streaming extractions.
+        if not import_time:
+            import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+
         first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
-        def to_row(it: t.Dict) -> t.Dict:
-            """Produce a single row, or a dictionary of all variables at a point."""
+        # Add coordinates for 0-dimension file.
+        if len(data_ds.to_array().shape) == 1:
+            for coord in data_ds.coords:
+                data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
 
-            # Use those index values to select a Dataset containing one row of data.
-            row_ds = data_ds.loc[it]
+        df = data_ds.to_dataframe().reset_index()
 
-            # Create a Name-Value map for data columns. Result looks like:
-            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            temp_row = row_ds.to_pandas().apply(to_json_serializable_type)
-            # Pandas coerces floating type None values back to NaNs, need to do an explicit replace after.
-            row = temp_row.astype(object).where(pd.notnull(temp_row), None).to_dict()
+        # Add un-indexed coordinates and drop unwanted variables.
+        if variables:
+            indices = list(ds.coords.indexes.keys())
+            to_keep = variables + indices
+            to_drop = set(df.columns) - set(to_keep)
+            df.drop(to_drop, axis=1, inplace=True)
 
-            # Add indexed coordinates.
-            row.update(it)
-            # Add un-indexed coordinates.
-            for c in row_ds.coords:
-                if c not in it and (not variables or c in variables):
-                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+        num_chunks = math.ceil(len(df) / coordinate_chunk_size)
+        for i in range(num_chunks):
+            chunk = df[i * coordinate_chunk_size:(i + 1) * coordinate_chunk_size]
+            yield uri, import_time, first_time_step, chunk
 
-            # Add import metadata.
-            row[DATA_IMPORT_TIME_COLUMN] = import_time
-            row[DATA_URI_COLUMN] = uri
-            row[DATA_FIRST_STEP] = first_time_step
-            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
-            # 'row' ends up looking like:
-            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-            return row
+def _convert_time(val) -> t.Any:
+    """Converts pandas Timestamp values to ISO format."""
+    if isinstance(val, pd.Timestamp):
+        return val.replace(tzinfo=datetime.timezone.utc).isoformat()
+    elif isinstance(val, pd.Timedelta):
+        return val.total_seconds()
+    else:
+        return val
 
-        yield from map(to_row, get_coordinates(data_ds, uri))
+
+def extract_rows(uri: str,
+                 import_time: str,
+                 first_time_step: str,
+                 rows: pd.DataFrame) -> t.Iterator[t.Dict]:
+    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
+    for _, row in rows.iterrows():
+        row = row.astype(object).where(pd.notnull(row), None)
+        row = {k: _convert_time(v) for k, v in row.iteritems()}
+
+        row[DATA_IMPORT_TIME_COLUMN] = import_time
+        row[DATA_URI_COLUMN] = uri
+        row[DATA_FIRST_STEP] = first_time_step
+        row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
+
+        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+        yield row
