@@ -67,7 +67,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
    ```shell
    # clone with HTTPS
    git clone http://github.com/google/weather-tools.git
-   # close with SSH
+   # clone with SSH
    git clone git@github.com:google/weather-tools.git
    cd weather-tools
    pip install -e ."[dev]"
