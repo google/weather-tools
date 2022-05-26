@@ -82,7 +82,7 @@ weather-mv --uris "gs://your-bucket/*.tif" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
-           ----tif_metadata_for_datetime start_time
+           --tif_metadata_for_datetime start_time
 ```
 
 Upload only a subset of variables:
