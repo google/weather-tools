@@ -39,6 +39,7 @@ _Common options_:
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. 
   Used to tune parallel uploads.
+* `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
@@ -72,6 +73,16 @@ weather-mv --uris "gs://your-bucket/*.nc" \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
            --disable_in_memory_copy
+```
+
+Load COG's (.tif) files:
+
+```bash
+weather-mv --uris "gs://your-bucket/*.tif" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
+           --direct_num_workers 2 \
+           ----tif_metadata_for_datetime start_time
 ```
 
 Upload only a subset of variables:

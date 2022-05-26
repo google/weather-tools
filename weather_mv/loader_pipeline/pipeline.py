@@ -23,6 +23,7 @@ import signal
 import sys
 import uuid
 import traceback
+import os
 from functools import partial
 
 import apache_beam as beam
@@ -193,6 +194,9 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     parser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
                         help='The size of the chunk of coordinates used for extracting vector data into BigQuery. '
                              'Used to tune parallel uploads.')
+    parser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
+                        help='Metadata that contains tif file\'s timestamp. '
+                             'Applicable only for tif files.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
     parser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
@@ -203,6 +207,12 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+
+    _, uri_extension = os.path.splitext(known_args.uris)
+    if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
+        raise RuntimeError('\'--tif_metadata_for_datetime\' is required for tif files.')
+    elif uri_extension != '.tif' and known_args.tif_metadata_for_datetime:
+        raise RuntimeError('\'--tif_metadata_for_datetime\' can be specified only for tif files.')
 
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'

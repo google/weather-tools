@@ -130,10 +130,11 @@ class SchemaCreationTests(TestDataBase):
 
 class ExtractRowsTestBase(TestDataBase):
 
-    def extract(self, data_path, *, variables=None, area=None,
-                open_dataset_kwargs=None, import_time=DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+    def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
+                import_time=DEFAULT_IMPORT_TIME, tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
         coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area, import_time=import_time,
-                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables)
+                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables,
+                                     tif_metadata_for_datetime=tif_metadata_for_datetime)
         for uri, import_time, first_time_step, chunk in coords:
             yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
 

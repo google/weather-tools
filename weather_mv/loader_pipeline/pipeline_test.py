@@ -39,7 +39,8 @@ class TestCLI(unittest.TestCase):
             'window_size': 1.0,
             'xarray_open_dataset_kwargs': {},
             'coordinate_chunk_size': 10_000,
-            'disable_in_memory_copy': False
+            'disable_in_memory_copy': False,
+            'tif_metadata_for_datetime': None,
         }
 
     def test_dry_runs_are_allowed(self):
