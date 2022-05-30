@@ -210,9 +210,9 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     _, uri_extension = os.path.splitext(known_args.uris)
     if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
-        raise RuntimeError('\'--tif_metadata_for_datetime\' is required for tif files.')
+        raise RuntimeError("'--tif_metadata_for_datetime' is required for tif files.")
     elif uri_extension != '.tif' and known_args.tif_metadata_for_datetime:
-        raise RuntimeError('\'--tif_metadata_for_datetime\' can be specified only for tif files.')
+        raise RuntimeError("'--tif_metadata_for_datetime' can be specified only for tif files.")
 
     if known_args.area:
         assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'

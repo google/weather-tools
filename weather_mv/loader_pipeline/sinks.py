@@ -30,6 +30,8 @@ import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
+TIF_TRANSFORM_CRS_TO = "EPSG:4326"
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -72,7 +74,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
-    transformer = Transformer.from_crs(ds.spatial_ref.crs_wkt, "EPSG:4326", always_xy=True)
+    transformer = Transformer.from_crs(ds.spatial_ref.crs_wkt, TIF_TRANSFORM_CRS_TO, always_xy=True)
     lon, lat = transformer.transform(x, y)
 
     ds['y'] = lat[0, :]
@@ -82,12 +84,10 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     band_length = len(ds.band)
     ds = ds.squeeze().drop('band').drop('spatial_ref')
 
-    band_data_list = list(map(_get_band_data, [i for i in range(band_length)]))
+    band_data_list = [_get_band_data(i) for i in range(band_length)]
     ds = xr.merge(band_data_list)
 
-    # We have used rasterio to fetch metadata from tif file because
-    # xarray's open_dataset() is not providing the same.
-    # TODO: Explore ways to capture required metadata using xarray.
+    # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
