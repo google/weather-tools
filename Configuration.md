@@ -12,7 +12,8 @@ Before jumping into the details of each section, let's look at a few example con
 ## Examples
 
 The following demonstrate how to download weather data from ECMWF's Copernicus (CDS) and Meteorological Archival and
-Retrieval System (MARS) catalogues.
+Retrieval System (MARS) catalogues. 
+It also covers how to download weather data from European Organization for the Exploitation of Meteorological Satellites (EUMETSAT).
 
 ### Download Era5 Pressure Level Reanalysis from Copernicus
 
@@ -66,6 +67,23 @@ time    = 00/06/12/18  ; We can specify multiple values using `/` delimiters -- 
 param   = z/sp
 ```
 
+### Download High Rate SEVIRI Level 1.5 Image Data - MSG - 0 degree from EUMETSAT in netcdf format.
+
+```
+[parameters]
+client=eumetsat ; download from eumetsat
+dataset=EO:EUM:DAT:MSG:HRSEVIRI ; specify a dataset to download from the data source (i.e. Collection ID)
+target_path=eumetsat-output-test-{product_id}.nc ; file-extension must correspond with the download format specified in 'eumetsat_format_conversion_to' field of selection section. For native download, file-extension must be .nat
+partition_keys= ; for EUMETSAT client, currently we support "product_id" based partitioning only
+    product_id
+[selection]
+product=HRSEVIRI
+product_id= ;  this field is required and must be blank. This will be populated by the weather-dl tool internally.
+eumetsat_format_conversion_to=netcdf4 ; specify the format for the download. Leave it blank for native downloads.
+start_date=2020-01-01 08:00 ; start_date and end_date must be compatible with pandas to_datetime method, e.g. "2021-01-01 08:00"
+end_date=2020-01-01 10:00
+```
+
 ## `parameters` Section
 
 _Parameters for the pipeline_
@@ -85,14 +103,19 @@ These describe which data source to download, where the data should live, and ho
         * E.g. `['year', 'month']` will lead to a config set like `[(2015, 01), (2015, 02), (2015, 03), ...]`.
     * The list of keys will be used to format the `target_path`.
 
-> **NOTE**: `target_path` template is totally compatible with Python's standard string formatting.
+> **NOTE**: 
+> * `target_path` template is totally compatible with Python's standard string formatting.
 > This includes being able to use named arguments (e.g. 'gs://bucket/{year}/{month}/{day}.nc') as well as specifying formats for strings 
 > (e.g. 'gs://bucket/{year:04d}/{month:02d}/{day:02d}.nc').
+> 
+> * In case of EUMETSAT client, currently we support partitioning the download only by the `product_id`.
 
 ### Creating a date-based directory hierarchy
 
 The date-based directory hierarchy can be created using Python's standard string formatting.
 Below are some examples of how to use `target_path` with Python's standard string formatting.
+
+> **Note**: Not supported in case of EUMETSAT client.
 
 <details>
 <summary><strong>Examples</strong></summary>
@@ -261,3 +284,24 @@ to discover the kinds of requests that can be made.
 
 > **NOTE**: MARS data is stored on tape drives. It takes longer for multiple workers to request data than a single
 > worker. Thus, it's recommended _not_ to set a partition key when writing MARS data configurations.
+
+### EUMETSAT
+
+**License**: By using EUMETSAT, users agree to the terms and conditions specified in [License](https://www.eumetsat.int/eumetsat-data-licensing) document.
+
+**Catalog**: [https://navigator.eumetsat.int/start](https://navigator.eumetsat.int/start)
+
+Visit the following to register / acquire API credentials:
+_[EUMETSAT API Key MANAGEMENT](https://api.eumetsat.int/api-key/)_. After, please set
+the `api_key` and `api_secret` arguments in the `parameters` section of your configuration. Alternatively,
+one can set these values as environment variables:
+
+```shell
+export EUMETSATAPI_KEY=$api_key
+export EUMETSATAPI_SECRET=$api_secret
+```
+> **NOTE**: 
+> * File-extension in `target_path` of `parameters` section must correspond with the download format specified in `eumetsat_format_conversion_to` of `selection` section and for native download file-extension must be `.nat`.
+> * Currently, we support partitioning the download only by the `product_id`.
+> * `product_id` field in the selection section is required and must be blank. This will be populated by the tool internally.
+> * `eumetsat_format_conversion_to` field in the selection section specifies the format for the download. Leave it blank in case of native downloads.

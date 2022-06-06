@@ -16,6 +16,9 @@ import dataclasses
 import itertools
 import logging
 import typing as t
+import numpy as np
+import pandas as pd
+from .clients import CLIENTS
 
 import apache_beam as beam
 
@@ -125,6 +128,19 @@ def skip_partition(config: Config, store: Store) -> bool:
     return False
 
 
+def _split_dates_to_months(start: str, end: str) -> np.ndarray:
+    slices = pd.date_range(start=start, end=end, freq='30D')
+    logger.info('slices=%s', slices)
+    return np.append(slices, pd.to_datetime(end).asm8)
+
+
+def time_slices(start: str, end: str) -> t.List[t.Tuple[pd.DatetimeIndex, pd.DatetimeIndex]]:
+    dates = _split_dates_to_months(start, end)
+    logger.info('dates=%s', dates)
+    slices = [(s, e) for s, e in zip(dates[:-1], dates[1:])]
+    return slices
+
+
 def prepare_partitions(config: Config) -> t.Iterator[Config]:
     """Iterate over client parameters, partitioning over `partition_keys`.
 
@@ -137,8 +153,14 @@ def prepare_partitions(config: Config) -> t.Iterator[Config]:
     Returns:
         An iterator of `Config`s.
     """
-    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
-        yield _create_partition_config(option, config)
+    if config.client == 'eumetsat':
+        client = CLIENTS[config.client](config)
+        slices = time_slices(config.selection['start_date'], config.selection['end_date'])
+        for option in client.products(slices, config.dataset):
+            yield _create_partition_config((option, ), config)
+    else:
+        for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
+            yield _create_partition_config(option, config)
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:

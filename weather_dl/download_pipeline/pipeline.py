@@ -167,7 +167,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     client = CLIENTS[client_name](config)
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(
-            config.dataset
+            config.dataset,
+            bool(config.selection.get('eumetsat_format_conversion_to'))
         )
 
     logger.warning(f'By using {client_name} datasets, '
