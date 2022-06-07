@@ -100,7 +100,8 @@ def pipeline(args: PipelineArgs) -> None:
         (
                 p
                 | 'Create the initial config' >> beam.Create([args.config])
-                | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest)
+                | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest,
+                                                          args.config.client)
                 | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
                 | 'Fetch data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
         )
@@ -166,10 +167,15 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     num_requesters_per_key = known_args.num_requests_per_key
     client = CLIENTS[client_name](config)
     if num_requesters_per_key == -1:
-        num_requesters_per_key = client.num_requests_per_key(
-            config.dataset,
-            bool(config.selection.get('eumetsat_format_conversion_to'))
-        )
+        if client_name == 'eumetsat':
+            num_requesters_per_key = client.num_requests_per_key(
+                config.dataset,
+                bool(config.selection.get('eumetsat_format_conversion_to'))
+            )
+        else:
+            num_requesters_per_key = client.num_requests_per_key(
+                config.dataset
+            )
 
     logger.warning(f'By using {client_name} datasets, '
                    f'users agree to the terms and conditions specified in {client.license_url}')

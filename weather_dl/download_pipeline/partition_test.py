@@ -50,7 +50,7 @@ class PreparePartitionTest(unittest.TestCase):
 
         return (EagerPipeline()
                 | beam.Create([config])
-                | PartitionConfig(store, params_cycle, self.dummy_manifest))
+                | PartitionConfig(store, params_cycle, self.dummy_manifest, config.client))
 
     def test_partition_single_key(self):
         config = {

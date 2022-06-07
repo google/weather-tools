@@ -62,7 +62,7 @@ class Client(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def num_requests_per_key(self, dataset: str, eumetsat_control_num_requests: bool) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
@@ -114,7 +114,7 @@ class CdsClient(Client):
     def license_url(self):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
-    def num_requests_per_key(self, dataset: str, eumetsat_control_num_requests: bool) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         """Number of requests per key from the CDS API.
 
         CDS has dynamic, data-specific limits, defined here:
@@ -200,7 +200,7 @@ class MarsClient(Client):
     def license_url(self):
         return 'https://apps.ecmwf.int/datasets/licences/general/'
 
-    def num_requests_per_key(self, dataset: str, eumetsat_control_num_requests: bool) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         """Number of requests per key (or user) for the Mars API.
 
         Mars allows 2 active requests per user and 20 queued requests per user, as of Sept 27, 2021.
@@ -216,26 +216,30 @@ class MarsClient(Client):
 
 
 class EumetsatClient(Client):
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO,
+                 config_subsection: t.Optional[t.Tuple] = None) -> None:
         super().__init__(config, level)
         self.key = config.kwargs.get('api_key', os.environ.get("EUMETSATAPI_KEY"))
         self.secret = config.kwargs.get('api_secret', os.environ.get("EUMETSATAPI_SECRET"))
+        if not self.key and config_subsection:
+            self.key = config_subsection[1].get('api_key')
+        if not self.secret and config_subsection:
+            self.secret = config_subsection[1].get('api_secret')
 
-    def products(self, time_slices: t.List[t.Tuple[np.datetime64, np.datetime64]], dataset: str) -> t.List:
-        """Lists the products that are available for that dataset in the date ranges.
+    def products(self, start: np.datetime64, end: np.datetime64, dataset: str) -> t.Iterator[str]:
+        """Lists the products that are available for that dataset in the date range.
 
         Args:
-            time_slices: list of tuples of start and end time.
+            start: start time.
+            end: end time.
             dataset: dataset name as listed in eumetsat catalogue.
         Returns:
-            list of products within the specified times.
+            An iterator of product ids.
         """
         datastore = eumdac.DataStore(self._token())
         collection = datastore.get_collection(dataset)
-        product_list = []
-        for start, end in time_slices:
-            product_list.extend([product._id for product in collection.search(dtstart=start, dtend=end)])
-        return product_list
+        for product in collection.search(dtstart=start, dtend=end):
+            yield product._id
 
     def _token(self) -> eumdac.AccessToken:
         credentials = (self.key, self.secret)
@@ -322,7 +326,7 @@ class FakeClient(Client):
     def license_url(self):
         return 'lorem ipsum'
 
-    def num_requests_per_key(self, dataset: str, eumetsat_control_num_requests: bool) -> int:
+    def num_requests_per_key(self, dataset: str) -> int:
         return 1
 
 
