@@ -192,14 +192,16 @@ def _splitlines(block: str) -> t.List[str]:
 
 def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
     """Converts a range token into either a date, int, or float."""
+    try:
+        return int(token)
+    except ValueError:
+        pass
+    
     # TODO(b/175432034): Recognize time values
     try:
         return date(token)
     except ValueError:
         pass
-
-    if token.isdecimal():
-        return int(token)
 
     try:
         return float(token)
@@ -215,10 +217,14 @@ def parse_mars_syntax(block: str) -> t.List[str]:
     Examples:
         >>> parse_mars_syntax("10/to/12")
         ['10', '11', '12']
+        >>> parse_mars_syntax("12/to/10/by/-1")
+        ['12', '11', '10']
         >>> parse_mars_syntax("0.0/to/0.5/by/0.1")
         ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5']
         >>> parse_mars_syntax("2020-01-07/to/2020-01-14/by/2")
         ['2020-01-07', '2020-01-09', '2020-01-11', '2020-01-13']
+        >>> parse_mars_syntax("2020-01-14/to/2020-01-07/by/-2")
+        ['2020-01-14', '2020-01-12', '2020-01-10', '2020-01-08']
 
     Returns:
         A list of strings representing a range from start to finish, based on the
@@ -245,10 +251,9 @@ def parse_mars_syntax(block: str) -> t.List[str]:
 
         # Parse increment token, or choose default increment.
         increment_token = '1'
-        increment = 1
         if 'by' in tokens:
             increment_token = tokens[tokens.index('by') + 1]
-            increment = mars_range_value(increment_token)
+        increment = mars_range_value(increment_token)
     except (AssertionError, IndexError, ValueError):
         raise SyntaxError(f"Improper range syntax in '{block}'.")
 
@@ -263,13 +268,14 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         # Increment can be either an int or a float.
         out = []
         x = start
-        while x <= end:
+        while abs(end - x) <= abs(increment):
             out.append(str(x))
             x += increment
         return out
     elif isinstance(start, int) and isinstance(end, int) and isinstance(increment, int):
         # Honor leading zeros.
-        return [str(x).zfill(len(start_token)) for x in range(start, end + 1, increment)]
+        offset = 1 if start <= end else -1
+        return [str(x).zfill(len(start_token)) for x in range(start, end + offset, increment)]
     else:
         raise ValueError(
             f"Range tokens (start='{start_token}', end='{end_token}', increment='{increment_token}')"
@@ -279,7 +285,8 @@ def parse_mars_syntax(block: str) -> t.List[str]:
 
 def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> t.Iterable[datetime.date]:
     """Gets a range of dates, inclusive."""
-    return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + 1, increment))
+    offset = 1 if start <= end else -1
+    return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + offset, increment))
 
 
 def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') -> t.Dict:
