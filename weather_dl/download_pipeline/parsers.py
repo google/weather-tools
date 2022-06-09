@@ -192,11 +192,6 @@ def _splitlines(block: str) -> t.List[str]:
 
 def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
     """Converts a range token into either a date, int, or float."""
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    
     # TODO(b/175432034): Recognize time values
     try:
         return date(token)
@@ -204,9 +199,27 @@ def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
         pass
 
     try:
+        return int(token)
+    except ValueError:
+        pass
+
+    try:
         return float(token)
     except ValueError:
         raise ValueError("Token string must be an 'int', 'float', or 'datetime.date()'.")
+
+
+def mars_increment_value(token: str) -> t.Union[int, float]:
+    """Converts an increment token into either an int or a float."""
+    try:
+        return int(token)
+    except ValueError:
+        pass
+
+    try:
+        return float(token)
+    except ValueError:
+        raise ValueError("Token string must be an 'int' or a 'float'.")
 
 
 def parse_mars_syntax(block: str) -> t.List[str]:
@@ -253,7 +266,7 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         increment_token = '1'
         if 'by' in tokens:
             increment_token = tokens[tokens.index('by') + 1]
-        increment = mars_range_value(increment_token)
+        increment = mars_increment_value(increment_token)
     except (AssertionError, IndexError, ValueError):
         raise SyntaxError(f"Improper range syntax in '{block}'.")
 
