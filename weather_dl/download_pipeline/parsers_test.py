@@ -210,7 +210,7 @@ class ParseConfigTest(unittest.TestCase):
             actual = parse_config(f)
             for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
+            self.assertListEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5'])
 
     def test_cfg_parses_mars_float_reverse_range_incremented_by_float(self):
         with io.StringIO(
@@ -223,7 +223,7 @@ class ParseConfigTest(unittest.TestCase):
             actual = parse_config(f)
             for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertEqual(actual['section']['list'], ['0.5', '0.4', '0.30000000000000004', '0.2', '0.1', '0.0'])
+            self.assertListEqual(actual['section']['list'], ['0.5', '0.4', '0.3', '0.2', '0.1', '0.0'])
 
     def test_cfg_parses_mars_date_range(self):
         with io.StringIO(
@@ -373,7 +373,7 @@ class ParseConfigTest(unittest.TestCase):
         )
 
     def test_cfg_raises_value_error_float_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
                     [section]
@@ -384,7 +384,7 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
         self.assertEqual(
-            "Range tokens (start='1.0', end='10.0', increment='2020-01-07') are inconsistent types.",
+            "Improper range syntax in '1.0/to/10.0/by/2020-01-07'.",
             ctx.exception.args[0]
         )
 

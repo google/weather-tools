@@ -21,6 +21,7 @@ import json
 import string
 import textwrap
 import typing as t
+import numpy as np
 from collections import OrderedDict
 from urllib.parse import urlparse
 
@@ -278,12 +279,9 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         return [d.strftime("%Y-%m-%d") for d in date_range(start, end, increment)]
     elif (isinstance(start, float) or isinstance(end, float)) and not isinstance(increment, datetime.date):
         # Increment can be either an int or a float.
-        out = []
-        x = start
-        while abs(end - x) <= abs(increment):
-            out.append(str(x))
-            x += increment
-        return out
+        _round_places = 4
+        return [str(round(x, _round_places)).zfill(len(start_token))
+                for x in np.arange(start, end + increment, increment)]
     elif isinstance(start, int) and isinstance(end, int) and isinstance(increment, int):
         # Honor leading zeros.
         offset = 1 if start <= end else -1
