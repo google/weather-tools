@@ -198,10 +198,8 @@ def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
     except ValueError:
         pass
 
-    try:
+    if token.isdecimal():
         return int(token)
-    except ValueError:
-        pass
 
     try:
         return float(token)
@@ -264,9 +262,10 @@ def parse_mars_syntax(block: str) -> t.List[str]:
 
         # Parse increment token, or choose default increment.
         increment_token = '1'
+        increment = 1
         if 'by' in tokens:
             increment_token = tokens[tokens.index('by') + 1]
-        increment = mars_increment_value(increment_token)
+            increment = mars_increment_value(increment_token)
     except (AssertionError, IndexError, ValueError):
         raise SyntaxError(f"Improper range syntax in '{block}'.")
 
