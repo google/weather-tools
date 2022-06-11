@@ -82,7 +82,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = ds.rename({'y': 'latitude', 'x': 'longitude'})
 
     band_length = len(ds.band)
-    ds = ds.squeeze().drop('band').drop('spatial_ref')
+    ds = ds.squeeze().drop_vars('band').drop_vars('spatial_ref')
 
     band_data_list = [_get_band_data(i) for i in range(band_length)]
     ds = xr.merge(band_data_list)

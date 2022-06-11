@@ -26,6 +26,12 @@ class TestCLI(unittest.TestCase):
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893'
         ).split()
+        self.tif_base_cli_args = (
+            'weather-mv '
+            '-i weather_mv/test_data/test_data_tif_start_time.tif '
+            '-o myproject.mydataset.mytable '
+            '--import_time 2022-02-04T22:22:12.125893'
+        ).split()
         self.base_cli_known_args = {
             'uris': 'weather_mv/test_data/test_data_2018*.nc',
             'output_table': 'myproject.mydataset.mytable',
@@ -46,6 +52,14 @@ class TestCLI(unittest.TestCase):
     def test_dry_runs_are_allowed(self):
         known_args, _ = run(self.base_cli_args + '--dry-run'.split())
         self.assertEqual(known_args.dry_run, True)
+
+    def test_tif_metadata_for_datetime_raise_error_for_non_tif_file(self):
+        with self.assertRaisesRegex(RuntimeError, 'can be specified only for tif files.'):
+            run(self.base_cli_args + '--tif_metadata_for_datetime start_time'.split())
+
+    def test_tif_metadata_for_datetime_raise_error_if_flag_is_absent(self):
+        with self.assertRaisesRegex(RuntimeError, 'is required for tif files.'):
+            run(self.tif_base_cli_args)
 
     def test_area_only_allows_four(self):
         with self.assertRaisesRegex(AssertionError, 'Must specify exactly 4 lat/long .* N, W, S, E'):
