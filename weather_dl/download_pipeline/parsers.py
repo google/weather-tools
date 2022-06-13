@@ -149,9 +149,8 @@ def typecast(key: str, value: t.Any) -> t.Any:
 def parse_config(file: t.IO) -> t.Dict:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
-        # TODO(b/175429166): JSON files do not support MARs range syntax.
         config = json.load(file)
-        config_by_section = {s: _parse_lists(config, s) for s in config.keys()}
+        config_by_section = {s: _parse_lists(v, s) for s, v in config.items()}
         config_with_nesting = parse_subsections(config_by_section)
         return config_with_nesting
     except json.JSONDecodeError:
@@ -162,7 +161,7 @@ def parse_config(file: t.IO) -> t.Dict:
     try:
         config = configparser.ConfigParser()
         config.read_file(file)
-        config_by_section = {s: _parse_lists(config, s) for s in config.sections()}
+        config_by_section = {s: _parse_lists(dict(config.items(s)), s) for s in config.sections()}
         config_with_nesting = parse_subsections(config_by_section)
         return config_with_nesting
     except configparser.ParsingError:
@@ -285,23 +284,15 @@ def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> 
     return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + 1, increment))
 
 
-def _parse_lists(config_parser: t.Union[configparser.ConfigParser, dict], section: str = '') -> t.Dict:
+def _parse_lists(config: dict, section: str = '') -> t.Dict:
     """Parses multiline blocks in *.cfg and *.json files as lists."""
-    if isinstance(config_parser, configparser.ConfigParser):
-        config = dict(config_parser.items(section))
-    else:
-        config = config_parser[section]
-
     for key, val in config.items():
+        # Check string type for backward compatibility. i.e. <= v0.1.7 supports "padding": 0 in json config
         if isinstance(val, str):
             if '/' in val and 'parameters' not in section:
                 config[key] = parse_mars_syntax(val)
             elif '\n' in val:
                 config[key] = _splitlines(val)
-        elif isinstance(val, list):
-            config[key] = [str(v) for v in val]
-        else:
-            config[key] = str(val)
 
     return config
 

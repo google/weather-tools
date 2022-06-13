@@ -63,14 +63,176 @@ class DateTest(unittest.TestCase):
 class ParseConfigTest(unittest.TestCase):
 
     def test_json(self):
-        with io.StringIO('{"selection": {"param": "10fg6/10u/10v/100u/100vcrr}}') as f:
+        with io.StringIO('{"section": {"key": "value"}}') as f:
             actual = parse_config(f)
-            self.assertDictEqual(actual, {'selection': {"param": ['10fg6', '10u', '10v', '100u', '100vcrr']}})
+            self.assertDictEqual(actual, {'section': {'key': 'value'}})
 
     def test_bad_json(self):
-        with io.StringIO('{"key": "value", "brokenKey": }') as f:
+        with io.StringIO('{"section": {"key": "value", "brokenKey": }}') as f:
             actual = parse_config(f)
             self.assertDictEqual(actual, {})
+
+    def test_json_produces_lists(self):
+        with io.StringIO('{"section": {"key": "value", "list": [0, 10, 20, 30, 40]}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], [0, 10, 20, 30, 40])
+
+    def test_json_parses_mars_list(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/2/3"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
+
+    def test_json_parses_mars_int_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
+
+    def test_json_parses_mars_int_range_padded(self):
+        with io.StringIO('{"section": {"key": "value", "list": "00/to/05"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
+
+    def test_json_parses_mars_int_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5/by/2"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
+
+    def test_json_parses_mars_float_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
+
+    def test_json_parses_mars_float_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0/by/2.0"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
+
+    def test_json_parses_mars_float_range_incremented_by_float(self):
+        with io.StringIO('{"section": {"key": "value", "list": "0.0/to/0.5/by/0.1"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
+
+    def test_json_parses_mars_date_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-09"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
+
+    def test_json_parses_mars_relative_date_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "-3/to/-1"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+
+            dates = [
+                datetime.date.today() + datetime.timedelta(-3),
+                datetime.date.today() + datetime.timedelta(-2),
+                datetime.date.today() + datetime.timedelta(-1),
+            ]
+
+            self.assertListEqual(actual['section']['list'], [d.strftime("%Y-%m-%d") for d in dates])
+
+    def test_json_parses_mars_date_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-12/by/2"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
+
+    def test_json_raises_syntax_error_missing_right(self):
+        with self.assertRaises(SyntaxError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/"}}') as f:
+                parse_config(f)
+
+        self.assertEqual("Improper range syntax in '2020-01-07/to/'.", ctx.exception.args[0])
+
+    def test_json_raises_syntax_error_missing_left(self):
+        with self.assertRaises(SyntaxError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "/to/2020-01-07"}}') as f:
+                parse_config(f)
+
+        self.assertEqual("Improper range syntax in '/to/2020-01-07'.", ctx.exception.args[0])
+
+    def test_json_raises_syntax_error_missing_increment(self):
+        with self.assertRaises(SyntaxError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/"}}') as f:
+                parse_config(f)
+
+        self.assertEqual("Improper range syntax in '2020-01-07/to/2020-01-11/by/'.", ctx.exception.args[0])
+
+    def test_json_raises_syntax_error_no_range(self):
+        with self.assertRaises(SyntaxError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/by/2020-01-11"}}') as f:
+                parse_config(f)
+
+        self.assertEqual("Improper range syntax in '2020-01-07/by/2020-01-11'.", ctx.exception.args[0])
+
+    def test_json_raises_value_error_date_types(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/2.0"}}') as f:
+                parse_config(f)
+
+        self.assertEqual(
+            "Increments on a date range must be integer number of days, '2.0' is invalid.",
+            ctx.exception.args[0]
+        )
+
+    def test_json_raises_value_error_float_types(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "1.0/to/10.0/by/2020-01-07"}}') as f:
+                parse_config(f)
+
+        self.assertEqual(
+            "Range tokens (start='1.0', end='10.0', increment='2020-01-07') are inconsistent types.",
+            ctx.exception.args[0]
+        )
+
+    def test_json_raises_value_error_int_types(self):
+        with self.assertRaises(ValueError) as ctx:
+            with io.StringIO('{"section": {"key": "value", "list": "1/to/10/by/2.0"}}') as f:
+                parse_config(f)
+
+        self.assertEqual(
+            "Range tokens (start='1', end='10', increment='2.0') are inconsistent types.",
+            ctx.exception.args[0]
+        )
+
+    def test_json_parses_accidental_extra_whitespace(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
+
+    def test_json_parses_parameter_subsections(self):
+        with io.StringIO('{"parameters": {"api_url": "https://google.com/", \
+                                          "alice": {"api_key": "123"}, \
+                                          "bob": {"api_key": "456"}}}') as f:
+            actual = parse_config(f)
+            self.assertEqual(actual, {
+                'parameters': {
+                    'api_url': 'https://google.com/',
+                    'alice': {'api_key': '123'},
+                    'bob': {'api_key': '456'},
+                },
+            })
 
     def test_cfg(self):
         with io.StringIO(
