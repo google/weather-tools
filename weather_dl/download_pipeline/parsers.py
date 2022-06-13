@@ -304,7 +304,7 @@ def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') ->
     config = dict(config_parser.items(section))
 
     for key, val in config.items():
-        if ('/' in val or key == 'date') and 'parameters' not in section:
+        if '/' in val and 'parameters' not in section:
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:
             config[key] = _splitlines(val)
