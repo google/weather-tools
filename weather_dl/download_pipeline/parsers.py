@@ -151,21 +151,9 @@ def parse_config(file: t.IO) -> t.Dict:
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
         config = json.load(file)
-        for _config_key, _config_val in config.items():
-            if _config_key == 'parameters':
-                continue
-            if isinstance(_config_val, dict):
-                for _key, _val in _config_val.items():
-                    if isinstance(_val, str):
-                        if ('/' in _val or _key == 'date'):
-                            config[_config_key][_key] = parse_mars_syntax(_val)
-                        elif '\n' in _val:
-                            config[_config_key][_key] = _splitlines(_val)
-                    elif isinstance(_val, list):
-                        config[_config_key][_key] = [str(_v) for _v in _val]
-                    else:
-                        config[_config_key][_key] = str(_val)
-        return config
+        config_by_section = {s: _parse_lists(config, s) for s in config.keys()}
+        config_with_nesting = parse_subsections(config_by_section)
+        return config_with_nesting
     except json.JSONDecodeError:
         pass
 
@@ -297,15 +285,23 @@ def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> 
     return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + 1, increment))
 
 
-def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') -> t.Dict:
-    """Parses multiline blocks in *.cfg files as lists."""
-    config = dict(config_parser.items(section))
+def _parse_lists(config_parser: t.Union[configparser.ConfigParser, dict], section: str = '') -> t.Dict:
+    """Parses multiline blocks in *.cfg and *.json files as lists."""
+    if isinstance(config_parser, configparser.ConfigParser):
+        config = dict(config_parser.items(section))
+    else:
+        config = config_parser[section]
 
     for key, val in config.items():
-        if ('/' in val or key == 'date') and 'parameters' not in section:
-            config[key] = parse_mars_syntax(val)
-        elif '\n' in val:
-            config[key] = _splitlines(val)
+        if isinstance(val, str):
+            if ('/' in val or key == 'date') and 'parameters' not in section:
+                config[key] = parse_mars_syntax(val)
+            elif '\n' in val:
+                config[key] = _splitlines(val)
+        elif isinstance(val, list):
+            config[key] = [str(v) for v in val]
+        else:
+            config[key] = str(val)
 
     return config
 
