@@ -150,7 +150,22 @@ def parse_config(file: t.IO) -> t.Dict:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
         # TODO(b/175429166): JSON files do not support MARs range syntax.
-        return json.load(file)
+        config = json.load(file)
+        for _config_key, _config_val in config.items():
+            if _config_key == 'parameters':
+                continue
+            if isinstance(_config_val, dict):
+                for _key, _val in _config_val.items():
+                    if isinstance(_val, str):
+                        if ('/' in _val or _key == 'date'):
+                            config[_config_key][_key] = parse_mars_syntax(_val)
+                        elif '\n' in _val:
+                            config[_config_key][_key] = _splitlines(_val)
+                    elif isinstance(_val, list):
+                        config[_config_key][_key] = [str(_v) for _v in _val]
+                    else:
+                        config[_config_key][_key] = str(_val)
+        return config
     except json.JSONDecodeError:
         pass
 

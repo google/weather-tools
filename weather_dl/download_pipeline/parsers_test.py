@@ -72,6 +72,16 @@ class ParseConfigTest(unittest.TestCase):
             actual = parse_config(f)
             self.assertDictEqual(actual, {})
 
+    def test_json_param(self):
+        with io.StringIO('{"selection": {"param": "10fg6/10u/10v/100u/100vcrr/2t/2d/200u/200v/cp/dsrp/hcc/i10fg\
+                          /lcc/lsp/lspf/lsrr/msl/ptype/sf/sp/ssr/tcrw/tclw/tcsw/tcw/tcwv/tp"}}') as f:
+            actual = parse_config(f)
+            self.assertDictEqual(actual, {'selection': {"param": [
+                    '10fg6', '10u', '10v', '100u', '100vcrr', '2t', '2d', '200u', '200v', 'cp', 'dsrp', 'hcc',
+                    'i10fg', 'lcc', 'lsp', 'lspf', 'lsrr', 'msl', 'ptype', 'sf', 'sp', 'ssr', 'tcrw', 'tclw',
+                    'tcsw', 'tcw', 'tcwv', 'tp'
+                ]}})
+
     def test_cfg(self):
         with io.StringIO(
                 """
