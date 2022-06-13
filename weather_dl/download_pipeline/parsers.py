@@ -294,7 +294,7 @@ def _parse_lists(config_parser: t.Union[configparser.ConfigParser, dict], sectio
 
     for key, val in config.items():
         if isinstance(val, str):
-            if ('/' in val or key == 'date') and 'parameters' not in section:
+            if '/' in val and 'parameters' not in section:
                 config[key] = parse_mars_syntax(val)
             elif '\n' in val:
                 config[key] = _splitlines(val)
