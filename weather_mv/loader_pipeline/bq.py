@@ -86,7 +86,8 @@ class ToBigQuery(ToDataSink):
             )
         else:
             logger.info('Inferring schema from data.')
-            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True) as open_ds:
+            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
+                              self.tif_metadata_for_datetime) as open_ds:
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
@@ -114,7 +115,8 @@ class ToBigQuery(ToDataSink):
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     variables=self.variables,
-                    disable_in_memory_copy=self.disable_in_memory_copy)
+                    disable_in_memory_copy=self.disable_in_memory_copy,
+                    tif_metadata_for_datetime=self.tif_metadata_for_datetime)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
         )
@@ -189,12 +191,13 @@ def prepare_coordinates(uri: str, *,
                         area: t.Optional[t.List[int]] = None,
                         import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
                         open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        disable_in_memory_copy: bool = False) -> t.Iterator[
+                        disable_in_memory_copy: bool = False,
+                        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[
                                                                             t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
-    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy) as ds:
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, tif_metadata_for_datetime) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
         if area:
             n, w, s, e = area
@@ -205,7 +208,7 @@ def prepare_coordinates(uri: str, *,
         if not import_time:
             import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-        first_ts_raw = data_ds.time[0].values if data_ds.time.size > 1 else data_ds.time.values
+        first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
         # Add coordinates for 0-dimension file.

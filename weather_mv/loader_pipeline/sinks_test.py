@@ -43,6 +43,7 @@ class OpenDatasetTest(TestDataBase):
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        self.test_tif_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds:
@@ -53,6 +54,10 @@ class OpenDatasetTest(TestDataBase):
             self.assertIn('d2m', ds1)
         with open_dataset(self.test_data_path, {'drop_variables': 'd2m'}) as ds2:
             self.assertNotIn('d2m', ds2)
+
+    def test_opens_tif_files(self):
+        with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:
+            self.assertIsNotNone(ds)
 
 
 if __name__ == '__main__':

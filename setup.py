@@ -42,6 +42,7 @@ weather_mv_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
+    "rioxarray"
 ]
 
 weather_sp_requirements = [
