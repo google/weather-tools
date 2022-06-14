@@ -170,7 +170,10 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
     def test_json_raises_value_error_date_types(self):
-        with self.assertRaisesRegex(ValueError, "Increments on a date range must be integer number of days, '2.0' is invalid."):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Increments on a date range must be integer number of days, '2.0' is invalid."
+        ):
             with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/2.0"}}') as f:
                 parse_config(f)
 
@@ -420,7 +423,10 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
     def test_cfg_raises_value_error_date_types(self):
-        with self.assertRaisesRegex(ValueError, "Increments on a date range must be integer number of days, '2.0' is invalid."):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Increments on a date range must be integer number of days, '2.0' is invalid."
+        ):
             with io.StringIO(
                     """
                     [section]
