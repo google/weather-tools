@@ -146,24 +146,27 @@ def typecast(key: str, value: t.Any) -> t.Any:
     return converted
 
 
-def parse_config(file: t.IO) -> t.Dict:
-    """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
-    config = None
-
+def _read_config_file(file: t.IO) -> t.Dict:
+    """Reads a `*.json` or `*.cfg` file into a configuration dictionary."""
     try:
-        config = json.load(file)
+        return json.load(file)
     except json.JSONDecodeError:
         pass
 
-    if not config:
-        try:
-            file.seek(0)
-            config = configparser.ConfigParser()
-            config.read_file(file)
-            config = {s: dict(config.items(s)) for s in config.sections()}
-        except configparser.ParsingError:
-            return {}
+    file.seek(0)
 
+    try:
+        config = configparser.ConfigParser()
+        config.read_file(file)
+        config = {s: dict(config.items(s)) for s in config.sections()}
+        return config
+    except configparser.ParsingError:
+        return {}
+
+
+def parse_config(file: t.IO) -> t.Dict:
+    """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
+    config = _read_config_file(file)
     config_by_section = {s: _parse_lists(v, s) for s, v in config.items()}
     config_with_nesting = parse_subsections(config_by_section)
     return config_with_nesting

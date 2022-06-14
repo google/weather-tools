@@ -178,24 +178,14 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
     def test_json_raises_value_error_float_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
             with io.StringIO('{"section": {"key": "value", "list": "1.0/to/10.0/by/2020-01-07"}}') as f:
                 parse_config(f)
 
-        self.assertEqual(
-            "Range tokens (start='1.0', end='10.0', increment='2020-01-07') are inconsistent types.",
-            ctx.exception.args[0]
-        )
-
     def test_json_raises_value_error_int_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
             with io.StringIO('{"section": {"key": "value", "list": "1/to/10/by/2.0"}}') as f:
                 parse_config(f)
-
-        self.assertEqual(
-            "Range tokens (start='1', end='10', increment='2.0') are inconsistent types.",
-            ctx.exception.args[0]
-        )
 
     def test_json_parses_accidental_extra_whitespace(self):
         with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
@@ -437,7 +427,7 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
     def test_cfg_raises_value_error_float_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
             with io.StringIO(
                     """
                     [section]
@@ -447,13 +437,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual(
-            "Range tokens (start='1.0', end='10.0', increment='2020-01-07') are inconsistent types.",
-            ctx.exception.args[0]
-        )
-
     def test_cfg_raises_value_error_int_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
             with io.StringIO(
                     """
                     [section]
@@ -462,11 +447,6 @@ class ParseConfigTest(unittest.TestCase):
                     """
             ) as f:
                 parse_config(f)
-
-        self.assertEqual(
-            "Range tokens (start='1', end='10', increment='2.0') are inconsistent types.",
-            ctx.exception.args[0]
-        )
 
     def test_cfg_parses_accidental_extra_whitespace(self):
         with io.StringIO(
