@@ -122,7 +122,7 @@ class ParseConfigTest(unittest.TestCase):
         with io.StringIO('{"section": {"key": "value", "list": "0.0/to/0.5/by/0.1"}}') as f:
             actual = parse_config(f)
             self._assert_not_in_dict_values('\n', actual['section'])
-            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
+            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5'])
 
     def test_json_parses_mars_date_range(self):
         with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-09"}}') as f:
@@ -178,7 +178,7 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
     def test_json_raises_value_error_float_types(self):
-        with self.assertRaisesRegex(ValueError, "inconsistent types."):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '1.0/to/10.0/by/2020-01-07'."):
             with io.StringIO('{"section": {"key": "value", "list": "1.0/to/10.0/by/2020-01-07"}}') as f:
                 parse_config(f)
 
