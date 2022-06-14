@@ -286,7 +286,7 @@ def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> 
 def _parse_lists(config: dict, section: str = '') -> t.Dict:
     """Parses multiline blocks in *.cfg and *.json files as lists."""
     for key, val in config.items():
-        # Check string type for backward compatibility. i.e. <= v0.1.7 supports "padding": 0 in json config
+        # Checks str type for backward compatibility since it also support "padding": 0 in json config
         if isinstance(val, str):
             if '/' in val and 'parameters' not in section:
                 config[key] = parse_mars_syntax(val)
