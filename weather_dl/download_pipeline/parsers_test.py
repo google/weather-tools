@@ -150,42 +150,29 @@ class ParseConfigTest(unittest.TestCase):
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_json_raises_syntax_error_missing_right(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/'."):
             with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/"}}') as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/'.", ctx.exception.args[0])
-
     def test_json_raises_syntax_error_missing_left(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '/to/2020-01-07'."):
             with io.StringIO('{"section": {"key": "value", "list": "/to/2020-01-07"}}') as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '/to/2020-01-07'.", ctx.exception.args[0])
-
     def test_json_raises_syntax_error_missing_increment(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/2020-01-11/by/'."):
             with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/"}}') as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/2020-01-11/by/'.", ctx.exception.args[0])
-
     def test_json_raises_syntax_error_no_range(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/by/2020-01-11'."):
             with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/by/2020-01-11"}}') as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/by/2020-01-11'.", ctx.exception.args[0])
-
     def test_json_raises_value_error_date_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "Increments on a date range must be integer number of days, '2.0' is invalid."):
             with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/2.0"}}') as f:
                 parse_config(f)
-
-        self.assertEqual(
-            "Increments on a date range must be integer number of days, '2.0' is invalid.",
-            ctx.exception.args[0]
-        )
 
     def test_json_raises_value_error_float_types(self):
         with self.assertRaises(ValueError) as ctx:
@@ -389,7 +376,7 @@ class ParseConfigTest(unittest.TestCase):
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_cfg_raises_syntax_error_missing_right(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/'."):
             with io.StringIO(
                     """
                     [section]
@@ -399,10 +386,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_missing_left(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '/to/2020-01-07'."):
             with io.StringIO(
                     """
                     [section]
@@ -412,10 +397,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '/to/2020-01-07'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_missing_increment(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/2020-01-11/by/'."):
             with io.StringIO(
                     """
                     [section]
@@ -425,10 +408,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/2020-01-11/by/'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_no_range(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/by/2020-01-11'."):
             with io.StringIO(
                     """
                     [section]
@@ -438,10 +419,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/by/2020-01-11'.", ctx.exception.args[0])
-
     def test_cfg_raises_value_error_date_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "Increments on a date range must be integer number of days, '2.0' is invalid."):
             with io.StringIO(
                     """
                     [section]
@@ -450,11 +429,6 @@ class ParseConfigTest(unittest.TestCase):
                     """
             ) as f:
                 parse_config(f)
-
-        self.assertEqual(
-            "Increments on a date range must be integer number of days, '2.0' is invalid.",
-            ctx.exception.args[0]
-        )
 
     def test_cfg_raises_value_error_float_types(self):
         with self.assertRaises(ValueError) as ctx:
