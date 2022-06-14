@@ -160,6 +160,19 @@ class ParseConfigTest(unittest.TestCase):
                 self.assertNotIn('\n', val)
             self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
 
+    def test_cfg_parses_mars_int_reverse_range_incremented(self):
+        with io.StringIO(
+                """
+                [section]
+                key=value
+                list=5/to/1/by/-2
+                """
+        ) as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['5', '3', '1'])
+
     def test_cfg_parses_mars_float_range(self):
         with io.StringIO(
                 """
@@ -197,7 +210,20 @@ class ParseConfigTest(unittest.TestCase):
             actual = parse_config(f)
             for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
-            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
+            self.assertListEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5'])
+
+    def test_cfg_parses_mars_float_reverse_range_incremented_by_float(self):
+        with io.StringIO(
+                """
+                [section]
+                key=value
+                list=0.5/to/0.0/by/-0.1
+                """
+        ) as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['0.5', '0.4', '0.3', '0.2', '0.1', '0.0'])
 
     def test_cfg_parses_mars_date_range(self):
         with io.StringIO(
@@ -232,6 +258,26 @@ class ParseConfigTest(unittest.TestCase):
 
             self.assertListEqual(actual['section']['list'], [d.strftime("%Y-%m-%d") for d in dates])
 
+    def test_cfg_parses_mars_relative_date_reverse_range(self):
+        with io.StringIO(
+                """
+                [section]
+                key=value
+                list=-1/to/-3/by/-1
+                """
+        ) as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+
+            dates = [
+                datetime.date.today() + datetime.timedelta(-1),
+                datetime.date.today() + datetime.timedelta(-2),
+                datetime.date.today() + datetime.timedelta(-3),
+            ]
+
+            self.assertListEqual(actual['section']['list'], [d.strftime("%Y-%m-%d") for d in dates])
+
     def test_cfg_parses_mars_date_range_incremented(self):
         with io.StringIO(
                 """
@@ -244,6 +290,19 @@ class ParseConfigTest(unittest.TestCase):
             for key, val in actual['section'].items():
                 self.assertNotIn('\n', val)
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
+
+    def test_cfg_parses_mars_date_reverse_range_incremented(self):
+        with io.StringIO(
+                """
+                [section]
+                key=value
+                list=2020-01-12/to/2020-01-07/by/-2
+                """
+        ) as f:
+            actual = parse_config(f)
+            for key, val in actual['section'].items():
+                self.assertNotIn('\n', val)
+            self.assertListEqual(actual['section']['list'], ['2020-01-12', '2020-01-10', '2020-01-08'])
 
     def test_cfg_raises_syntax_error_missing_right(self):
         with self.assertRaises(SyntaxError) as ctx:
@@ -314,7 +373,7 @@ class ParseConfigTest(unittest.TestCase):
         )
 
     def test_cfg_raises_value_error_float_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(SyntaxError) as ctx:
             with io.StringIO(
                     """
                     [section]
@@ -325,7 +384,7 @@ class ParseConfigTest(unittest.TestCase):
                 parse_config(f)
 
         self.assertEqual(
-            "Range tokens (start='1.0', end='10.0', increment='2020-01-07') are inconsistent types.",
+            "Improper range syntax in '1.0/to/10.0/by/2020-01-07'.",
             ctx.exception.args[0]
         )
 
