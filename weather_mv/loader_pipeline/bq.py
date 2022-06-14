@@ -192,7 +192,7 @@ def prepare_coordinates(uri: str, *,
                         import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
                         open_dataset_kwargs: t.Optional[t.Dict] = None,
                         disable_in_memory_copy: bool = False,
-                        tif_metadata_for_datetime: t.Optional[str]) -> t.Iterator[
+                        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[
                                                                             t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
