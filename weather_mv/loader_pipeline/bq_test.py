@@ -130,10 +130,11 @@ class SchemaCreationTests(TestDataBase):
 
 class ExtractRowsTestBase(TestDataBase):
 
-    def extract(self, data_path, *, variables=None, area=None,
-                open_dataset_kwargs=None, import_time=DEFAULT_IMPORT_TIME) -> t.Iterator[t.Dict]:
+    def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
+                import_time=DEFAULT_IMPORT_TIME, tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
         coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area, import_time=import_time,
-                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables)
+                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables,
+                                     tif_metadata_for_datetime=tif_metadata_for_datetime)
         for uri, import_time, first_time_step, chunk in coords:
             yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
 
@@ -277,6 +278,28 @@ class ExtractRowsTest(ExtractRowsTestBase):
             with self.subTest():
                 with self.assertRaises(ValueError):
                     fetch_geo_point(lat, long)
+
+
+class ExtractRowsTifSupportTest(ExtractRowsTestBase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_data_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+
+    def test_extract_rows(self):
+        actual = next(self.extract(self.test_data_path, tif_metadata_for_datetime='start_time'))
+        expected = {
+            'dewpoint_temperature_2m': 281.09349060058594,
+            'temperature_2m': 296.8329772949219,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2020-07-01T00:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 42.09783344918844,
+            'longitude': -123.66686981141397,
+            'time': '2020-07-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833)))
+        }
+        self.assertRowsEqual(actual, expected)
 
 
 @contextmanager
