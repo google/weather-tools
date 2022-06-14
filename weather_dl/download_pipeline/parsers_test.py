@@ -62,6 +62,10 @@ class DateTest(unittest.TestCase):
 
 class ParseConfigTest(unittest.TestCase):
 
+    def _assert_not_in_dict_values(self, member, dictionary) -> None:
+        for val in dictionary.values():
+            self.assertNotIn(member, val)
+
     def test_json(self):
         with io.StringIO('{"section": {"key": "value"}}') as f:
             actual = parse_config(f)
@@ -75,71 +79,61 @@ class ParseConfigTest(unittest.TestCase):
     def test_json_produces_lists(self):
         with io.StringIO('{"section": {"key": "value", "list": [0, 10, 20, 30, 40]}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], [0, 10, 20, 30, 40])
 
     def test_json_parses_mars_list(self):
         with io.StringIO('{"section": {"key": "value", "list": "1/2/3"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
 
     def test_json_parses_mars_int_range(self):
         with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_json_parses_mars_int_range_padded(self):
         with io.StringIO('{"section": {"key": "value", "list": "00/to/05"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
 
     def test_json_parses_mars_int_range_incremented(self):
         with io.StringIO('{"section": {"key": "value", "list": "1/to/5/by/2"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
 
     def test_json_parses_mars_float_range(self):
         with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
 
     def test_json_parses_mars_float_range_incremented(self):
         with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0/by/2.0"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
 
     def test_json_parses_mars_float_range_incremented_by_float(self):
         with io.StringIO('{"section": {"key": "value", "list": "0.0/to/0.5/by/0.1"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
 
     def test_json_parses_mars_date_range(self):
         with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-09"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
 
     def test_json_parses_mars_relative_date_range(self):
         with io.StringIO('{"section": {"key": "value", "list": "-3/to/-1"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
 
             dates = [
                 datetime.date.today() + datetime.timedelta(-3),
@@ -152,8 +146,7 @@ class ParseConfigTest(unittest.TestCase):
     def test_json_parses_mars_date_range_incremented(self):
         with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-12/by/2"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_json_raises_syntax_error_missing_right(self):
@@ -217,8 +210,7 @@ class ParseConfigTest(unittest.TestCase):
     def test_json_parses_accidental_extra_whitespace(self):
         with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_json_parses_parameter_subsections(self):
@@ -266,8 +258,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['00', '10', '20', '30', '40'])
 
     def test_cfg_parses_mars_list(self):
@@ -279,8 +270,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
 
     def test_cfg_parses_mars_int_range(self):
@@ -292,8 +282,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_mars_int_range_padded(self):
@@ -305,8 +294,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
 
     def test_cfg_parses_mars_int_range_incremented(self):
@@ -318,8 +306,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
 
     def test_cfg_parses_mars_float_range(self):
@@ -331,8 +318,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented(self):
@@ -344,8 +330,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented_by_float(self):
@@ -357,8 +342,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.30000000000000004', '0.4', '0.5'])
 
     def test_cfg_parses_mars_date_range(self):
@@ -370,8 +354,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
 
     def test_cfg_parses_mars_relative_date_range(self):
@@ -383,8 +366,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
 
             dates = [
                 datetime.date.today() + datetime.timedelta(-3),
@@ -403,8 +385,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_cfg_raises_syntax_error_missing_right(self):
@@ -517,8 +498,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_not_in_dict_values('\n', actual['section'])
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_parameter_subsections(self):
