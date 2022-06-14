@@ -148,26 +148,25 @@ def typecast(key: str, value: t.Any) -> t.Any:
 
 def parse_config(file: t.IO) -> t.Dict:
     """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
+    config = None
+
     try:
         config = json.load(file)
-        config_by_section = {s: _parse_lists(v, s) for s, v in config.items()}
-        config_with_nesting = parse_subsections(config_by_section)
-        return config_with_nesting
     except json.JSONDecodeError:
         pass
 
-    file.seek(0)
+    if not config:
+        try:
+            file.seek(0)
+            config = configparser.ConfigParser()
+            config.read_file(file)
+            config = {s: dict(config.items(s)) for s in config.sections()}
+        except configparser.ParsingError:
+            return {}
 
-    try:
-        config = configparser.ConfigParser()
-        config.read_file(file)
-        config_by_section = {s: _parse_lists(dict(config.items(s)), s) for s in config.sections()}
-        config_with_nesting = parse_subsections(config_by_section)
-        return config_with_nesting
-    except configparser.ParsingError:
-        pass
-
-    return {}
+    config_by_section = {s: _parse_lists(v, s) for s, v in config.items()}
+    config_with_nesting = parse_subsections(config_by_section)
+    return config_with_nesting
 
 
 def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
