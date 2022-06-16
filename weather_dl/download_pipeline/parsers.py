@@ -148,7 +148,7 @@ def typecast(key: str, value: t.Any) -> t.Any:
 
 
 def _read_config_file(file: t.IO) -> t.Dict:
-    """Reads a `*.json` or `*.cfg` file into a configuration dictionary."""
+    """Reads `*.json` or `*.cfg` files."""
     try:
         return json.load(file)
     except json.JSONDecodeError:
@@ -307,11 +307,13 @@ def _parse_lists(config: dict, section: str = '') -> t.Dict:
     """Parses multiline blocks in *.cfg and *.json files as lists."""
     for key, val in config.items():
         # Checks str type for backward compatibility since it also support "padding": 0 in json config
-        if isinstance(val, str):
-            if '/' in val and 'parameters' not in section:
-                config[key] = parse_mars_syntax(val)
-            elif '\n' in val:
-                config[key] = _splitlines(val)
+        if not isinstance(val, str):
+            continue
+
+        if '/' in val and 'parameters' not in section:
+            config[key] = parse_mars_syntax(val)
+        elif '\n' in val:
+            config[key] = _splitlines(val)
 
     return config
 
