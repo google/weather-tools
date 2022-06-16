@@ -147,10 +147,9 @@ def typecast(key: str, value: t.Any) -> t.Any:
     return converted
 
 
-def parse_config(file: t.IO) -> t.Dict:
-    """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
+def _read_config_file(file: t.IO) -> t.Dict:
+    """Reads `*.json` or `*.cfg` files."""
     try:
-        # TODO(b/175429166): JSON files do not support MARs range syntax.
         return json.load(file)
     except json.JSONDecodeError:
         pass
@@ -160,13 +159,18 @@ def parse_config(file: t.IO) -> t.Dict:
     try:
         config = configparser.ConfigParser()
         config.read_file(file)
-        config_by_section = {s: _parse_lists(config, s) for s in config.sections()}
-        config_with_nesting = parse_subsections(config_by_section)
-        return config_with_nesting
+        config = {s: dict(config.items(s)) for s in config.sections()}
+        return config
     except configparser.ParsingError:
-        pass
+        return {}
 
-    return {}
+
+def parse_config(file: t.IO) -> t.Dict:
+    """Parses a `*.json` or `*.cfg` file into a configuration dictionary."""
+    config = _read_config_file(file)
+    config_by_section = {s: _parse_lists(v, s) for s, v in config.items()}
+    config_with_nesting = parse_subsections(config_by_section)
+    return config_with_nesting
 
 
 def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
@@ -299,11 +303,13 @@ def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> 
     return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + offset, increment))
 
 
-def _parse_lists(config_parser: configparser.ConfigParser, section: str = '') -> t.Dict:
-    """Parses multiline blocks in *.cfg files as lists."""
-    config = dict(config_parser.items(section))
-
+def _parse_lists(config: dict, section: str = '') -> t.Dict:
+    """Parses multiline blocks in *.cfg and *.json files as lists."""
     for key, val in config.items():
+        # Checks str type for backward compatibility since it also support "padding": 0 in json config
+        if not isinstance(val, str):
+            continue
+
         if '/' in val and 'parameters' not in section:
             config[key] = parse_mars_syntax(val)
         elif '\n' in val:

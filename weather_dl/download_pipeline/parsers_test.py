@@ -62,15 +62,149 @@ class DateTest(unittest.TestCase):
 
 class ParseConfigTest(unittest.TestCase):
 
+    def _assert_no_newlines_in_section(self, dictionary) -> None:
+        for val in dictionary['section'].values():
+            self.assertNotIn('\n', val)
+
     def test_json(self):
-        with io.StringIO('{"key": "value"}') as f:
+        with io.StringIO('{"section": {"key": "value"}}') as f:
             actual = parse_config(f)
-            self.assertDictEqual(actual, {'key': 'value'})
+            self.assertDictEqual(actual, {'section': {'key': 'value'}})
 
     def test_bad_json(self):
-        with io.StringIO('{"key": "value", "brokenKey": }') as f:
+        with io.StringIO('{"section": {"key": "value", "brokenKey": }}') as f:
             actual = parse_config(f)
             self.assertDictEqual(actual, {})
+
+    def test_json_produces_lists(self):
+        with io.StringIO('{"section": {"key": "value", "list": [0, 10, 20, 30, 40]}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], [0, 10, 20, 30, 40])
+
+    def test_json_parses_mars_list(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/2/3"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
+
+    def test_json_parses_mars_int_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
+
+    def test_json_parses_mars_int_range_padded(self):
+        with io.StringIO('{"section": {"key": "value", "list": "00/to/05"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
+
+    def test_json_parses_mars_int_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5/by/2"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
+
+    def test_json_parses_mars_float_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
+
+    def test_json_parses_mars_float_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1.0/to/5.0/by/2.0"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
+
+    def test_json_parses_mars_float_range_incremented_by_float(self):
+        with io.StringIO('{"section": {"key": "value", "list": "0.0/to/0.5/by/0.1"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5'])
+
+    def test_json_parses_mars_date_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-09"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
+
+    def test_json_parses_mars_relative_date_range(self):
+        with io.StringIO('{"section": {"key": "value", "list": "-3/to/-1"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+
+            dates = [
+                datetime.date.today() + datetime.timedelta(-3),
+                datetime.date.today() + datetime.timedelta(-2),
+                datetime.date.today() + datetime.timedelta(-1),
+            ]
+
+            self.assertListEqual(actual['section']['list'], [d.strftime("%Y-%m-%d") for d in dates])
+
+    def test_json_parses_mars_date_range_incremented(self):
+        with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-12/by/2"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
+
+    def test_json_raises_syntax_error_missing_right(self):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/'."):
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_syntax_error_missing_left(self):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '/to/2020-01-07'."):
+            with io.StringIO('{"section": {"key": "value", "list": "/to/2020-01-07"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_syntax_error_missing_increment(self):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/2020-01-11/by/'."):
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_syntax_error_no_range(self):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/by/2020-01-11'."):
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/by/2020-01-11"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_value_error_date_types(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Increments on a date range must be integer number of days, '2.0' is invalid."
+        ):
+            with io.StringIO('{"section": {"key": "value", "list": "2020-01-07/to/2020-01-11/by/2.0"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_value_error_float_types(self):
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '1.0/to/10.0/by/2020-01-07'."):
+            with io.StringIO('{"section": {"key": "value", "list": "1.0/to/10.0/by/2020-01-07"}}') as f:
+                parse_config(f)
+
+    def test_json_raises_value_error_int_types(self):
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
+            with io.StringIO('{"section": {"key": "value", "list": "1/to/10/by/2.0"}}') as f:
+                parse_config(f)
+
+    def test_json_parses_accidental_extra_whitespace(self):
+        with io.StringIO('{"section": {"key": "value", "list": "1/to/5"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
+
+    def test_json_parses_parameter_subsections(self):
+        with io.StringIO('{"parameters": {"api_url": "https://google.com/", \
+                                          "alice": {"api_key": "123"}, \
+                                          "bob": {"api_key": "456"}}}') as f:
+            actual = parse_config(f)
+            self.assertEqual(actual, {
+                'parameters': {
+                    'api_url': 'https://google.com/',
+                    'alice': {'api_key': '123'},
+                    'bob': {'api_key': '456'},
+                },
+            })
 
     def test_cfg(self):
         with io.StringIO(
@@ -104,8 +238,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['00', '10', '20', '30', '40'])
 
     def test_cfg_parses_mars_list(self):
@@ -117,8 +250,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1', '2', '3'])
 
     def test_cfg_parses_mars_int_range(self):
@@ -130,8 +262,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_mars_int_range_padded(self):
@@ -143,8 +274,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['00', '01', '02', '03', '04', '05'])
 
     def test_cfg_parses_mars_int_range_incremented(self):
@@ -156,8 +286,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1', '3', '5'])
 
     def test_cfg_parses_mars_int_reverse_range_incremented(self):
@@ -169,8 +298,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['5', '3', '1'])
 
     def test_cfg_parses_mars_float_range(self):
@@ -182,8 +310,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1.0', '2.0', '3.0', '4.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented(self):
@@ -195,8 +322,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1.0', '3.0', '5.0'])
 
     def test_cfg_parses_mars_float_range_incremented_by_float(self):
@@ -208,8 +334,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5'])
 
     def test_cfg_parses_mars_float_reverse_range_incremented_by_float(self):
@@ -221,8 +346,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['0.5', '0.4', '0.3', '0.2', '0.1', '0.0'])
 
     def test_cfg_parses_mars_date_range(self):
@@ -234,8 +358,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-08', '2020-01-09'])
 
     def test_cfg_parses_mars_relative_date_range(self):
@@ -247,8 +370,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
 
             dates = [
                 datetime.date.today() + datetime.timedelta(-3),
@@ -287,8 +409,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['2020-01-07', '2020-01-09', '2020-01-11'])
 
     def test_cfg_parses_mars_date_reverse_range_incremented(self):
@@ -305,7 +426,7 @@ class ParseConfigTest(unittest.TestCase):
             self.assertListEqual(actual['section']['list'], ['2020-01-12', '2020-01-10', '2020-01-08'])
 
     def test_cfg_raises_syntax_error_missing_right(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/'."):
             with io.StringIO(
                     """
                     [section]
@@ -315,10 +436,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_missing_left(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '/to/2020-01-07'."):
             with io.StringIO(
                     """
                     [section]
@@ -328,10 +447,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '/to/2020-01-07'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_missing_increment(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/to/2020-01-11/by/'."):
             with io.StringIO(
                     """
                     [section]
@@ -341,10 +458,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/to/2020-01-11/by/'.", ctx.exception.args[0])
-
     def test_cfg_raises_syntax_error_no_range(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '2020-01-07/by/2020-01-11'."):
             with io.StringIO(
                     """
                     [section]
@@ -354,10 +469,11 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual("Improper range syntax in '2020-01-07/by/2020-01-11'.", ctx.exception.args[0])
-
     def test_cfg_raises_value_error_date_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(
+            ValueError,
+            "Increments on a date range must be integer number of days, '2.0' is invalid."
+        ):
             with io.StringIO(
                     """
                     [section]
@@ -367,13 +483,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual(
-            "Increments on a date range must be integer number of days, '2.0' is invalid.",
-            ctx.exception.args[0]
-        )
-
     def test_cfg_raises_value_error_float_types(self):
-        with self.assertRaises(SyntaxError) as ctx:
+        with self.assertRaisesRegex(SyntaxError, "Improper range syntax in '1.0/to/10.0/by/2020-01-07'."):
             with io.StringIO(
                     """
                     [section]
@@ -383,13 +494,8 @@ class ParseConfigTest(unittest.TestCase):
             ) as f:
                 parse_config(f)
 
-        self.assertEqual(
-            "Improper range syntax in '1.0/to/10.0/by/2020-01-07'.",
-            ctx.exception.args[0]
-        )
-
     def test_cfg_raises_value_error_int_types(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaisesRegex(ValueError, "inconsistent types."):
             with io.StringIO(
                     """
                     [section]
@@ -398,11 +504,6 @@ class ParseConfigTest(unittest.TestCase):
                     """
             ) as f:
                 parse_config(f)
-
-        self.assertEqual(
-            "Range tokens (start='1', end='10', increment='2.0') are inconsistent types.",
-            ctx.exception.args[0]
-        )
 
     def test_cfg_parses_accidental_extra_whitespace(self):
         with io.StringIO(
@@ -414,8 +515,7 @@ class ParseConfigTest(unittest.TestCase):
                 """
         ) as f:
             actual = parse_config(f)
-            for key, val in actual['section'].items():
-                self.assertNotIn('\n', val)
+            self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
     def test_cfg_parses_parameter_subsections(self):
