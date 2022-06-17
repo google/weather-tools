@@ -42,7 +42,7 @@ weather_mv_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
-    "rioxarray"
+    "rioxarray",
 ]
 
 weather_sp_requirements = [
@@ -103,6 +103,7 @@ setup(
     tests_require=test_requirements,
     extras_require={
         'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
+        'metview': ['metview'],
         'test': all_test_requirements,
     },
     project_urls={

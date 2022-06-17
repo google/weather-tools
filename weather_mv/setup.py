@@ -37,7 +37,8 @@ base_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
-    "rioxarray"
+    "rioxarray",
+    "metview",
 ]
 
 
@@ -79,11 +80,12 @@ class build(_build):  # pylint: disable=invalid-name
 # TODO(BEAM-3237): Output from the custom commands are missing from the logs.
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
-"""Install the ecCodes binary from ECMWF."""
+"""Install the ecCodes and MetView binaries from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev'
+        'apt-get --assume-yes install libeccodes-dev',
+        'apt-get --assume-yes install metview',
     ]
 ]
 

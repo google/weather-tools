@@ -14,26 +14,26 @@
 """Pipeline for reflecting lots of NetCDF objects into a BigQuery table."""
 
 import argparse
-import datetime
 import json
 import logging
-import tempfile
-import typing as t
+import os
 import signal
 import sys
-import uuid
+import tempfile
 import traceback
-import os
+import typing as t
+import uuid
 from functools import partial
+from urllib.parse import urlparse
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
-from google.cloud import bigquery, storage
 from google.api_core.exceptions import BadRequest, NotFound
-from urllib.parse import urlparse
+from google.cloud import bigquery, storage
 
 from .bq import ToBigQuery
+from .regrid import Regrid
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
@@ -167,14 +167,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     )
     parser.add_argument('-i', '--uris', type=str, required=True,
                         help="URI prefix matching input netcdf objects, e.g. 'gs://ecmwf/era5/era5-2015-'.")
-    parser.add_argument('-o', '--output_table', type=str, required=True,
-                        help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table will be "
-                             "created if it doesn't exist.")
-    parser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
-                        help='Target variables (or coordinates) for the BigQuery schema. Default: will import all '
-                             'data variables as columns.')
-    parser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
-                        help='Target area in [N, W, S, E]. Default: Will include all available area.')
     parser.add_argument('--topic', type=str,
                         help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
                              "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
@@ -184,27 +176,19 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     parser.add_argument('--num_shards', type=int, default=5,
                         help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
                              'the `topic` flag. Default: 5 shards.')
-    parser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
-                        help=("When writing data to BigQuery, record that data import occurred at this "
-                              "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
-    parser.add_argument('--infer_schema', action='store_true', default=False,
-                        help='Download one file in the URI pattern and infer a schema from that file. Default: off')
-    parser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
-                        help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
-    parser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
-                        help='The size of the chunk of coordinates used for extracting vector data into BigQuery. '
-                             'Used to tune parallel uploads.')
-    parser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
-                        help='Metadata that contains tif file\'s timestamp. '
-                             'Applicable only for tif files.')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
                         help='Preview the load into BigQuery. Default: off')
-    parser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
-                        help="To disable in-memory copying of dataset. Default: False")
     parser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                         help='Skip validation of regions for data migration. Default: off')
+    subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
-    known_args, pipeline_args = parser.parse_known_args(argv[1:])
+    bq_parser = subparsers.add_parser('bq', help='Move data into Google BigQuery')
+    ToBigQuery.add_parser_arguments(bq_parser)
+
+    rg_parser = subparsers.add_parser('regrid', help='Move and regrid grib data with MetView.')
+    Regrid.add_parser_arguments(rg_parser)
+
+    known_args, pipeline_args = parser.parse_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 

@@ -21,13 +21,13 @@ class TestCLI(unittest.TestCase):
 
     def setUp(self) -> None:
         self.base_cli_args = (
-            'weather-mv '
+            'weather-mv bq '
             '-i weather_mv/test_data/test_data_2018*.nc '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893'
         ).split()
         self.tif_base_cli_args = (
-            'weather-mv '
+            'weather-mv bq '
             '-i weather_mv/test_data/test_data_tif_start_time.tif '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893'

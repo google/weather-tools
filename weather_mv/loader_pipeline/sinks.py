@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import argparse
 import contextlib
 import dataclasses
 import logging
@@ -38,17 +39,17 @@ logger.setLevel(logging.INFO)
 
 @dataclasses.dataclass
 class ToDataSink(abc.ABC, beam.PTransform):
-    variables: t.List[str]
-    area: t.Tuple[int, int, int, int]
-    xarray_open_dataset_kwargs: t.Dict
     dry_run: bool
-    disable_in_memory_copy: bool
-    tif_metadata_for_datetime: t.Optional[str]
 
     @classmethod
     def from_kwargs(cls, **kwargs):
         fields = [f.name for f in dataclasses.fields(cls)]
         return cls(**{k: v for k, v, in kwargs.items() if k in fields})
+
+    @classmethod
+    @abc.abstractmethod
+    def add_parser_arguments(cls, subparser: argparse.ArgumentParser) -> None:
+        pass
 
 
 def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
@@ -68,6 +69,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
+
     def _get_band_data(i):
         band = ds.band_data[i]
         band.name = ds.band_data.attrs['long_name'][i]
@@ -92,7 +94,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
         datetime_value_ms = None
         try:
             datetime_value_ms = f.tags()[tif_metadata_for_datetime]
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms)/1000.0)})
+            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
@@ -133,32 +135,36 @@ def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: 
 
 
 @contextlib.contextmanager
+def open_local(uri: str) -> t.Iterator[str]:
+    """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
+    with FileSystems().open(uri) as source_file:
+        with tempfile.NamedTemporaryFile() as dest_file:
+            shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
+            dest_file.flush()
+            dest_file.seek(0)
+            yield dest_file.name
+
+
+@contextlib.contextmanager
 def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
-        # Copy netcdf or grib object from cloud storage, like GCS, to local file
-        # so xarray can open it with mmap instead of copying the entire thing
-        # into memory.
-        with FileSystems().open(uri) as source_file:
-            with tempfile.NamedTemporaryFile() as dest_file:
-                shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
-                dest_file.flush()
-                dest_file.seek(0)
+        # By copying the file locally, xarray can open it much faster via an in-memory copy.
+        with open_local(uri) as local_path:
+            _, uri_extension = os.path.splitext(uri)
+            xr_dataset: xr.Dataset = __open_dataset_file(local_path, uri_extension, open_dataset_kwargs)
 
-                _, uri_extension = os.path.splitext(uri)
-                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name, uri_extension, open_dataset_kwargs)
+            if uri_extension == '.tif':
+                xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
 
-                if uri_extension == '.tif':
-                    xr_dataset = _preprocess_tif(xr_dataset, dest_file.name, tif_metadata_for_datetime)
+            if not disable_in_memory_copy:
+                xr_dataset = _make_grib_dataset_inmem(xr_dataset)
 
-                if not disable_in_memory_copy:
-                    xr_dataset = _make_grib_dataset_inmem(xr_dataset)
+            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
-                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
-
-                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-                yield xr_dataset
+            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+            yield xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')

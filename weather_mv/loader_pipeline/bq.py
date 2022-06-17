@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import argparse
 import dataclasses
 import datetime
+import json
 import logging
 import typing as t
 from pprint import pformat
@@ -58,11 +59,18 @@ class ToBigQuery(ToDataSink):
     Attributes:
         example_uri: URI to a weather data file, used to infer the BigQuery schema.
         output_table: The destination for where data should be written in BigQuery
-        infer_schema: If true, this sink will attempt to read in an example data file
-          read all its variables, and generate a BigQuery schema.
+        variables: Target variables (or coodinates) for the BigQuery schema. By default,
+          all data variables will be imported as columns.
+        area: Target area in [N, W, S, E]; by default, all available area is included.
         import_time: The time when data was imported. This is used as a simple way to
           version data — variables can be distinguished based on import time. If None,
           the system will recompute the current time upon row extraction for each file.
+        infer_schema: If true, this sink will attempt to read in an example data file
+          read all its variables, and generate a BigQuery schema.
+        xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
+        disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
+        tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
+          this location for a timestamp.
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
@@ -71,9 +79,41 @@ class ToBigQuery(ToDataSink):
     """
     example_uri: str
     output_table: str
-    infer_schema: bool
+    variables: t.List[str]
+    area: t.Tuple[int, int, int, int]
     import_time: t.Optional[datetime.datetime]
+    infer_schema: bool
+    xarray_open_dataset_kwargs: t.Dict
+    disable_in_memory_copy: bool
+    tif_metadata_for_datetime: t.Optional[str]
     coordinate_chunk_size: int = 10_000
+
+    @classmethod
+    def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
+        subparser.add_argument('-o', '--output_table', type=str, required=True,
+                               help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
+                                    "will be created if it doesn't exist.")
+        subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
+                               help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
+                                    'all data variables as columns.')
+        subparser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
+                               help='Target area in [N, W, S, E]. Default: Will include all available area.')
+        subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
+                               help=("When writing data to BigQuery, record that data import occurred at this "
+                                     "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
+        subparser.add_argument('--infer_schema', action='store_true', default=False,
+                               help='Download one file in the URI pattern and infer a schema from that file. Default: '
+                                    'off')
+        subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
+                               help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
+        subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
+                               help="To disable in-memory copying of dataset. Default: False")
+        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
+                               help='Metadata that contains tif file\'s timestamp. '
+                                    'Applicable only for tif files.')
+        subparser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
+                               help='The size of the chunk of coordinates used for extracting vector data into '
+                                    'BigQuery. Used to tune parallel uploads.')
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -123,8 +163,8 @@ class ToBigQuery(ToDataSink):
 
         if not self.dry_run:
             (
-                extracted_rows
-                | 'WriteToBigQuery' >> WriteToBigQuery(
+                    extracted_rows
+                    | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=self.table.project,
                         dataset=self.table.dataset_id,
                         table=self.table.table_id,
@@ -133,8 +173,8 @@ class ToBigQuery(ToDataSink):
             )
         else:
             (
-                extracted_rows
-                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+                    extracted_rows
+                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
 
 
@@ -193,7 +233,7 @@ def prepare_coordinates(uri: str, *,
                         open_dataset_kwargs: t.Optional[t.Dict] = None,
                         disable_in_memory_copy: bool = False,
                         tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[
-                                                                            t.Tuple[str, str, str, pd.DataFrame]]:
+    t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
