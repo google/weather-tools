@@ -62,6 +62,8 @@ jobs:
     - name: Install weather-tools
       run: |
         pip install -e .[test]
+    - name: Check MetView's installation
+      run: python -m metview selfcheck
     - name: Run unit tests
       run: pytest
   lint:
