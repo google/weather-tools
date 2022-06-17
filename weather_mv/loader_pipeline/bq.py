@@ -225,15 +225,15 @@ def fetch_geo_point(lat: float, long: float) -> str:
     return point
 
 
-def prepare_coordinates(uri: str, *,
-                        coordinate_chunk_size: int,
-                        variables: t.Optional[t.List[str]] = None,
-                        area: t.Optional[t.List[int]] = None,
-                        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        disable_in_memory_copy: bool = False,
-                        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[
-    t.Tuple[str, str, str, pd.DataFrame]]:
+def prepare_coordinates(
+        uri: str, *,
+        coordinate_chunk_size: int,
+        variables: t.Optional[t.List[str]] = None,
+        area: t.Optional[t.List[int]] = None,
+        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+        open_dataset_kwargs: t.Optional[t.Dict] = None,
+        disable_in_memory_copy: bool = False,
+        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 

@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import json
 import logging
 import typing as t
 import unittest
 from contextlib import contextmanager
 from time import perf_counter
-import geojson
 
+import geojson
 import numpy as np
 import pandas as pd
+import simplejson
 import xarray as xr
 from google.cloud.bigquery import SchemaField
 
@@ -138,11 +140,20 @@ class ExtractRowsTestBase(TestDataBase):
         for uri, import_time, first_time_step, chunk in coords:
             yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
 
+    def assertGeopointEqual(self, actual: str, expected: str) -> None:
+        expected_json, actual_json = geojson.loads(expected), geojson.loads(actual)
+        self.assertEqual(actual_json['type'], expected_json['type'])
+        self.assertTrue(np.allclose(actual_json['coordinates'], expected_json['coordinates']))
+
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
         self.assertEqual(expected.keys(), actual.keys())
         for key in expected.keys():
             if isinstance(expected[key], str):
-                self.assertEqual(actual[key], expected[key])
+                # Handle Geopoint JSON strings...
+                try:
+                    self.assertGeopointEqual(actual[key], expected[key])
+                except (simplejson.JSONDecodeError, json.JSONDecodeError, KeyError):
+                    self.assertEqual(actual[key], expected[key])
                 continue
             self.assertAlmostEqual(actual[key], expected[key], places=4)
             self.assertNotIsInstance(actual[key], np.dtype)

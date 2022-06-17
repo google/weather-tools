@@ -33,6 +33,7 @@ class TestCLI(unittest.TestCase):
             '--import_time 2022-02-04T22:22:12.125893'
         ).split()
         self.base_cli_known_args = {
+            'subcommand': 'bq',
             'uris': 'weather_mv/test_data/test_data_2018*.nc',
             'output_table': 'myproject.mydataset.mytable',
             'dry_run': False,

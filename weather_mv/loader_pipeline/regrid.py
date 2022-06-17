@@ -30,6 +30,7 @@ from .sinks import ToDataSink, open_local
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 @dataclasses.dataclass
 class Regrid(ToDataSink):
     output_path: str
