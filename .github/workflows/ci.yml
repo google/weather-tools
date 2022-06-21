@@ -49,13 +49,14 @@ jobs:
         sudo apt-get update
         sudo apt-get --assume-yes install libeccodes-dev
         sudo apt-get --assume-yes install wget
+    - name: Setup conda
+        uses: s-weigand/setup-conda@v1
+        with:
+          update-conda: true
+          python-version: ${{ matrix.python-version }}
+          conda-channels: anaconda, conda-forge
     - name: Install MetView with Anaconda
       run: |
-        wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-        bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda
-        eval "$($HOME/miniconda/bin/conda shell.bash hook)"
-        conda init
-        conda update -y -n base -c defaults conda
         conda install -y metview-batch -c conda-forge
     - name: Get pip cache dir
       id: pip-cache
