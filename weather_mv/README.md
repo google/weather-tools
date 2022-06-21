@@ -100,7 +100,6 @@ Upload all variables, but for a specific geographic region (for example, the con
 ```bash
 weather-mv --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location gs://$BUCKET/tmp \ 
            --area 49.34 -124.68 24.74 -66.95 \
            --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
@@ -111,7 +110,6 @@ Control how weather data is opened with XArray.
 ```bash
 weather-mv --uris "gs://your-bucket/*.grib" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location gs://$BUCKET/tmp \ 
            --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
            --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
