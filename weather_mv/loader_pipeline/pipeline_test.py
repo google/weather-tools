@@ -24,20 +24,22 @@ class TestCLI(unittest.TestCase):
             'weather-mv bq '
             '-i weather_mv/test_data/test_data_2018*.nc '
             '-o myproject.mydataset.mytable '
-            '--import_time 2022-02-04T22:22:12.125893'
+            '--import_time 2022-02-04T22:22:12.125893 '
+            '-s'
         ).split()
         self.tif_base_cli_args = (
             'weather-mv bq '
             '-i weather_mv/test_data/test_data_tif_start_time.tif '
             '-o myproject.mydataset.mytable '
-            '--import_time 2022-02-04T22:22:12.125893'
+            '--import_time 2022-02-04T22:22:12.125893 '
+            '-s'
         ).split()
         self.base_cli_known_args = {
             'subcommand': 'bq',
             'uris': 'weather_mv/test_data/test_data_2018*.nc',
             'output_table': 'myproject.mydataset.mytable',
             'dry_run': False,
-            'skip_region_validation': False,
+            'skip_region_validation': True,
             'import_time': '2022-02-04T22:22:12.125893',
             'infer_schema': False,
             'num_shards': 5,
@@ -70,7 +72,7 @@ class TestCLI(unittest.TestCase):
             run(self.base_cli_args + '--area 1 2 3 4 5'.split())
 
         known_args, pipeline_args = run(self.base_cli_args + '--area 1 2 3 4'.split())
-        self.assertEqual(pipeline_args, [])
+        self.assertEqual(pipeline_args, ['--save_main_session', 'true'])
         self.assertEqual(vars(known_args), {
             **self.base_cli_known_args,
             'area': [1, 2, 3, 4]
@@ -78,7 +80,7 @@ class TestCLI(unittest.TestCase):
 
     def test_topic_creates_a_streaming_pipeline(self):
         _, pipeline_args = run(self.base_cli_args + '--topic projects/myproject/topics/my-topic'.split())
-        self.assertEqual(pipeline_args, ['--streaming', 'true'])
+        self.assertEqual(pipeline_args, ['--streaming', 'true', '--save_main_session', 'true'])
 
     def test_accepts_json_string_for_xarray_open(self):
         xarray_kwargs = dict(engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}})

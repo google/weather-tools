@@ -33,6 +33,7 @@ logger.setLevel(logging.INFO)
 
 @dataclasses.dataclass
 class Regrid(ToDataSink):
+
     output_path: str
     regrid_kwargs: t.Dict
     to_netcdf: bool = False
@@ -46,6 +47,10 @@ class Regrid(ToDataSink):
                                     """Will default to '{"grid": [0.25, 0.25]}'.""")
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
+
+    @classmethod
+    def validate_arguments(cls, known_args: argparse.Namespace, pipeline_options: t.List[str]) -> None:
+        pass
 
     def target_from(self, uri: str) -> str:
         """Create the target path from the input URI.

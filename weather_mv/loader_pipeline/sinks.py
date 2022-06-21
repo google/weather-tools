@@ -51,6 +51,11 @@ class ToDataSink(abc.ABC, beam.PTransform):
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser) -> None:
         pass
 
+    @classmethod
+    @abc.abstractmethod
+    def validate_arguments(cls, known_args: argparse.Namespace, pipeline_options: t.List[str]) -> None:
+        pass
+
 
 def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     """Copies all the vars in-memory to reduce disk seeks every time a single row is processed.
