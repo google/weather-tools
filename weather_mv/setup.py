@@ -85,7 +85,13 @@ CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
-        'apt-get --assume-yes install metview',
+        'apt-get --assume-yes install wget',
+        'wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
+        'bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda',
+        'eval "$($HOME/miniconda/bin/conda shell.bash hook)"',
+        'conda init',
+        'conda update -y -n base -c defaults conda',
+        'conda install -y metview-batch -c conda-forge',
     ]
 ]
 
