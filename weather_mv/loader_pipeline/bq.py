@@ -19,6 +19,7 @@ import typing as t
 from pprint import pformat
 import pandas as pd
 import math
+import re
 
 import apache_beam as beam
 import geojson
@@ -80,16 +81,18 @@ class ToBigQuery(ToDataSink):
         # Define table from user input
         if self.variables and not self.infer_schema:
             logger.info('Creating schema from input variables.')
-            table_schema = to_table_schema(
+            table_schema = set(to_table_schema(
                 [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
                 [(var, 'FLOAT64') for var in self.variables]
-            )
+            ))
         else:
             logger.info('Inferring schema from data.')
             with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
-                              self.tif_metadata_for_datetime) as open_ds:
-                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
-                table_schema = dataset_to_table_schema(ds)
+                              self.tif_metadata_for_datetime) as open_ds_list:
+                table_schema = set()
+                for open_ds in open_ds_list:
+                    ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
+                    table_schema = table_schema.union(set(dataset_to_table_schema(ds)))
 
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
@@ -149,11 +152,30 @@ def map_dtype_to_sql_type(var_type: np.dtype) -> str:
     raise ValueError(f"Unknown mapping from '{var_type}' to SQL type")
 
 
+def sanitize_field_name(name: str) -> str:
+    """Sanitize BigQuery field name based on https://cloud.google.com/bigquery/docs/schemas#column_names."""
+    sanitized_name = None
+    # The maximum column name length is 300 characters.
+    sanitized_name = name[:300]
+
+    # Remove characters from column name other than letters (a-z, A-Z), numbers (0-9), and underscores (_).
+    sanitized_name = re.sub(r'[^a-zA-Z0-9_]+', '', sanitized_name)
+
+    # Adding underscore in the beginning if the column name starts with numbers (0-9).
+    if re.match(r'[0-9]', sanitized_name):
+        sanitized_name = '_' + sanitized_name
+
+    if sanitized_name != name:
+        logger.warning(f'Due to sanitization, the field name {name!r} changed to {sanitized_name!r} in BiqQuery.')
+
+    return sanitized_name
+
+
 def dataset_to_table_schema(ds: xr.Dataset) -> t.List[bigquery.SchemaField]:
     """Returns a BigQuery table schema able to store the data in 'ds'."""
     # Get the columns and data types for all variables in the dataframe
     columns = [
-        (str(col), map_dtype_to_sql_type(ds.variables[col].dtype))
+        (sanitize_field_name(str(col)), map_dtype_to_sql_type(ds.variables[col].dtype))
         for col in ds.variables.keys() if ds.variables[col].size != 0
     ]
 
@@ -197,38 +219,42 @@ def prepare_coordinates(uri: str, *,
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
-    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, tif_metadata_for_datetime) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
-        if area:
-            n, w, s, e = area
-            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, tif_metadata_for_datetime) as open_ds_list:
+        for ds in open_ds_list:
+            data_ds: xr.Dataset = _only_target_vars(ds, variables)
+            if area:
+                n, w, s, e = area
+                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        # Re-calculate import time for streaming extractions.
-        if not import_time:
-            import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+            # Re-calculate import time for streaming extractions.
+            if not import_time:
+                import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-        first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
-        first_time_step = to_json_serializable_type(first_ts_raw)
+            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values,
+                                                                np.ndarray) else data_ds.time.values
+            first_time_step = to_json_serializable_type(first_ts_raw)
 
-        # Add coordinates for 0-dimension file.
-        if len(data_ds.to_array().shape) == 1:
-            for coord in data_ds.coords:
-                data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
+            # Add coordinates for 0-dimension file.
+            if len(data_ds.to_array().shape) == 1:
+                for coord in data_ds.coords:
+                    data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
 
-        df = data_ds.to_dataframe().reset_index()
+            df = data_ds.to_dataframe().reset_index()
 
-        # Add un-indexed coordinates and drop unwanted variables.
-        if variables:
-            indices = list(ds.coords.indexes.keys())
-            to_keep = variables + indices
-            to_drop = set(df.columns) - set(to_keep)
-            df.drop(to_drop, axis=1, inplace=True)
+            # Add un-indexed coordinates and drop unwanted variables.
+            if variables:
+                indices = list(ds.coords.indexes.keys())
+                to_keep = variables + indices
+                to_drop = set(df.columns) - set(to_keep)
+                df.drop(to_drop, axis=1, inplace=True)
 
-        num_chunks = math.ceil(len(df) / coordinate_chunk_size)
-        for i in range(num_chunks):
-            chunk = df[i * coordinate_chunk_size:(i + 1) * coordinate_chunk_size]
-            yield uri, import_time, first_time_step, chunk
+            df.columns = [sanitize_field_name(col_name) for col_name in df.columns]
+
+            num_chunks = math.ceil(len(df) / coordinate_chunk_size)
+            for i in range(num_chunks):
+                chunk = df[i * coordinate_chunk_size:(i + 1) * coordinate_chunk_size]
+                yield uri, import_time, first_time_step, chunk
 
 
 def _convert_time(val) -> t.Any:

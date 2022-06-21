@@ -51,9 +51,9 @@ class OpenDatasetTest(TestDataBase):
 
     def test_accepts_xarray_kwargs(self):
         with open_dataset(self.test_data_path) as ds1:
-            self.assertIn('d2m', ds1)
+            self.assertIn('d2m', ds1[0])
         with open_dataset(self.test_data_path, {'drop_variables': 'd2m'}) as ds2:
-            self.assertNotIn('d2m', ds2)
+            self.assertNotIn('d2m', ds2[0])
 
     def test_opens_tif_files(self):
         with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:

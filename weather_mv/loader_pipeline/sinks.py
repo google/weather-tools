@@ -27,6 +27,7 @@ import datetime
 import apache_beam as beam
 import rasterio
 import xarray as xr
+import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
@@ -51,16 +52,19 @@ class ToDataSink(abc.ABC, beam.PTransform):
         return cls(**{k: v for k, v, in kwargs.items() if k in fields})
 
 
-def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
+def _make_grib_dataset_inmem(grib_ds: t.List[xr.Dataset]) -> t.List[xr.Dataset]:
     """Copies all the vars in-memory to reduce disk seeks every time a single row is processed.
 
     This also removes the need to keep the backing temp source file around.
     """
-    data_ds = grib_ds.copy(deep=True)
-    for v in grib_ds.variables:
-        if v not in data_ds.coords:
-            data_ds[v].variable.values = grib_ds[v].variable.values
-    return data_ds
+    data_ds_list = []
+    for obj in grib_ds:
+        data_ds = obj.copy(deep=True)
+        for v in obj.variables:
+            if v not in data_ds.coords:
+                data_ds[v].variable.values = obj[v].variable.values
+        data_ds_list.append(data_ds)
+    return data_ds_list
 
 
 def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str) -> xr.Dataset:
@@ -105,36 +109,27 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: t.Optional[t.Dict] = None):
     """Open the dataset at 'uri'"""
     if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs)
+        return [xr.open_dataset(filename, **open_dataset_kwargs)]
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
     if uri_extension == '.tif':
-        return xr.open_dataset(filename, engine='rasterio')
+        return [xr.open_dataset(filename, engine='rasterio')]
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
-        return xr.open_dataset(filename)
+        return [xr.open_dataset(filename)]
     except ValueError as e:
         e_str = str(e)
         if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
             raise
 
-    # Trying with explicit engine for cfgrib.
-    try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
-    except ValueError as e:
-        if "multiple values for key 'edition'" not in str(e):
-            raise
-    logger.warning("Assuming grib edition 1.")
-    # Try with edition 1
-    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+    logger.warning("Assuming grib.")
+    return cfgrib.open_datasets(filename)
 
 
 @contextlib.contextmanager
 def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.List[xr.Dataset]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # Copy netcdf or grib object from cloud storage, like GCS, to local file
@@ -147,15 +142,16 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disab
                 dest_file.seek(0)
 
                 _, uri_extension = os.path.splitext(uri)
-                xr_dataset: xr.Dataset = __open_dataset_file(dest_file.name, uri_extension, open_dataset_kwargs)
+                xr_dataset: t.List[xr.Dataset] = __open_dataset_file(dest_file.name, uri_extension, open_dataset_kwargs)
 
                 if uri_extension == '.tif':
-                    xr_dataset = _preprocess_tif(xr_dataset, dest_file.name, tif_metadata_for_datetime)
+                    xr_dataset = [_preprocess_tif(xr_dataset[0], dest_file.name, tif_metadata_for_datetime)]
 
                 if not disable_in_memory_copy:
                     xr_dataset = _make_grib_dataset_inmem(xr_dataset)
 
-                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+                for ds in xr_dataset:
+                    logger.info(f'opened dataset size: {ds.nbytes}')
 
                 beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
                 yield xr_dataset
