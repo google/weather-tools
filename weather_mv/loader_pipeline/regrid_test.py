@@ -16,9 +16,9 @@ import os.path
 import tempfile
 import unittest
 
-from cfgrib.xarray_to_grib import to_grib
 import numpy as np
 import xarray as xr
+from cfgrib.xarray_to_grib import to_grib
 
 from .regrid import Regrid
 from .sinks_test import TestDataBase
