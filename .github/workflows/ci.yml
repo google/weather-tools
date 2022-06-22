@@ -50,11 +50,11 @@ jobs:
         sudo apt-get --assume-yes install libeccodes-dev
         sudo apt-get --assume-yes install wget
     - name: Setup conda
-        uses: s-weigand/setup-conda@v1
-        with:
-          update-conda: true
-          python-version: ${{ matrix.python-version }}
-          conda-channels: anaconda, conda-forge
+      uses: s-weigand/setup-conda@v1
+      with:
+        update-conda: true
+        python-version: ${{ matrix.python-version }}
+        conda-channels: anaconda, conda-forge
     - name: Install MetView with Anaconda
       run: |
         conda install -y metview-batch -c conda-forge
