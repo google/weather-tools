@@ -21,6 +21,7 @@ Please see this documentation and example code:
 - https://github.com/apache/beam/blob/master/sdks/python/apache_beam/examples/complete/juliaset/setup.py
 """
 
+import os
 from setuptools import setup, find_packages, Command
 import subprocess
 from distutils.command.build import build as _build  # type: ignore
@@ -82,16 +83,14 @@ class build(_build):  # pylint: disable=invalid-name
 # worker-startup log.
 """Install the ecCodes and MetView binaries from ECMWF."""
 CUSTOM_COMMANDS = [
-    cmd.split() for cmd in [
+    os.path.expandvars(cmd).split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
         'apt-get --assume-yes install wget',
         'wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
-        'bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda',
-        'eval "$($HOME/miniconda/bin/conda shell.bash hook)"',
-        'conda init',
-        'conda update -y -n base -c defaults conda',
-        'conda install -y metview-batch -c conda-forge',
+        'bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda -u',
+        '$HOME/miniconda/bin/conda install -y metview-batch -c conda-forge',
+        'sudo cp $HOME/miniconda/bin/metview /usr/local/bin/metview',
     ]
 ]
 
@@ -130,7 +129,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.1.8',
+    version='0.2.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=base_requirements,
