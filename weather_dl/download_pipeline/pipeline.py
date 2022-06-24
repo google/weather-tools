@@ -70,7 +70,7 @@ class PipelineArgs:
         client_name: The type of download client (e.g. Copernicus, Mars, or a fake).
         store: A Store, which is responsible for where downloads end up.
         manifest: A Manifest, which records download progress.
-        subsections: A
+        num_requesters_per_key: Number of requests per subsection (license).
     """
     known_args: argparse.Namespace
     pipeline_options: PipelineOptions
