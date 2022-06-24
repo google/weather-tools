@@ -25,6 +25,7 @@ import os
 from setuptools import setup, find_packages, Command
 import subprocess
 from distutils.command.build import build as _build  # type: ignore
+import tempfile
 
 base_requirements = [
     "apache-beam[gcp]",
@@ -83,14 +84,15 @@ class build(_build):  # pylint: disable=invalid-name
 # worker-startup log.
 """Install the ecCodes and MetView binaries from ECMWF."""
 CUSTOM_COMMANDS = [
-    os.path.expandvars(cmd).split() for cmd in [
+    cmd.split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
         'apt-get --assume-yes install wget',
-        'wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
-        'bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda -u',
-        '$HOME/miniconda/bin/conda install -y metview-batch -c conda-forge',
-        'sudo cp $HOME/miniconda/bin/metview /usr/local/bin/metview',
+        'wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
+        'chmod +x miniconda.sh',
+        './miniconda.sh -b -p /opt/miniconda -u',
+        '/opt/miniconda/bin/conda install -y metview-batch -c conda-forge',
+        'cp /opt/miniconda/bin/metview /usr/local/bin/metview',
     ]
 ]
 
