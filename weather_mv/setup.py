@@ -21,11 +21,10 @@ Please see this documentation and example code:
 - https://github.com/apache/beam/blob/master/sdks/python/apache_beam/examples/complete/juliaset/setup.py
 """
 
-import os
-from setuptools import setup, find_packages, Command
 import subprocess
 from distutils.command.build import build as _build  # type: ignore
-import tempfile
+
+from setuptools import setup, find_packages, Command
 
 base_requirements = [
     "apache-beam[gcp]",
@@ -86,15 +85,23 @@ class build(_build):  # pylint: disable=invalid-name
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev',
         'apt-get --assume-yes install wget',
         'wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
-        'chmod +x miniconda.sh',
-        './miniconda.sh -b -p /opt/miniconda -u',
-        '/opt/miniconda/bin/conda install -y metview-batch -c conda-forge',
-        'cp /opt/miniconda/bin/metview /usr/local/bin/metview',
+        'bash miniconda.sh -b -p /opt/miniconda -f -s',
+        '/opt/miniconda/bin/conda init bash',
+        '/opt/miniconda/bin/conda update -y -n base -c defaults conda',
+        '/opt/miniconda/bin/conda install -y metview-batch -c conda-forge --all --copy',
+        'mkdir -p /usr/local/bin/',
+        'cp -RLn /opt/miniconda/* /usr/local/',
     ]
 ]
+# ,
+
+
+# 'chmod +x miniconda.sh',
+# './miniconda.sh -b -p /opt/miniconda -f',
+#
+# '/opt/miniconda/bin/conda init bash',
 
 
 class CustomCommands(Command):
@@ -118,8 +125,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            raise RuntimeError(
-                'Command %s failed: exit code: %s' % (command_list, p.returncode))
+            print('Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
         for command in CUSTOM_COMMANDS:
