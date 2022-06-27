@@ -38,9 +38,9 @@ class Regrid(ToDataSink):
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser) -> None:
-        subparser.add_argument('--output_path', type=str, required=True,
+        subparser.add_argument('-o', '--output_path', type=str, required=True,
                                help='The destination path for the regridded files.')
-        subparser.add_argument('--regrid_kwargs', type=json.loads, default='{"grid": [0.25, 0.25]}',
+        subparser.add_argument('-k', '--regrid_kwargs', type=json.loads, default='{"grid": [0.25, 0.25]}',
                                help="""Keyword-args to pass into `metview.regrid()` in the form of a JSON string. """
                                     """Will default to '{"grid": [0.25, 0.25]}'.""")
         subparser.add_argument('--to_netcdf', action='store_true', default=False,

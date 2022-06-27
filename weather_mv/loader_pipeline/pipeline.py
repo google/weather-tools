@@ -72,7 +72,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
         prog='weather-mv',
-        description='Weather Mover loads weather data from cloud storage into Google BigQuery.'
+        description='Weather Mover loads weather data from cloud storage into analytics engines.'
     )
 
     # Common arguments to all commands
