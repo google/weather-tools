@@ -21,7 +21,6 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-import metview as mv
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
@@ -33,7 +32,6 @@ logger.setLevel(logging.INFO)
 
 @dataclasses.dataclass
 class Regrid(ToDataSink):
-
     output_path: str
     regrid_kwargs: t.Dict
     to_netcdf: bool = False
@@ -72,6 +70,8 @@ class Regrid(ToDataSink):
 
         if self.dry_run:
             return
+
+        import metview as mv
 
         with open_local(uri) as local_grib:
             # TODO(alxr): Figure out way to open fieldset in memory...

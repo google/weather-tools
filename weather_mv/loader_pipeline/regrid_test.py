@@ -23,6 +23,11 @@ from cfgrib.xarray_to_grib import to_grib
 from .regrid import Regrid
 from .sinks_test import TestDataBase
 
+try:
+    import metview as mv
+except ImportError:
+    raise unittest.SkipTest('MetView dependency is not installed. Skipping tests...')
+
 
 def make_skin_temperature_dataset() -> xr.Dataset:
     ds = xr.DataArray(

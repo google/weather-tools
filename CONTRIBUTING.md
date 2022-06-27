@@ -62,7 +62,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
     * Use Python version 3.8.5+ for development. (Python 3.9.x is incompatible
       with [Apache Beam's Python SDK](https://issues.apache.org/jira/browse/BEAM-12000).)
 
-1. Clone the repo and install dependencies.
+2. Clone the repo and install dependencies.
 
    ```shell
    # clone with HTTPS
@@ -72,11 +72,12 @@ setup.py  # Project is pip-installable, project requirements managed here.
    cd weather-tools
    pip install -e ."[dev]"
    ```
-    > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version.
+    > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version:
+   > `pip install --upgrade pip`.
 
-1. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
+3. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
 
-1. Acquire adequate permissions for the project.
+4. Acquire adequate permissions for the project.
     * Run `gcloud auth application-default login`.
 
     * Make sure your account has *write* permissions to the storage bucket as well as the permissions to create a
@@ -84,11 +85,24 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
     * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
+5. Install ecCodes and MetView on to your local environment (Anaconda seems to be the only supported way)
+   ```shell
+    conda install eccodes metview -c conda-forge
+   ```
+   
+   If you're developing on a Mac, you can also use Homebrew:
+   ```shell
+   brew install eccodes
+   brew install metview 
+   ```
+   
+   Linux users: The debian package for eccodes works; but metview doesn't. 
+   
 ### Windows Developer Instructions
 
 Windows support for each CLI is currently under development (
 See [#64](https://github.com/google/weather-tools/issues/64)). However, there are workarounds available for running the
-weather tools outside of installation with `pip`.
+nweather tools outside of installation with `pip`.
 
 First, the would-be pip-installed script can be run directly with python like so:
 

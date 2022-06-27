@@ -38,8 +38,8 @@ base_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
+    "simplejson",
     "rioxarray",
-    "metview",
 ]
 
 
@@ -81,27 +81,13 @@ class build(_build):  # pylint: disable=invalid-name
 # TODO(BEAM-3237): Output from the custom commands are missing from the logs.
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
-"""Install the ecCodes and MetView binaries from ECMWF."""
+"""Install the ecCodes binary from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
-        'apt-get --assume-yes install wget',
-        'wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh',
-        'bash miniconda.sh -b -p /opt/miniconda -f -s',
-        '/opt/miniconda/bin/conda init bash',
-        '/opt/miniconda/bin/conda update -y -n base -c defaults conda',
-        '/opt/miniconda/bin/conda install -y metview-batch -c conda-forge --all --copy',
-        'mkdir -p /usr/local/bin/',
-        'cp -RLn /opt/miniconda/* /usr/local/',
+        'apt-get --assume-yes install libeccodes-dev'
     ]
 ]
-# ,
-
-
-# 'chmod +x miniconda.sh',
-# './miniconda.sh -b -p /opt/miniconda -f',
-#
-# '/opt/miniconda/bin/conda init bash',
 
 
 class CustomCommands(Command):
@@ -125,7 +111,8 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            print('Command %s failed: exit code: %s' % (command_list, p.returncode))
+            raise RuntimeError(
+                'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
         for command in CUSTOM_COMMANDS:
