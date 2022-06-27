@@ -24,7 +24,7 @@ from .regrid import Regrid
 from .sinks_test import TestDataBase
 
 try:
-    import metview as mv
+    import metview  # noqa
 except ImportError:
     raise unittest.SkipTest('MetView dependency is not installed. Skipping tests...')
 
