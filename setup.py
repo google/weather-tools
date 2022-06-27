@@ -64,6 +64,7 @@ test_requirements = [
     "xarray",
     "xarray-beam",
     "absl-py",
+    "metview",
 ]
 
 all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
@@ -104,7 +105,7 @@ setup(
     tests_require=test_requirements,
     extras_require={
         'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
-        'test': all_test_requirements + ['metview'],
+        'test': all_test_requirements,
         'regrid': ['metview']
     },
     project_urls={

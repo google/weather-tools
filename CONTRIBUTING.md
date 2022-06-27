@@ -72,7 +72,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
    cd weather-tools
    pip install -e ."[dev]"
    ```
-    > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version:
+   > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version:
    > `pip install --upgrade pip`.
 
 3. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
@@ -85,19 +85,20 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
     * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
 
-5. Install ecCodes and MetView on to your local environment (Anaconda seems to be the only supported way)
+5. Install ecCodes and MetView on to your local environment (Anaconda seems to be the only supported way).
    ```shell
    conda install eccodes metview-batch -c conda-forge
    ```
-   
+
    If you're developing on a Mac, you can also use Homebrew:
    ```shell
    brew install eccodes
    brew install metview 
    ```
-   
-   Linux users: The debian package for eccodes works; but metview doesn't. 
-   
+
+   Linux users: The debian package for eccodes works, but metview is
+   broken ([metview-python#19](https://github.com/ecmwf/metview-python/issues/19)).
+
 ### Windows Developer Instructions
 
 Windows support for each CLI is currently under development (
@@ -188,8 +189,8 @@ python -m http.server -d docs/_build/html
 
 ## Versions & Releasing
 
-We aim to represent the version of each tool using [semver.org](https://semver.org/) semantic versions. To that end,
-we will abide by the following pattern:
+We aim to represent the version of each tool using [semver.org](https://semver.org/) semantic versions. To that end, we
+will abide by the following pattern:
 
 - When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file.
 - The version for _all the tools_ should be incremented on update to _any_ tool. If one tool changes, the

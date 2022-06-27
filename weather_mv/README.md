@@ -28,7 +28,7 @@ positional arguments:
   {bigquery,bq,regrid,rg}
                         help for subcommand
     bigquery (bq)       Move data into Google BigQuery
-    regrid (rg)         Move and regrid grib data with MetView.
+    regrid (rg)         Copy and regrid grib data with MetView.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -182,8 +182,15 @@ usage: weather-mv regrid [-h] -i URIS [--topic TOPIC] [--window_size WINDOW_SIZE
                          --output_path OUTPUT_PATH [--regrid_kwargs REGRID_KWARGS] [--to_netcdf]
 ```
 
-The `regrid` subcommand makes a regridded copy of the input data with MetView. In addition to the common options above,
-users may specify command-specific options:
+The `regrid` subcommand makes a regridded copy of the input data with MetView.
+
+To use this capability of the weather mover, please use the `[regrid]` extra when installing:
+
+```shell
+pip install google-weather-tools[regrid]
+```
+
+In addition to the common options above, users may specify command-specific options:
 
 _Command options_:
 
@@ -261,6 +268,8 @@ weather-mv rg --uris "gs://your-bucket/*.nc" \
            --project $PROJECT \
            --region  $REGION \
            --temp_location "gs://$BUCKET/tmp" \
+           --experiment=use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
            --job_name $JOB_NAME 
 ```
 
@@ -272,9 +281,11 @@ For a full list of how to configure the Dataflow pipeline, please review
 `weather-mv` optionally provides the ability to react
 to [Pub/Sub events for objects added to GCS](https://cloud.google.com/storage/docs/pubsub-notifications). This can be
 used to automate ingestion into BigQuery as soon as weather data is disseminated. Another common use case it to
-automatically create a down-sampled version of a dataset with `regrid` after ingestion. To set up the Weather Mover with
-streaming ingestion, use the `--topic` flag (see "Common options" above). Objects that don't match the `--uris` glob
-pattern will be filtered out of ingestion.
+automatically create a down-sampled version of a dataset with `regrid`. To set up the Weather Mover with streaming
+ingestion, use the `--topic` flag (see "Common options" above).
+
+Objects that don't match the `--uris` glob pattern will be filtered out of ingestion. This way, a bucket can contain
+multiple types of data yet only have subsets processed with `weather-mv`.
 
 > It's worth noting: when setting up PubSub, **make sure to create a topic for GCS `OBJECT_FINALIZE` events only.**
 
@@ -318,7 +329,7 @@ weather-mv bq --uris "gs://your-bucket/*.nc" \
 
 ### BigQuery
 
-For the `biqquery` command, data is written into BigQuery using streaming inserts. It may
+Data is written into BigQuery using streaming inserts. It may
 take [up to 90 minutes](https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataavailability)
 for buffers to persist into storage. However, weather data will be available for querying immediately.
 
@@ -371,13 +382,13 @@ install channels (they are only maintained via `conda-forge`).
 Thus, to include such dependencies, we've provided steps for you to build
 a [Beam container environment](https://beam.apache.org/documentation/runtime/environments/). In the near future, we'll
 arrange things so you don't have to worry about any of these extra
-complexity ([#172](https://github.com/google/weather-tools/issues/172)).
+steps ([#172](https://github.com/google/weather-tools/issues/172)).
 
 Currently, this image is necessary for the `weather-mv regrid` command, but no other commands. To deploy this tool,
 please do the following:
 
 1. Host a container image of the included Dockerfile in your repository of choice (instructions for building images in
-   GCS are in the next section). 
+   GCS are in the next section).
 2. Add the following two flags to your regrid pipeline.
    ```
    --experiment=use_runner_v2 \

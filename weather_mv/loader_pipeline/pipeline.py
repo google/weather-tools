@@ -100,7 +100,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     # Regrid command registration
     rg_parser = subparsers.add_parser('regrid', aliases=['rg'], parents=[base],
-                                      help='Move and regrid grib data with MetView.')
+                                      help='Copy and regrid grib data with MetView.')
     Regrid.add_parser_arguments(rg_parser)
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
