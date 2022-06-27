@@ -87,7 +87,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 5. Install ecCodes and MetView on to your local environment (Anaconda seems to be the only supported way)
    ```shell
-    conda install eccodes metview -c conda-forge
+   conda install eccodes metview-batch -c conda-forge
    ```
    
    If you're developing on a Mac, you can also use Homebrew:
