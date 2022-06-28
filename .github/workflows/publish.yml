@@ -15,7 +15,7 @@ name: Build and Upload weather-tools to PyPI
 
 on:
   release:
-    types: [edited]
+    types: [created]
 
 jobs:
   build-artifacts:
