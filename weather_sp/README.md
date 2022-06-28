@@ -1,12 +1,13 @@
 # 🌪 `weather-sp` – Weather Splitter
 
-Splits NetCDF and Grib files into several files by variable (_alpha_).
+Splits NetCDF and Grib files into several files by variable or other dimension. (_alpha_).
 
 ## Features
 
 * **Format-Aware Processing**: Care is taken to ensure that each input file format is handled appropriately. For
   example, for Grib files, overlapping variables with different levels are kept separate. In addition, buckets with
   mixtures of NetCDF and Grib files can be processed on the same run.
+* **Arbitrary Splits**: You can split weather data by almost any dimension.
 
 ## Usage
 
