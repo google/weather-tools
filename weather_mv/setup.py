@@ -40,6 +40,7 @@ base_requirements = [
     "geojson",
     "simplejson",
     "rioxarray",
+    "metview",
 ]
 
 
