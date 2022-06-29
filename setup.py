@@ -95,7 +95,7 @@ setup(
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    # Apache Beam's Python SDK only supports up to 3.8
+    # TODO(#166): Upgrade to python 3.9, since Apache Beam's Python SDK now supports it.
     python_requires='>=3.7, <3.9',
     install_requires=['apache-beam[gcp]'],
     use_scm_version=True,

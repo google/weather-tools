@@ -432,11 +432,15 @@ Cloud Build:
 
 ```shell
 export PROJECT=<your-project-here>
-export REPO=ecmwf-beam-worker
+export REPO=miniconda3-beam
 export IMAGE_URI=gcr.io/$PROJECT/$REPO
-export TAG="0.3.0" # Please increment on every update.
+export TAG="0.0.1" # Please increment on every update.
 # dev release
 gcloud builds submit weather_mv/ --tag "$IMAGE_URI:dev"
+
+# with specific python version
+gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG-py3.8"
+
 
 # release:
 gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG"  && gcloud builds submit weather_mv/ --tag "$IMAGE_URI:latest"

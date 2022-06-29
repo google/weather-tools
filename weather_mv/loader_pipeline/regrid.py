@@ -29,6 +29,12 @@ from .sinks import ToDataSink, open_local
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+try:
+    import metview as mv
+except (ModuleNotFoundError, ImportError, FileNotFoundError):
+    logger.error('Metview could not be imported.')
+    mv = None  # type: noqa
+
 
 @dataclasses.dataclass
 class Regrid(ToDataSink):
@@ -71,11 +77,13 @@ class Regrid(ToDataSink):
         if self.dry_run:
             return
 
-        import metview as mv
-
         with open_local(uri) as local_grib:
             # TODO(alxr): Figure out way to open fieldset in memory...
-            fieldset = mv.read(source=local_grib, **self.regrid_kwargs)
+            try:
+                fieldset = mv.read(source=local_grib, **self.regrid_kwargs)
+            except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
+                raise ImportError('Please install MetView with Anaconda:\n'
+                                  '`conda install metview-batch -c conda-forge`') from e
 
         with tempfile.NamedTemporaryFile() as src:
             if self.to_netcdf:

@@ -25,7 +25,7 @@ from .sinks_test import TestDataBase
 
 try:
     import metview  # noqa
-except ImportError:
+except (ModuleNotFoundError, ImportError, FileNotFoundError):
     raise unittest.SkipTest('MetView dependency is not installed. Skipping tests...')
 
 
