@@ -77,8 +77,10 @@ class Regrid(ToDataSink):
         if self.dry_run:
             return
 
+        logger.debug(f'Copying grib from {uri!r} to local disk.')
         with open_local(uri) as local_grib:
             # TODO(alxr): Figure out way to open fieldset in memory...
+            logger.debug(f'Regridding {uri!r}.')
             try:
                 fieldset = mv.read(source=local_grib, **self.regrid_kwargs)
             except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
@@ -86,6 +88,7 @@ class Regrid(ToDataSink):
                                   '`conda install metview-batch -c conda-forge`') from e
 
         with tempfile.NamedTemporaryFile() as src:
+            logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
             if self.to_netcdf:
                 fieldset.to_dataset().to_netcdf(src.name)
             else:
@@ -93,6 +96,7 @@ class Regrid(ToDataSink):
 
             src.flush()
 
+            logger.info(f'Uploading {self.target_from(uri)!r}.')
             with FileSystems().create(self.target_from(uri)) as dst:
                 shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
