@@ -21,9 +21,10 @@ Please see this documentation and example code:
 - https://github.com/apache/beam/blob/master/sdks/python/apache_beam/examples/complete/juliaset/setup.py
 """
 
-from setuptools import setup, find_packages, Command
 import subprocess
 from distutils.command.build import build as _build  # type: ignore
+
+from setuptools import setup, find_packages, Command
 
 base_requirements = [
     "apache-beam[gcp]",
@@ -37,7 +38,9 @@ base_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
-    "rioxarray"
+    "simplejson",
+    "rioxarray",
+    "metview",
 ]
 
 
@@ -79,11 +82,12 @@ class build(_build):  # pylint: disable=invalid-name
 # TODO(BEAM-3237): Output from the custom commands are missing from the logs.
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
-"""Install the ecCodes binary from ECMWF."""
+"""Install the ecCodes and MetView packages from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev'
+        'apt-get --assume-yes install libeccodes-dev',
+        'conda install metview-batch -c conda-forge -y',
     ]
 ]
 
@@ -109,7 +113,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            raise RuntimeError(
+            raise print(
                 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
@@ -122,7 +126,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.1.8',
+    version='0.2.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=base_requirements,

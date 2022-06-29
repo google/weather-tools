@@ -20,7 +20,8 @@ from .pipeline import run, pipeline
 class ExecutionTest(unittest.TestCase):
 
     TEST_DATA_FOLDER = f'{next(iter(weather_mv.__path__))}/test_data'
-    DEFAULT_CMD = 'weather-mv --output_table myproject.mydataset.mytable --temp_location "gs://mybucket/tmp" --dry-run'
+    DEFAULT_CMD = 'weather-mv bq --output_table myproject.mydataset.mytable --temp_location "gs://mybucket/tmp" ' \
+                  '--dry-run '
     LOCAL_DATA_SOURCE = f'{TEST_DATA_FOLDER}/test_data_single_point.nc'
     TEST_CASES = [
         ('local data source and local execution', f'{DEFAULT_CMD} --uris {LOCAL_DATA_SOURCE} --direct_num_workers 2'),

@@ -44,10 +44,16 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install ecCodes for Grib support
+    - name: Setup conda
+      uses: s-weigand/setup-conda@v1
+      with:
+        update-conda: true
+        python-version: ${{ matrix.python-version }}
+        conda-channels: anaconda, conda-forge
+    - name: Install ecCodes and MetView
       run: |
-        sudo apt-get update
-        sudo apt-get --assume-yes install libeccodes-dev
+        conda install -y eccodes>=2.21.0 -c conda-forge
+        conda install -y metview-batch -c conda-forge
     - name: Get pip cache dir
       id: pip-cache
       run: |
@@ -61,6 +67,8 @@ jobs:
     - name: Install weather-tools
       run: |
         pip install -e .[test]
+    - name: Check MetView's installation
+      run: python -m metview selfcheck
     - name: Run unit tests
       run: pytest
   lint:
@@ -99,10 +107,19 @@ jobs:
           access_token: ${{ github.token }}
         if: ${{github.ref != 'refs/head/main'}}
       - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.8"
+      - name: Setup conda
+        uses: s-weigand/setup-conda@v1
+        with:
+          update-conda: true
+          python-version: "3.8"
+          conda-channels: anaconda, conda-forge
+      - name: Install ecCodes
+        run: |
+          conda install -y eccodes>=2.21.0 -c conda-forge
       - name: Get pip cache dir
         id: pip-cache
         run: |

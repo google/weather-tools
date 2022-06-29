@@ -11,21 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import argparse
 import dataclasses
 import datetime
+import json
 import logging
-import typing as t
-from pprint import pformat
-import pandas as pd
 import math
+import os
+import signal
+import sys
+import tempfile
+import traceback
+import typing as t
+import uuid
+from functools import partial
+from pprint import pformat
+from urllib.parse import urlparse
 
 import apache_beam as beam
 import geojson
 import numpy as np
+import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
-from google.cloud import bigquery
+from apache_beam.options.pipeline_options import PipelineOptions
+from google.api_core.exceptions import BadRequest
+from google.api_core.exceptions import NotFound
+from google.cloud import bigquery, storage
 
 from .sinks import ToDataSink, open_dataset
 from .util import to_json_serializable_type, _only_target_vars
@@ -39,6 +51,12 @@ DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 GEO_POINT_COLUMN = 'geo_point'
 LATITUDE_RANGE = (-90, 90)
+
+CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
+CANARY_RECORD = {'foo': 'bar'}
+CANARY_RECORD_FILE_NAME = 'canary_record.json'
+CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
+CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 
 @dataclasses.dataclass
@@ -58,11 +76,20 @@ class ToBigQuery(ToDataSink):
     Attributes:
         example_uri: URI to a weather data file, used to infer the BigQuery schema.
         output_table: The destination for where data should be written in BigQuery
-        infer_schema: If true, this sink will attempt to read in an example data file
-          read all its variables, and generate a BigQuery schema.
+        variables: Target variables (or coodinates) for the BigQuery schema. By default,
+          all data variables will be imported as columns.
+        area: Target area in [N, W, S, E]; by default, all available area is included.
         import_time: The time when data was imported. This is used as a simple way to
           version data — variables can be distinguished based on import time. If None,
           the system will recompute the current time upon row extraction for each file.
+        infer_schema: If true, this sink will attempt to read in an example data file
+          read all its variables, and generate a BigQuery schema.
+        xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
+        disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
+        tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
+          this location for a timestamp.
+        skip_region_validation: Turn off validation that checks if all Cloud resources
+          are in the same region.
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
@@ -71,9 +98,67 @@ class ToBigQuery(ToDataSink):
     """
     example_uri: str
     output_table: str
-    infer_schema: bool
+    variables: t.List[str]
+    area: t.Tuple[int, int, int, int]
     import_time: t.Optional[datetime.datetime]
+    infer_schema: bool
+    xarray_open_dataset_kwargs: t.Dict
+    disable_in_memory_copy: bool
+    tif_metadata_for_datetime: t.Optional[str]
+    skip_region_validation: bool
     coordinate_chunk_size: int = 10_000
+
+    @classmethod
+    def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
+        subparser.add_argument('-o', '--output_table', type=str, required=True,
+                               help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
+                                    "will be created if it doesn't exist.")
+        subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
+                               help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
+                                    'all data variables as columns.')
+        subparser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
+                               help='Target area in [N, W, S, E]. Default: Will include all available area.')
+        subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
+                               help=("When writing data to BigQuery, record that data import occurred at this "
+                                     "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
+        subparser.add_argument('--infer_schema', action='store_true', default=False,
+                               help='Download one file in the URI pattern and infer a schema from that file. Default: '
+                                    'off')
+        subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
+                               help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
+        subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
+                               help="To disable in-memory copying of dataset. Default: False")
+        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
+                               help='Metadata that contains tif file\'s timestamp. '
+                                    'Applicable only for tif files.')
+        subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
+                               help='Skip validation of regions for data migration. Default: off')
+        subparser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
+                               help='The size of the chunk of coordinates used for extracting vector data into '
+                                    'BigQuery. Used to tune parallel uploads.')
+
+    @classmethod
+    def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
+        pipeline_options = PipelineOptions(pipeline_args)
+        pipeline_options_dict = pipeline_options.get_all_options()
+
+        if known_args.area:
+            assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
+
+        # Check that all arguments are supplied for COG input.
+        _, uri_extension = os.path.splitext(known_args.uris)
+        if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
+            raise RuntimeError("'--tif_metadata_for_datetime' is required for tif files.")
+        elif uri_extension != '.tif' and known_args.tif_metadata_for_datetime:
+            raise RuntimeError("'--tif_metadata_for_datetime' can be specified only for tif files.")
+
+        # Check that Cloud resource regions are consistent.
+        if not (known_args.dry_run or known_args.skip_region_validation):
+            # Program execution will terminate on failure of region validation.
+            logger.info('Validating regions for data migration. This might take a few seconds...')
+            validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
+                            region=pipeline_options_dict.get('region'))
+            logger.info('Region validation completed successfully.')
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -123,8 +208,8 @@ class ToBigQuery(ToDataSink):
 
         if not self.dry_run:
             (
-                extracted_rows
-                | 'WriteToBigQuery' >> WriteToBigQuery(
+                    extracted_rows
+                    | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=self.table.project,
                         dataset=self.table.dataset_id,
                         table=self.table.table_id,
@@ -133,8 +218,8 @@ class ToBigQuery(ToDataSink):
             )
         else:
             (
-                extracted_rows
-                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+                    extracted_rows
+                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
 
 
@@ -185,15 +270,15 @@ def fetch_geo_point(lat: float, long: float) -> str:
     return point
 
 
-def prepare_coordinates(uri: str, *,
-                        coordinate_chunk_size: int,
-                        variables: t.Optional[t.List[str]] = None,
-                        area: t.Optional[t.List[int]] = None,
-                        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        disable_in_memory_copy: bool = False,
-                        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[
-                                                                            t.Tuple[str, str, str, pd.DataFrame]]:
+def prepare_coordinates(
+        uri: str, *,
+        coordinate_chunk_size: int,
+        variables: t.Optional[t.List[str]] = None,
+        area: t.Optional[t.List[int]] = None,
+        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+        open_dataset_kwargs: t.Optional[t.Dict] = None,
+        disable_in_memory_copy: bool = False,
+        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
@@ -257,3 +342,68 @@ def extract_rows(uri: str,
 
         beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
         yield row
+
+
+def _cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, canary_output_table: str,
+             canay_bucket_name: str, sig: t.Optional[t.Any] = None, frame: t.Optional[t.Any] = None) -> None:
+    bigquery_client.delete_table(canary_output_table, not_found_ok=True)
+    try:
+        storage_client.get_bucket(canay_bucket_name).delete(force=True)
+    except NotFound:
+        pass
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
+def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
+    """Validates non-compatible regions scenarios by performing sanity check."""
+    if not region and not temp_location:
+        raise ValueError('Invalid GCS location: None.')
+
+    bigquery_client = bigquery.Client()
+    storage_client = storage.Client()
+    canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX + str(uuid.uuid4())
+    canary_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
+
+    # Doing cleanup if operation get cut off midway.
+    # TODO : Should we handle some other signals ?
+    do_cleanup = partial(_cleanup, bigquery_client, storage_client, canary_output_table, canary_bucket_name)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
+    signal.signal(signal.SIGINT, do_cleanup)
+    signal.signal(signal.SIGTSTP, do_cleanup)
+
+    bucket_region = region
+    table_region = None
+
+    if temp_location:
+        parsed_temp_location = urlparse(temp_location)
+        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
+            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
+        bucket_name = parsed_temp_location.netloc
+        bucket_region = storage_client.get_bucket(bucket_name).location
+
+    try:
+        bucket = storage_client.create_bucket(canary_bucket_name, location=bucket_region)
+        with tempfile.NamedTemporaryFile(mode='w+') as temp:
+            json.dump(CANARY_RECORD, temp)
+            temp.flush()
+            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
+            blob.upload_from_filename(temp.name)
+
+        table = bigquery.Table(canary_output_table, schema=CANARY_TABLE_SCHEMA)
+        table = bigquery_client.create_table(table, exists_ok=True)
+        table_region = table.location
+
+        load_job = bigquery_client.load_table_from_uri(
+            f'gs://{canary_bucket_name}/{CANARY_RECORD_FILE_NAME}',
+            canary_output_table,
+        )
+        load_job.result()
+    except BadRequest:
+        raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
+    finally:
+        _cleanup(bigquery_client, storage_client, canary_output_table, canary_bucket_name)
+        signal.signal(signal.SIGINT, original_sigint_handler)
+        signal.signal(signal.SIGINT, original_sigtstp_handler)
