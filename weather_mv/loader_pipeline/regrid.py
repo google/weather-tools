@@ -33,7 +33,7 @@ try:
     import metview as mv
 except (ModuleNotFoundError, ImportError, FileNotFoundError):
     logger.error('Metview could not be imported.')
-    mv = None  # type: noqa
+    mv = None  # noqa
 
 
 @dataclasses.dataclass
