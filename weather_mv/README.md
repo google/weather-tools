@@ -427,20 +427,16 @@ Last, make sure you have adequate permissions to use Google Cloud Build (see
 [This documentation](https://g3doc.corp.google.com/company/gfw/support/cloud/products/cloud-build/index.md#permissions)
 lists the specific permissions that you'll need to have in your project.
 
-*Updating the image*: Please modify the `Dockerfile` in the project root. Then, build and upload the image with Google
+*Updating the image*: Please modify the `Dockerfile` in the tool directory. Then, build and upload the image with Google
 Cloud Build:
 
 ```shell
 export PROJECT=<your-project-here>
 export REPO=miniconda3-beam
 export IMAGE_URI=gcr.io/$PROJECT/$REPO
-export TAG="0.0.1" # Please increment on every update.
+export TAG="0.0.2" # Please increment on every update.
 # dev release
 gcloud builds submit weather_mv/ --tag "$IMAGE_URI:dev"
-
-# with specific python version
-gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG-py3.8"
-
 
 # release:
 gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG"  && gcloud builds submit weather_mv/ --tag "$IMAGE_URI:latest"
