@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pipeline for reflecting lots of NetCDF objects into a BigQuery table."""
+"""Pipeline for loading weather data into analysis-ready mediums, like Google BigQuery."""
 
 import argparse
 import logging
