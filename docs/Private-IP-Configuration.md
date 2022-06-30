@@ -61,7 +61,7 @@ Following table<font color="red">*</font> summarizes the required input paramete
 
 Following section showcases how VPC-parameters can be given as CLI inputs to weather-mv dataflow pipeline.
 
-```
+```bash
 weather-mv --uris "gs://$STORAGE_BUCKET/*.nc"
            --output_table "$HOST_PROJECT_ID.$DATASET_ID.$TABLE_ID"
            --temp_location "gs://$STORAGE_BUCKET/tmp"
@@ -87,7 +87,7 @@ Replace the following:
 
 Alternatively, you may also execute following command,
 
-```
+```bash
 weather-mv --uris "gs://$STORAGE_BUCKET/*.nc"
            --output_table "$HOST_PROJECT_ID.$DATASET_ID.$TABLE_ID"
            --temp_location "gs://$STORAGE_BUCKET/tmp"
