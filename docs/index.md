@@ -19,7 +19,7 @@
    Efficient-Requests
    CONTRIBUTING
    modules
-   Private-IP-Configuration/README
+   Private-IP-Configuration
 ```
 
 
