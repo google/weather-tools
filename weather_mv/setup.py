@@ -41,6 +41,8 @@ base_requirements = [
     "simplejson",
     "rioxarray",
     "metview",
+    "rasterio",
+    "earthengine-api"
 ]
 
 
