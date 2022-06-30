@@ -24,6 +24,7 @@ import os
 from pyproj import Transformer
 import numpy as np
 import datetime
+import cfgrib
 
 import apache_beam as beam
 import rasterio
@@ -115,7 +116,7 @@ def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: 
         return xr.open_dataset(filename, **open_dataset_kwargs)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
-    if uri_extension == '.tif':
+    if uri_extension == '.tif' or uri_extension == '':
         return xr.open_dataset(filename, engine='rasterio')
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
@@ -139,6 +140,37 @@ def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: 
                            backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
 
 
+def __open_datasets_file(filename: str, uri_extension: str, open_dataset_kwargs: t.Optional[t.Dict] = None):
+    """Open the dataset at 'uri'"""
+    if open_dataset_kwargs:
+        return cfgrib.open_datasets(filename, **open_dataset_kwargs)
+    
+    # If URI extension is .tif or nothing, try opening file
+    # TODO: Add better check for ecmwf grib files having no extension
+    if uri_extension == '.tif' or uri_extension == '':
+        return cfgrib.open_datasets(filename)
+
+    # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
+    try:
+        return cfgrib.open_datasets(filename)
+    except ValueError as e:
+        e_str = str(e)
+        if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
+            raise
+
+    # Trying with explicit engine for cfgrib.
+    try:
+        return cfgrib.open_datasets(filename, backend_kwargs={'indexpath': ''})
+    except ValueError as e:
+        if "multiple values for key 'edition'" not in str(e):
+            raise
+    logger.warning("Assuming grib edition 1.")
+    # Try with edition 1
+    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+    return cfgrib.open_datasets(filename,
+                                backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+
+
 @contextlib.contextmanager
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
@@ -160,7 +192,7 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disab
             _, uri_extension = os.path.splitext(uri)
             xr_dataset: xr.Dataset = __open_dataset_file(local_path, uri_extension, open_dataset_kwargs)
 
-            if uri_extension == '.tif':
+            if uri_extension == '.tif' or uri_extension == '':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
 
             if not disable_in_memory_copy:
@@ -170,6 +202,35 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disab
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_dataset
+    except Exception as e:
+        beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
+        logger.error(f'Unable to open file {uri!r}: {e}')
+        raise
+
+
+@contextlib.contextmanager
+def open_datasets(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
+                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+    """Open the dataset at 'uri' and return a xarray.Dataset."""
+    try:
+        # By copying the file locally, xarray can open it much faster via an in-memory copy.
+        with open_local(uri) as local_path:
+            _, uri_extension = os.path.splitext(uri)
+            xr_datasets: t.List[xr.Dataset] = __open_datasets_file(local_path, uri_extension, open_dataset_kwargs)
+
+            if uri_extension == '.tif' or uri_extension == '':
+                for i, ds in enumerate(xr_datasets):
+                    xr_datasets[i] = _preprocess_tif(ds, local_path, tif_metadata_for_datetime)
+
+            if not disable_in_memory_copy:
+                for i, ds in enumerate(xr_datasets):
+                    xr_datasets[i] = _make_grib_dataset_inmem(ds)
+
+            for i, ds in enumerate(xr_datasets):
+                logger.info(f'opened dataset {i} size: {ds.nbytes}')
+
+            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+            yield xr_datasets
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')

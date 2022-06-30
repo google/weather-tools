@@ -22,6 +22,7 @@ from apache_beam.io.filesystems import FileSystems
 
 from .bq import ToBigQuery
 from .regrid import Regrid
+from .ee_util import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 
@@ -62,6 +63,8 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
             paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(example_uri=next(iter(all_uris)), **vars(known_args))
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
+        elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
+            paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(example_uri=next(iter(all_uris)), **vars(known_args))
         else:
             raise ValueError('invalid subcommand!')
 
@@ -103,6 +106,11 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                                       help='Copy and regrid grib data with MetView.')
     Regrid.add_parser_arguments(rg_parser)
 
+    # EarthEngine command registration
+    ee_parser = subparsers.add_parser('earthengine', aliases=['ee'], parents=[base],
+                                      help='Move data into Google EarthEngine')
+    ToEarthEngine.add_parser_arguments(ee_parser)
+
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
@@ -110,6 +118,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
         ToBigQuery.validate_arguments(known_args, pipeline_args)
+    elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
+        ToEarthEngine.validate_arguments(known_args, pipeline_args)
 
     # If a topic is used, then the pipeline must be a streaming pipeline.
     if known_args.topic:

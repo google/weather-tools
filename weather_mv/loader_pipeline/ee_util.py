@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # import tempfile
+import argparse
+import json
 import io
 import os
 import re
@@ -21,17 +23,23 @@ import shutil
 import datetime
 import rasterio
 import cfgrib
+import tempfile
 import numpy as np
-from typing import List, Dict, Optional, Tuple, Union
+import typing as t
 import ee
 from google import auth
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE, DEFAULT_READ_BUFFER_SIZE
+from apache_beam.io import WriteToBigQuery, BigQueryDisposition
+from apache_beam.options.pipeline_options import PipelineOptions
+from google.api_core.exceptions import BadRequest
+from google.api_core.exceptions import NotFound
+from google.cloud import bigquery, storage
 
-# from .sinks import ToDataSink
-# from .util import deref
+from .sinks import ToDataSink, open_datasets
+from .util import to_json_serializable_type, _only_target_vars
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -57,7 +65,7 @@ def _get_bigstore_and_asset_path(
     forecast_hour: int,
     ee_asset: str,
     bucket_name: str,
-) -> Tuple[str, str]:
+) -> t.Tuple[str, str]:
     """Get the bigstore path and ee_asset_path for a given channel."""
     # Figure out the basename. HRRR only shows up hourly, so truncating the
     # timestamp to the nearst second should be totally safe.
@@ -81,10 +89,10 @@ class CogMetadata:
     end_time: datetime.datetime
 
     """Names of the image channels to pass to Earth Engine."""
-    channel_names: List[str]
+    channel_names: t.List[str]
 
     """An Earth Engine Metadata dict, taken from GDAL."""
-    metadata: Dict[str, Union[int, float, str]]
+    metadata: t.Dict[str, t.Union[int, float, str]]
 
 
 def _fix_broken_proj_def(projection: str) -> str:
@@ -136,9 +144,9 @@ class ChannelData(object):
     start_time: float  # In floating point seconds since epoch.
     end_time: float  # In floating point seconds since epoch.
     projection: str  # The gdal string defining the projection.
-    transform: Tuple[float, float, float, float, float, float]  # From gdal.
-    metadata: Dict[str, Union[str, float, int]]
-    _data: Optional[bytes] = None  # The encoded numpy data.
+    transform: t.Tuple[float, float, float, float, float, float]  # From gdal.
+    metadata: t.Dict[str, t.Union[str, float, int]]
+    _data: t.Optional[bytes] = None  # The encoded numpy data.
 
     @property
     def data(self) -> np.ndarray:
@@ -156,145 +164,206 @@ class ChannelData(object):
 
 
 @dataclasses.dataclass
-class ToEarthEngine(beam.DoFn):
+class ToEarthEngine(ToDataSink):
     """Loads weather data into Google Earth Engine.
 
     TODO(alxr): Document...
     """
-    def __init__(self):
-        # ee authenticate probably requires a system with browser support
-        # ee.Authenticate()
-        ee.Initialize()
-        print('ee initialized')
+    example_uri: str
+    xarray_open_dataset_kwargs: t.Dict
+    disable_in_memory_copy: bool
+    tif_metadata_for_datetime: t.Optional[str]
 
-    def process(self, channel_data: ChannelData):
-        manifest = {
-            'name': channel_data.asset_id,
-            'tilesets': [{
-                'id': channel_data.name,
-                'crs': "epsg:4326",  # channel_data.projection
-                'sources': [{
-                    'uris': [channel_data.bucket_path]
-                }]
-            }],
-            'bands': [{
-                'id': channel_data.name,
-                'tileset_id': channel_data.name,
-                'tileset_band_index': 0
-            }],
-            'start_time': {
-                'seconds': channel_data.start_time
-            },
-            'end_time': {
-                'seconds': channel_data.end_time
-            },
-        }
-        print(f'manifest: {manifest}')
-        task_id = ee.data.newTaskId(1)[0]
-        print(f'task id: {task_id}')
-        print(ee.data.newTaskId)
-        _ = ee.data.startIngestion(task_id, manifest)
-        yield task_id
+    @classmethod
+    def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
+        subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
+                               help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
+        subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
+                               help="To disable in-memory copying of dataset. Default: False")
+        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
+                               help='Metadata that contains tif file\'s timestamp. '
+                                    'Applicable only for tif files.')
+
+    @classmethod
+    def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
+        pipeline_options = PipelineOptions(pipeline_args)
+        pipeline_options_dict = pipeline_options.get_all_options()
+        # TODO: Add checks for arguments
+
+    def __post_init__(self):
+        """Initializes Sink by initialize earthengine based on user input."""
+
+        if self.dry_run:
+            logger.debug('Uploaded assets into earth engine ...')
+            return
+
+        # Authenticate & initialize earth engine
+        try:
+            # ee authenticate probably requires a system with browser support
+            # ee.Authenticate()
+            ee.Initialize()
+        except Exception as e:
+            logger.error(f'Unable to initialize earth engine: {e}')
+            raise
+
+    def expand(self, paths):
+        """Convert gribs from paths into tiff and upload them into earth engine."""
+        (
+            paths
+            |   'ConvertToCogs' >> beam.ParDo(
+                    ConvertToCogs(
+                        open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                        disable_in_memory_copy=self.disable_in_memory_copy,
+                        tif_metadata_for_datetime=self.tif_metadata_for_datetime)
+                    )
+            | 'ReshuffleFiles' >> beam.Reshuffle()
+            | 'IngestIntoEE' >> beam.ParDo(
+                IngestIntoEE()
+            )
+        )
 
 
 @dataclasses.dataclass
 class ConvertToCogs(beam.DoFn):
-    """Converts weather data to COGs and writes them to a cloud bucket."""
+    """Converts weather data to COGs."""
 
-    def __init__(self, bucket: str):
-        super().__init__()
-        self.bucket = bucket
+    def __init__(self, 
+                 open_dataset_kwargs: t.Optional[t.Dict] = None,
+                 disable_in_memory_copy: bool = False,
+                 tif_metadata_for_datetime: t.Optional[str] = None):
+        self.open_dataset_kwargs = open_dataset_kwargs
+        self.disable_in_memory_copy = disable_in_memory_copy
+        self.tif_metadata_for_datetime = tif_metadata_for_datetime
 
-    def process(self, input_path, *args, **kwargs):
+    def process(self, uri: str) -> t.Iterator[ChannelData]:
+        """Opens grib files and yields channel data."""
 
-        logger.info(f'Converting {input_path!r} to COGs in {self.bucket!r}...')
+        logger.info(f'Converting {uri!r} to COGs ...')
 
-        ds_list = cfgrib.open_datasets(input_path)
-        # final_path = destination_path(input_path, self.bucket)
+        with open_datasets(uri,
+                           self.open_dataset_kwargs,
+                           self.disable_in_memory_copy,
+                           self.tif_metadata_for_datetime) as ds_list:
+            with rasterio.open(uri, 'r') as f:
+                driver, dtype, nodata, width, height, count, crs, transform, tiled = list(f.profile.values())
 
-        # Create one big tiff
-        with rasterio.open(input_path, 'r') as f:
-            driver, dtype, nodata, width, height, count, crs, transform, tiled = list(f.profile.values())
+            # # Create one big tiff
+            # with rasterio.open(final_path, 'w',
+            #                    driver='GTiff',
+            #                    dtype=dtype,
+            #                    nodata=nodata,
+            #                    width=width,
+            #                    height=height,
+            #                    count=count,
+            #                    crs=crs,
+            #                    transform=transform,
+            #                    tiled=tiled) as f:
+            #     band_index = 1
+            #     for ds in ds_list:
+            #         for _, v in ds.items():
+            #             if len(v.data.shape) == 3:
+            #                 for _v in v.data:
+            #                     f.write(_v, band_index)
+            #                     band_index += 1
+            #                 continue
 
-        # with rasterio.open(final_path, 'w',
-        #                    driver='GTiff',
-        #                    dtype=dtype,
-        #                    nodata=nodata,
-        #                    width=width,
-        #                    height=height,
-        #                    count=count,
-        #                    crs=crs,
-        #                    transform=transform,
-        #                    tiled=tiled) as f:
-        #     band_index = 1
-        #     for ds in ds_list:
-        #         for _, v in ds.items():
-        #             if len(v.data.shape) == 3:
-        #                 for _v in v.data:
-        #                     f.write(_v, band_index)
-        #                     band_index += 1
-        #                 continue
+            #             f.write(v.data, band_index)
+            #             band_index += 1
 
-        #             f.write(v.data, band_index)
-        #             band_index += 1
+            # Protect this entire block with a try except to catch the various errors
+            # that can happen during historical data ingestion.
+            try:
+                # Creat per band tiff
 
-        # Protect this entire block with a try except to catch the various errors
-        # that can happen during historical data ingestion.
-        try:
-            # Creat per band tiff
+                for ds in ds_list[:1]:
+                    # Get the level by ignoring everything in coords that is "normal."
+                    # This is terrible.
+                    coords_set = set(ds.coords.keys())
+                    level_set = coords_set.difference(_COORD_DISTRACTOR_SET)
+                    level = level_set.pop()
 
-            for ds in ds_list[:1]:
-                # Get the level by ignoring everything in coords that is "normal."
-                # This is terrible.
-                coords_set = set(ds.coords.keys())
-                level_set = coords_set.difference(_COORD_DISTRACTOR_SET)
-                level = level_set.pop()
+                    # Now look at what data vars are in each level.
+                    for key in ds.data_vars.keys():
+                        da = ds[key]  # The data array.
+                        attrs = da.attrs  # The metadata for this dataset.
 
-                # Now look at what data vars are in each level.
-                for key in ds.data_vars.keys():
-                    da = ds[key]  # The data array.
-                    attrs = da.attrs  # The metadata for this dataset.
+                        # Get the data into a numpy array.
+                        data = np.array(da.data, np.float32)
 
-                    # Get the data into a numpy array.
-                    data = np.array(da.data, np.float32)
+                        # We are going to treat the time field as start_time and the
+                        # valid_time field as the end_time for EE purposes. Also, get the
+                        # times into python-like floating point seconds timestamps.
+                        start_time = _to_python_timestamp(da.time.values)
+                        end_time = _to_python_timestamp(da.valid_time.values)
 
-                    # We are going to treat the time field as start_time and the
-                    # valid_time field as the end_time for EE purposes. Also, get the
-                    # times into python-like floating point seconds timestamps.
-                    start_time = _to_python_timestamp(da.time.values)
-                    end_time = _to_python_timestamp(da.valid_time.values)
+                        # Also figure out the forecast hour for this file.
+                        forecast_hour = int(da.step.values /
+                                            np.timedelta64(1, 'h'))
 
-                    # Also figure out the forecast hour for this file.
-                    forecast_hour = int(da.step.values /
-                                        np.timedelta64(1, 'h'))
+                        # Stick the forecast hour in the metadata, that's useful.
+                        attrs['forecast_hour'] = forecast_hour
+                        attrs['dtype'] = dtype
 
-                    # Stick the forecast hour in the metadata, that's useful.
-                    attrs['forecast_hour'] = forecast_hour
-                    attrs['dtype'] = dtype
+                        # Deal with the randomness that is 3d data interspersed with 2d.
+                        if len(da.shape) == 3:
+                            # We have 3d data, figure out what levels exist...
+                            for sub_c in range(da.shape[0]):
+                                height = da.coords[da.dims[0]].data[sub_c]
 
-                    # Deal with the randomness that is 3d data interspersed with 2d.
-                    if len(da.shape) == 3:
-                        # We have 3d data, figure out what levels exist...
-                        for sub_c in range(da.shape[0]):
+                                # Some heights are super small, but we can't have decimal points
+                                # in channel names for Earth Engine, so mostly cut off the
+                                # fractional part, unless we are forced to keep it. If so,
+                                # replace the decimal point with yet another underscore.
+                                if height >= 10:
+                                    height_string = f'{height:.0f}'
+                                else:
+                                    height_string = f'{height:.2f}'.replace('.', '_')
+
+                                channel_name = f'{level}_{attrs["GRIB_stepType"]}_{key}_{height_string}'
+
+                                channel_data_array = data[sub_c, :, :]
+
+                                logging.info('Found channel %s', channel_name)
+
+                                # Add the height as a metadata field, that seems useful.
+                                attrs['height'] = height
+
+                                # # Get the bigstore path and asset path.
+                                # bucket_path, ee_asset = _get_bigstore_and_asset_path(
+                                #     channel_name=channel_name,
+                                #     timestamp=start_time,
+                                #     forecast_hour=forecast_hour,
+                                #     ee_asset=self._ee_asset,
+                                #     bucket_name=self._bucket,
+                                # )
+                                bucket_path, ee_asset = f'gs://rahul-tmp/deep/{channel_name}.tiff', f'projects/anthromet-prod/assets/{channel_name}'
+
+                                # Now make the ChannelData object for this channel.
+                                channel_data = ChannelData(
+                                    channel_name,
+                                    bucket_path=bucket_path,
+                                    asset_id=ee_asset,
+                                    start_time=start_time,
+                                    end_time=end_time,
+                                    projection=crs,
+                                    transform=transform,
+                                    metadata=attrs,
+                                )
+
+                                channel_data.data = channel_data_array
+
+                                yield channel_data
+                        else:
+                            # If we just have 2d data, we have a different format for the
+                            # channel name...
                             height = da.coords[da.dims[0]].data[sub_c]
-
-                            # Some heights are super small, but we can't have decimal points
-                            # in channel names for Earth Engine, so mostly cut off the
-                            # fractional part, unless we are forced to keep it. If so,
-                            # replace the decimal point with yet another underscore.
                             if height >= 10:
                                 height_string = f'{height:.0f}'
                             else:
                                 height_string = f'{height:.2f}'.replace('.', '_')
 
                             channel_name = f'{level}_{attrs["GRIB_stepType"]}_{key}_{height_string}'
-
-                            channel_data_array = data[sub_c, :, :]
-
                             logging.info('Found channel %s', channel_name)
-
-                            # Add the height as a metadata field, that seems useful.
-                            attrs['height'] = height
 
                             # # Get the bigstore path and asset path.
                             # bucket_path, ee_asset = _get_bigstore_and_asset_path(
@@ -306,7 +375,7 @@ class ConvertToCogs(beam.DoFn):
                             # )
                             bucket_path, ee_asset = f'gs://rahul-tmp/deep/{channel_name}.tiff', f'projects/anthromet-prod/assets/{channel_name}'
 
-                            # Now make the ChannelData object for this channel.
+                            # Create the ChannelData object here too.
                             channel_data = ChannelData(
                                 channel_name,
                                 bucket_path=bucket_path,
@@ -318,55 +387,18 @@ class ConvertToCogs(beam.DoFn):
                                 metadata=attrs,
                             )
 
-                            channel_data.data = channel_data_array
+                            channel_data.data = data
 
                             yield channel_data
-                    else:
-                        # If we just have 2d data, we have a different format for the
-                        # channel name...
-                        height = da.coords[da.dims[0]].data[sub_c]
-                        if height >= 10:
-                            height_string = f'{height:.0f}'
-                        else:
-                            height_string = f'{height:.2f}'.replace('.', '_')
-
-                        channel_name = f'{level}_{attrs["GRIB_stepType"]}_{key}_{height_string}'
-                        logging.info('Found channel %s', channel_name)
-
-                        # # Get the bigstore path and asset path.
-                        # bucket_path, ee_asset = _get_bigstore_and_asset_path(
-                        #     channel_name=channel_name,
-                        #     timestamp=start_time,
-                        #     forecast_hour=forecast_hour,
-                        #     ee_asset=self._ee_asset,
-                        #     bucket_name=self._bucket,
-                        # )
-                        bucket_path, ee_asset = f'gs://rahul-tmp/deep/{channel_name}.tiff', f'projects/anthromet-prod/assets/{channel_name}'
-
-                        # Create the ChannelData object here too.
-                        channel_data = ChannelData(
-                            channel_name,
-                            bucket_path=bucket_path,
-                            asset_id=ee_asset,
-                            start_time=start_time,
-                            end_time=end_time,
-                            projection=crs,
-                            transform=transform,
-                            metadata=attrs,
-                        )
-
-                        channel_data.data = data
-
-                        yield channel_data
-        except Exception as e:  # pylint: disable=broad-except
-            if self._skip_exceptions:
-                # If we're skipping the exception make sure it is logged.
-                logging.exception('Skipping error with %s', input_path)
-            else:
-                # If we're not skipping the exception, make sure to log the path that
-                # caused it as this can be very useful debugging information.
-                logging.exception('Error with %s', input_path)
-                raise e
+            except Exception as e:  # pylint: disable=broad-except
+                if self._skip_exceptions:
+                    # If we're skipping the exception make sure it is logged.
+                    logging.exception('Skipping error with %s', uri)
+                else:
+                    # If we're not skipping the exception, make sure to log the path that
+                    # caused it as this can be very useful debugging information.
+                    logging.exception('Error with %s', uri)
+                    raise e
 
 
 def ee_basename(path: str) -> str:
@@ -388,33 +420,61 @@ def destination_path(input_path: str, dest_bucket: str) -> str:
     return os.path.join(dest_bucket, ee_basename(input_path) + '.tiff')
 
 
-class WriteCogDoFn(beam.DoFn):
-    """A DoFn to write the cog where it is supposed to go."""
+@dataclasses.dataclass
+class IngestIntoEE(beam.DoFn):
+    """Writes tiff file, upload it to bucket and ingest into earth engine and yields task id"""
 
-    def __init__(self, overwrite_in_bucket: bool = False):
-        self._overwrite_in_bucket = overwrite_in_bucket
+    def __init__(self):
+        pass
 
-    def process(self, channel_data: ChannelData):
-        """Take the channel data and write it out as a cog."""
-        file_path = f'{channel_data.name}.tiff'
-        print(f'Writing {file_path} ...')
-        logging.info('Writing temp file to %s', file_path)
+    def process(self, channel_data: ChannelData) -> t.Iterator[str]:
+        """Writes tiff file, upload it to bucket and ingest into earth engine"""
 
-        with rasterio.open(file_path, 'w',
-                           driver='GTiff',
-                           dtype=channel_data.metadata['dtype'],
-                           width=channel_data.data.shape[1],
-                           height=channel_data.data.shape[0],
-                           count=1,
-                           crs=channel_data.projection,
-                           transform=channel_data.transform,
-                           tiled=True) as f:
-            f.write(channel_data.data, 1)
+        file_name = f'{channel_data.name}.tiff'
+        logging.info(f'Writing {file_name} ...')
 
-        logging.info('copying %s to %s', file_path, channel_data.bucket_path)
-        with open(file_path, 'rb') as src:
-            with FileSystems.create(channel_data.bucket_path) as dst:
-                shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_tiff_path = os.path.join(temp_dir, file_name)
+            with rasterio.open(local_tiff_path, 'w',
+                            driver='GTiff',
+                            dtype=channel_data.metadata['dtype'],
+                            width=channel_data.data.shape[1],
+                            height=channel_data.data.shape[0],
+                            count=1,
+                            crs=channel_data.projection,
+                            transform=channel_data.transform,
+                            tiled=True) as f:
+                f.write(channel_data.data, 1)
 
-        yield file_path
+            logging.info('copying %s to %s', local_tiff_path, channel_data.bucket_path)
+            with open(local_tiff_path, 'rb') as src:
+                with FileSystems.create(channel_data.bucket_path) as dst:
+                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
+            manifest = {
+                'name': channel_data.asset_id,
+                'tilesets': [{
+                    'id': channel_data.name,
+                    'crs': "epsg:4326",  # channel_data.projection
+                    'sources': [{
+                        'uris': [channel_data.bucket_path]
+                    }]
+                }],
+                'bands': [{
+                    'id': channel_data.name,
+                    'tileset_id': channel_data.name,
+                    'tileset_band_index': 0
+                }],
+                'start_time': {
+                    'seconds': channel_data.start_time
+                },
+                'end_time': {
+                    'seconds': channel_data.end_time
+                },
+            }
+            logging.info(f'manifest: {manifest}')
+            task_id = ee.data.newTaskId(1)[0]
+            logging.info(f'task id: {task_id}')
+            _ = ee.data.startIngestion(task_id, manifest)
+
+            yield task_id
