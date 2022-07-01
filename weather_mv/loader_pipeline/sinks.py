@@ -218,7 +218,7 @@ def open_datasets(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disa
             _, uri_extension = os.path.splitext(uri)
             xr_datasets: t.List[xr.Dataset] = __open_datasets_file(local_path, uri_extension, open_dataset_kwargs)
 
-            if uri_extension == '.tif' or uri_extension == '':
+            if uri_extension == '.tif':
                 for i, ds in enumerate(xr_datasets):
                     xr_datasets[i] = _preprocess_tif(ds, local_path, tif_metadata_for_datetime)
 

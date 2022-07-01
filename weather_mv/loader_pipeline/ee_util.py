@@ -38,7 +38,7 @@ from google.api_core.exceptions import BadRequest
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 
-from .sinks import ToDataSink, open_datasets
+from .sinks import ToDataSink, open_datasets, open_local
 from .util import to_json_serializable_type, _only_target_vars
 
 logger = logging.getLogger(__name__)
@@ -47,11 +47,7 @@ logger.setLevel(logging.INFO)
 
 # A constant for all the things in the coords key set that aren't the
 # level name.
-_COORD_DISTRACTOR_SET = frozenset(
-    ('latitude', 'time', 'step', 'valid_time', 'longitude'))
-# A constant for the terrible RE we need to fix the broken projection that gdal
-# gives us.
-_CENTRAL_MERIDIAN_RE = r'("central_meridian",)([0-9]+\.[0-9]+)'
+_COORD_DISTRACTOR_SET = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude'))
 
 
 def _to_python_timestamp(np_time: np.datetime64) -> float:
@@ -93,46 +89,6 @@ class CogMetadata:
 
     """An Earth Engine Metadata dict, taken from GDAL."""
     metadata: t.Dict[str, t.Union[int, float, str]]
-
-
-def _fix_broken_proj_def(projection: str) -> str:
-    """If we had modern gdal or EE that could wrap, this wouldn't be here.
-
-    The problem is that for reasons unknown, with the HRRR dataset, gdal decides
-    to randomly add 360 to the central meridian definition sometimes. I don't know
-    why this is, but using the grib_util just breaks everything, so that's not an
-    option either. Even worse, this is only ever presented in string form, so I
-    have to write regular expressions to fix this. The worst!
-
-    Args:
-    projection: The WKT string of a HRRR projection that is problably broken.
-
-    Returns:
-    A (hopefully) fixed WKT projection string that contains a reasonable value
-    for the central_meridian field.
-    """
-    # First, find all of the central meridian instances so they can be checked.
-    meridians = re.findall(_CENTRAL_MERIDIAN_RE, projection)
-
-    # Loop over all the matching tuples and check them.
-    for meridian_tuple in meridians:
-        # Turn the second part of the tuple into a float for checking.
-        meridian = float(meridian_tuple[1])
-
-        if meridian > 180.0:
-            # Subtract the 360 that gdal randomly and unexpectedly added.
-            meridian -= 360.0
-
-            logging.info('Found a bad meridian! Replacing %s with %0.1f',
-                         meridian_tuple[1], meridian)
-
-            # Substitute the new value back into the projection string.
-            projection = projection.replace(
-                ''.join(meridian_tuple),
-                ''.join((meridian_tuple[0], f'{meridian:0.1f}'))
-            )
-
-    return projection
 
 
 @dataclasses.dataclass
@@ -235,6 +191,10 @@ class ConvertToCogs(beam.DoFn):
         self.disable_in_memory_copy = disable_in_memory_copy
         self.tif_metadata_for_datetime = tif_metadata_for_datetime
 
+    def _is_3d_da(self, da):
+        """Checks whether data array is 3d or not."""
+        return len(da.shape) == 3
+
     def process(self, uri: str) -> t.Iterator[ChannelData]:
         """Opens grib files and yields channel data."""
 
@@ -244,40 +204,20 @@ class ConvertToCogs(beam.DoFn):
                            self.open_dataset_kwargs,
                            self.disable_in_memory_copy,
                            self.tif_metadata_for_datetime) as ds_list:
-            with rasterio.open(uri, 'r') as f:
-                driver, dtype, nodata, width, height, count, crs, transform, tiled = list(f.profile.values())
-
-            # # Create one big tiff
-            # with rasterio.open(final_path, 'w',
-            #                    driver='GTiff',
-            #                    dtype=dtype,
-            #                    nodata=nodata,
-            #                    width=width,
-            #                    height=height,
-            #                    count=count,
-            #                    crs=crs,
-            #                    transform=transform,
-            #                    tiled=tiled) as f:
-            #     band_index = 1
-            #     for ds in ds_list:
-            #         for _, v in ds.items():
-            #             if len(v.data.shape) == 3:
-            #                 for _v in v.data:
-            #                     f.write(_v, band_index)
-            #                     band_index += 1
-            #                 continue
-
-            #             f.write(v.data, band_index)
-            #             band_index += 1
+            with open_local(uri) as local_path:
+                with rasterio.open(local_path, 'r') as f:
+                    logging.info(f'f.profile: {f.profile}')
+                    dtype = f.profile.get('dtype')
+                    crs = f.profile.get('crs')
+                    transform = f.profile.get('transform')
+            logging.info(f'dtype: {dtype}, crs: {crs}, transform: {transform}')
 
             # Protect this entire block with a try except to catch the various errors
             # that can happen during historical data ingestion.
             try:
-                # Creat per band tiff
-
+                # Create per band tiff
                 for ds in ds_list[:1]:
                     # Get the level by ignoring everything in coords that is "normal."
-                    # This is terrible.
                     coords_set = set(ds.coords.keys())
                     level_set = coords_set.difference(_COORD_DISTRACTOR_SET)
                     level = level_set.pop()
@@ -286,9 +226,10 @@ class ConvertToCogs(beam.DoFn):
                     for key in ds.data_vars.keys():
                         da = ds[key]  # The data array.
                         attrs = da.attrs  # The metadata for this dataset.
+                        logging.info("Reading attrs: %s" % attrs)
 
                         # Get the data into a numpy array.
-                        data = np.array(da.data, np.float32)
+                        data = np.array(da.data, dtype)
 
                         # We are going to treat the time field as start_time and the
                         # valid_time field as the end_time for EE purposes. Also, get the
@@ -297,66 +238,23 @@ class ConvertToCogs(beam.DoFn):
                         end_time = _to_python_timestamp(da.valid_time.values)
 
                         # Also figure out the forecast hour for this file.
-                        forecast_hour = int(da.step.values /
-                                            np.timedelta64(1, 'h'))
+                        forecast_hour = int(da.step.values / np.timedelta64(1, 'h'))
 
                         # Stick the forecast hour in the metadata, that's useful.
                         attrs['forecast_hour'] = forecast_hour
                         attrs['dtype'] = dtype
 
+                        no_of_levels = da.shape[0] if self._is_3d_da(da) else 1
+
                         # Deal with the randomness that is 3d data interspersed with 2d.
-                        if len(da.shape) == 3:
-                            # We have 3d data, figure out what levels exist...
-                            for sub_c in range(da.shape[0]):
-                                height = da.coords[da.dims[0]].data[sub_c]
-
-                                # Some heights are super small, but we can't have decimal points
-                                # in channel names for Earth Engine, so mostly cut off the
-                                # fractional part, unless we are forced to keep it. If so,
-                                # replace the decimal point with yet another underscore.
-                                if height >= 10:
-                                    height_string = f'{height:.0f}'
-                                else:
-                                    height_string = f'{height:.2f}'.replace('.', '_')
-
-                                channel_name = f'{level}_{attrs["GRIB_stepType"]}_{key}_{height_string}'
-
-                                channel_data_array = data[sub_c, :, :]
-
-                                logging.info('Found channel %s', channel_name)
-
-                                # Add the height as a metadata field, that seems useful.
-                                attrs['height'] = height
-
-                                # # Get the bigstore path and asset path.
-                                # bucket_path, ee_asset = _get_bigstore_and_asset_path(
-                                #     channel_name=channel_name,
-                                #     timestamp=start_time,
-                                #     forecast_hour=forecast_hour,
-                                #     ee_asset=self._ee_asset,
-                                #     bucket_name=self._bucket,
-                                # )
-                                bucket_path, ee_asset = f'gs://rahul-tmp/deep/{channel_name}.tiff', f'projects/anthromet-prod/assets/{channel_name}'
-
-                                # Now make the ChannelData object for this channel.
-                                channel_data = ChannelData(
-                                    channel_name,
-                                    bucket_path=bucket_path,
-                                    asset_id=ee_asset,
-                                    start_time=start_time,
-                                    end_time=end_time,
-                                    projection=crs,
-                                    transform=transform,
-                                    metadata=attrs,
-                                )
-
-                                channel_data.data = channel_data_array
-
-                                yield channel_data
-                        else:
-                            # If we just have 2d data, we have a different format for the
-                            # channel name...
+                        # For 3d data, we need to extract ds for each level value.
+                        for sub_c in range(no_of_levels):
                             height = da.coords[da.dims[0]].data[sub_c]
+
+                            # Some heights are super small, but we can't have decimal points
+                            # in channel names for Earth Engine, so mostly cut off the
+                            # fractional part, unless we are forced to keep it. If so,
+                            # replace the decimal point with yet another underscore.
                             if height >= 10:
                                 height_string = f'{height:.0f}'
                             else:
@@ -364,6 +262,11 @@ class ConvertToCogs(beam.DoFn):
 
                             channel_name = f'{level}_{attrs["GRIB_stepType"]}_{key}_{height_string}'
                             logging.info('Found channel %s', channel_name)
+
+                            channel_data_array = data[sub_c, :, :] if self._is_3d_da(da) else data
+
+                            # Add the height as a metadata field, that seems useful.
+                            attrs['height'] = height
 
                             # # Get the bigstore path and asset path.
                             # bucket_path, ee_asset = _get_bigstore_and_asset_path(
@@ -375,7 +278,7 @@ class ConvertToCogs(beam.DoFn):
                             # )
                             bucket_path, ee_asset = f'gs://rahul-tmp/deep/{channel_name}.tiff', f'projects/anthromet-prod/assets/{channel_name}'
 
-                            # Create the ChannelData object here too.
+                            # Now make the ChannelData object for this channel.
                             channel_data = ChannelData(
                                 channel_name,
                                 bucket_path=bucket_path,
@@ -387,18 +290,12 @@ class ConvertToCogs(beam.DoFn):
                                 metadata=attrs,
                             )
 
-                            channel_data.data = data
+                            channel_data.data = channel_data_array
 
                             yield channel_data
             except Exception as e:  # pylint: disable=broad-except
-                if self._skip_exceptions:
-                    # If we're skipping the exception make sure it is logged.
-                    logging.exception('Skipping error with %s', uri)
-                else:
-                    # If we're not skipping the exception, make sure to log the path that
-                    # caused it as this can be very useful debugging information.
-                    logging.exception('Error with %s', uri)
-                    raise e
+                logging.exception('Error with %s', uri)
+                raise e
 
 
 def ee_basename(path: str) -> str:
@@ -423,9 +320,6 @@ def destination_path(input_path: str, dest_bucket: str) -> str:
 @dataclasses.dataclass
 class IngestIntoEE(beam.DoFn):
     """Writes tiff file, upload it to bucket and ingest into earth engine and yields task id"""
-
-    def __init__(self):
-        pass
 
     def process(self, channel_data: ChannelData) -> t.Iterator[str]:
         """Writes tiff file, upload it to bucket and ingest into earth engine"""
@@ -454,15 +348,13 @@ class IngestIntoEE(beam.DoFn):
             manifest = {
                 'name': channel_data.asset_id,
                 'tilesets': [{
-                    'id': channel_data.name,
-                    'crs': "epsg:4326",  # channel_data.projection
+                    'crs': "epsg:4326",
                     'sources': [{
                         'uris': [channel_data.bucket_path]
                     }]
                 }],
                 'bands': [{
                     'id': channel_data.name,
-                    'tileset_id': channel_data.name,
                     'tileset_band_index': 0
                 }],
                 'start_time': {
@@ -471,6 +363,7 @@ class IngestIntoEE(beam.DoFn):
                 'end_time': {
                     'seconds': channel_data.end_time
                 },
+                'properties': channel_data.metadata
             }
             logging.info(f'manifest: {manifest}')
             task_id = ee.data.newTaskId(1)[0]
