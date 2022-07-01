@@ -143,7 +143,7 @@ Upload all variables, but for a specific geographic region (for example, the con
 ```bash
 weather-mv bq --uris "gs://your-bucket/*.nc" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --area 49.34 -124.68 24.74 -66.95 \
+           --area 49 -124 24 -66 \
            --temp_location "gs://$BUCKET/tmp" \
            --direct_num_workers 2
 ```
