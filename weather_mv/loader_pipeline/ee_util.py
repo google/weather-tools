@@ -14,7 +14,6 @@
 # import tempfile
 import argparse
 import json
-import io
 import os
 import dataclasses
 import logging
@@ -22,9 +21,9 @@ import shutil
 import datetime
 import rasterio
 import tempfile
-import numpy as np
 import typing as t
 import ee
+import xarray as xr
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -58,7 +57,7 @@ class CogMetadata:
 
 
 @dataclasses.dataclass
-class ChannelData(object):
+class GribData(object):
     """A class for holding the output of the GetChannelsDoFn."""
     name: str  # The EE-safe name of the channel.
     bucket_path: str  # The bigstore path starting with /bigstore.
@@ -69,21 +68,7 @@ class ChannelData(object):
     projection: str  # The gdal string defining the projection.
     transform: t.Tuple[float, float, float, float, float, float]  # From gdal.
     metadata: t.Dict[str, t.Union[str, float, int]]
-    _data: t.Optional[bytes] = None  # The encoded numpy data.
-
-    @property
-    def data(self) -> np.ndarray:
-        """Return the parsed numpy data."""
-        buffer = io.BytesIO(self._data)
-        content = np.load(buffer)
-        return content['data']
-
-    @data.setter
-    def data(self, new_data: np.ndarray):
-        """Store the array data compressed to make flume happier."""
-        buffer = io.BytesIO()
-        np.savez_compressed(buffer, data=new_data)
-        self._data = buffer.getvalue()
+    data: t.List[xr.Dataset]  # The list of datasets
 
 
 @dataclasses.dataclass
@@ -142,12 +127,10 @@ class ToEarthEngine(ToDataSink):
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     disable_in_memory_copy=self.disable_in_memory_copy,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                    tif_metadata_for_datetime=self.tif_metadata_for_datetime)
-                )
+                    tif_metadata_for_datetime=self.tif_metadata_for_datetime))
             | 'ReshuffleFiles' >> beam.Reshuffle()
             | 'IngestIntoEE' >> beam.ParDo(
-                IngestIntoEE()
-            )
+                IngestIntoEE())
         )
 
 
@@ -165,7 +148,12 @@ class ConvertToCogs(beam.DoFn):
         self.disable_grib_schema_normalization = disable_grib_schema_normalization
         self.tif_metadata_for_datetime = tif_metadata_for_datetime
 
-    def process(self, uri: str) -> t.Iterator[ChannelData]:
+    def _get_basename(self, uri: str) -> str:
+        filename = os.path.basename(uri)
+        basename = os.path.splitext(filename)[0]
+        return basename
+
+    def process(self, uri: str) -> t.Iterator[GribData]:
         """Opens grib files and yields channel data."""
 
         logger.info(f'Converting {uri!r} to COGs ...')
@@ -180,89 +168,84 @@ class ConvertToCogs(beam.DoFn):
                 with rasterio.open(local_path, 'r') as f:
                     dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
 
-            # Protect this entire block with a try except to catch the various errors
-            # that can happen during historical data ingestion.
-            try:
-                # Fetching data variables / channels
-                for key in ds.data_vars.keys():
-                    da = ds[key]  # The data array.
-                    attrs = da.attrs  # The metadata for this dataset.
-                    data = np.array(da.data, dtype)  # Get the data into a numpy array.
+            # Creating one tiff
+            attrs = ds.attrs
+            channel_name = self._get_basename(uri)
+            bucket_path = f'gs://rahul-tmp/deep/{channel_name}.tiff'
+            ee_asset = f'projects/anthromet-prod/assets/{channel_name}'
+            start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
 
-                    channel_name = da.name
-                    start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
-                    bucket_path = f'gs://rahul-tmp/deep/{channel_name}.tiff'
-                    ee_asset = f'projects/anthromet-prod/assets/{channel_name}'
+            grib_data = GribData(
+                    channel_name,
+                    bucket_path=bucket_path,
+                    asset_id=ee_asset,
+                    start_time=start_time,
+                    end_time=end_time,
+                    dtype=dtype,
+                    projection=crs,
+                    transform=transform,
+                    metadata=attrs,
+                    data=list(ds.values())
+                )
 
-                    # Now make the ChannelData object for this channel.
-                    channel_data = ChannelData(
-                        channel_name,
-                        bucket_path=bucket_path,
-                        asset_id=ee_asset,
-                        start_time=start_time,
-                        end_time=end_time,
-                        dtype=dtype,
-                        projection=crs,
-                        transform=transform,
-                        metadata=attrs,
-                    )
-                    channel_data.data = data
-
-                    yield channel_data
-            except Exception as e:  # pylint: disable=broad-except
-                logger.exception(f'Error with {uri}: {e}')
-                raise e
+            yield grib_data
 
 
 @dataclasses.dataclass
 class IngestIntoEE(beam.DoFn):
     """Writes tiff file, upload it to bucket and ingest into earth engine and yields task id"""
 
-    def process(self, channel_data: ChannelData) -> t.Iterator[str]:
+    def __init__(self):
+        pass
+
+    def process(self, grib_data: GribData) -> t.Iterator[str]:
         """Writes tiff file, upload it to bucket and ingest into earth engine"""
 
-        file_name = f'{channel_data.name}.tiff'
+        file_name = f'{grib_data.name}.tiff'
 
         with tempfile.TemporaryDirectory() as temp_dir:
             local_tiff_path = os.path.join(temp_dir, file_name)
             with rasterio.open(local_tiff_path, 'w',
                                driver='GTiff',
-                               dtype=channel_data.dtype,
-                               width=channel_data.data.shape[1],
-                               height=channel_data.data.shape[0],
-                               count=1,
-                               crs=channel_data.projection,
-                               transform=channel_data.transform,
+                               dtype=grib_data.dtype,
+                               width=grib_data.data[0].data.shape[1],
+                               height=grib_data.data[0].data.shape[0],
+                               count=len(grib_data.data),
+                               crs=grib_data.projection,
+                               transform=grib_data.transform,
                                tiled=True) as f:
-                f.write(channel_data.data, 1)
+                for i, da in enumerate(grib_data.data):
+                    f.write(da, i+1)
 
-            logger.debug(f'Copying {local_tiff_path} to {channel_data.bucket_path}')
+            logger.debug(f'Copying {local_tiff_path} to {grib_data.bucket_path}')
             with open(local_tiff_path, 'rb') as src:
-                with FileSystems.create(channel_data.bucket_path) as dst:
+                with FileSystems.create(grib_data.bucket_path) as dst:
                     shutil.copyfileobj(src, dst, DEFAULT_READ_BUFFER_SIZE)
 
             manifest = {
-                'name': channel_data.asset_id,
+                'name': grib_data.asset_id,
                 'tilesets': [{
+                    'id': grib_data.name,
                     'crs': "epsg:4326",
                     'sources': [{
-                        'uris': [channel_data.bucket_path]
+                        'uris': [grib_data.bucket_path]
                     }]
                 }],
                 'bands': [{
-                    'id': channel_data.name,
-                    'tileset_band_index': 0
-                }],
+                    'id': da.name,
+                    'tileset_id': grib_data.name,
+                    'tileset_band_index': i
+                } for i, da in enumerate(grib_data.data)],
                 'start_time': {
-                    'seconds': channel_data.start_time
+                    'seconds': grib_data.start_time
                 },
                 'end_time': {
-                    'seconds': channel_data.end_time
+                    'seconds': grib_data.end_time
                 },
-                'properties': channel_data.metadata
+                'properties': grib_data.metadata
             }
             task_id = ee.data.newTaskId(1)[0]
-            logger.debug(f'Ingesting {channel_data.name} into EE with task id: {task_id}')
+            logger.debug(f'Ingesting {grib_data.name} into EE with task id: {task_id}')
             _ = ee.data.startIngestion(task_id, manifest)
 
             yield task_id
