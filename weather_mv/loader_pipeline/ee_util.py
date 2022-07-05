@@ -50,7 +50,7 @@ class CogMetadata:
     end_time: datetime.datetime
 
     """Names of the image channels to pass to Earth Engine."""
-    channel_names: t.List[str]
+    grib_names: t.List[str]
 
     """An Earth Engine Metadata dict, taken from GDAL."""
     metadata: t.Dict[str, t.Union[int, float, str]]
@@ -148,10 +148,11 @@ class ConvertToCogs(beam.DoFn):
         self.disable_grib_schema_normalization = disable_grib_schema_normalization
         self.tif_metadata_for_datetime = tif_metadata_for_datetime
 
-    def _get_basename(self, uri: str) -> str:
-        filename = os.path.basename(uri)
-        basename = os.path.splitext(filename)[0]
-        return basename
+    def _create_grib_name(self, uri: str) -> str:
+        file_name = os.path.basename(uri)
+        base_name = os.path.splitext(file_name)[0]
+        grib_name = base_name.replace('.', '_')
+        return grib_name
 
     def process(self, uri: str) -> t.Iterator[GribData]:
         """Opens grib files and yields channel data."""
@@ -170,13 +171,13 @@ class ConvertToCogs(beam.DoFn):
 
             # Creating one tiff
             attrs = ds.attrs
-            channel_name = self._get_basename(uri)
-            bucket_path = f'gs://rahul-tmp/deep/{channel_name}.tiff'
-            ee_asset = f'projects/anthromet-prod/assets/{channel_name}'
+            grib_name = self._create_grib_name(uri)
+            bucket_path = f'gs://rahul-tmp/deep/{grib_name}.tiff'
+            ee_asset = f'projects/anthromet-prod/assets/{grib_name}'
             start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
 
             grib_data = GribData(
-                    channel_name,
+                    grib_name,
                     bucket_path=bucket_path,
                     asset_id=ee_asset,
                     start_time=start_time,
@@ -245,7 +246,7 @@ class IngestIntoEE(beam.DoFn):
                 'properties': grib_data.metadata
             }
             task_id = ee.data.newTaskId(1)[0]
-            logger.debug(f'Ingesting {grib_data.name} into EE with task id: {task_id}')
+            logger.info(f'Ingesting {grib_data.name} into EE with task id: {task_id}')
             _ = ee.data.startIngestion(task_id, manifest)
 
             yield task_id
