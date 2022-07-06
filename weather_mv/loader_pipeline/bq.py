@@ -40,7 +40,7 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 
 from .sinks import ToDataSink, open_dataset
-from .util import to_json_serializable_type, _only_target_vars
+from .util import to_json_serializable_type, _only_target_vars, _only_target_coordinate_vars
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -90,6 +90,7 @@ class ToBigQuery(ToDataSink):
           this location for a timestamp.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
+        disable_grib_schema_normalization: Turn off grib's schema normalization.
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
@@ -106,6 +107,7 @@ class ToBigQuery(ToDataSink):
     disable_in_memory_copy: bool
     tif_metadata_for_datetime: t.Optional[str]
     skip_region_validation: bool
+    disable_grib_schema_normalization: bool
     coordinate_chunk_size: int = 10_000
 
     @classmethod
@@ -136,6 +138,8 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
                                help='The size of the chunk of coordinates used for extracting vector data into '
                                     'BigQuery. Used to tune parallel uploads.')
+        subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
+                               help="To disable grib's schema normalization. Default: off")
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -162,18 +166,19 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
-        # Define table from user input
-        if self.variables and not self.infer_schema:
-            logger.info('Creating schema from input variables.')
-            table_schema = to_table_schema(
-                [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
-                [(var, 'FLOAT64') for var in self.variables]
-            )
-        else:
-            logger.info('Inferring schema from data.')
-            with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
-                              self.tif_metadata_for_datetime) as open_ds:
-                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
+        with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds_obj:
+            open_ds, is_merged_dataset = open_ds_obj
+            # Define table from user input
+            if self.variables and not self.infer_schema and not is_merged_dataset:
+                logger.info('Creating schema from input variables.')
+                table_schema = to_table_schema(
+                    [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
+                    [(var, 'FLOAT64') for var in self.variables]
+                )
+            else:
+                logger.info('Inferring schema from data.')
+                ds: xr.Dataset = _only_target_vars(open_ds, is_merged_dataset, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
         if self.dry_run:
@@ -201,6 +206,7 @@ class ToBigQuery(ToDataSink):
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     variables=self.variables,
                     disable_in_memory_copy=self.disable_in_memory_copy,
+                    disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                     tif_metadata_for_datetime=self.tif_metadata_for_datetime)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
@@ -278,12 +284,15 @@ def prepare_coordinates(
         import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
         open_dataset_kwargs: t.Optional[t.Dict] = None,
         disable_in_memory_copy: bool = False,
+        disable_grib_schema_normalization: bool = False,
         tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
-    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, tif_metadata_for_datetime) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, disable_grib_schema_normalization,
+                      tif_metadata_for_datetime) as open_ds_obj:
+        ds, is_merged_dataset = open_ds_obj
+        data_ds: xr.Dataset = _only_target_vars(ds, is_merged_dataset, variables)
         if area:
             n, w, s, e = area
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
@@ -306,7 +315,7 @@ def prepare_coordinates(
         # Add un-indexed coordinates and drop unwanted variables.
         if variables:
             indices = list(ds.coords.indexes.keys())
-            to_keep = variables + indices
+            to_keep = _only_target_coordinate_vars(ds, is_merged_dataset, variables) + indices
             to_drop = set(df.columns) - set(to_keep)
             df.drop(to_drop, axis=1, inplace=True)
 

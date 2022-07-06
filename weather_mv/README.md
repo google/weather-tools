@@ -77,8 +77,13 @@ _Command options_:
   tune parallel uploads.
 * `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
+
+> Note: In case of grib files, by default its schema will be normalized and the name of the data variables will look like '<level\>_<height\>_<attrs['GRIB_stepType']\>_<key\>'.
+> 
+> This solves the issue of skipping over some of the data due to: https://github.com/ecmwf/cfgrib#filter-heterogeneous-grib-files.
 
 _Usage examples_:
 

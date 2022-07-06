@@ -71,7 +71,7 @@ class SchemaCreationTests(TestDataBase):
 
     def test_schema_generation__with_target_columns(self):
         target_variables = ['c', 'd']
-        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
             SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
@@ -86,7 +86,7 @@ class SchemaCreationTests(TestDataBase):
 
     def test_schema_generation__no_targets_specified(self):
         target_variables = []  # intentionally empty
-        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
             SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
@@ -103,7 +103,7 @@ class SchemaCreationTests(TestDataBase):
     def test_schema_generation__missing_target(self):
         with self.assertRaisesRegex(AssertionError, 'Target variable must be in original dataset.'):
             target_variables = ['a', 'foobar', 'd']
-            _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
+            _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
 
     @_handle_missing_grib_be
     def test_schema_generation__non_index_coords(self):
@@ -133,9 +133,11 @@ class SchemaCreationTests(TestDataBase):
 class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
-                import_time=DEFAULT_IMPORT_TIME, tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
+                import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
+                tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
         coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area, import_time=import_time,
                                      open_dataset_kwargs=open_dataset_kwargs, variables=variables,
+                                     disable_grib_schema_normalization=disable_grib_schema_normalization,
                                      tif_metadata_for_datetime=tif_metadata_for_datetime)
         for uri, import_time, first_time_step, chunk in coords:
             yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
@@ -330,7 +332,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     @_handle_missing_grib_be
     def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path))
+        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -348,8 +350,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_extract_rows__with_vars__excludes_non_index_coords(self):
-        actual = next(self.extract(self.test_data_path, variables=['z']))
+    def test_extract_rows__with_vars__excludes_non_index_coords__without_schema_normalization(self):
+        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True, variables=['z']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -362,8 +364,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_extract_rows__with_vars__includes_coordinates_in_vars(self):
-        actual = next(self.extract(self.test_data_path, variables=['z', 'step']))
+    def test_extract_rows__with_vars__includes_coordinates_in_vars__without_schema_normalization(self):
+        actual = next(
+            self.extract(self.test_data_path, disable_grib_schema_normalization=True, variables=['z', 'step']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -377,9 +380,38 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_multiple_editions(self):
+    def test_extract_rows__with_vars__excludes_non_index_coords__with_schema_normalization(self):
+        actual = next(self.extract(self.test_data_path, variables=['z']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'surface_0_00_instant_z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_extract_rows__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
+        actual = next(self.extract(self.test_data_path, variables=['z', 'step']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'step': 0,
+            'surface_0_00_instant_z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_multiple_editions__without_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(self.extract(self.test_data_path))
+        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True))
         expected = {
             'cape': 0.0,
             'cbh': None,
@@ -430,10 +462,85 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
+    def test_multiple_editions__with_schema_normalization(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        actual = next(self.extract(self.test_data_path))
+        expected = {
+            'surface_0_00_instant_cape': 0.0,
+            'surface_0_00_instant_cbh': None,
+            'surface_0_00_instant_cp': 0.0,
+            'surface_0_00_instant_crr': 0.0,
+            'surface_0_00_instant_d2m': 248.3846893310547,
+            'data_first_step': '2021-12-10T12:00:00+00:00',
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'surface_0_00_instant_dsrp': 0.0,
+            'surface_0_00_instant_fdir': 0.0,
+            'surface_0_00_instant_hcc': 0.0,
+            'surface_0_00_instant_hcct': None,
+            'surface_0_00_instant_hwbt0': 0.0,
+            'surface_0_00_instant_i10fg': 7.41250467300415,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'surface_0_00_instant_lsp': 1.1444091796875e-05,
+            'surface_0_00_instant_mcc': 0.0,
+            'surface_0_00_instant_msl': 99867.3125,
+            'number': 0,
+            'surface_0_00_instant_p3020': 20306.701171875,
+            'surface_0_00_instant_sd': 0.0,
+            'surface_0_00_instant_sf': 1.049041748046875e-05,
+            'surface_0_00_instant_sp': 99867.15625,
+            'step': 28800.0,
+            'depthBelowLandLayer_0_00_instant_stl1': 251.02520751953125,
+            'depthBelowLandLayer_0_00_instant_swvl1': -1.9539930654413618e-13,
+            'depthBelowLandLayer_7_00_instant_stl2': 253.54124450683594,
+            'entireAtmosphere_0_00_instant_litoti': 0.0,
+            'surface_0_00_instant_t2m': 251.18968200683594,
+            'surface_0_00_instant_tcc': 0.9609375,
+            'surface_0_00_instant_tcrw': 0.0,
+            'surface_0_00_instant_tcw': 2.314192295074463,
+            'surface_0_00_instant_tcwv': 2.314192295074463,
+            'time': '2021-12-10T12:00:00+00:00',
+            'surface_0_00_instant_tp': 1.1444091796875e-05,
+            'surface_0_00_instant_tsr': 0.0,
+            'surface_0_00_instant_u10': -4.6668853759765625,
+            'surface_0_00_instant_u100': -7.6197662353515625,
+            'surface_0_00_instant_u200': -9.176498413085938,
+            'surface_0_00_instant_v10': -3.2414093017578125,
+            'surface_0_00_instant_v100': -4.1650390625,
+            'surface_0_00_instant_v200': -3.6647186279296875,
+            'surface_0_00_instant_ptype': 5.0,
+            'surface_0_00_instant_tprate': 0.0,
+            'surface_0_00_instant_ceil': 179.17018127441406,
+            'valid_time': '2021-12-10T20:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0)))
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_multiple_editions__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
+        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        actual = next(self.extract(self.test_data_path, variables=['p3020', 'depthBelowLandLayer', 'step']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-12-10T12:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'step': 28800.0,
+            'surface_0_00_instant_p3020': 20306.701171875,
+            'depthBelowLandLayer_0_00_instant_swvl1': -1.9539930654413618e-13,
+            'depthBelowLandLayer_0_00_instant_stl1': 251.02520751953125,
+            'depthBelowLandLayer_7_00_instant_stl2': 253.54124450683594,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
     def test_timing_profile(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         counter = 0
-        i = self.extract(self.test_data_path)
+        i = self.extract(self.test_data_path, disable_grib_schema_normalization=True)
         # Read once to avoid counting dataset open times, etc.
         _ = next(i)
         with timing('Loop'):
