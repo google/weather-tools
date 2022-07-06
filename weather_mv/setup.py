@@ -42,7 +42,8 @@ base_requirements = [
     "rioxarray",
     "metview",
     "rasterio",
-    "earthengine-api"
+    "earthengine-api",
+    "retry"
 ]
 
 
