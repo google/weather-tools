@@ -216,8 +216,8 @@ class ToEarthEngine(ToDataSink):
         """Convert gribs from paths into tiff and upload them into earth engine."""
         (
             paths
-            | 'ConvertToCogs' >> beam.ParDo(
-                ConvertToCogs(
+            | 'ExtractGribData' >> beam.ParDo(
+                ExtractGribData(
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     disable_in_memory_copy=self.disable_in_memory_copy,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
@@ -231,8 +231,8 @@ class ToEarthEngine(ToDataSink):
 
 
 @dataclasses.dataclass
-class ConvertToCogs(beam.DoFn):
-    """Converts weather data to COGs."""
+class ExtractGribData(beam.DoFn):
+    """Extract grib data from merged dataset."""
 
     def __init__(self,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
@@ -300,8 +300,12 @@ class IngestIntoEE(beam.DoFn):
         _ = ee.data.startIngestion(task_id, asset_request)
         return task_id
 
-    def manifest_output(self, out_path: str, asset_id: str,
-                        variable_list: t.List[str], start_time: float, end_time: float,
+    def manifest_output(self,
+                        out_path: str,
+                        asset_id: str,
+                        variable_list: t.List[str],
+                        start_time: float,
+                        end_time: float,
                         properties: t.Dict[str, t.Union[str, float, int]]) -> str:
         """Uploads a GeoTiff to EE for weather data.
 
@@ -311,11 +315,11 @@ class IngestIntoEE(beam.DoFn):
 
         Args:
             out_path: The location of the GeoTiff in GCS
-            asset_name: Name of the asset that needs to be uploaded.
             ee_collection: earthengine collection path.
             variable_list: list of variables that will be ingested in single asset.
             start_time: dataset start time in float seconds
             end_time: dataset end time in float seconds
+            properties: metadata properties
 
         Returns:
             The Task ID of the EE ingestion request
@@ -383,7 +387,7 @@ class IngestIntoEE(beam.DoFn):
             blob = bucket.blob(tiff_bucket_path)
             blob.upload_from_filename(local_tiff_path)
 
-            tiff_bucket_path = os.path.join(self.tiff_location, file_name)
+            # Push into earth engine
             out_path = tiff_bucket_path
             asset_id = os.path.join(self.ee_asset, grib_data.name)
             variable_list = [da.name for da in grib_data.data]
@@ -396,7 +400,10 @@ class IngestIntoEE(beam.DoFn):
 
 
 def _cleanup(storage_client: storage.Client,
-             canay_bucket_name: str, sig: t.Optional[t.Any] = None, frame: t.Optional[t.Any] = None) -> None:
+             canay_bucket_name: str,
+             sig: t.Optional[t.Any] = None,
+             frame: t.Optional[t.Any] = None) -> None:
+    """Cleaning up the bucket."""
     try:
         storage_client.get_bucket(canay_bucket_name).delete(force=True)
     except NotFound:
