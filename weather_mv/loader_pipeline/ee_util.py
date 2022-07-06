@@ -76,11 +76,14 @@ def get_creds(use_personal_account):
     """
     # Authenticate with pop-up if credentials are not available
     if use_personal_account:
-        ee_cred_location = os.path.join(os.path.expanduser('~'), '.config/earthengine/credentials')
-        if not os.path.exists(ee_cred_location):
-            ee.Authenticate()
+        ee.Authenticate()
 
     if is_compute_engine() and not use_personal_account:
+        # To use the default service account, it is required to register the service account
+        # with EE from here: https://signup.earthengine.google.com/#!/service_accounts
+        # See https://developers.google.com/earth-engine/guides/service_account#register-the-
+        # service-account-to-use-earth-engine
+        # for more detail.
         creds = compute_engine.Credentials()
     else:
         creds, _ = default()
@@ -159,7 +162,6 @@ class ToEarthEngine(ToDataSink):
     xarray_open_dataset_kwargs: t.Dict
     disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
-    tif_metadata_for_datetime: t.Optional[str]
     skip_region_validation: bool
     ee_asset: str
     tiff_location: str
@@ -173,16 +175,14 @@ class ToEarthEngine(ToDataSink):
                                help='To disable in-memory copying of dataset. Default: False')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help='To disable merge of grib datasets. Default: False')
-        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
-                               help='Metadata that contains tif file\'s timestamp. '
-                                    'Applicable only for tif files.')
         subparser.add_argument('--ee_asset', type=str, default=None,
-                               help='The name of the asset folder you want to put the images in.')
+                               help='The asset folder path in earth engine project where the tiff image files'
+                               ' will be pushed.')
         subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
         subparser.add_argument('--tiff_location', type=str, default=None,
-                               help='The name of the GCS location where the tiff file will be stored.')
-        subparser.add_argument('--use_personal_account', action='store_true', default=False,
+                               help='The GCS location where the tiff files will be pushed.')
+        subparser.add_argument('-u', '--use_personal_account', action='store_true', default=False,
                                help='To use personal account for earth engine authentication.')
 
     @classmethod
@@ -220,10 +220,10 @@ class ToEarthEngine(ToDataSink):
                 ExtractGribData(
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     disable_in_memory_copy=self.disable_in_memory_copy,
-                    disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                    tif_metadata_for_datetime=self.tif_metadata_for_datetime))
+                    disable_grib_schema_normalization=self.disable_grib_schema_normalization))
             | 'IngestIntoEE' >> beam.ParDo(
                 IngestIntoEE(
+                    dry_run=self.dry_run,
                     ee_asset=self.ee_asset,
                     tiff_location=self.tiff_location,
                     use_personal_account=self.use_personal_account))
@@ -237,12 +237,10 @@ class ExtractGribData(beam.DoFn):
     def __init__(self,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_in_memory_copy: bool = False,
-                 disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None):
+                 disable_grib_schema_normalization: bool = False):
         self.open_dataset_kwargs = open_dataset_kwargs
         self.disable_in_memory_copy = disable_in_memory_copy
         self.disable_grib_schema_normalization = disable_grib_schema_normalization
-        self.tif_metadata_for_datetime = tif_metadata_for_datetime
 
     def _create_grib_name(self, uri: str) -> str:
         file_name = os.path.basename(uri)
@@ -258,8 +256,7 @@ class ExtractGribData(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_in_memory_copy,
-                          self.disable_grib_schema_normalization,
-                          self.tif_metadata_for_datetime) as ds:
+                          self.disable_grib_schema_normalization) as ds:
 
             with open_local(uri) as local_path:
                 with rasterio.open(local_path, 'r') as f:
@@ -288,7 +285,8 @@ class ExtractGribData(beam.DoFn):
 class IngestIntoEE(beam.DoFn):
     """Writes tiff file, upload it to bucket and ingest into earth engine and yields task id"""
 
-    def __init__(self, ee_asset, tiff_location, use_personal_account):
+    def __init__(self, dry_run, ee_asset, tiff_location, use_personal_account):
+        self.dry_run = dry_run
         self.ee_asset = ee_asset
         self.tiff_location = tiff_location
         self.use_personal_account = use_personal_account
@@ -355,7 +353,8 @@ class IngestIntoEE(beam.DoFn):
         """Writes tiff file, upload it to bucket and ingest into earth engine"""
 
         # Initializing earth engine
-        ee_initialize(use_personal_account=self.use_personal_account)
+        if not self.dry_run:
+            ee_initialize(use_personal_account=self.use_personal_account)
 
         file_name = f'{grib_data.name}.tiff'
 
@@ -387,8 +386,13 @@ class IngestIntoEE(beam.DoFn):
             blob = bucket.blob(tiff_bucket_path)
             blob.upload_from_filename(local_tiff_path)
 
+            if self.dry_run:
+                # In case of dry run, we'll not push tiff into earth engine.
+                yield tiff_bucket_path
+                return
+
             # Push into earth engine
-            out_path = tiff_bucket_path
+            out_path = os.path.join(self.tiff_location, file_name)
             asset_id = os.path.join(self.ee_asset, grib_data.name)
             variable_list = [da.name for da in grib_data.data]
             start_time = grib_data.start_time
