@@ -22,7 +22,7 @@ from apache_beam.io.filesystems import FileSystems
 
 from .bq import ToBigQuery
 from .regrid import Regrid
-from .ee_util import ToEarthEngine
+from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 

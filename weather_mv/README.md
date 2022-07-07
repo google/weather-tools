@@ -16,6 +16,7 @@ like [Google BigQuery](https://cloud.google.com/bigquery) (_alpha_).
 * _(new)_ **Grib Regridding**: `weather-mv regrid` uses [MetView](https://metview.readthedocs.io/en/latest/) to
   interpolate Grib files to a
   [range of grids.](https://metview.readthedocs.io/en/latest/metview/using_metview/regrid_intro.html?highlight=grid#grid)
+* _(new)_ **Earth Eangine Ingestion**: `weather-mv earthengine` converts weather data into GeoTiff and allows for data ingestion into earthengine.
 
 ## Usage
 
@@ -25,10 +26,11 @@ usage: weather-mv [-h] {bigquery,bq,regrid,rg} ...
 Weather Mover loads weather data from cloud storage into analytics engines.
 
 positional arguments:
-  {bigquery,bq,regrid,rg}
+  {bigquery,bq,regrid,rg,earthengine,ee}
                         help for subcommand
     bigquery (bq)       Move data into Google BigQuery
     regrid (rg)         Copy and regrid grib data with MetView.
+    earthengine (ee)    Move data into Google Earth Engine
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -282,16 +284,15 @@ usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_as
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy] [-s]
 ```
 
-The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above, users may specify
-command-specific options:
+The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
+users may specify command-specific options:
 
 _Command options_:
 
 * `--tiff_location`: (required) Bucket location at which tiff files will be pushed.
 * `--ee_asset`: (required) The asset folder path in earth engine project where the tiff image files will be pushed.
-It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there under <project-id>
-in earth engine assets
-i.e. projects/anthromet-prod/assets/ecmwf-data
+It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there under
+<project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
