@@ -205,7 +205,7 @@ class ToEarthEngine(ToDataSink):
         else:
             (
                 paths
-                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+                | 'Log Grib Files' >> beam.Map(logger.debug)
             )
 
 
