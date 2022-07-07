@@ -44,6 +44,8 @@ weather_mv_requirements = [
     "geojson",
     'simplejson',
     "rioxarray",
+    "rasterio",
+    "earthengine-api>=0.1.263",
 ]
 
 weather_sp_requirements = [
