@@ -87,7 +87,7 @@ CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
-        'conda install metview-batch -c conda-forge -y',
+        'conda install metview-batch -c conda-forge -y || true',
     ]
 ]
 
