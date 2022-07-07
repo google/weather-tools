@@ -88,18 +88,18 @@ class Regrid(ToDataSink):
                 raise ImportError('Please install MetView with Anaconda:\n'
                                   '`conda install metview-batch -c conda-forge`') from e
 
-        with tempfile.NamedTemporaryFile() as src:
-            logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
-            if self.to_netcdf:
-                fieldset.to_dataset().to_netcdf(src.name)
-            else:
-                mv.write(src.name, fieldset)
+            with tempfile.NamedTemporaryFile() as src:
+                logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
+                if self.to_netcdf:
+                    fieldset.to_dataset().to_netcdf(src.name)
+                else:
+                    mv.write(src.name, fieldset)
 
-            src.flush()
+                src.flush()
 
-            logger.info(f'Uploading {self.target_from(uri)!r}.')
-            with FileSystems().create(self.target_from(uri)) as dst:
-                shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+                logger.info(f'Uploading {self.target_from(uri)!r}.')
+                with FileSystems().create(self.target_from(uri)) as dst:
+                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
     def expand(self, paths):
         paths | beam.Map(self.apply)
