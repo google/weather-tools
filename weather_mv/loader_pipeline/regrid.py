@@ -82,7 +82,8 @@ class Regrid(ToDataSink):
             # TODO(alxr): Figure out way to open fieldset in memory...
             logger.debug(f'Regridding {uri!r}.')
             try:
-                fieldset = mv.read(source=local_grib, **self.regrid_kwargs)
+                fs = mv.Fieldset(path=local_grib)
+                fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
             except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
                 raise ImportError('Please install MetView with Anaconda:\n'
                                   '`conda install metview-batch -c conda-forge`') from e
