@@ -132,41 +132,41 @@ class ToEarthEngine(ToDataSink):
     service account with EE from `here`_. See `this doc`_ for more detail.
 
     Attributes:
+        tiff_location: The bucket location at which tiff files will be pushed.
+        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
-        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
-        tiff_location: The bucket location at which tiff files will be pushed.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
 
     .. _here: https://signup.earthengine.google.com/#!/service_accounts
     .. _this doc: https://developers.google.com/earth-engine/guides/service_account
     """
+    tiff_location: str
+    ee_asset: str
     xarray_open_dataset_kwargs: t.Dict
     disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
-    ee_asset: str
-    tiff_location: str
     use_personal_account: bool
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
+        subparser.add_argument('--tiff_location', type=str, required=True, default=None,
+                               help='The GCS location where the tiff files will be pushed.')
+        subparser.add_argument('--ee_asset', type=str, required=True, default=None,
+                               help='The asset folder path in earth engine project where the tiff image files'
+                               ' will be pushed.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
         subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
                                help='To disable in-memory copying of dataset. Default: False')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help='To disable merge of grib datasets. Default: False')
-        subparser.add_argument('--ee_asset', type=str, required=True, default=None,
-                               help='The asset folder path in earth engine project where the tiff image files'
-                               ' will be pushed.')
         subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
-        subparser.add_argument('--tiff_location', type=str, required=True, default=None,
-                               help='The GCS location where the tiff files will be pushed.')
         subparser.add_argument('-u', '--use_personal_account', action='store_true', default=False,
                                help='To use personal account for earth engine authentication.')
 
