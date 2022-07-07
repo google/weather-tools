@@ -87,7 +87,7 @@ CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
-        'conda install metview-batch -c conda-forge -y || true',
+        'conda install metview-batch -c conda-forge -y',
     ]
 ]
 
@@ -113,7 +113,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            raise print(
+            print(
                 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
