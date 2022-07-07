@@ -183,8 +183,14 @@ def __merged_dataset(filename: str) -> xr.Dataset:
 
 
 def __open_dataset_file(filename: str, uri_extension: str, disable_grib_schema_normalization: bool,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None):
-    """Open the dataset at 'uri'"""
+                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Tuple[xr.Dataset, bool]:
+    """Open the dataset at 'uri'.
+    
+    Returns:
+        A tuple of xarray.Dataset & boolean flag.
+        Boolean flag here represents if the returning dataset is the merged dataset 
+        (i.e. created by combining N datasets specifically for grib files) or not.
+    """
     if open_dataset_kwargs:
         return xr.open_dataset(filename, **open_dataset_kwargs), False
 
@@ -205,18 +211,18 @@ def __open_dataset_file(filename: str, uri_extension: str, disable_grib_schema_n
         logger.info("Normalizing the grib schema, name of the data variables will look like \
         '<level>_<height>_<attrs['GRIB_stepType']>_<key>'.")
         return __merged_dataset(filename), True
-    else:
-        # Trying with explicit engine for cfgrib.
-        try:
-            return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}), False
-        except ValueError as e:
-            if "multiple values for key 'edition'" not in str(e):
-                raise
-        logger.warning("Assuming grib edition 1.")
-        # Try with edition 1
-        # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-        return xr.open_dataset(filename, engine='cfgrib',
-                               backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}), False
+
+    # Trying with explicit engine for cfgrib.
+    try:
+        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}), False
+    except ValueError as e:
+        if "multiple values for key 'edition'" not in str(e):
+            raise
+    logger.warning("Assuming grib edition 1.")
+    # Try with edition 1
+    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+    return xr.open_dataset(filename, engine='cfgrib',
+                            backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}), False
 
 
 @contextlib.contextmanager
@@ -236,8 +242,10 @@ def open_dataset(uri: str,
                  disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None) -> \
-                 t.Iterator[xr.Dataset]:
-    """Open the dataset at 'uri' and return a xarray.Dataset."""
+                 t.Iterator[t.Tuple[xr.Dataset, bool]]:
+    """Open the dataset at 'uri' and return the tuple of xarray.Dataset & boolean flag.
+    Boolean flag here represents if the returning dataset is the merged dataset 
+    (i.e. created by combining N datasets specifically for grib files) or not."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
         with open_local(uri) as local_path:
