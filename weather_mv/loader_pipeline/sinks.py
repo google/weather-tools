@@ -28,10 +28,13 @@ import datetime
 import apache_beam as beam
 import rasterio
 import xarray as xr
+import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
+# A constant for all the things in the coords key set that aren't the level name.
+COORD_DISTRACTOR_SET = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -109,7 +112,80 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     return ds
 
 
-def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: t.Optional[t.Dict] = None):
+def _to_python_timestamp(np_time: np.datetime64) -> float:
+    """Turn a numpy datetime64 into floating point seconds."""
+    return float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
+
+
+def _is_3d_da(da):
+    """Checks whether data array is 3d or not."""
+    return len(da.shape) == 3
+
+
+def __merged_dataset(filename: str) -> xr.Dataset:
+    """Reads a list of datasets and merge them into a single dataset."""
+    _data_array_list = []
+    list_ds = cfgrib.open_datasets(filename)
+
+    for ds in list_ds:
+        coords_set = set(ds.coords.keys())
+        level_set = coords_set.difference(COORD_DISTRACTOR_SET)
+        level = level_set.pop()
+
+        # Now look at what data vars are in each level.
+        for key in ds.data_vars.keys():
+            da = ds[key]  # The data array
+            attrs = da.attrs  # The metadata for this dataset.
+
+            # Also figure out the forecast hour for this file.
+            forecast_hour = int(da.step.values / np.timedelta64(1, 'h'))
+
+            # We are going to treat the time field as start_time and the
+            # valid_time field as the end_time for EE purposes. Also, get the
+            # times into python-like floating point seconds timestamps.
+            start_time = _to_python_timestamp(da.time.values)
+            end_time = _to_python_timestamp(da.valid_time.values)
+
+            attrs['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
+            attrs['start_time'] = start_time
+            attrs['end_time'] = end_time
+
+            no_of_levels = da.shape[0] if _is_3d_da(da) else 1
+
+            # Deal with the randomness that is 3d data interspersed with 2d.
+            # For 3d data, we need to extract ds for each value of level.
+            for sub_c in range(no_of_levels):
+                copied_da = da.copy(deep=True)
+                height = copied_da.coords[level].data.flatten()[sub_c]
+
+                # Some heights are super small, but we can't have decimal points
+                # in channel names for Earth Engine, so mostly cut off the
+                # fractional part, unless we are forced to keep it. If so,
+                # replace the decimal point with yet another underscore.
+                if height >= 10:
+                    height_string = f'{height:.0f}'
+                else:
+                    height_string = f'{height:.2f}'.replace('.', '_')
+
+                channel_name = f'{level}_{height_string}_{attrs["GRIB_stepType"]}_{key}'
+                logger.debug('Found channel %s', channel_name)
+
+                # Add the height as a metadata field, that seems useful.
+                copied_da.attrs['height'] = height
+
+                copied_da.name = channel_name
+                if _is_3d_da(da):
+                    copied_da = copied_da.sel({level: height})
+                copied_da = copied_da.drop_vars(level)
+                _data_array_list.append(copied_da)
+
+    return xr.merge(_data_array_list)
+
+
+def __open_dataset_file(filename: str,
+                        uri_extension: str,
+                        disable_grib_schema_normalization: bool,
+                        open_dataset_kwargs: t.Optional[t.Dict] = None):
     """Open the dataset at 'uri'"""
     if open_dataset_kwargs:
         return xr.open_dataset(filename, **open_dataset_kwargs)
@@ -126,17 +202,21 @@ def __open_dataset_file(filename: str, uri_extension: str, open_dataset_kwargs: 
         if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
             raise
 
-    # Trying with explicit engine for cfgrib.
-    try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
-    except ValueError as e:
-        if "multiple values for key 'edition'" not in str(e):
-            raise
-    logger.warning("Assuming grib edition 1.")
-    # Try with edition 1
-    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+    if not disable_grib_schema_normalization:
+        logger.warning("Assuming grib.")
+        return __merged_dataset(filename)
+    else:
+        # Trying with explicit engine for cfgrib.
+        try:
+            return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
+        except ValueError as e:
+            if "multiple values for key 'edition'" not in str(e):
+                raise
+        logger.warning("Assuming grib edition 1.")
+        # Try with edition 1
+        # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+        return xr.open_dataset(filename, engine='cfgrib',
+                               backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
 
 
 @contextlib.contextmanager
@@ -151,20 +231,31 @@ def open_local(uri: str) -> t.Iterator[str]:
 
 
 @contextlib.contextmanager
-def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
+def open_dataset(uri: str,
+                 open_dataset_kwargs: t.Optional[t.Dict] = None,
+                 disable_in_memory_copy: bool = False,
+                 disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
-            xr_dataset: xr.Dataset = __open_dataset_file(local_path, uri_extension, open_dataset_kwargs)
+            xr_dataset: xr.Dataset = __open_dataset_file(local_path,
+                                                         uri_extension,
+                                                         disable_grib_schema_normalization,
+                                                         open_dataset_kwargs)
 
             if uri_extension == '.tif':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
+
+            # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+            with rasterio.open(local_path, 'r') as f:
+                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
             logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 

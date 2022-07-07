@@ -18,13 +18,31 @@ import operator
 import typing as t
 from functools import reduce
 import pandas as pd
+import sys
+import signal
+import tempfile
+import traceback
+import uuid
+import json
+from functools import partial
+from urllib.parse import urlparse
 
 import numpy as np
 import xarray as xr
 from xarray.core.utils import ensure_us_time_resolution
 
+from google.cloud import bigquery, storage
+from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import BadRequest
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
+CANARY_RECORD = {'foo': 'bar'}
+CANARY_RECORD_FILE_NAME = 'canary_record.json'
+CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
+CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 
 def to_json_serializable_type(value: t.Any) -> t.Any:
@@ -120,3 +138,93 @@ def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
         yield dict(zip(ds.coords.indexes, it))
 
     logger.info(f'Finished processing all {(idx / 1000):.2f}k coordinates.')
+
+
+def _cleanup_bigquery(bigquery_client: bigquery.Client,
+                      canary_output_table: str,
+                      sig: t.Optional[t.Any] = None,
+                      frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bigquery table."""
+    if bigquery_client:
+        bigquery_client.delete_table(canary_output_table, not_found_ok=True)
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
+def _cleanup_bucket(storage_client: storage.Client,
+                    canary_bucket_name: str,
+                    sig: t.Optional[t.Any] = None,
+                    frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bucket."""
+    try:
+        storage_client.get_bucket(canary_bucket_name).delete(force=True)
+    except NotFound:
+        pass
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
+def validate_region(output_table: t.Optional[str] = None,
+                    temp_location: t.Optional[str] = None,
+                    region: t.Optional[str] = None) -> None:
+    """Validates non-compatible regions scenarios by performing sanity check."""
+    if not region and not temp_location:
+        raise ValueError('Invalid GCS location: None.')
+
+    bucket_region = region
+    storage_client = storage.Client()
+    canary_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
+
+    # Doing cleanup if operation get cut off midway.
+    # TODO : Should we handle some other signals ?
+    do_bucket_cleanup = partial(_cleanup_bucket, storage_client, canary_bucket_name)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
+    signal.signal(signal.SIGINT, do_bucket_cleanup)
+    signal.signal(signal.SIGTSTP, do_bucket_cleanup)
+
+    if output_table:
+        table_region = None
+        bigquery_client = bigquery.Client()
+        canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX + str(uuid.uuid4())
+        do_bigquery_cleanup = partial(_cleanup_bigquery, bigquery_client, canary_output_table)
+        signal.signal(signal.SIGINT, do_bigquery_cleanup)
+        signal.signal(signal.SIGTSTP, do_bigquery_cleanup)
+
+    if temp_location:
+        parsed_temp_location = urlparse(temp_location)
+        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
+            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
+        bucket_name = parsed_temp_location.netloc
+        bucket_region = storage_client.get_bucket(bucket_name).location
+
+    try:
+        bucket = storage_client.create_bucket(canary_bucket_name, location=bucket_region)
+        with tempfile.NamedTemporaryFile(mode='w+') as temp:
+            json.dump(CANARY_RECORD, temp)
+            temp.flush()
+            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
+            blob.upload_from_filename(temp.name)
+
+        if output_table:
+            table = bigquery.Table(canary_output_table, schema=CANARY_TABLE_SCHEMA)
+            table = bigquery_client.create_table(table, exists_ok=True)
+            table_region = table.location
+
+            load_job = bigquery_client.load_table_from_uri(
+                f'gs://{canary_bucket_name}/{CANARY_RECORD_FILE_NAME}',
+                canary_output_table,
+            )
+            load_job.result()
+    except BadRequest:
+        if output_table:
+            raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
+        raise RuntimeError(f'Can\'t upload to destination: {bucket_region}')
+    finally:
+        _cleanup_bucket(storage_client, canary_bucket_name)
+        if output_table:
+            _cleanup_bigquery(bigquery_client, canary_output_table)
+        signal.signal(signal.SIGINT, original_sigint_handler)
+        signal.signal(signal.SIGINT, original_sigtstp_handler)
