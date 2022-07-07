@@ -14,17 +14,11 @@
 import argparse
 import json
 import os
-import signal
-import sys
 import dataclasses
 import logging
 import rasterio
 import tempfile
-import traceback
 import typing as t
-import uuid
-from functools import partial
-from urllib.parse import urlparse
 import ee
 import xarray as xr
 import subprocess
@@ -36,13 +30,11 @@ from apache_beam.utils import retry
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
-from google.cloud import storage
-from google.api_core.exceptions import BadRequest
-from google.api_core.exceptions import NotFound
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 
 from .sinks import ToDataSink, open_dataset
+from .util import validate_region
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -385,57 +377,3 @@ class IngestIntoEE(beam.DoFn):
 
             task_id = self.manifest_output(out_path, asset_id, variable_list, start_time, end_time, properties)
             yield task_id
-
-
-def _cleanup(storage_client: storage.Client,
-             canay_bucket_name: str,
-             sig: t.Optional[t.Any] = None,
-             frame: t.Optional[t.Any] = None) -> None:
-    """Cleaning up the bucket."""
-    try:
-        storage_client.get_bucket(canay_bucket_name).delete(force=True)
-    except NotFound:
-        pass
-    if sig:
-        traceback.print_stack(frame)
-        sys.exit(0)
-
-
-def validate_region(temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
-    """Validates non-compatible regions scenarios by performing sanity check."""
-    if not region and not temp_location:
-        raise ValueError('Invalid GCS location: None.')
-
-    storage_client = storage.Client()
-    canary_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
-
-    # Doing cleanup if operation get cut off midway.
-    # TODO : Should we handle some other signals ?
-    do_cleanup = partial(_cleanup, storage_client, canary_bucket_name)
-    original_sigint_handler = signal.getsignal(signal.SIGINT)
-    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
-    signal.signal(signal.SIGINT, do_cleanup)
-    signal.signal(signal.SIGTSTP, do_cleanup)
-
-    bucket_region = region
-
-    if temp_location:
-        parsed_temp_location = urlparse(temp_location)
-        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
-            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
-        bucket_name = parsed_temp_location.netloc
-        bucket_region = storage_client.get_bucket(bucket_name).location
-
-    try:
-        bucket = storage_client.create_bucket(canary_bucket_name, location=bucket_region)
-        with tempfile.NamedTemporaryFile(mode='w+') as temp:
-            json.dump(CANARY_RECORD, temp)
-            temp.flush()
-            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
-            blob.upload_from_filename(temp.name)
-    except BadRequest:
-        raise RuntimeError(f'Can\'t write to destination: {bucket_region}')
-    finally:
-        _cleanup(storage_client, canary_bucket_name)
-        signal.signal(signal.SIGINT, original_sigint_handler)
-        signal.signal(signal.SIGINT, original_sigtstp_handler)
