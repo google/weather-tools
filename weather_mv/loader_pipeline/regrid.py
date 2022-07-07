@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 import dataclasses
+import glob
 import json
 import logging
 import os.path
@@ -82,24 +83,29 @@ class Regrid(ToDataSink):
             # TODO(alxr): Figure out way to open fieldset in memory...
             logger.debug(f'Regridding {uri!r}.')
             try:
-                fs = mv.Fieldset(path=local_grib)
+                fs = mv.bindings.Fieldset(path=local_grib)
                 fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
             except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
                 raise ImportError('Please install MetView with Anaconda:\n'
                                   '`conda install metview-batch -c conda-forge`') from e
 
-            with tempfile.NamedTemporaryFile() as src:
-                logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
-                if self.to_netcdf:
-                    fieldset.to_dataset().to_netcdf(src.name)
-                else:
-                    mv.write(src.name, fieldset)
+        with tempfile.NamedTemporaryFile() as src:
+            logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
+            if self.to_netcdf:
+                fieldset.to_dataset().to_netcdf(src.name)
+            else:
+                mv.write(src.name, fieldset)
 
-                src.flush()
+            src.flush()
 
-                logger.info(f'Uploading {self.target_from(uri)!r}.')
-                with FileSystems().create(self.target_from(uri)) as dst:
-                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+            # Clear the metview temporary directory.
+            cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
+            shutil.rmtree(cache_dir)
+            os.makedirs(cache_dir)
+
+            logger.info(f'Uploading {self.target_from(uri)!r}.')
+            with FileSystems().create(self.target_from(uri)) as dst:
+                shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
     def expand(self, paths):
         paths | beam.Map(self.apply)
