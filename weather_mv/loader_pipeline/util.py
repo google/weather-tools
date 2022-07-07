@@ -144,6 +144,7 @@ def _cleanup_bigquery(bigquery_client: bigquery.Client,
                       canary_output_table: str,
                       sig: t.Optional[t.Any] = None,
                       frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bigquery table."""
     if bigquery_client:
         bigquery_client.delete_table(canary_output_table, not_found_ok=True)
     if sig:
@@ -155,6 +156,7 @@ def _cleanup_bucket(storage_client: storage.Client,
                     canary_bucket_name: str,
                     sig: t.Optional[t.Any] = None,
                     frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bucket."""
     try:
         storage_client.get_bucket(canary_bucket_name).delete(force=True)
     except NotFound:

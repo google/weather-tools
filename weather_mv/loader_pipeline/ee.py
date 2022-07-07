@@ -20,7 +20,6 @@ import rasterio
 import tempfile
 import typing as t
 import ee
-import xarray as xr
 import subprocess
 import re
 import shutil
@@ -100,27 +99,23 @@ def ee_initialize(use_personal_account: bool = False,
 
 
 @dataclasses.dataclass
-class GribData():
-    """A class for holding the grib data.
+class TiffData():
+    """A class for holding the tiff data.
 
     Attributes:
         name: The EE-safe name of the tiff image.
+        target_path: The location of the GeoTiff in GCS.
+        channel_names: A list of channel names in tiff image.
         start_time: Image start time in floating point seconds since epoch.
         end_time: Image end time in floating point seconds since epoch.
-        dtype: Data type of the channel data.
-        projection: A tiff image CRS projection.
-        transform: A tiff transform string.
-        metadata: A dictionary of tiff metadata.
-        data: A list of dataset values.
+        properties: A dictionary of tiff metadata.
     """
     name: str
+    target_path: str
+    channel_names: t.List[str]
     start_time: float
     end_time: float
-    dtype: str
-    projection: str
-    transform: t.Tuple[float, float, float, float, float, float]
-    metadata: t.Dict[str, t.Union[str, float, int]]
-    data: t.List[xr.Dataset]
+    properties: t.Dict[str, t.Union[str, float, int]]
 
 
 @dataclasses.dataclass
@@ -192,45 +187,57 @@ class ToEarthEngine(ToDataSink):
             logger.info('Region validation completed successfully.')
 
     def expand(self, paths):
-        """Converts gribs from paths into tiff and upload them into earth engine."""
-        (
-            paths
-            | 'ExtractGribData' >> beam.ParDo(
-                ExtractGribData(
-                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                    disable_in_memory_copy=self.disable_in_memory_copy,
-                    disable_grib_schema_normalization=self.disable_grib_schema_normalization))
-            | 'IngestIntoEE' >> beam.ParDo(
-                IngestIntoEE(
-                    dry_run=self.dry_run,
-                    ee_asset=self.ee_asset,
-                    tiff_location=self.tiff_location,
-                    use_personal_account=self.use_personal_account))
-        )
+        """Converts gribs from paths into tiff and uploads them into the earth engine."""
+        if not self.dry_run:
+            (
+                paths
+                | 'ConvertToCog' >> beam.ParDo(
+                    ConvertToCog(
+                        tiff_location=self.tiff_location,
+                        open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                        disable_in_memory_copy=self.disable_in_memory_copy,
+                        disable_grib_schema_normalization=self.disable_grib_schema_normalization))
+                | 'IngestIntoEE' >> beam.ParDo(
+                    IngestIntoEE(
+                        ee_asset=self.ee_asset,
+                        use_personal_account=self.use_personal_account))
+            )
+        else:
+            (
+                paths
+                | 'Log Extracted Rows' >> beam.Map(logger.debug)
+            )
 
 
 @dataclasses.dataclass
-class ExtractGribData(beam.DoFn):
-    """Extracts grib data from dataset.
+class ConvertToCog(beam.DoFn):
+    """Writes tiff image after extracting grib data and uploads it to GCS.
 
     Attributes:
+        tiff_location: The bucket location at which tiff files will be pushed.
         open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
     """
 
+    tiff_location: str
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
 
-    def _create_grib_name(self, uri: str) -> str:
+    def _get_tiff_name(self, uri: str) -> str:
+        """Extracts file name and converts it into an EE-safe name"""
         file_name = os.path.basename(uri)
         base_name = os.path.splitext(file_name)[0]
-        grib_name = base_name.replace('.', '_')
-        return grib_name
+        tiff_name = base_name.replace('.', '_')
+        return tiff_name
 
-    def process(self, uri: str) -> t.Iterator[GribData]:
-        """Opens grib files and yields grib data."""
+    def _get_target_path(self, file_name: str) -> str:
+        """Creates a GCS target path from the file name."""
+        return os.path.join(self.tiff_location, file_name)
+
+    def process(self, uri: str) -> t.Iterator[TiffData]:
+        """Opens grib files and yields TiffData."""
 
         logger.info(f'Converting {uri!r} to COGs ...')
         with open_dataset(uri,
@@ -239,38 +246,56 @@ class ExtractGribData(beam.DoFn):
                           self.disable_grib_schema_normalization) as ds:
 
             attrs = ds.attrs
-            grib_name = self._create_grib_name(uri)
+            data = list(ds.values())
+            tiff_name = self._get_tiff_name(uri)
             start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
 
-            grib_data = GribData(
-                    grib_name,
-                    start_time=start_time,
-                    end_time=end_time,
-                    dtype=dtype,
-                    projection=crs,
-                    transform=transform,
-                    metadata=attrs,
-                    data=list(ds.values())
-                )
+            file_name = f'{tiff_name}.tiff'
 
-            yield grib_data
+            with tempfile.TemporaryDirectory() as temp_dir:
+                local_tiff_path = os.path.join(temp_dir, file_name)
+                with rasterio.open(local_tiff_path, 'w',
+                                   driver='GTiff',
+                                   dtype=dtype,
+                                   width=data[0].data.shape[1],
+                                   height=data[0].data.shape[0],
+                                   count=len(data),
+                                   crs=crs,
+                                   transform=transform,
+                                   tiled=True) as f:
+                    for i, da in enumerate(data):
+                        f.write(da, i+1)
+
+                # Copy local tiff to gcs.
+                target_path = self._get_target_path(file_name)
+                with open(local_tiff_path, 'rb') as src:
+                    with FileSystems().create(target_path) as dst:
+                        shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+
+                channel_names = [da.name for da in data]
+                tiff_data = TiffData(
+                        name=tiff_name,
+                        target_path=target_path,
+                        channel_names=channel_names,
+                        start_time=start_time,
+                        end_time=end_time,
+                        properties=attrs
+                    )
+
+                yield tiff_data
 
 
 @dataclasses.dataclass
 class IngestIntoEE(beam.DoFn):
-    """Writes tiff file, upload it to bucket and ingest into earth engine and yields task id.
+    """Ingests tiff image into earth engine and yields task id.
 
     Attributes:
-        dry_run: A flag to perform dry run.
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
-        tiff_location: The bucket location at which tiff files will be pushed.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
     """
 
-    dry_run: bool
     ee_asset: str
-    tiff_location: str
     use_personal_account: bool
 
     @retry.with_exponential_backoff()
@@ -281,9 +306,9 @@ class IngestIntoEE(beam.DoFn):
         return task_id
 
     def manifest_output(self,
-                        out_path: str,
+                        target_path: str,
                         asset_id: str,
-                        variable_list: t.List[str],
+                        channel_names: t.List[str],
                         start_time: float,
                         end_time: float,
                         properties: t.Dict[str, t.Union[str, float, int]]) -> str:
@@ -294,9 +319,9 @@ class IngestIntoEE(beam.DoFn):
         uploads of very large files, but requires the generation of a manifest JSON.
 
         Args:
-            out_path: The location of the GeoTiff in GCS.
+            target_path: The location of the GeoTiff in GCS.
             asset_id: The asset path in earth engine where the tiff image will be pushed.
-            variable_list: A list of channle names in the tiff image.
+            channel_names: A list of channel names in the tiff image.
             start_time: The start time of dataset in float seconds.
             end_time: The end time of dataset in float seconds.
             properties: A dictionary of tiff metadata.
@@ -310,14 +335,14 @@ class IngestIntoEE(beam.DoFn):
                 'id': 'data_tile',
                 'crs': "epsg:4326",
                 'sources': [{
-                    'uris': [out_path]
+                    'uris': [target_path]
                 }]
             }],
             'bands': [{
-                'id': f"{variable}",
+                'id': f"{_channel_name}",
                 'tileset_id': 'data_tile',
-                'tileset_band_index': idx,
-            } for idx, variable in enumerate(variable_list)],
+                'tileset_band_index': _channel_idx,
+            } for _channel_idx, _channel_name in enumerate(channel_names)],
             'start_time': {
                 'seconds': start_time
             },
@@ -327,53 +352,20 @@ class IngestIntoEE(beam.DoFn):
             'properties': properties
         }
 
-        logger.info(f"Uploading GeoTiff {out_path} to Asset ID {asset_id}.")
+        logger.info(f"Uploading GeoTiff {target_path} to Asset ID {asset_id}.")
         task_id = self.start_ingestion_task(manifest)
         return task_id
 
-    def target_from(self, file_name: str) -> str:
-        """Creates the target path from the file name."""
-        return os.path.join(self.tiff_location, file_name)
-
-    def process(self, grib_data: GribData) -> t.Iterator[str]:
-        """Reads grib data and writes tiff file, upload tiff file to bucket and upload it into the earth engine."""
-
-        if self.dry_run:
-            yield grib_data.name
-            return
-
+    def process(self, tiff_data: TiffData) -> t.Iterator[str]:
+        """Uploads a tiff image into the earth engine."""
         # Initializing earth engine.
         ee_initialize(use_personal_account=self.use_personal_account)
 
-        file_name = f'{grib_data.name}.tiff'
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            local_tiff_path = os.path.join(temp_dir, file_name)
-            with rasterio.open(local_tiff_path, 'w',
-                               driver='GTiff',
-                               dtype=grib_data.dtype,
-                               width=grib_data.data[0].data.shape[1],
-                               height=grib_data.data[0].data.shape[0],
-                               count=len(grib_data.data),
-                               crs=grib_data.projection,
-                               transform=grib_data.transform,
-                               tiled=True) as f:
-                for i, da in enumerate(grib_data.data):
-                    f.write(da, i+1)
-
-            # Copy local tiff to gcs.
-            tiff_target_path = self.target_from(file_name)
-            with open(local_tiff_path, 'rb') as src:
-                with FileSystems().create(tiff_target_path) as dst:
-                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
-
-            # Push tiff into earth engine.
-            out_path = tiff_target_path
-            asset_id = os.path.join(self.ee_asset, grib_data.name)
-            variable_list = [da.name for da in grib_data.data]
-            start_time = grib_data.start_time
-            end_time = grib_data.end_time
-            properties = grib_data.metadata
-
-            task_id = self.manifest_output(out_path, asset_id, variable_list, start_time, end_time, properties)
-            yield task_id
+        # Push the tiff image into earth engine.
+        task_id = self.manifest_output(target_path=tiff_data.target_path,
+                                       asset_id=os.path.join(self.ee_asset, tiff_data.name),
+                                       channel_names=tiff_data.channel_names,
+                                       start_time=tiff_data.start_time,
+                                       end_time=tiff_data.end_time,
+                                       properties=tiff_data.properties)
+        yield task_id
