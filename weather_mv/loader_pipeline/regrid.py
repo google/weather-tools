@@ -107,17 +107,15 @@ class Regrid(ToDataSink):
 
             logger.debug(f'Removing metview temporary directories [{file_regrid_label!r}] ...')
             cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
-            logger.debug(f'Located temporary directories to remove: {cache_dir} [{file_regrid_label!r}].')
             shutil.rmtree(cache_dir)
-            logger.debug(f'Temporary directories removed [{file_regrid_label!r}].')
             os.makedirs(cache_dir)
-            logger.debug(f'Re-building empty temporary directory structure [{file_regrid_label!r}].')
 
             logger.debug(f'Uploading regridded local file to final destination [{file_regrid_label!r}] ...')
             with FileSystems().create(self.target_from(uri)) as dst:
                 logger.debug(f'Created final destination [{file_regrid_label!r}].')
                 shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
                 logger.debug(f'Upload to final destination complete [{file_regrid_label!r}].')
+
             logger.info(f'Finished regridding [{file_regrid_label!r}].')
 
     def expand(self, paths):
