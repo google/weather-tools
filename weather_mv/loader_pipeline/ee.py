@@ -16,14 +16,13 @@ import json
 import os
 import dataclasses
 import logging
-import rasterio
-import tempfile
 import typing as t
 import ee
 import subprocess
 import re
 import shutil
 
+from rasterio.io import MemoryFile
 import apache_beam as beam
 from apache_beam.utils import retry
 from apache_beam.io.filesystems import FileSystems
@@ -249,25 +248,21 @@ class ConvertToCog(beam.DoFn):
 
             file_name = f'{tiff_name}.tiff'
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                local_tiff_path = os.path.join(temp_dir, file_name)
-                with rasterio.open(local_tiff_path, 'w',
-                                   driver='COG',
-                                   dtype=dtype,
-                                   width=data[0].data.shape[1],
-                                   height=data[0].data.shape[0],
-                                   count=len(data),
-                                   crs=crs,
-                                   transform=transform,
-                                   tiled=True) as f:
+            with MemoryFile() as memfile:
+                with memfile.open(driver='COG',
+                                  dtype=dtype,
+                                  width=data[0].data.shape[1],
+                                  height=data[0].data.shape[0],
+                                  count=len(data),
+                                  crs=crs,
+                                  transform=transform) as f:
                     for i, da in enumerate(data):
                         f.write(da, i+1)
 
-                # Copy local tiff to gcs.
+                # Copy in-memory tiff to gcs.
                 target_path = self._get_target_path(file_name)
-                with open(local_tiff_path, 'rb') as src:
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+                with FileSystems().create(target_path) as dst:
+                    shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
 
                 channel_names = [da.name for da in data]
                 tiff_data = TiffData(
