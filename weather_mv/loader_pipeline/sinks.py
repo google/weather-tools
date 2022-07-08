@@ -34,7 +34,7 @@ from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
-COORD_DISTRACTOR_SET = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -129,7 +129,7 @@ def __merged_dataset(filename: str) -> xr.Dataset:
 
     for ds in list_ds:
         coords_set = set(ds.coords.keys())
-        level_set = coords_set.difference(COORD_DISTRACTOR_SET)
+        level_set = coords_set.difference(DEFAULT_COORD_KEYS)
         level = level_set.pop()
 
         # Now look at what data vars are in each level.
