@@ -95,7 +95,10 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = ds.squeeze().drop_vars('band').drop_vars('spatial_ref')
 
     band_data_list = [_get_band_data(i) for i in range(band_length)]
+
+    ds_is_normalized_attr = ds.attrs['is_normalized']
     ds = xr.merge(band_data_list)
+    ds.attrs['is_normalized'] = ds_is_normalized_attr
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
@@ -112,6 +115,16 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     return ds
 
 
+def _add_is_normalized_attr(ds: xr.Dataset, value: bool) -> xr.Dataset:
+    """Adds is_normalized to the attrs of the xarray.Dataset.
+
+    This attribute represents if the dataset is the merged dataset (i.e. created by combining N datasets,
+    specifically for normalizing grib's schema) or not.
+    """
+    ds.attrs['is_normalized'] = value
+    return ds
+
+
 def _to_python_timestamp(np_time: np.datetime64) -> float:
     """Turn a numpy datetime64 into floating point seconds."""
     return float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
@@ -122,7 +135,7 @@ def _is_3d_da(da):
     return len(da.shape) == 3
 
 
-def __merged_dataset(filename: str) -> xr.Dataset:
+def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     """Reads a list of datasets and merge them into a single dataset."""
     _data_array_list = []
     list_ds = cfgrib.open_datasets(filename)
@@ -183,24 +196,18 @@ def __merged_dataset(filename: str) -> xr.Dataset:
 
 
 def __open_dataset_file(filename: str, uri_extension: str, disable_grib_schema_normalization: bool,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> t.Tuple[xr.Dataset, bool]:
-    """Open the dataset at 'uri'.
-
-    Returns:
-        A tuple of xarray.Dataset & boolean flag.
-        Boolean flag here represents if the returning dataset is the merged dataset
-        (i.e. created by combining N datasets specifically for grib files) or not.
-    """
+                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
+    """Open the dataset at 'uri' and return a xarray.Dataset."""
     if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs), False
+        return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
     if uri_extension == '.tif':
-        return xr.open_dataset(filename, engine='rasterio'), False
+        return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
-        return xr.open_dataset(filename), False
+        return _add_is_normalized_attr(xr.open_dataset(filename), False)
     except ValueError as e:
         e_str = str(e)
         if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
@@ -208,21 +215,24 @@ def __open_dataset_file(filename: str, uri_extension: str, disable_grib_schema_n
 
     if not disable_grib_schema_normalization:
         logger.warning("Assuming grib.")
-        logger.info("Normalizing the grib schema, name of the data variables will look like \
-        '<level>_<height>_<attrs['GRIB_stepType']>_<key>'.")
-        return __merged_dataset(filename), True
+        logger.info("Normalizing the grib schema, name of the data variables will look like "
+                    "'<level>_<height>_<attrs['GRIB_stepType']>_<key>'.")
+        return _add_is_normalized_attr(__normalize_grib_dataset(filename), True)
 
     # Trying with explicit engine for cfgrib.
     try:
-        return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}), False
+        return _add_is_normalized_attr(
+            xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}),
+            False)
     except ValueError as e:
         if "multiple values for key 'edition'" not in str(e):
             raise
     logger.warning("Assuming grib edition 1.")
     # Try with edition 1
     # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-    return xr.open_dataset(filename, engine='cfgrib',
-                           backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}), False
+    return _add_is_normalized_attr(
+        xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}),
+        False)
 
 
 @contextlib.contextmanager
@@ -237,21 +247,16 @@ def open_local(uri: str) -> t.Iterator[str]:
 
 
 @contextlib.contextmanager
-def open_dataset(uri: str,
-                 open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_in_memory_copy: bool = False,
-                 disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None) -> \
-                 t.Iterator[t.Tuple[xr.Dataset, bool]]:
-    """Open the dataset at 'uri' and return the tuple of xarray.Dataset & boolean flag.
-    Boolean flag here represents if the returning dataset is the merged dataset
-    (i.e. created by combining N datasets specifically for grib files) or not."""
+def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
+                 disable_grib_schema_normalization: bool = False, tif_metadata_for_datetime: t.Optional[str] = None) ->\
+                 t.Iterator[xr.Dataset]:
+    """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
-            xr_dataset, is_merged_dataset = __open_dataset_file(local_path, uri_extension,
-                                                                disable_grib_schema_normalization, open_dataset_kwargs)
+            xr_dataset: xr.Dataset = __open_dataset_file(local_path, uri_extension, disable_grib_schema_normalization,
+                                                         open_dataset_kwargs)
 
             if uri_extension == '.tif':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
@@ -262,7 +267,7 @@ def open_dataset(uri: str,
             logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-            yield xr_dataset, is_merged_dataset
+            yield xr_dataset
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')

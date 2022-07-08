@@ -81,7 +81,8 @@ _Command options_:
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
 
-> Note: In case of grib files, by default its schema will be normalized and the name of the data variables will look like '<level\>_<height\>_<attrs['GRIB_stepType']\>_<key\>'.
+> Note: In case of grib files, by default its schema will be normalized and the name of the data variables will look 
+> like `<level>_<height>_<attrs['GRIB_stepType']>_<key>`.
 > 
 > This solves the issue of skipping over some of the data due to: https://github.com/ecmwf/cfgrib#filter-heterogeneous-grib-files.
 

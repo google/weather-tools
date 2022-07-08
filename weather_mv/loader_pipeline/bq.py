@@ -40,7 +40,11 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 
 from .sinks import ToDataSink, open_dataset
-from .util import to_json_serializable_type, _only_target_vars, _only_target_coordinate_vars
+from .util import (
+    to_json_serializable_type,
+    _only_target_vars,
+    _only_target_coordinate_vars
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -76,7 +80,7 @@ class ToBigQuery(ToDataSink):
     Attributes:
         example_uri: URI to a weather data file, used to infer the BigQuery schema.
         output_table: The destination for where data should be written in BigQuery
-        variables: Target variables (or coodinates) for the BigQuery schema. By default,
+        variables: Target variables (or coordinates) for the BigQuery schema. By default,
           all data variables will be imported as columns.
         area: Target area in [N, W, S, E]; by default, all available area is included.
         import_time: The time when data was imported. This is used as a simple way to
@@ -90,7 +94,7 @@ class ToBigQuery(ToDataSink):
           this location for a timestamp.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
-        disable_grib_schema_normalization: Turn off grib's schema normalization.
+        disable_grib_schema_normalization: Turn off grib's schema normalization; Default: on.
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
@@ -167,10 +171,9 @@ class ToBigQuery(ToDataSink):
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
         with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds_obj:
-            open_ds, is_merged_dataset = open_ds_obj
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
             # Define table from user input
-            if self.variables and not self.infer_schema and not is_merged_dataset:
+            if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
                 logger.info('Creating schema from input variables.')
                 table_schema = to_table_schema(
                     [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
@@ -178,7 +181,7 @@ class ToBigQuery(ToDataSink):
                 )
             else:
                 logger.info('Inferring schema from data.')
-                ds: xr.Dataset = _only_target_vars(open_ds, is_merged_dataset, self.variables)
+                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
         if self.dry_run:
@@ -290,9 +293,8 @@ def prepare_coordinates(
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
     with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, disable_grib_schema_normalization,
-                      tif_metadata_for_datetime) as open_ds_obj:
-        ds, is_merged_dataset = open_ds_obj
-        data_ds: xr.Dataset = _only_target_vars(ds, is_merged_dataset, variables)
+                      tif_metadata_for_datetime) as ds:
+        data_ds: xr.Dataset = _only_target_vars(ds, variables)
         if area:
             n, w, s, e = area
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
@@ -315,7 +317,7 @@ def prepare_coordinates(
         # Add un-indexed coordinates and drop unwanted variables.
         if variables:
             indices = list(ds.coords.indexes.keys())
-            to_keep = _only_target_coordinate_vars(ds, is_merged_dataset, variables) + indices
+            to_keep = _only_target_coordinate_vars(ds, variables) + indices
             to_drop = set(df.columns) - set(to_keep)
             df.drop(to_drop, axis=1, inplace=True)
 

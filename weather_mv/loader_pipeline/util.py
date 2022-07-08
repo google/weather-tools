@@ -71,24 +71,30 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
-def _only_target_coordinate_vars(ds: xr.Dataset, is_merged_dataset: bool, data_vars: t.List[str]) -> t.List[str]:
+def _check_for_coords_vars(ds_data_var: str, target_var: str) -> bool:
+    """Checks if the dataset's data variable matches with the target variables (or coordinates)
+    specified by the user."""
+    return ds_data_var.endswith('_'+target_var) or ds_data_var.startswith(target_var+'_')
+
+
+def _only_target_coordinate_vars(ds: xr.Dataset, data_vars: t.List[str]) -> t.List[str]:
     """If the user specifies target fields in the dataset, get all the matching coords & data vars."""
 
     # If the dataset is not the merged dataset (created for normalizing grib's schema),
-    # return the target fields specified by the user.
-    if not is_merged_dataset:
+    # return the target fields specified by the user as it is.
+    if not ds.attrs['is_normalized']:
         return data_vars
 
     keep_coords_vars = []
 
     for dv in data_vars:
-        keep_coords_vars.extend([v for v in ds.data_vars if v.endswith('_'+dv) or v.startswith(dv+'_')])
+        keep_coords_vars.extend([v for v in ds.data_vars if _check_for_coords_vars(v, dv)])
         keep_coords_vars.extend([v for v in COORD_DISTRACTOR_SET if v in dv])
 
     return keep_coords_vars
 
 
-def _only_target_vars(ds: xr.Dataset, is_merged_dataset: bool, data_vars: t.Optional[t.List[str]] = None) -> xr.Dataset:
+def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None) -> xr.Dataset:
     """If the user specifies target fields in the dataset, create a schema only from those fields."""
 
     # If there are no restrictions on data vars, include the whole dataset.
@@ -96,7 +102,7 @@ def _only_target_vars(ds: xr.Dataset, is_merged_dataset: bool, data_vars: t.Opti
         logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
         return ds
 
-    if not is_merged_dataset:
+    if not ds.attrs['is_normalized']:
         assert all([dv in ds.data_vars or dv in ds.coords for dv in data_vars]), 'Target variable must be in original '\
                                                                                 'dataset. '
 
@@ -105,16 +111,16 @@ def _only_target_vars(ds: xr.Dataset, is_merged_dataset: bool, data_vars: t.Opti
         drop_vars = []
         check_target_variable = []
         for dv in data_vars:
-            searched_data_vars = [x.endswith('_'+dv) or x.startswith(dv+'_') for x in ds.data_vars]
+            searched_data_vars = [_check_for_coords_vars(v, dv) for v in ds.data_vars]
             searched_coords = [] if dv not in COORD_DISTRACTOR_SET else [dv in ds.coords]
-            check_target_variable.append(searched_data_vars.__contains__(True) or searched_coords.__contains__(True))
+            check_target_variable.append(any(searched_data_vars) or any(searched_coords))
 
         assert all(check_target_variable), 'Target variable must be in original dataset.'
 
-        for dv in ds.data_vars:
-            searched_data_vars = [dv.endswith('_'+v) or dv.startswith(v+'_') for v in data_vars]
-            if not searched_data_vars.__contains__(True):
-                drop_vars.append(dv)
+        for v in ds.data_vars:
+            searched_data_vars = [_check_for_coords_vars(v, dv) for dv in data_vars]
+            if not any(searched_data_vars):
+                drop_vars.append(v)
 
         dropped_ds = ds.drop_vars(drop_vars)
 

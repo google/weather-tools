@@ -45,12 +45,22 @@ class SchemaCreationTests(TestDataBase):
         super().setUp()
         self.test_dataset = {
             "coords": {"a": {"dims": ("a",), "data": [pd.Timestamp(0)], "attrs": {}}},
-            "attrs": {},
+            "attrs": {"is_normalized": False},
             "dims": "a",
             "data_vars": {
                 "b": {"dims": ("a",), "data": [np.float32(1.0)]},
                 "c": {"dims": ("a",), "data": [np.float64(2.0)]},
                 "d": {"dims": ("a",), "data": [3.0]},
+            }
+        }
+        self.test_dataset__with_schema_normalization = {
+            "coords": {"a": {"dims": ("a",), "data": [pd.Timestamp(0)], "attrs": {}}},
+            "attrs": {"is_normalized": True},
+            "dims": "a",
+            "data_vars": {
+                "e_0_00_instant_b": {"dims": ("a",), "data": [np.float32(1.0)]},
+                "e_0_00_instant_c": {"dims": ("a",), "data": [np.float64(2.0)]},
+                "e_0_00_instant_d": {"dims": ("a",), "data": [3.0]},
             }
         }
 
@@ -69,9 +79,24 @@ class SchemaCreationTests(TestDataBase):
         ]
         self.assertListEqual(schema, expected_schema)
 
+    def test_schema_generation__with_schema_normalization(self):
+        ds = xr.Dataset.from_dict(self.test_dataset__with_schema_normalization)
+        schema = dataset_to_table_schema(ds)
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
+        ]
+        self.assertListEqual(schema, expected_schema)
+
     def test_schema_generation__with_target_columns(self):
         target_variables = ['c', 'd']
-        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
             SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
@@ -84,9 +109,24 @@ class SchemaCreationTests(TestDataBase):
         ]
         self.assertListEqual(schema, expected_schema)
 
+    def test_schema_generation__with_target_columns__with_schema_normalization(self):
+        target_variables = ['c', 'd']
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset__with_schema_normalization), target_variables)
+        schema = dataset_to_table_schema(ds)
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
+        ]
+        self.assertListEqual(schema, expected_schema)
+
     def test_schema_generation__no_targets_specified(self):
         target_variables = []  # intentionally empty
-        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
             SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
@@ -100,10 +140,31 @@ class SchemaCreationTests(TestDataBase):
         ]
         self.assertListEqual(schema, expected_schema)
 
+    def test_schema_generation__no_targets_specified__with_schema_normalization(self):
+        target_variables = []  # intentionally empty
+        ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset__with_schema_normalization), target_variables)
+        schema = dataset_to_table_schema(ds)
+        expected_schema = [
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
+        ]
+        self.assertListEqual(schema, expected_schema)
+
     def test_schema_generation__missing_target(self):
         with self.assertRaisesRegex(AssertionError, 'Target variable must be in original dataset.'):
             target_variables = ['a', 'foobar', 'd']
-            _only_target_vars(xr.Dataset.from_dict(self.test_dataset), False, target_variables)
+            _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
+
+    def test_schema_generation__missing_target__with_schema_normalization(self):
+        with self.assertRaisesRegex(AssertionError, 'Target variable must be in original dataset.'):
+            target_variables = ['a', 'foobar', 'd']
+            _only_target_vars(xr.Dataset.from_dict(self.test_dataset__with_schema_normalization), target_variables)
 
     @_handle_missing_grib_be
     def test_schema_generation__non_index_coords(self):
