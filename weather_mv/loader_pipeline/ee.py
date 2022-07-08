@@ -38,10 +38,6 @@ from .util import validate_region
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
-CANARY_RECORD = {'foo': 'bar'}
-CANARY_RECORD_FILE_NAME = 'canary_record.json'
-
 
 def is_compute_engine() -> bool:
     """Determines if the application in running in Compute Engine Environment."""
@@ -56,9 +52,9 @@ def get_creds(use_personal_account: bool) -> credentials.Credentials:
     """Fetches credentials for authentication.
 
     If the `use_personal_account` argument is true then it will authenticate with pop-up
-    browser window using personal account. Otherwise if the application is running
-    in compute engine, it will use credentials of service account bound to the VM
-    otherwise will try to use user credentials.
+    browser window using personal account. Otherwise, if the application is running
+    in compute engine, it will use credentials of service account bound to the VM.
+    Otherwise, it will try to use user credentials.
     """
     if use_personal_account:
         ee.Authenticate()
@@ -99,7 +95,7 @@ def ee_initialize(use_personal_account: bool = False,
 
 
 @dataclasses.dataclass
-class TiffData():
+class TiffData:
     """A class for holding the tiff data.
 
     Attributes:
@@ -122,7 +118,7 @@ class TiffData():
 class ToEarthEngine(ToDataSink):
     """Loads weather data into Google Earth Engine.
 
-    A sink that loads dataset (either normalized or read using user provided kwargs).
+    A sink that loads dataset (either normalized or read using user-provided kwargs).
     This sink will read each channel data and merge them into a single dataset if the
     `disable_grib_schema_normalization` flag is not specified. It will read the
     dataset and create a tiff image. Next, it will write the tiff image to the specified
@@ -256,7 +252,7 @@ class ConvertToCog(beam.DoFn):
             with tempfile.TemporaryDirectory() as temp_dir:
                 local_tiff_path = os.path.join(temp_dir, file_name)
                 with rasterio.open(local_tiff_path, 'w',
-                                   driver='GTiff',
+                                   driver='COG',
                                    dtype=dtype,
                                    width=data[0].data.shape[1],
                                    height=data[0].data.shape[0],

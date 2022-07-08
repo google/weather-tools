@@ -16,7 +16,7 @@ like [Google BigQuery](https://cloud.google.com/bigquery) (_alpha_).
 * _(new)_ **Grib Regridding**: `weather-mv regrid` uses [MetView](https://metview.readthedocs.io/en/latest/) to
   interpolate Grib files to a
   [range of grids.](https://metview.readthedocs.io/en/latest/metview/using_metview/regrid_intro.html?highlight=grid#grid)
-* _(new)_ **Earth Eangine Ingestion**: `weather-mv earthengine` converts weather data into GeoTiff and allows for data ingestion into earthengine.
+* _(new)_ **Earth Engine Ingestion**: `weather-mv earthengine` ingests weather data into [Google Earth Engine](https://earthengine.google.com/).
 
 ## Usage
 

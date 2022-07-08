@@ -64,8 +64,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
-            paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(example_uri=next(iter(all_uris)),
-                                                                     **vars(known_args))
+            paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**vars(known_args))
         else:
             raise ValueError('invalid subcommand!')
 
