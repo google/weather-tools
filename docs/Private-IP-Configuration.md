@@ -8,7 +8,7 @@ When we are running the dataflow pipeline, GCP decides to spawn one or more new 
 
 ![VM Instance with External IP Address](_static/vm_instance_with_external_ip_address.png?raw=true "VM Instance with External IP Address")
 
-Considering a billing account has a limited number of External IP addresses, we can skip this <u>overhead</u> by providing VPC-parameters as CLI-input of dataflow.
+Considering a billing account has a limited number of External IP addresses, we can skip this overhead by providing VPC-parameters as CLI-input of dataflow.
 
 Following table<font color="red">*</font> summarizes the required input parameters.
 
@@ -95,5 +95,5 @@ weather-mv --uris "gs://$STORAGE_BUCKET/*.nc"
            --project $HOST_PROJECT_ID
            --region $REGION_NAME
            --no_use_public_ips
-           –subnetwork=https://www.googleapis.com/compute/v1/projects/$HOST_PROJECT_ID/regions/$REGION_NAME/subnetworks/$SUBNETWORK_NAME
+           –-subnetwork=https://www.googleapis.com/compute/v1/projects/$HOST_PROJECT_ID/regions/$REGION_NAME/subnetworks/$SUBNETWORK_NAME
 ```
