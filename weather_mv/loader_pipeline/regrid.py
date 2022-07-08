@@ -27,7 +27,7 @@ from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from .sinks import ToDataSink, open_local
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 try:
     import metview as mv
@@ -74,39 +74,51 @@ class Regrid(ToDataSink):
     def apply(self, uri: str):
         import glob
 
-        logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+
+        file_regrid_label = f'{uri!r} -> {self.target_from(uri)!r}'
+        logger.info(f'Regridding [{file_regrid_label!r}] ...')
 
         if self.dry_run:
             return
 
-        logger.debug(f'Copying grib from {uri!r} to local disk.')
         with open_local(uri) as local_grib:
             # TODO(alxr): Figure out way to open fieldset in memory...
-            logger.debug(f'Regridding {uri!r}.')
+            logger.debug(f'Copied GRIB to local file [{file_regrid_label!r}].')
             try:
                 fs = mv.bindings.Fieldset(path=local_grib)
+                logger.debug(f'Read local GRIB to fieldset [{file_regrid_label!r}].')
                 fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
+                logger.debug(f'Regridded the fieldset [{file_regrid_label!r}].')
             except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
                 raise ImportError('Please install MetView with Anaconda:\n'
                                   '`conda install metview-batch -c conda-forge`') from e
 
         with tempfile.NamedTemporaryFile() as src:
-            logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
+            logger.debug(f'Writing regridded fieldset to local file [{file_regrid_label!r}].')
             if self.to_netcdf:
                 fieldset.to_dataset().to_netcdf(src.name)
             else:
                 mv.write(src.name, fieldset)
+            logger.debug(f'Wrote regridded local file [{file_regrid_label!r}].')
 
             src.flush()
 
-            # Clear the metview temporary directory.
+            logger.debug(f'Removing metview temporary directories [{file_regrid_label!r}] ...')
             cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
+            logger.debug(f'Located temporary directories to remove: {cache_dir} [{file_regrid_label!r}].')
             shutil.rmtree(cache_dir)
+            logger.debug(f'Temporary directories removed [{file_regrid_label!r}].')
             os.makedirs(cache_dir)
+            logger.debug(f'Re-building empty temporary directory structure [{file_regrid_label!r}].')
 
-            logger.info(f'Uploading {self.target_from(uri)!r}.')
+            logger.debug(f'Uploading regridded local file to final destination [{file_regrid_label!r}] ...')
             with FileSystems().create(self.target_from(uri)) as dst:
+                logger.debug(f'Created final destination [{file_regrid_label!r}].')
                 shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+                logger.debug(f'Upload to final destination complete [{file_regrid_label!r}].')
+            logger.info(f'Finished regridding [{file_regrid_label!r}].')
 
     def expand(self, paths):
         paths | beam.Map(self.apply)
