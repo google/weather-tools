@@ -77,8 +77,14 @@ _Command options_:
   tune parallel uploads.
 * `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
+
+> Note: In case of grib files, by default its schema will be normalized and the name of the data variables will look 
+> like `<level>_<height>_<attrs['GRIB_stepType']>_<key>`.
+> 
+> This solves the issue of skipping over some of the data due to: https://github.com/ecmwf/cfgrib#filter-heterogeneous-grib-files.
 
 _Usage examples_:
 
@@ -365,7 +371,7 @@ _Common options_:
 * `--subnetwork`:  The Compute Engine subnetwork for launching Compute Engine instances to run your pipeline.
 
 For more information regarding how to configure Private IP, please refer
-to [Private IP Configuration Guide for Dataflow Pipeline Execution](https://docs.google.com/document/d/1MHzDSsV2EwsyvPSsW1rsxVzi9z91JmT_JOFQ7HZPBQ8/edit?usp=sharing)
+to [Private IP Configuration Guide for Dataflow Pipeline Execution](../Private-IP-Configuration.md)
 .
 
 For more information regarding Pipeline options, please refer
