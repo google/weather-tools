@@ -31,7 +31,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 
-from .sinks import ToDataSink, open_dataset
+from .sinks import ToDataSink, open_dataset, open_local
 from .util import validate_region
 
 logger = logging.getLogger(__name__)
@@ -47,37 +47,57 @@ def is_compute_engine() -> bool:
     return COMPUTE_ENGINE_STR in result_output
 
 
-def get_creds(use_personal_account: bool) -> credentials.Credentials:
+def get_creds(use_personal_account: bool, service_account: str, private_key: str) -> credentials.Credentials:
     """Fetches credentials for authentication.
 
     If the `use_personal_account` argument is true then it will authenticate with pop-up
     browser window using personal account. Otherwise, if the application is running
     in compute engine, it will use credentials of service account bound to the VM.
     Otherwise, it will try to use user credentials.
-    """
-    if use_personal_account:
-        ee.Authenticate()
 
-    if not use_personal_account and is_compute_engine():
+    Args:
+        use_personal_account: A flag to use personal account for ee authentication.
+        service_account: Service account address when using a private key for earth engine authentication.
+        private_key: A private key path to authenticate earth engine using private key.
+
+    Returns:
+        cred: Credentials object.
+    """
+    # TODO(deepgabani8): Test private key authentication.
+    if service_account and private_key:
+        try:
+            with open_local(private_key) as local_path:
+                creds = ee.ServiceAccountCredentials(service_account, local_path)
+        except Exception:
+            raise RuntimeError(f'Unable to open the private key {private_key}.')
+    elif use_personal_account:
+        ee.Authenticate()
+        creds, _ = default()
+    elif is_compute_engine():
         creds = compute_engine.Credentials()
     else:
         creds, _ = default()
+
     creds.refresh(requests.Request())
     return creds
 
 
 def ee_initialize(use_personal_account: bool = False,
-                  enforce_high_volume: bool = False) -> None:
+                  enforce_high_volume: bool = False,
+                  service_account: t.Optional[str] = None,
+                  private_key: t.Optional[str] = None) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
         use_personal_account: A flag to use personal account for ee authentication. Default: False.
         enforce_high_volume: A flag to use the high volume API when using a compute engine VM. Default: False.
+        service_account: Service account address when using a private key for earth engine authentication.
+        private_key: A private key path to authenticate earth engine using private key. Default: None.
 
     Raises:
         RuntimeError: Earth Engine did not initialize.
     """
-    creds = get_creds(use_personal_account)
+    creds = get_creds(use_personal_account, service_account, private_key)
     on_compute_engine = is_compute_engine()
 
     # Using the high volume api.
@@ -154,6 +174,8 @@ class ToEarthEngine(ToDataSink):
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
     use_personal_account: bool
+    service_account: str
+    private_key: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -172,14 +194,27 @@ class ToEarthEngine(ToDataSink):
                                help='Skip validation of regions for data migration. Default: off')
         subparser.add_argument('-u', '--use_personal_account', action='store_true', default=False,
                                help='To use personal account for earth engine authentication.')
+        subparser.add_argument('--service_account', type=str, default=None,
+                               help='Service account address when using a private key for earth engine authentication.')
+        subparser.add_argument('--private_key', type=str, default=None,
+                               help='To use a private key for earth engine authentication.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
 
+        # Check that ee_asset is in correct format.
         if not re.match("^projects/.+/assets.*", known_args.ee_asset):
             raise RuntimeError("'--ee_asset' is required to be in format: projects/+/assets/*.")
+
+        # Check that both service_account and private_key are provided, or none is.
+        if bool(known_args.service_account) ^ bool(known_args.private_key):
+            raise RuntimeError("'--service_account' and '--private_key' both are required.")
+
+        # Check that either personal or service  account is asked to use.
+        if known_args.use_personal_account and known_args.service_account:
+            raise RuntimeError("Both personal and service account cannot be used at once.")
 
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
@@ -197,7 +232,9 @@ class ToEarthEngine(ToDataSink):
                 | 'FilterFiles' >> beam.ParDo(
                     FilterFiles(
                         ee_asset=self.ee_asset,
-                        use_personal_account=self.use_personal_account))
+                        use_personal_account=self.use_personal_account,
+                        service_account=self.service_account,
+                        private_key=self.private_key))
                 | 'ConvertToCog' >> beam.ParDo(
                     ConvertToCog(
                         tiff_location=self.tiff_location,
@@ -222,14 +259,19 @@ class FilterFiles(beam.DoFn):
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+        private_key: A private key path to authenticate earth engine using private key. Default: None.
     """
 
     ee_asset: str
     use_personal_account: bool
+    service_account: str
+    private_key: str
 
     def setup(self):
         """Initializes the earth engine."""
-        ee_initialize(use_personal_account=self.use_personal_account)
+        ee_initialize(use_personal_account=self.use_personal_account,
+                      service_account=self.service_account,
+                      private_key=self.private_key)
 
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""

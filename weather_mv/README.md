@@ -280,8 +280,9 @@ For a full list of how to configure the Dataflow pipeline, please review
 
 ```
 usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_asset EE_ASSET
-                           [--disable_grib_schema_normalization] [--use_personal_account]
-                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy] [-s]
+                           [--disable_grib_schema_normalization] [--use_personal_account] [-s]
+                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
+                           [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
 ```
 
 The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
@@ -295,6 +296,8 @@ It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure
 <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
+* `--service_account`: Service account address when using a private key for earth engine authentication.
+* `--private_key`: To use a private key for earth engine authentication.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
@@ -322,7 +325,7 @@ Preview ingestion with a dry run:
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
            --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
-           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
            --dry-run
 ```
 
@@ -331,7 +334,7 @@ Restrict in-memory copying of dataset:
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
            --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
-           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
            --disable_in_memory_copy
 ```
 
@@ -340,8 +343,18 @@ Authenticate earth engine using personal account:
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
            --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
-           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
            --use_personal_account
+```
+
+Authenticate earth engine using a private key:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --service_account "my-service-account@...gserviceaccount.com" \
+           --private_key "path/to/private_key.json"
 ```
 
 Restrict merging all bands or grib normalization:
@@ -349,7 +362,7 @@ Restrict merging all bands or grib normalization:
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
            --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
-           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
            --disable_grib_schema_normalization
 ```
 
