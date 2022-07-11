@@ -255,7 +255,8 @@ class ConvertToCog(beam.DoFn):
                                   height=data[0].data.shape[0],
                                   count=len(data),
                                   crs=crs,
-                                  transform=transform) as f:
+                                  transform=transform,
+                                  compress='lzw') as f:
                     for i, da in enumerate(data):
                         f.write(da, i+1)
 
