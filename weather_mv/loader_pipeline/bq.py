@@ -89,12 +89,12 @@ class ToBigQuery(ToDataSink):
         infer_schema: If true, this sink will attempt to read in an example data file
           read all its variables, and generate a BigQuery schema.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
+        disable_in_memory_copy: A flag to turn in-memory copy off; Default: in-memory copy enabled.
         tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
           this location for a timestamp.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
-        disable_grib_schema_normalization: Turn off grib's schema normalization; Default: on.
+        disable_grib_schema_normalization: Turn off grib's schema normalization; Default: normalization enabled.
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
