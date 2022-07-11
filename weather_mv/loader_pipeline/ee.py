@@ -93,6 +93,14 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
+def _get_tiff_name(uri: str) -> str:
+    """Extracts file name and converts it into an EE-safe name"""
+    file_name = os.path.basename(uri)
+    base_name = os.path.splitext(file_name)[0]
+    tiff_name = base_name.replace('.', '_')
+    return tiff_name
+
+
 @dataclasses.dataclass
 class TiffData:
     """A class for holding the tiff data.
@@ -186,6 +194,10 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             (
                 paths
+                | 'FilterFiles' >> beam.ParDo(
+                    FilterFiles(
+                        ee_asset=self.ee_asset,
+                        use_personal_account=self.use_personal_account))
                 | 'ConvertToCog' >> beam.ParDo(
                     ConvertToCog(
                         tiff_location=self.tiff_location,
@@ -194,14 +206,40 @@ class ToEarthEngine(ToDataSink):
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization))
                 | 'IngestIntoEE' >> beam.ParDo(
                     IngestIntoEE(
-                        ee_asset=self.ee_asset,
-                        use_personal_account=self.use_personal_account))
+                        ee_asset=self.ee_asset))
             )
         else:
             (
                 paths
                 | 'Log Grib Files' >> beam.Map(logger.debug)
             )
+
+
+@dataclasses.dataclass
+class FilterFiles(beam.DoFn):
+    """Filters out paths for which the assets that are already in the earth engine.
+
+    Attributes:
+        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+    """
+
+    ee_asset: str
+    use_personal_account: bool
+
+    def setup(self):
+        """Initializes the earth engine."""
+        ee_initialize(use_personal_account=self.use_personal_account)
+
+    def process(self, uri: str) -> t.Iterator[str]:
+        """Yields uri if the asset does not already exist."""
+        tiff_name = _get_tiff_name(uri)
+        asset_id = os.path.join(self.ee_asset, tiff_name)
+        try:
+            ee.data.getAsset(asset_id)
+            logger.info(f'Asset {asset_id} already exists in EE. Skipping...')
+        except ee.EEException:
+            yield uri
 
 
 @dataclasses.dataclass
@@ -220,13 +258,6 @@ class ConvertToCog(beam.DoFn):
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
 
-    def _get_tiff_name(self, uri: str) -> str:
-        """Extracts file name and converts it into an EE-safe name"""
-        file_name = os.path.basename(uri)
-        base_name = os.path.splitext(file_name)[0]
-        tiff_name = base_name.replace('.', '_')
-        return tiff_name
-
     def _get_target_path(self, file_name: str) -> str:
         """Creates a GCS target path from the file name."""
         return os.path.join(self.tiff_location, file_name)
@@ -234,7 +265,7 @@ class ConvertToCog(beam.DoFn):
     def process(self, uri: str) -> t.Iterator[TiffData]:
         """Opens grib files and yields TiffData."""
 
-        logger.info(f'Converting {uri!r} to COGs ...')
+        logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_in_memory_copy,
@@ -242,7 +273,7 @@ class ConvertToCog(beam.DoFn):
 
             attrs = ds.attrs
             data = list(ds.values())
-            tiff_name = self._get_tiff_name(uri)
+            tiff_name = _get_tiff_name(uri)
             start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
 
@@ -267,97 +298,64 @@ class ConvertToCog(beam.DoFn):
 
                 channel_names = [da.name for da in data]
                 tiff_data = TiffData(
-                        name=tiff_name,
-                        target_path=target_path,
-                        channel_names=channel_names,
-                        start_time=start_time,
-                        end_time=end_time,
-                        properties=attrs
-                    )
+                    name=tiff_name,
+                    target_path=target_path,
+                    channel_names=channel_names,
+                    start_time=start_time,
+                    end_time=end_time,
+                    properties=attrs
+                )
 
                 yield tiff_data
 
 
 @dataclasses.dataclass
 class IngestIntoEE(beam.DoFn):
-    """Ingests tiff image into earth engine and yields task id.
+    """Ingests tiff image into earth engine and yields asset id.
 
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
-        use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
     """
 
     ee_asset: str
-    use_personal_account: bool
 
     @retry.with_exponential_backoff()
-    def start_ingestion_task(self, asset_request: t.Dict) -> str:
-        """Sends a manifest task request to EE for asset ingestion. Returns the task id."""
-        task_id = ee.data.newTaskId(1)[0]
-        _ = ee.data.startIngestion(task_id, asset_request)
-        return task_id
+    def start_ingestion(self, asset_request: t.Dict) -> str:
+        """Creates COG-backed asset in earth engine. Returns the asset id."""
+        try:
+            result = ee.data.createAsset(asset_request)
+        except ee.EEException as err:
+            raise err
 
-    def manifest_output(self,
-                        target_path: str,
-                        asset_id: str,
-                        channel_names: t.List[str],
-                        start_time: float,
-                        end_time: float,
-                        properties: t.Dict[str, t.Union[str, float, int]]) -> str:
-        """Uploads a GeoTiff to EE for weather data.
-
-        This function uses the "Manifest Upload" technique to move a GeoTiff from GCS
-        to EE. This technique is advantageous over ee.Export because it allows for
-        uploads of very large files, but requires the generation of a manifest JSON.
-
-        Args:
-            target_path: The location of the GeoTiff in GCS.
-            asset_id: The asset path in earth engine where the tiff image will be pushed.
-            channel_names: A list of channel names in the tiff image.
-            start_time: The start time of dataset in float seconds.
-            end_time: The end time of dataset in float seconds.
-            properties: A dictionary of tiff metadata.
-
-        Returns:
-            task_id: The Task ID of the EE ingestion request.
-        """
-        manifest = {
-            'name': asset_id,
-            'tilesets': [{
-                'id': 'data_tile',
-                'crs': "epsg:4326",
-                'sources': [{
-                    'uris': [target_path]
-                }]
-            }],
-            'bands': [{
-                'id': f"{_channel_name}",
-                'tileset_id': 'data_tile',
-                'tileset_band_index': _channel_idx,
-            } for _channel_idx, _channel_name in enumerate(channel_names)],
-            'start_time': {
-                'seconds': start_time
-            },
-            'end_time': {
-                'seconds': end_time
-            },
-            'properties': properties
-        }
-
-        logger.info(f"Uploading GeoTiff {target_path} to Asset ID {asset_id}.")
-        task_id = self.start_ingestion_task(manifest)
-        return task_id
+        return result.get('id')
 
     def process(self, tiff_data: TiffData) -> t.Iterator[str]:
         """Uploads a tiff image into the earth engine."""
-        # Initializing earth engine.
-        ee_initialize(use_personal_account=self.use_personal_account)
+        target_path = tiff_data.target_path
+        asset_name = os.path.join(self.ee_asset, tiff_data.name)
+        channel_names = tiff_data.channel_names
+        start_time = tiff_data.start_time
+        end_time = tiff_data.end_time
+        properties = tiff_data.properties
 
-        # Push the tiff image into earth engine.
-        task_id = self.manifest_output(target_path=tiff_data.target_path,
-                                       asset_id=os.path.join(self.ee_asset, tiff_data.name),
-                                       channel_names=tiff_data.channel_names,
-                                       start_time=tiff_data.start_time,
-                                       end_time=tiff_data.end_time,
-                                       properties=tiff_data.properties)
-        yield task_id
+        # No way to rename channels here. For now, putting them in metadata.
+        for _channel_idx, _channel_name in enumerate(channel_names):
+            properties[f'B{_channel_idx}'] = _channel_name
+
+        request = {
+            'type': 'IMAGE',
+            'gcs_location': {
+                'uris': [target_path]
+            },
+            'properties': properties,
+            'startTime': start_time,
+            'endTime': end_time,
+            'name': asset_name,
+        }
+
+        logger.info(f"Uploading GeoTiff {target_path} to Asset ID '{asset_name}'.")
+        asset_id = self.start_ingestion(request)
+
+        beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
+
+        yield asset_id
