@@ -194,6 +194,11 @@ To use this capability of the weather mover, please use the `[regrid]` extra whe
 pip install google-weather-tools[regrid]
 ```
 
+> **Warning**: MetView requires a decent amount of disk space in order to perform any regrid operation! Intermediary 
+> regridding steps will write temporary grib data to disk. Thus, please make use of the `--disk_size_gb` Dataflow 
+> option. A good rule of thumb would be to consume `30 + 3.5x` GBs of disk, where `x` is the size of each source data
+> file.
+
 In addition to the common options above, users may specify command-specific options:
 
 _Command options_:
@@ -271,6 +276,21 @@ weather-mv rg --uris "gs://your-bucket/*.nc" \
            --runner DataflowRunner \
            --project $PROJECT \
            --region  $REGION \
+           --temp_location "gs://$BUCKET/tmp" \
+           --experiment=use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
+           --job_name $JOB_NAME 
+```
+
+Using DataflowRunner, with added disk per VM:
+
+```bash
+weather-mv rg --uris "gs://your-bucket/*.nc" \
+           --output_path "gs://regrid-bucket/" \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region  $REGION \
+           --disk_size_gb 250 \ 
            --temp_location "gs://$BUCKET/tmp" \
            --experiment=use_runner_v2 \
            --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
