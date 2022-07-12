@@ -37,7 +37,8 @@ from .util import validate_region
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-NUM_RETRIES = 10  # For the exponential backoff retry logic.
+# For EE ingestion retry logic.
+NUM_RETRIES = 10  # No. of tries with exponential backoff.
 INITIAL_DELAY = 1.0  # Initial exponential backoff delay in seconds.
 MAX_DELAY = 600  # Maximum backoff delay in seconds.
 
@@ -216,7 +217,7 @@ class ToEarthEngine(ToDataSink):
         if bool(known_args.service_account) ^ bool(known_args.private_key):
             raise RuntimeError("'--service_account' and '--private_key' both are required.")
 
-        # Check that either personal or service  account is asked to use.
+        # Check that either personal or service account is asked to use.
         if known_args.use_personal_account and known_args.service_account:
             raise RuntimeError("Both personal and service account cannot be used at once.")
 
