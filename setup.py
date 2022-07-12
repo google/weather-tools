@@ -27,6 +27,7 @@ weather_dl_requirements = [
     "google-cloud-firestore",
     "urllib3==1.25.11",
     "pyparsing==2.4.2",  # Fix http2lib auth breakage
+    "eumdac",
 
 ]
 

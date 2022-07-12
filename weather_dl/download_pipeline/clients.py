@@ -16,16 +16,22 @@
 import abc
 import collections
 import contextlib
+import numpy as np
 import io
 import json
 import logging
 import os
 import typing as t
 import warnings
+import shutil
+import time
 
 import cdsapi
 import urllib3
 from ecmwfapi import ECMWFService
+import eumdac
+
+from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
 from .config import Config, optimize_selection_partition
 
@@ -209,6 +215,105 @@ class MarsClient(Client):
         return 2
 
 
+class EumetsatClient(Client):
+    def __init__(self, config: Config, level: int = logging.INFO,
+                 config_subsection: t.Optional[t.Tuple] = None) -> None:
+        super().__init__(config, level)
+        self.key = config.kwargs.get('api_key', os.environ.get("EUMETSATAPI_KEY"))
+        self.secret = config.kwargs.get('api_secret', os.environ.get("EUMETSATAPI_SECRET"))
+        if not self.key and config_subsection:
+            self.key = config_subsection[1].get('api_key')
+        if not self.secret and config_subsection:
+            self.secret = config_subsection[1].get('api_secret')
+
+    def products(self, start: np.datetime64, end: np.datetime64, dataset: str) -> t.Iterator[str]:
+        """Lists the products that are available for that dataset in the date range.
+
+        Args:
+            start: start time.
+            end: end time.
+            dataset: dataset name as listed in eumetsat catalogue.
+        Returns:
+            An iterator of product ids.
+        """
+        datastore = eumdac.DataStore(self._token())
+        collection = datastore.get_collection(dataset)
+        for product in collection.search(dtstart=start, dtend=end):
+            yield product._id
+
+    def _token(self) -> eumdac.AccessToken:
+        credentials = (self.key, self.secret)
+        return eumdac.AccessToken(credentials)
+
+    def download_native(self, product: eumdac.product.Product, output: str) -> None:
+        """Downloads the entry file from the product."""
+        entry = f'{product}.nat'
+        with product.open(entry=entry) as fsrc:
+            with open(output, 'wb') as fdst:
+                shutil.copyfileobj(fsrc, fdst, DEFAULT_READ_BUFFER_SIZE)
+
+    def download_custom(self, product: eumdac.product.Product, token: eumdac.AccessToken,
+                        chain_config: eumdac.tailor_models.Chain, output: str) -> None:
+        """Downloads the prduct after customisation."""
+        datatailor = eumdac.DataTailor(token)
+        with datatailor.new_customisation(product, chain_config) as customisation:
+            customisation.update_margin = 0
+            timeout = 900  # customisation can be slow
+            tic = time.time()
+            while time.time() - tic < timeout:
+                if customisation.status == 'DONE':
+                    break
+            else:
+                raise TimeoutError(f'Customisation took longer than {timeout}s')
+            self.logger.info('Customisation for product %s: output %s', product, customisation.outputs)
+            with customisation.stream_output(customisation.outputs[0]) as stream:
+                with open(output, 'wb') as fdst:
+                    shutil.copyfileobj(stream, fdst, DEFAULT_READ_BUFFER_SIZE)
+
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        selection_ = optimize_selection_partition(selection)
+        with StdoutLogger(self.logger, level=logging.DEBUG):
+            datastore = eumdac.DataStore(self._token())
+            product = datastore.get_product(product_id=selection_['product_id'][0], collection_id=dataset)
+            if not selection_.get('eumetsat_format_conversion_to'):
+                self.download_native(product, output)
+            else:
+                chain_config = eumdac.tailor_models.Chain(product=selection_['product'],
+                                                          format=selection_['eumetsat_format_conversion_to'])
+                self.download_custom(product, self._token(), chain_config, output)
+
+    @property
+    def license_url(self):
+        return 'https://www.eumetsat.int/eumetsat-data-licensing'
+
+    def num_requests_per_key(self, dataset: str, eumetsat_control_num_requests: bool) -> int:
+        """Number of requests per key (or user) for the EUMETSAT API.
+
+        EUMETSAT Data Tailor allows maximum 3 (active and/or queued) customisations per user, as of Jun 06, 2022.
+        See: https://eumetsatspace.atlassian.net/wiki/spaces/DSDT/pages/1589379078
+
+        Above limitation is not applicable in case of native downloads.
+
+        If maximum number of (active and/or queued) customizations exceeds 3, then -
+        EUMETSAT Data Tailor API throws "You are exceeding your maximum number 3 of queued+running customisations."
+        error.
+
+        User's personal workspace is restricted to 20 GB. To resolve workspace size exhaust error, please delete
+        old customisations to make space for new ones.
+        See: https://gitlab.eumetsat.int/eumetlab/data-services/eumdac_data_tailor/-/blob/master/2_Cleaning_the_Data_Tailor_workspace.ipynb # noqa: E501
+
+        If the workspace becomes full, then -
+        EUMETSAT Data Tailor API throws "the user quota (20.0 GB) is fully used" error.
+
+        However, for both of the above error cases, EUMETSAT API (eumdac) incorrectly throws "Invalid Credentials. Make
+        sure your API invocation call has a header: 'Authorization : Bearer ACCESS_TOKEN' or 'Authorization : Basic
+        ACCESS_TOKEN' or 'apikey: API_KEY'” error.
+        """
+        if eumetsat_control_num_requests:
+            return 3
+        return 15
+
+
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
@@ -228,5 +333,6 @@ class FakeClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient,
     mars=MarsClient,
+    eumetsat=EumetsatClient,
     fake=FakeClient,
 )

@@ -16,6 +16,9 @@ import dataclasses
 import itertools
 import logging
 import typing as t
+import numpy as np
+import pandas as pd
+from .clients import CLIENTS
 
 import apache_beam as beam
 
@@ -48,6 +51,7 @@ class PartitionConfig(beam.PTransform):
     store: Store
     subsections: itertools.cycle
     manifest: Manifest
+    config_client: str
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -75,9 +79,20 @@ class PartitionConfig(beam.PTransform):
             name, params = next(self.subsections)
             return name, params, it
 
-        return (
+        if self.config_client == 'eumetsat':
+            prepared_partitions = (
                 configs
-                | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
+                | 'SplitTimes' >> beam.FlatMap(time_slices)
+                | 'Reshuffle time slices' >> beam.Reshuffle()
+                | 'Prepare partions' >> beam.FlatMap(prepare_partitions_for_eumetsat, next(self.subsections))
+            )
+        else:
+            prepared_partitions = (
+                configs
+                | 'Prepare partions' >> beam.FlatMap(prepare_partitions)
+            )
+        return (
+                prepared_partitions
                 | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=self.store)
                 | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
                 | 'Assemble the data request' >> beam.Map(assemble_config, manifest=self.manifest)
@@ -125,6 +140,19 @@ def skip_partition(config: Config, store: Store) -> bool:
     return False
 
 
+def _split_dates_to_months(start: str, end: str) -> np.ndarray:
+    slices = pd.date_range(start=start, end=end, freq='30D')
+    logger.info('slices=%s', slices)
+    return np.append(slices, pd.to_datetime(end).asm8)
+
+
+def time_slices(config: Config) -> t.Iterable[t.Tuple[Config, np.datetime64, np.datetime64]]:
+    dates = _split_dates_to_months(config.selection['start_date'], config.selection['end_date'])
+    logger.info('dates=%s', dates)
+    for s, e in zip(dates[:-1], dates[1:]):
+        yield config, s, e
+
+
 def prepare_partitions(config: Config) -> t.Iterator[Config]:
     """Iterate over client parameters, partitioning over `partition_keys`.
 
@@ -139,6 +167,21 @@ def prepare_partitions(config: Config) -> t.Iterator[Config]:
     """
     for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
         yield _create_partition_config(option, config)
+
+
+def prepare_partitions_for_eumetsat(element: t.Tuple[Config, np.datetime64, np.datetime64], subsection) -> t.Iterator[
+                                                                                                            Config]:
+    """Iterate over client parameters, partitioning over `partition_keys`.
+
+    This fetches the product_ids and consider each of them as single partition.
+
+    Returns:
+        An iterator of `Config`s.
+    """
+    config, start, end = element
+    client = CLIENTS[config.client](config, config_subsection=subsection)
+    for option in client.products(start, end, config.dataset):
+        yield _create_partition_config((option, ), config)
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
