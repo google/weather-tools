@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # For EE ingestion retry logic.
-NUM_RETRIES = 10  # No. of tries with exponential backoff.
-INITIAL_DELAY = 1.0  # Initial exponential backoff delay in seconds.
-MAX_DELAY = 600  # Maximum backoff delay in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
+INITIAL_DELAY = 1.0  # Initial delay in seconds.
+MAX_DELAY = 600  # Maximum delay before giving up in seconds.
 
 
 def is_compute_engine() -> bool:
@@ -120,9 +120,12 @@ def ee_initialize(use_personal_account: bool = False,
 
 def _get_tiff_name(uri: str) -> str:
     """Extracts file name and converts it into an EE-safe name"""
-    file_name = os.path.basename(uri)
-    base_name = os.path.splitext(file_name)[0]
-    tiff_name = base_name.replace('.', '_')
+    basename = os.path.basename(uri)
+    # Strip the extension from the basename.
+    basename, _ = os.path.splitext(basename)
+    # An asset ID can only contain letters, numbers, hyphens, and underscores.
+    # Converting everything else to underscore.
+    tiff_name = re.sub(r'[^a-zA-Z0-9-_]+', r'_', basename)
     return tiff_name
 
 
@@ -305,10 +308,6 @@ class ConvertToCog(beam.DoFn):
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
 
-    def _get_target_path(self, file_name: str) -> str:
-        """Creates a GCS target path from the file name."""
-        return os.path.join(self.tiff_location, file_name)
-
     def process(self, uri: str) -> t.Iterator[TiffData]:
         """Opens grib files and yields TiffData."""
 
@@ -339,7 +338,7 @@ class ConvertToCog(beam.DoFn):
                         f.write(da, i+1)
 
                 # Copy in-memory tiff to gcs.
-                target_path = self._get_target_path(file_name)
+                target_path = os.path.join(self.tiff_location, file_name)
                 with FileSystems().create(target_path) as dst:
                     shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
 
