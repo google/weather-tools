@@ -30,6 +30,7 @@ from urllib.parse import urlparse
 import numpy as np
 import xarray as xr
 from xarray.core.utils import ensure_us_time_resolution
+from .sinks import COORD_DISTRACTOR_SET
 
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
@@ -88,6 +89,29 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
+def _check_for_coords_vars(ds_data_var: str, target_var: str) -> bool:
+    """Checks if the dataset's data variable matches with the target variables (or coordinates)
+    specified by the user."""
+    return ds_data_var.endswith('_'+target_var) or ds_data_var.startswith(target_var+'_')
+
+
+def _only_target_coordinate_vars(ds: xr.Dataset, data_vars: t.List[str]) -> t.List[str]:
+    """If the user specifies target fields in the dataset, get all the matching coords & data vars."""
+
+    # If the dataset is not the merged dataset (created for normalizing grib's schema),
+    # return the target fields specified by the user as it is.
+    if not ds.attrs['is_normalized']:
+        return data_vars
+
+    keep_coords_vars = []
+
+    for dv in data_vars:
+        keep_coords_vars.extend([v for v in ds.data_vars if _check_for_coords_vars(v, dv)])
+        keep_coords_vars.extend([v for v in COORD_DISTRACTOR_SET if v in dv])
+
+    return keep_coords_vars
+
+
 def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None) -> xr.Dataset:
     """If the user specifies target fields in the dataset, create a schema only from those fields."""
 
@@ -96,10 +120,28 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
         logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
         return ds
 
-    assert all([dv in ds.data_vars or dv in ds.coords for dv in data_vars]), 'Target variable must be in original ' \
-                                                                             'dataset. '
+    if not ds.attrs['is_normalized']:
+        assert all([dv in ds.data_vars or dv in ds.coords for dv in data_vars]), 'Target variable must be in original '\
+                                                                                'dataset. '
 
-    dropped_ds = ds.drop_vars([v for v in ds.data_vars if v not in data_vars])
+        dropped_ds = ds.drop_vars([v for v in ds.data_vars if v not in data_vars])
+    else:
+        drop_vars = []
+        check_target_variable = []
+        for dv in data_vars:
+            searched_data_vars = [_check_for_coords_vars(v, dv) for v in ds.data_vars]
+            searched_coords = [] if dv not in COORD_DISTRACTOR_SET else [dv in ds.coords]
+            check_target_variable.append(any(searched_data_vars) or any(searched_coords))
+
+        assert all(check_target_variable), 'Target variable must be in original dataset.'
+
+        for v in ds.data_vars:
+            searched_data_vars = [_check_for_coords_vars(v, dv) for dv in data_vars]
+            if not any(searched_data_vars):
+                drop_vars.append(v)
+
+        dropped_ds = ds.drop_vars(drop_vars)
+
     logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
 
     return dropped_ds

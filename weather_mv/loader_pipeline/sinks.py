@@ -95,7 +95,10 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = ds.squeeze().drop_vars('band').drop_vars('spatial_ref')
 
     band_data_list = [_get_band_data(i) for i in range(band_length)]
+
+    ds_is_normalized_attr = ds.attrs['is_normalized']
     ds = xr.merge(band_data_list)
+    ds.attrs['is_normalized'] = ds_is_normalized_attr
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
@@ -118,12 +121,22 @@ def _to_utc_timestring(np_time: np.datetime64) -> str:
     return datetime.datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+def _add_is_normalized_attr(ds: xr.Dataset, value: bool) -> xr.Dataset:
+    """Adds is_normalized to the attrs of the xarray.Dataset.
+
+    This attribute represents if the dataset is the merged dataset (i.e. created by combining N datasets,
+    specifically for normalizing grib's schema) or not.
+    """
+    ds.attrs['is_normalized'] = value
+    return ds
+
+
 def _is_3d_da(da):
     """Checks whether data array is 3d or not."""
     return len(da.shape) == 3
 
 
-def __merged_dataset(filename: str) -> xr.Dataset:
+def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     """Reads a list of datasets and merge them into a single dataset."""
     _data_array_list = []
     list_ds = cfgrib.open_datasets(filename)
@@ -160,7 +173,7 @@ def __merged_dataset(filename: str) -> xr.Dataset:
                 height = copied_da.coords[level].data.flatten()[sub_c]
 
                 # Some heights are super small, but we can't have decimal points
-                # in channel names for Earth Engine, so mostly cut off the
+                # in channel names & schema fields for Earth Engine & BigQuery respectively , so mostly cut off the
                 # fractional part, unless we are forced to keep it. If so,
                 # replace the decimal point with yet another underscore.
                 if height >= 10:
@@ -186,18 +199,18 @@ def __merged_dataset(filename: str) -> xr.Dataset:
 def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None):
-    """Open the dataset at 'uri'"""
+                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
+    """Opens the dataset at 'uri' and returns a xarray.Dataset."""
     if open_dataset_kwargs:
-        return xr.open_dataset(filename, **open_dataset_kwargs)
+        return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
     if uri_extension == '.tif':
-        return xr.open_dataset(filename, engine='rasterio')
+        return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
-        return xr.open_dataset(filename)
+        return _add_is_normalized_attr(xr.open_dataset(filename), False)
     except ValueError as e:
         e_str = str(e)
         if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
@@ -205,19 +218,24 @@ def __open_dataset_file(filename: str,
 
     if not disable_grib_schema_normalization:
         logger.warning("Assuming grib.")
-        return __merged_dataset(filename)
-    else:
-        # Trying with explicit engine for cfgrib.
-        try:
-            return xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''})
-        except ValueError as e:
-            if "multiple values for key 'edition'" not in str(e):
-                raise
-        logger.warning("Assuming grib edition 1.")
-        # Try with edition 1
-        # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
-        return xr.open_dataset(filename, engine='cfgrib',
-                               backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''})
+        logger.info("Normalizing the grib schema, name of the data variables will look like "
+                    "'<level>_<height>_<attrs['GRIB_stepType']>_<key>'.")
+        return _add_is_normalized_attr(__normalize_grib_dataset(filename), True)
+
+    # Trying with explicit engine for cfgrib.
+    try:
+        return _add_is_normalized_attr(
+            xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'indexpath': ''}),
+            False)
+    except ValueError as e:
+        if "multiple values for key 'edition'" not in str(e):
+            raise
+    logger.warning("Assuming grib edition 1.")
+    # Try with edition 1
+    # Note: picking edition 1 for now as it seems to get the most data/variables for ECMWF realtime data.
+    return _add_is_normalized_attr(
+        xr.open_dataset(filename, engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}, 'indexpath': ''}),
+        False)
 
 
 @contextlib.contextmanager
