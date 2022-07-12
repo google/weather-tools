@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 import numpy as np
 import xarray as xr
 from xarray.core.utils import ensure_us_time_resolution
-from .sinks import COORD_DISTRACTOR_SET
+from .sinks import DEFAULT_COORD_KEYS
 
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
@@ -107,7 +107,7 @@ def _only_target_coordinate_vars(ds: xr.Dataset, data_vars: t.List[str]) -> t.Li
 
     for dv in data_vars:
         keep_coords_vars.extend([v for v in ds.data_vars if _check_for_coords_vars(v, dv)])
-        keep_coords_vars.extend([v for v in COORD_DISTRACTOR_SET if v in dv])
+        keep_coords_vars.extend([v for v in DEFAULT_COORD_KEYS if v in dv])
 
     return keep_coords_vars
 
@@ -130,7 +130,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
         check_target_variable = []
         for dv in data_vars:
             searched_data_vars = [_check_for_coords_vars(v, dv) for v in ds.data_vars]
-            searched_coords = [] if dv not in COORD_DISTRACTOR_SET else [dv in ds.coords]
+            searched_coords = [] if dv not in DEFAULT_COORD_KEYS else [dv in ds.coords]
             check_target_variable.append(any(searched_data_vars) or any(searched_coords))
 
         assert all(check_target_variable), 'Target variable must be in original dataset.'
