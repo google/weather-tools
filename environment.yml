@@ -29,3 +29,5 @@ dependencies:
   - pip
   - pip:
     - firebase-admin
+    - google-cloud-datastore
+    - urllib3==1.26.5
