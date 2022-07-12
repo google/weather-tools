@@ -43,6 +43,8 @@ weather_mv_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
+    'simplejson',
+    "rioxarray",
 ]
 
 weather_sp_requirements = [
@@ -63,6 +65,7 @@ test_requirements = [
     "xarray",
     "xarray-beam",
     "absl-py",
+    "metview",
 ]
 
 all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
@@ -93,7 +96,7 @@ setup(
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    # Apache Beam's Python SDK only supports up to 3.8
+    # TODO(#166): Upgrade to python 3.9, since Apache Beam's Python SDK now supports it.
     python_requires='>=3.7, <3.9',
     install_requires=['apache-beam[gcp]'],
     use_scm_version=True,
@@ -104,6 +107,7 @@ setup(
     extras_require={
         'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
         'test': all_test_requirements,
+        'regrid': ['metview']
     },
     project_urls={
         'Issue Tracking': 'http://github.com/google/weather-tools/issues',

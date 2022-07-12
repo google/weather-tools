@@ -79,7 +79,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     """Main entrypoint & pipeline definition."""
     parser = argparse.ArgumentParser(
         prog='weather-sp',
-        description='Split weather data file into files by variable.'
+        description='Split weather data file into files by variable or other dimension.'
     )
     parser.add_argument('-i', '--input-pattern', type=str, required=True,
                         help='Pattern for input weather data.')

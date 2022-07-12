@@ -24,6 +24,7 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import (
     PipelineOptions,
     StandardOptions,
+    WorkerOptions,
 )
 
 from .clients import CLIENTS
@@ -69,7 +70,7 @@ class PipelineArgs:
         client_name: The type of download client (e.g. Copernicus, Mars, or a fake).
         store: A Store, which is responsible for where downloads end up.
         manifest: A Manifest, which records download progress.
-        subsections: A
+        num_requesters_per_key: Number of requests per subsection (license).
     """
     known_args: argparse.Namespace
     pipeline_options: PipelineOptions
@@ -87,6 +88,11 @@ def pipeline(args: PipelineArgs) -> None:
     logger.info(f"Using '{args.num_requesters_per_key}' requests per subsection (license).")
 
     subsections = get_subsections(args.config)
+
+    # capping the max number of workers to N i.e. possible simultaneous requests + fudge factor
+    max_num_workers = len(subsections) * args.num_requesters_per_key + 10
+    args.pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
+    logger.info(f"Capped the max number of workers to '{max_num_workers}'.")
 
     request_idxs = {name: itertools.cycle(range(args.num_requesters_per_key)) for name, _ in subsections}
 

@@ -43,8 +43,8 @@ It's recommended that you create a local python environment (with
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
 - [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
-- [⛅️ `weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into BigQuery.
-- [🌪 `weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by variable.
+- [⛅️ `weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into analytics engines, like BigQuery.
+- [🌪 `weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by arbitrary dimensions.
 
 ## Quickstart
 
@@ -90,7 +90,7 @@ _Steps_:
 3. Use `weather-mv` to upload this data to Google BigQuery.
 
    ```shell
-   weather-mv --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
+   weather-mv bigquery --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
       --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
       --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
       --direct_num_workers 2
