@@ -197,7 +197,9 @@ pip install google-weather-tools[regrid]
 > **Warning**: MetView requires a decent amount of disk space in order to perform any regrid operation! Intermediary 
 > regridding steps will write temporary grib data to disk. Thus, please make use of the `--disk_size_gb` Dataflow 
 > option. A good rule of thumb would be to consume `30 + 2.5x` GBs of disk, where `x` is the size of each source data
-> file.
+> file. 
+> 
+> TODO([#191](https://github.com/google/weather-tools/issues/191)): Find smaller disk space bound.
 
 In addition to the common options above, users may specify command-specific options:
 
