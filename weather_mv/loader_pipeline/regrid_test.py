@@ -15,6 +15,7 @@ import dataclasses
 import os.path
 import tempfile
 import unittest
+import glob
 
 import numpy as np
 import xarray as xr
@@ -40,6 +41,11 @@ def make_skin_temperature_dataset() -> xr.Dataset:
     ).to_dataset(name='skin_temperature')
     ds.skin_temperature.attrs['GRIB_shortName'] = 'skt'
     return ds
+
+
+def metview_cache_exists() -> bool:
+    caches = glob.glob(f'{tempfile.gettempdir()}/mv*/')
+    return len(caches) > 1
 
 
 class RegridTest(TestDataBase):
@@ -68,11 +74,17 @@ class RegridTest(TestDataBase):
     def test_apply__creates_a_file(self):
         path = os.path.join(self.input_dir, 'test.gb')
         to_grib(make_skin_temperature_dataset(), path)
+
         self.assertTrue(os.path.exists(path))
 
         self.Op.apply(path)
 
         self.assertTrue(os.path.exists(f'{self.tmpdir.name}/test.gb'))
+        self.assertFalse(metview_cache_exists())
+
+    def test_apply__works_when_called_twice(self):
+        for _ in range(2):
+            self.test_apply__creates_a_file()
 
     def test_apply__to_netCDF__creates_a_netCDF_file(self):
         path = os.path.join(self.input_dir, 'test.gb')
