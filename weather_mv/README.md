@@ -292,12 +292,12 @@ _Command options_:
 
 * `--tiff_location`: (required) Bucket location at which tiff files will be pushed.
 * `--ee_asset`: (required) The asset folder path in earth engine project where the tiff image files will be pushed.
-It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there under
-<project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar
+  It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there
+  under <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar.
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
 * `--service_account`: Service account address when using a private key for earth engine authentication.
-* `--private_key`: To use a private key for earth engine authentication.
+* `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.

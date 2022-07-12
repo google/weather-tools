@@ -37,6 +37,10 @@ from .util import validate_region
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+NUM_RETRIES = 10  # For the exponential backoff retry logic.
+INITIAL_DELAY = 1.0  # Initial exponential backoff delay in seconds.
+MAX_DELAY = 600  # Maximum backoff delay in seconds.
+
 
 def is_compute_engine() -> bool:
     """Determines if the application in running in Compute Engine Environment."""
@@ -361,7 +365,12 @@ class IngestIntoEE(beam.DoFn):
 
     ee_asset: str
 
-    @retry.with_exponential_backoff()
+    @retry.with_exponential_backoff(
+        num_retries=NUM_RETRIES,
+        logger=logger.warning,
+        initial_delay_secs=INITIAL_DELAY,
+        max_delay_secs=MAX_DELAY
+    )
     def start_ingestion(self, asset_request: t.Dict) -> str:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         try:
