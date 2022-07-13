@@ -41,14 +41,6 @@ logger.setLevel(logging.INFO)
 NUM_RETRIES = 10  # Number of tries with exponential backoff.
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
-# For filter files logic.
-FILTER_QPS = 10
-FILTER_LATENCY = 0.5
-FILTER_MAX_CONCURRENT = 10
-# For EE ingestion logic.
-INGEST_QPS = 10
-INGEST_LATENCY = 0.5
-INGEST_MAX_CONCURRENT = 10
 
 
 def is_compute_engine() -> bool:
@@ -265,12 +257,13 @@ class ToEarthEngine(ToDataSink):
                 paths
                 | 'FilterFiles' >> FilterFilesTransform(
                     ee_asset=self.ee_asset,
-                    use_personal_account=self.use_personal_account,
-                    service_account=self.service_account,
-                    private_key=self.private_key,
                     ee_qps=self.ee_qps,
                     ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent)
+                    ee_max_concurrent=self.ee_max_concurrent,
+                    private_key=self.private_key,
+                    service_account=self.service_account,
+                    use_personal_account=self.use_personal_account)
+                | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToCog' >> beam.ParDo(
                     ConvertToCog(
                         tiff_location=self.tiff_location,
@@ -281,7 +274,10 @@ class ToEarthEngine(ToDataSink):
                     ee_asset=self.ee_asset,
                     ee_qps=self.ee_qps,
                     ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent)
+                    ee_max_concurrent=self.ee_max_concurrent,
+                    private_key=self.private_key,
+                    service_account=self.service_account,
+                    use_personal_account=self.use_personal_account)
             )
         else:
             (
@@ -295,30 +291,31 @@ class FilterFilesTransform(RateLimit):
 
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
-        use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+        ee_qps: Maximum queries per second allowed by EE for your project.
+        ee_latency: The expected latency per requests, in seconds.
+        ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
+        service_account: Service account address when using a private key for earth engine authentication.
+        use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
     """
 
     def __init__(self,
                  ee_asset: str,
-                 use_personal_account: bool,
-                 service_account: str,
-                 private_key: str,
                  ee_qps: int,
                  ee_latency: float,
-                 ee_max_concurrent: int):
+                 ee_max_concurrent: int,
+                 private_key: str,
+                 service_account: str,
+                 use_personal_account: bool):
         """Sets up rate limit and initializes the earth engine."""
         self.ee_asset = ee_asset
-        self.use_personal_account = use_personal_account
-        self.service_account = service_account
-        self.private_key = private_key
 
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
                          max_concurrent_requests=ee_max_concurrent)
-        ee_initialize(use_personal_account=self.use_personal_account,
-                      service_account=self.service_account,
-                      private_key=self.private_key)
+        ee_initialize(use_personal_account=use_personal_account,
+                      service_account=service_account,
+                      private_key=private_key)
 
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
@@ -401,18 +398,30 @@ class IngestIntoEETransform(RateLimit):
 
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        ee_qps: Maximum queries per second allowed by EE for your project.
+        ee_latency: The expected latency per requests, in seconds.
+        ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
+        private_key: A private key path to authenticate earth engine using private key. Default: None.
+        service_account: Service account address when using a private key for earth engine authentication.
+        use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
     """
 
     def __init__(self,
                  ee_asset: str,
                  ee_qps: int,
                  ee_latency: float,
-                 ee_max_concurrent: int):
+                 ee_max_concurrent: int,
+                 private_key: str,
+                 service_account: str,
+                 use_personal_account: bool):
         """Sets up rate limit."""
         self.ee_asset = ee_asset
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
                          max_concurrent_requests=ee_max_concurrent)
+        ee_initialize(use_personal_account=use_personal_account,
+                      service_account=service_account,
+                      private_key=private_key)
 
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,
