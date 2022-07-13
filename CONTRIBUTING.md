@@ -57,12 +57,15 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
 ## Developer Installation
 
-1. Set up a Python development environment. We recommend *Anaconda*, *pyenv* or *virtualenv*.
+1. Set up a Python development environment with *Anaconda* or
+   [*Miniconda*](https://docs.conda.io/en/latest/miniconda.html).
 
-    * Use Python version 3.8.5+ for development. (Python 3.9.x is incompatible
-      with [Apache Beam's Python SDK](https://issues.apache.org/jira/browse/BEAM-12000).)
+    * On a Mac, you can run `brew install miniconda`.
 
-2. Clone the repo and install dependencies.
+    * Use Python version 3.8.5+ for development. We have not yet upgraded the project to use Python 3.9
+      (see [#166](https://github.com/google/weather-tools/issues/166)).
+
+3. Clone the repo and install dependencies with anaconda.
 
    ```shell
    # clone with HTTPS
@@ -70,34 +73,19 @@ setup.py  # Project is pip-installable, project requirements managed here.
    # clone with SSH
    git clone git@github.com:google/weather-tools.git
    cd weather-tools
-   pip install -e ."[dev]"
+   conda env create -f environment.yml
+   conda activate weather-tools
    ```
-   > Note: If the execution of `pip install -e ."[dev]"` command takes much time, try upgrading your pip version:
-   > `pip install --upgrade pip`.
 
-3. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
+4. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
 
-4. Acquire adequate permissions for the project.
+5. Acquire adequate permissions for the project.
     * Run `gcloud auth application-default login`.
 
     * Make sure your account has *write* permissions to the storage bucket as well as the permissions to create a
       Dataflow job.
 
     * Make sure that both Dataflow and Cloud Storage are enabled on your Google Cloud Platform project.
-
-5. Install ecCodes and MetView on to your local environment (Anaconda seems to be the only supported way).
-   ```shell
-   conda install eccodes metview-batch -c conda-forge
-   ```
-
-   If you're developing on a Mac, you can also use Homebrew:
-   ```shell
-   brew install eccodes
-   brew install metview 
-   ```
-
-   Linux users: The debian package for eccodes works, but metview is
-   broken ([metview-python#19](https://github.com/ecmwf/metview-python/issues/19)).
 
 ### Windows Developer Instructions
 
