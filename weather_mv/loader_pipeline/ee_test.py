@@ -67,17 +67,19 @@ class ConvertToCogTests(TestDataBase):
             os.remove(test_tiff_path)
 
     def test_convert_to_cog(self):
-        self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        test_tiff_data = self.convert_to_cog.process(self.test_data_path)
+        test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        test_tiff_data = self.convert_to_cog.process(test_data_path)
         expected_tiff_path = os.path.join(self.test_tiff_dir, f'{next(test_tiff_data).name}.tiff')
-        self.assertTrue(os.path.exists(expected_tiff_path))
+        # The size of tiff is expected to be more than grib.
+        self.assertTrue(os.path.getsize(expected_tiff_path) > os.path.getsize(test_data_path))
         self.test_tiff_paths.append(expected_tiff_path)
 
     def test_convert_to_cog__with_multiple_grib_edition(self):
-        self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        test_tiff_data = self.convert_to_cog.process(self.test_data_path)
+        test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        test_tiff_data = self.convert_to_cog.process(test_data_path)
         expected_tiff_path = os.path.join(self.test_tiff_dir, f'{next(test_tiff_data).name}.tiff')
-        self.assertTrue(os.path.exists(expected_tiff_path))
+        # The size of tiff is expected to be more than grib.
+        self.assertTrue(os.path.getsize(expected_tiff_path) > os.path.getsize(test_data_path))
         self.test_tiff_paths.append(expected_tiff_path)
 
 
