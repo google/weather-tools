@@ -77,8 +77,14 @@ _Command options_:
   tune parallel uploads.
 * `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
+
+> Note: In case of grib files, by default its schema will be normalized and the name of the data variables will look 
+> like `<level>_<height>_<attrs['GRIB_stepType']>_<key>`.
+> 
+> This solves the issue of skipping over some of the data due to: https://github.com/ecmwf/cfgrib#filter-heterogeneous-grib-files.
 
 _Usage examples_:
 
@@ -188,6 +194,13 @@ To use this capability of the weather mover, please use the `[regrid]` extra whe
 pip install google-weather-tools[regrid]
 ```
 
+> **Warning**: MetView requires a decent amount of disk space in order to perform any regrid operation! Intermediary 
+> regridding steps will write temporary grib data to disk. Thus, please make use of the `--disk_size_gb` Dataflow 
+> option. A good rule of thumb would be to consume `30 + 2.5x` GBs of disk, where `x` is the size of each source data
+> file. 
+> 
+> TODO([#191](https://github.com/google/weather-tools/issues/191)): Find smaller disk space bound.
+
 In addition to the common options above, users may specify command-specific options:
 
 _Command options_:
@@ -265,6 +278,21 @@ weather-mv rg --uris "gs://your-bucket/*.nc" \
            --runner DataflowRunner \
            --project $PROJECT \
            --region  $REGION \
+           --temp_location "gs://$BUCKET/tmp" \
+           --experiment=use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
+           --job_name $JOB_NAME 
+```
+
+Using DataflowRunner, with added disk per VM:
+
+```bash
+weather-mv rg --uris "gs://your-bucket/*.nc" \
+           --output_path "gs://regrid-bucket/" \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region  $REGION \
+           --disk_size_gb 250 \ 
            --temp_location "gs://$BUCKET/tmp" \
            --experiment=use_runner_v2 \
            --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
@@ -365,7 +393,7 @@ _Common options_:
 * `--subnetwork`:  The Compute Engine subnetwork for launching Compute Engine instances to run your pipeline.
 
 For more information regarding how to configure Private IP, please refer
-to [Private IP Configuration Guide for Dataflow Pipeline Execution](https://docs.google.com/document/d/1MHzDSsV2EwsyvPSsW1rsxVzi9z91JmT_JOFQ7HZPBQ8/edit?usp=sharing)
+to [Private IP Configuration Guide for Dataflow Pipeline Execution](../Private-IP-Configuration.md)
 .
 
 For more information regarding Pipeline options, please refer
