@@ -23,11 +23,8 @@ weather_dl_requirements = [
     "xarray",
     "requests>=2.24.0",
     "firebase-admin>=5.0.0",
-    "google-cloud-datastore>=1.15.0,<2",  # For compatability with apache-beam[gcp]
     "google-cloud-firestore",
-    "urllib3==1.25.11",
-    "pyparsing==2.4.2",  # Fix http2lib auth breakage
-
+    "urllib3==1.26.5",
 ]
 
 weather_mv_requirements = [
@@ -36,14 +33,13 @@ weather_mv_requirements = [
     "numpy",
     "pandas",
     "xarray",
-    "google-cloud-bigquery",
-    "google-cloud-storage==2.2.1",
-    "pyparsing==2.4.2",  # Fix http2lib auth breakage
     "cfgrib",
     "netcdf4",
     "geojson",
-    'simplejson',
+    "simplejson",
     "rioxarray",
+    "pyproj",  # requires separate binary installation!
+    "gdal",  # requires separate binary installation!
 ]
 
 weather_sp_requirements = [

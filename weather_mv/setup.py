@@ -32,15 +32,14 @@ base_requirements = [
     "numpy",
     "pandas",
     "xarray",
-    "google-cloud-bigquery",
-    "google-cloud-storage==2.2.1",
-    "pyparsing==2.4.2",  # Fix http2lib auth breakage
     "cfgrib",
     "netcdf4",
     "geojson",
     "simplejson",
     "rioxarray",
     "metview",
+    "pyproj",  # requires separate binary installation!
+    "gdal",  # requires separate binary installation!
 ]
 
 
@@ -85,8 +84,13 @@ class build(_build):  # pylint: disable=invalid-name
 """Install the ecCodes and MetView packages from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
+        'sudo add-apt-repository ppa:ubuntugis/ppa,'
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
+        'apt-get --assume-yes install gdal-bin',
+        'apt-get --assume-yes install libgdal-dev',
+        'export CPLUS_INCLUDE_PATH=/usr/include/gdal',
+        'export C_INCLUDE_PATH=/usr/include/gdal',
         'conda install metview-batch -c conda-forge -y',
     ]
 ]

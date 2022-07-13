@@ -40,6 +40,9 @@ It's recommended that you create a local python environment (with
   pip install google-weather-tools
   ```
 
+> Note: If the execution of `pip install` command takes a lot of time, try upgrading your pip version
+> (`pip install --upgrade pip`) or using the legacy resolver (add flag: `--use-deprecated=legacy-resolver`).
+
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
 - [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).

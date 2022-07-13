@@ -54,6 +54,8 @@ jobs:
       run: |
         conda install -y eccodes>=2.21.0 -c conda-forge
         conda install -y metview-batch -c conda-forge
+        conda install -y pyproj -c conda-forge
+        conda install -y gdal -c conda-forge
     - name: Get pip cache dir
       id: pip-cache
       run: |
@@ -66,7 +68,7 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
     - name: Install weather-tools
       run: |
-        pip install -e .[test]
+        pip install -e .[test] --use-deprecated=legacy-resolver
     - name: Check MetView's installation
       run: python -m metview selfcheck
     - name: Run unit tests
@@ -120,6 +122,8 @@ jobs:
       - name: Install ecCodes
         run: |
           conda install -y eccodes>=2.21.0 -c conda-forge
+          conda install -y pyproj -c conda-forge
+          conda install -y gdal -c conda-forge
       - name: Get pip cache dir
         id: pip-cache
         run: |
@@ -127,6 +131,6 @@ jobs:
           echo "::set-output name=dir::$(pip cache dir)"
       - name: Install weather-tools
         run: |
-          pip install -e .[test]
+          pip install -e .[test] --use-deprecated=legacy-resolver
       - name: Run type checker
         run: pytype
