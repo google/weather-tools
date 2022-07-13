@@ -67,7 +67,7 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
     - name: Install weather-tools
       run: |
-        pip install -e .[test]
+        pip install -e .[test] --use-deprecated=legacy-resolver
     - name: Check MetView's installation
       run: python -m metview selfcheck
     - name: Run unit tests
@@ -129,6 +129,6 @@ jobs:
           echo "::set-output name=dir::$(pip cache dir)"
       - name: Install weather-tools
         run: |
-          pip install -e .[test]
+          pip install -e .[test] --use-deprecated=legacy-resolver
       - name: Run type checker
         run: pytype
