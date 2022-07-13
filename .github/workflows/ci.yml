@@ -54,6 +54,7 @@ jobs:
       run: |
         conda install -y eccodes>=2.21.0 -c conda-forge
         conda install -y metview-batch -c conda-forge
+        conda install -y pyproj -c conda-forge
         conda install -y gdal -c conda-forge
     - name: Get pip cache dir
       id: pip-cache
@@ -121,6 +122,7 @@ jobs:
       - name: Install ecCodes
         run: |
           conda install -y eccodes>=2.21.0 -c conda-forge
+          conda install -y pyproj -c conda-forge
           conda install -y gdal -c conda-forge
       - name: Get pip cache dir
         id: pip-cache

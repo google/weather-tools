@@ -38,7 +38,7 @@ weather_mv_requirements = [
     "geojson",
     "simplejson",
     "rioxarray",
-    "pyproj==1.9.6",  # See https://github.com/pyproj4/pyproj/issues/1055
+    "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]
 
