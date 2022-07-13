@@ -196,12 +196,15 @@ class ExtractRowsTestBase(TestDataBase):
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
                 tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
-        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area, import_time=import_time,
+        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area,
                                      open_dataset_kwargs=open_dataset_kwargs, variables=variables,
                                      disable_grib_schema_normalization=disable_grib_schema_normalization,
                                      tif_metadata_for_datetime=tif_metadata_for_datetime)
-        for uri, import_time, first_time_step, chunk in coords:
-            yield from extract_rows(uri, import_time=import_time, first_time_step=first_time_step, rows=chunk)
+        for uri, chunk in coords:
+            yield from extract_rows(uri, import_time=import_time, open_dataset_kwargs=open_dataset_kwargs,
+                                    coordinates=chunk, variables=variables,
+                                    disable_grib_schema_normalization=disable_grib_schema_normalization,
+                                    tif_metadata_for_datetime=tif_metadata_for_datetime)
 
     def assertGeopointEqual(self, actual: str, expected: str) -> None:
         expected_json, actual_json = geojson.loads(expected), geojson.loads(actual)
