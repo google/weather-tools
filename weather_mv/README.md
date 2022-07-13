@@ -289,6 +289,7 @@ usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_as
                            [--disable_grib_schema_normalization] [--use_personal_account] [-s]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
                            [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
+                           [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
 ```
 
 The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
@@ -307,6 +308,9 @@ _Command options_:
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
+* `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
+* `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
@@ -382,6 +386,17 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --temp_location "gs://$BUCKET/tmp"
 ```
 
+Limit EE requests:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --ee_qps 10 \
+           --ee_latency 0.5 \
+           --ee_max_concurrent 10
+```
+
 Using DataflowRunner:
 
 ```bash
@@ -392,7 +407,7 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --project $PROJECT \
            --region  $REGION \
            --temp_location "gs://$BUCKET/tmp" \
-           --job_name $JOB_NAME 
+           --job_name $JOB_NAME
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review

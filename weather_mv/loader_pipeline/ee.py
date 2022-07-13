@@ -192,6 +192,9 @@ class ToEarthEngine(ToDataSink):
     use_personal_account: bool
     service_account: str
     private_key: str
+    ee_qps: int
+    ee_latency: float
+    ee_max_concurrent: int
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -214,6 +217,12 @@ class ToEarthEngine(ToDataSink):
                                help='Service account address when using a private key for earth engine authentication.')
         subparser.add_argument('--private_key', type=str, default=None,
                                help='To use a private key for earth engine authentication.')
+        subparser.add_argument('--ee_qps', type=int, default=10,
+                               help='Maximum queries per second allowed by EE for your project. Default: 10')
+        subparser.add_argument('--ee_latency', type=float, default=0.5,
+                               help='The expected latency per requests, in seconds. Default: 0.5')
+        subparser.add_argument('--ee_max_concurrent', type=int, default=10,
+                               help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -232,6 +241,15 @@ class ToEarthEngine(ToDataSink):
         if known_args.use_personal_account and known_args.service_account:
             raise RuntimeError("Both personal and service account cannot be used at once.")
 
+        if known_args.ee_qps and known_args.ee_qps < 1:
+            raise RuntimeError("Queries per second should not be less than 1.")
+
+        if known_args.ee_latency and known_args.ee_latency < 0.001:
+            raise RuntimeError("Latency per request should not be less than 0.001.")
+
+        if known_args.ee_max_concurrent and known_args.ee_max_concurrent < 1:
+            raise RuntimeError("Maximum concurrent requests should not be less than 1.")
+
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
             # Program execution will terminate on failure of region validation.
@@ -249,7 +267,10 @@ class ToEarthEngine(ToDataSink):
                     ee_asset=self.ee_asset,
                     use_personal_account=self.use_personal_account,
                     service_account=self.service_account,
-                    private_key=self.private_key)
+                    private_key=self.private_key,
+                    ee_qps=self.ee_qps,
+                    ee_latency=self.ee_latency,
+                    ee_max_concurrent=self.ee_max_concurrent)
                 | 'ConvertToCog' >> beam.ParDo(
                     ConvertToCog(
                         tiff_location=self.tiff_location,
@@ -257,7 +278,10 @@ class ToEarthEngine(ToDataSink):
                         disable_in_memory_copy=self.disable_in_memory_copy,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
-                    ee_asset=self.ee_asset)
+                    ee_asset=self.ee_asset,
+                    ee_qps=self.ee_qps,
+                    ee_latency=self.ee_latency,
+                    ee_max_concurrent=self.ee_max_concurrent)
             )
         else:
             (
@@ -279,16 +303,19 @@ class FilterFilesTransform(RateLimit):
                  ee_asset: str,
                  use_personal_account: bool,
                  service_account: str,
-                 private_key: str):
-        """Sets up rate limit and Initializes the earth engine."""
+                 private_key: str,
+                 ee_qps: int,
+                 ee_latency: float,
+                 ee_max_concurrent: int):
+        """Sets up rate limit and initializes the earth engine."""
         self.ee_asset = ee_asset
         self.use_personal_account = use_personal_account
         self.service_account = service_account
         self.private_key = private_key
 
-        super().__init__(global_rate_limit_qps=FILTER_QPS,
-                         latency_per_request=FILTER_LATENCY,
-                         max_concurrent_requests=FILTER_MAX_CONCURRENT)
+        super().__init__(global_rate_limit_qps=ee_qps,
+                         latency_per_request=ee_latency,
+                         max_concurrent_requests=ee_max_concurrent)
         ee_initialize(use_personal_account=self.use_personal_account,
                       service_account=self.service_account,
                       private_key=self.private_key)
@@ -332,8 +359,10 @@ class ConvertToCog(beam.DoFn):
             attrs = ds.attrs
             data = list(ds.values())
             tiff_name = _get_tiff_name(uri)
-            start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
+            start_time, end_time, is_normalized = (attrs.get(key) for key in
+                                                   ('start_time', 'end_time', 'is_normalized'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+            attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
 
             file_name = f'{tiff_name}.tiff'
 
@@ -374,12 +403,16 @@ class IngestIntoEETransform(RateLimit):
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
     """
 
-    def __init__(self, ee_asset: str):
+    def __init__(self,
+                 ee_asset: str,
+                 ee_qps: int,
+                 ee_latency: float,
+                 ee_max_concurrent: int):
         """Sets up rate limit."""
         self.ee_asset = ee_asset
-        super().__init__(global_rate_limit_qps=INGEST_QPS,
-                         latency_per_request=INGEST_LATENCY,
-                         max_concurrent_requests=INGEST_MAX_CONCURRENT)
+        super().__init__(global_rate_limit_qps=ee_qps,
+                         latency_per_request=ee_latency,
+                         max_concurrent_requests=ee_max_concurrent)
 
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,

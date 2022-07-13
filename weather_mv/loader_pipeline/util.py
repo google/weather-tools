@@ -276,7 +276,7 @@ def validate_region(output_table: t.Optional[str] = None,
         signal.signal(signal.SIGINT, original_sigtstp_handler)
 
 
-def _shard(elem, num_shards):
+def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
 
 
@@ -308,13 +308,13 @@ class RateLimit(beam.PTransform, abc.ABC):
         Args:
             global_rate_limit_qps: QPS to rate limit requests across all workers to.
             latency_per_request: The expected latency per request.
-            max_concurrent_requests: Maximum allowed concurrent requests.
+            max_concurrent_requests: Maximum allowed concurrent api requests to EE.
         """
 
         self._rate_limit = global_rate_limit_qps
         self._latency_per_request = datetime.timedelta(seconds=latency_per_request)
-        self._num_shards = min(int(self._rate_limit * self._latency_per_request.total_seconds()),
-                               max_concurrent_requests)
+        self._num_shards = max(1, min(int(self._rate_limit * self._latency_per_request.total_seconds()),
+                                      max_concurrent_requests))
 
     @abc.abstractmethod
     def process(self, elem: t.Any):
@@ -342,12 +342,12 @@ class RateLimit(beam.PTransform, abc.ABC):
 class _RateLimitDoFn(beam.DoFn):
     """DoFn that ratelimits calls to rate_limit_fn."""
 
-    def __init__(self, rate_limit_fn: t.Any, wait_time: datetime.timedelta):
+    def __init__(self, rate_limit_fn: t.Callable, wait_time: datetime.timedelta):
         self._rate_limit_fn = rate_limit_fn
         self._wait_time = wait_time
         self._is_generator = inspect.isgeneratorfunction(self._rate_limit_fn)  # type: ignore
 
-    def process(self, keyed_elem: t.List[t.Tuple]):
+    def process(self, keyed_elem: t.Tuple[t.Any, t.Iterable[t.Any]]):
         shard, elems = keyed_elem
         logger.info(f'processing shard: {shard}')
 
