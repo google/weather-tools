@@ -18,6 +18,9 @@ import operator
 import typing as t
 from functools import reduce
 import pandas as pd
+import abc
+import inspect
+import time
 import sys
 import signal
 import tempfile
@@ -29,6 +32,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 import xarray as xr
+import apache_beam as beam
 from xarray.core.utils import ensure_us_time_resolution
 from .sinks import DEFAULT_COORD_KEYS
 
@@ -270,3 +274,94 @@ def validate_region(output_table: t.Optional[str] = None,
             _cleanup_bigquery(bigquery_client, canary_output_table)
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGINT, original_sigtstp_handler)
+
+
+def _shard(elem, num_shards):
+    return (np.random.randint(0, num_shards), elem)
+
+
+class RateLimit(beam.PTransform, abc.ABC):
+    """PTransform to extend to apply a global rate limit to an operation.
+
+    The input PCollection and be of any type and the output will be whatever is
+    returned by the `process` method.
+    """
+
+    def __init__(self,
+                 global_rate_limit_qps: int,
+                 latency_per_request: float,
+                 max_concurrent_requests: int):
+        """Creates a RateLimit object.
+
+        global_rate_limit_qps and latency_per_request are used to determine how the
+        data should be sharded via:
+        global_rate_limit_qps * latency_per_request.total_seconds()
+
+        For example, global_rate_limit_qps = 500 and latency_per_request=.5 seconds.
+        Then the data will be sharded into 500*.5=250 groups.  Each group can be
+        processed in parallel and will call the 'process' function at most once
+        every latency_per_request.
+
+        It is important to note that the max QPS may not be reach based on how many
+        workers are scheduled.
+
+        Args:
+            global_rate_limit_qps: QPS to rate limit requests across all workers to.
+            latency_per_request: The expected latency per request.
+            max_concurrent_requests: Maximum allowed concurrent requests.
+        """
+
+        self._rate_limit = global_rate_limit_qps
+        self._latency_per_request = datetime.timedelta(seconds=latency_per_request)
+        self._num_shards = min(int(self._rate_limit * self._latency_per_request.total_seconds()),
+                               max_concurrent_requests)
+
+    @abc.abstractmethod
+    def process(self, elem: t.Any):
+        """Process is the operation that will be rate limited.
+
+        Results will be yielded each time time the process method is called.
+
+        Args:
+            elem: The individual element to process.
+
+        Returns:
+            Output can be anything, output will be the output of the RateLimit
+            PTransform.
+        """
+        pass
+
+    def expand(self, pcol: beam.PCollection):
+        return (pcol
+                | beam.Map(_shard, self._num_shards)
+                | beam.GroupByKey()
+                | beam.ParDo(
+                    _RateLimitDoFn(self.process, self._latency_per_request)))
+
+
+class _RateLimitDoFn(beam.DoFn):
+    """DoFn that ratelimits calls to rate_limit_fn."""
+
+    def __init__(self, rate_limit_fn: t.Any, wait_time: datetime.timedelta):
+        self._rate_limit_fn = rate_limit_fn
+        self._wait_time = wait_time
+        self._is_generator = inspect.isgeneratorfunction(self._rate_limit_fn)  # type: ignore
+
+    def process(self, keyed_elem: t.List[t.Tuple]):
+        shard, elems = keyed_elem
+        logger.info(f'processing shard: {shard}')
+
+        start_time = datetime.datetime.now()
+        end_time = None
+        for elem in elems:
+            if end_time is not None and (end_time - start_time) < self._wait_time:
+                logger.info(f'previous operation took: {(end_time - start_time).total_seconds()}')
+                wait_time = (self._wait_time - (end_time - start_time))
+                logger.info(f'wating: {wait_time.total_seconds()}')
+                time.sleep(wait_time.total_seconds())
+            start_time = datetime.datetime.now()
+            if self._is_generator:
+                yield from self._rate_limit_fn(elem)
+            else:
+                yield self._rate_limit_fn(elem)
+            end_time = datetime.datetime.now()
