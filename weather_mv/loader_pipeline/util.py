@@ -11,34 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
-import itertools
-import logging
-import operator
-import typing as t
-from functools import reduce
-import pandas as pd
 import abc
+import datetime
 import inspect
-import time
-import sys
-import signal
-import tempfile
-import traceback
-import uuid
+import itertools
 import json
-from functools import partial
-from urllib.parse import urlparse
-
+import logging
 import numpy as np
+import operator
+import pandas as pd
+import signal
+import sys
+import tempfile
+import time
+import traceback
+import typing as t
+from urllib.parse import urlparse
+import uuid
 import xarray as xr
-import apache_beam as beam
-from xarray.core.utils import ensure_us_time_resolution
-from .sinks import DEFAULT_COORD_KEYS
 
-from google.cloud import bigquery, storage
-from google.api_core.exceptions import NotFound
+import apache_beam as beam
+from functools import partial, reduce
 from google.api_core.exceptions import BadRequest
+from google.api_core.exceptions import NotFound
+from google.cloud import bigquery, storage
+from xarray.core.utils import ensure_us_time_resolution
+
+from .sinks import DEFAULT_COORD_KEYS
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
