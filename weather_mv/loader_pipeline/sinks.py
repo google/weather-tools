@@ -116,7 +116,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
 
 def _to_utc_timestring(np_time: np.datetime64) -> str:
-    """Turn a numpy datetime64 into floating point seconds."""
+    """Turn a numpy datetime64 into UTC timestring."""
     timestamp = float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
     return datetime.datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -156,7 +156,7 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
 
             # We are going to treat the time field as start_time and the
             # valid_time field as the end_time for EE purposes. Also, get the
-            # times into python-like floating point seconds timestamps.
+            # times into UTC timestrings.
             start_time = _to_utc_timestring(da.time.values)
             end_time = _to_utc_timestring(da.valid_time.values)
 
