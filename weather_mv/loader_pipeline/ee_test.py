@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import logging
+import os
+import tempfile
 import unittest
 
 from .ee import (
@@ -28,26 +29,34 @@ class TiffNameCreationTests(unittest.TestCase):
 
     def test_tiff_name_creation(self):
         uri = 'weather_mv/test_data/grib_multiple_edition_single_timestep.bz2'
-        actual = _get_tiff_name(uri)
         expected = 'grib_multiple_edition_single_timestep'
+
+        actual = _get_tiff_name(uri)
+
         self.assertEqual(actual, expected)
 
     def test_tiff_name_creation__with_special_chars(self):
         uri = 'weather_mv/test_data/grib@2nd-edition&timestep#1.bz2'
-        actual = _get_tiff_name(uri)
         expected = 'grib_2nd-edition_timestep_1'
+
+        actual = _get_tiff_name(uri)
+
         self.assertEqual(actual, expected)
 
     def test_tiff_name_creation__with_missing_filename(self):
         uri = 'weather_mv/test_data/'
-        actual = _get_tiff_name(uri)
         expected = ''
+
+        actual = _get_tiff_name(uri)
+
         self.assertEqual(actual, expected)
 
     def test_tiff_name_creation__with_only_filename(self):
         uri = 'grib@2nd-edition&timestep#1.bz2'
-        actual = _get_tiff_name(uri)
         expected = 'grib_2nd-edition_timestep_1'
+
+        actual = _get_tiff_name(uri)
+
         self.assertEqual(actual, expected)
 
 
@@ -55,32 +64,29 @@ class ConvertToCogTests(TestDataBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.test_tiff_dir = f'{self.test_data_folder}'  # For resultant tiff.
-        self.convert_to_cog = ConvertToCog(
-            tiff_location=self.test_tiff_dir
-        )
-        self.test_tiff_paths = []
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.convert_to_cog = ConvertToCog(tiff_location=self.tmpdir.name)
 
     def tearDown(self):
-        # Cleans up generated tiff files.
-        for test_tiff_path in self.test_tiff_paths:
-            os.remove(test_tiff_path)
+        self.tmpdir.cleanup()
 
     def test_convert_to_cog(self):
-        test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        test_tiff_data = self.convert_to_cog.process(test_data_path)
-        expected_tiff_path = os.path.join(self.test_tiff_dir, f'{next(test_tiff_data).name}.tiff')
+        data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        tiff_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
+
+        next(self.convert_to_cog.process(data_path))
+
         # The size of tiff is expected to be more than grib.
-        self.assertTrue(os.path.getsize(expected_tiff_path) > os.path.getsize(test_data_path))
-        self.test_tiff_paths.append(expected_tiff_path)
+        self.assertTrue(os.path.getsize(tiff_path) > os.path.getsize(data_path))
 
     def test_convert_to_cog__with_multiple_grib_edition(self):
-        test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        test_tiff_data = self.convert_to_cog.process(test_data_path)
-        expected_tiff_path = os.path.join(self.test_tiff_dir, f'{next(test_tiff_data).name}.tiff')
+        data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        tiff_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
+
+        next(self.convert_to_cog.process(data_path))
+
         # The size of tiff is expected to be more than grib.
-        self.assertTrue(os.path.getsize(expected_tiff_path) > os.path.getsize(test_data_path))
-        self.test_tiff_paths.append(expected_tiff_path)
+        self.assertTrue(os.path.getsize(tiff_path) > os.path.getsize(data_path))
 
 
 if __name__ == '__main__':

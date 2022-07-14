@@ -37,6 +37,7 @@ from .util import RateLimit, validate_region
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+COMPUTE_ENGINE_STR = 'Metadata-Flavor: Google'
 # For EE ingestion retry logic.
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
@@ -45,7 +46,6 @@ NUM_RETRIES = 10  # Number of tries with exponential backoff.
 
 def is_compute_engine() -> bool:
     """Determines if the application in running in Compute Engine Environment."""
-    COMPUTE_ENGINE_STR = 'Metadata-Flavor: Google'
     command = ['curl', 'metadata.google.internal', '-i']
     result = subprocess.run(command, stdout=subprocess.PIPE)
     result_output = result.stdout.decode('utf-8')
@@ -251,7 +251,7 @@ class ToEarthEngine(ToDataSink):
             logger.info('Region validation completed successfully.')
 
     def expand(self, paths):
-        """Converts gribs from paths into tiff and uploads them into the earth engine."""
+        """Converts input data files into tiff and uploads them into the earth engine."""
         if not self.dry_run:
             (
                 paths
@@ -282,7 +282,7 @@ class ToEarthEngine(ToDataSink):
         else:
             (
                 paths
-                | 'Log Grib Files' >> beam.Map(logger.debug)
+                | 'Log Files' >> beam.Map(logger.info)
             )
 
 
@@ -330,7 +330,7 @@ class FilterFilesTransform(RateLimit):
 
 @dataclasses.dataclass
 class ConvertToCog(beam.DoFn):
-    """Writes tiff image after extracting grib data and uploads it to GCS.
+    """Writes tiff image after extracting input data and uploads it to GCS.
 
     Attributes:
         tiff_location: The bucket location at which tiff files will be pushed.
@@ -433,8 +433,9 @@ class IngestIntoEETransform(RateLimit):
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         try:
             result = ee.data.createAsset(asset_request)
-        except ee.EEException as err:
-            raise err
+        except ee.EEException as e:
+            logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
+            raise
 
         return result.get('id')
 
@@ -453,13 +454,13 @@ class IngestIntoEETransform(RateLimit):
 
         request = {
             'type': 'IMAGE',
+            'name': asset_name,
             'gcs_location': {
                 'uris': [target_path]
             },
-            'properties': properties,
             'startTime': start_time,
             'endTime': end_time,
-            'name': asset_name,
+            'properties': properties
         }
 
         logger.info(f"Uploading GeoTiff {target_path} to Asset ID '{asset_name}'.")
