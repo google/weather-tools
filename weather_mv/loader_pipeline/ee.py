@@ -68,7 +68,7 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
     Returns:
         cred: Credentials object.
     """
-    # TODO(deepgabani8): Test private key authentication.
+    # TODO(Issue #197): Test private key authentication.
     if service_account and private_key:
         try:
             with open_local(private_key) as local_path:
