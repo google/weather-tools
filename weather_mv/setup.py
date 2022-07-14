@@ -38,6 +38,8 @@ base_requirements = [
     "simplejson",
     "rioxarray",
     "metview",
+    "rasterio",
+    "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]

@@ -38,6 +38,8 @@ weather_mv_requirements = [
     "geojson",
     "simplejson",
     "rioxarray",
+    "rasterio",
+    "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]

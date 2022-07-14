@@ -16,6 +16,7 @@ like [Google BigQuery](https://cloud.google.com/bigquery) (_alpha_).
 * _(new)_ **Grib Regridding**: `weather-mv regrid` uses [MetView](https://metview.readthedocs.io/en/latest/) to
   interpolate Grib files to a
   [range of grids.](https://metview.readthedocs.io/en/latest/metview/using_metview/regrid_intro.html?highlight=grid#grid)
+* _(new)_ **Earth Engine Ingestion**: `weather-mv earthengine` ingests weather data into [Google Earth Engine](https://earthengine.google.com/).
 
 ## Usage
 
@@ -25,10 +26,11 @@ usage: weather-mv [-h] {bigquery,bq,regrid,rg} ...
 Weather Mover loads weather data from cloud storage into analytics engines.
 
 positional arguments:
-  {bigquery,bq,regrid,rg}
+  {bigquery,bq,regrid,rg,earthengine,ee}
                         help for subcommand
     bigquery (bq)       Move data into Google BigQuery
     regrid (rg)         Copy and regrid grib data with MetView.
+    earthengine (ee)    Move data into Google Earth Engine
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -297,6 +299,137 @@ weather-mv rg --uris "gs://your-bucket/*.nc" \
            --experiment=use_runner_v2 \
            --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
            --job_name $JOB_NAME 
+```
+
+For a full list of how to configure the Dataflow pipeline, please review
+[this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).
+
+### `weather-mv earthengine`
+
+```
+usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_asset EE_ASSET
+                           [--disable_grib_schema_normalization] [--use_personal_account] [-s]
+                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
+                           [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
+                           [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
+```
+
+The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
+users may specify command-specific options:
+
+_Command options_:
+
+* `--tiff_location`: (required) Bucket location at which tiff files will be pushed.
+* `--ee_asset`: (required) The asset folder path in earth engine project where the tiff image files will be pushed.
+  It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there
+  under <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar.
+* `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
+* `-u, --use_personal_account`: To use personal account for earth engine authentication.
+* `--service_account`: Service account address when using a private key for earth engine authentication.
+* `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
+* `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
+* `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
+* `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
+* `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
+* `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
+
+Invoke with `ee -h` or `earthengine --help` to see the full range of options.
+
+_Usage examples_:
+
+```bash
+weather-mv earthengine --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir"
+```
+
+Using the subcommand alias `ee`:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir"
+```
+
+Preview ingestion with a dry run:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --dry-run
+```
+
+Restrict in-memory copying of dataset:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --disable_in_memory_copy
+```
+
+Authenticate earth engine using personal account:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --use_personal_account
+```
+
+Authenticate earth engine using a private key:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --service_account "my-service-account@...gserviceaccount.com" \
+           --private_key "path/to/private_key.json"
+```
+
+Restrict merging all bands or grib normalization:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --disable_grib_schema_normalization
+```
+
+Control how weather data is opened with XArray:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
+           --temp_location "gs://$BUCKET/tmp"
+```
+
+Limit EE requests:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --ee_qps 10 \
+           --ee_latency 0.5 \
+           --ee_max_concurrent 10
+```
+
+Using DataflowRunner:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir"
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region  $REGION \
+           --temp_location "gs://$BUCKET/tmp" \
+           --job_name $JOB_NAME
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review
