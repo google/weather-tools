@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 import dataclasses
+import glob
 import json
 import logging
 import os.path
@@ -82,7 +83,8 @@ class Regrid(ToDataSink):
             # TODO(alxr): Figure out way to open fieldset in memory...
             logger.debug(f'Regridding {uri!r}.')
             try:
-                fieldset = mv.read(source=local_grib, **self.regrid_kwargs)
+                fs = mv.bindings.Fieldset(path=local_grib)
+                fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
             except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
                 raise ImportError('Please install MetView with Anaconda:\n'
                                   '`conda install metview-batch -c conda-forge`') from e
@@ -95,6 +97,11 @@ class Regrid(ToDataSink):
                 mv.write(src.name, fieldset)
 
             src.flush()
+
+            # Clear the metview temporary directory.
+            cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
+            shutil.rmtree(cache_dir)
+            os.makedirs(cache_dir)
 
             logger.info(f'Uploading {self.target_from(uri)!r}.')
             with FileSystems().create(self.target_from(uri)) as dst:

@@ -23,10 +23,8 @@ base_requirements = [
     "xarray",
     "requests>=2.24.0",
     "firebase-admin>=5.0.0",
-    "google-cloud-datastore>=1.15.0,<2",  # For compatability with apache-beam[gcp]
     "google-cloud-firestore",
     "urllib3==1.26.5",
-    "pyparsing==2.4.2",  # Fix http2lib auth breakage
 ]
 
 setup(
