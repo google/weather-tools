@@ -12,24 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import json
-import os
 import dataclasses
-import logging
-import typing as t
 import ee
-import subprocess
+import json
+import logging
+import os
 import re
 import shutil
+import subprocess
+import typing as t
 
-from rasterio.io import MemoryFile
 import apache_beam as beam
-from apache_beam.utils import retry
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
+from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local
 from .util import RateLimit, validate_region
@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # For EE ingestion retry logic.
-NUM_RETRIES = 10  # Number of tries with exponential backoff.
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
 
 
 def is_compute_engine() -> bool:
