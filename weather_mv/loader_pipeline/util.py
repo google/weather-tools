@@ -11,21 +11,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import datetime
+import inspect
 import itertools
+import json
 import logging
-import operator
-import typing as t
-from functools import reduce
-import pandas as pd
-
 import numpy as np
+import operator
+import pandas as pd
+import signal
+import sys
+import tempfile
+import time
+import traceback
+import typing as t
+from urllib.parse import urlparse
+import uuid
 import xarray as xr
+
+import apache_beam as beam
+from functools import partial, reduce
+from google.api_core.exceptions import BadRequest
+from google.api_core.exceptions import NotFound
+from google.cloud import bigquery, storage
 from xarray.core.utils import ensure_us_time_resolution
-from .sinks import COORD_DISTRACTOR_SET
+
+from .sinks import DEFAULT_COORD_KEYS
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
+CANARY_RECORD = {'foo': 'bar'}
+CANARY_RECORD_FILE_NAME = 'canary_record.json'
+CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
+CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 
 def to_json_serializable_type(value: t.Any) -> t.Any:
@@ -89,7 +110,7 @@ def _only_target_coordinate_vars(ds: xr.Dataset, data_vars: t.List[str]) -> t.Li
 
     for dv in data_vars:
         keep_coords_vars.extend([v for v in ds.data_vars if _check_for_coords_vars(v, dv)])
-        keep_coords_vars.extend([v for v in COORD_DISTRACTOR_SET if v in dv])
+        keep_coords_vars.extend([v for v in DEFAULT_COORD_KEYS if v in dv])
 
     return keep_coords_vars
 
@@ -112,7 +133,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
         check_target_variable = []
         for dv in data_vars:
             searched_data_vars = [_check_for_coords_vars(v, dv) for v in ds.data_vars]
-            searched_coords = [] if dv not in COORD_DISTRACTOR_SET else [dv in ds.coords]
+            searched_coords = [] if dv not in DEFAULT_COORD_KEYS else [dv in ds.coords]
             check_target_variable.append(any(searched_data_vars) or any(searched_coords))
 
         assert all(check_target_variable), 'Target variable must be in original dataset.'
@@ -162,3 +183,184 @@ def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
         yield dict(zip(ds.coords.indexes, it))
 
     logger.info(f'Finished processing all {(idx / 1000):.2f}k coordinates.')
+
+
+def _cleanup_bigquery(bigquery_client: bigquery.Client,
+                      canary_output_table: str,
+                      sig: t.Optional[t.Any] = None,
+                      frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bigquery table."""
+    if bigquery_client:
+        bigquery_client.delete_table(canary_output_table, not_found_ok=True)
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
+def _cleanup_bucket(storage_client: storage.Client,
+                    canary_bucket_name: str,
+                    sig: t.Optional[t.Any] = None,
+                    frame: t.Optional[t.Any] = None) -> None:
+    """Deletes the bucket."""
+    try:
+        storage_client.get_bucket(canary_bucket_name).delete(force=True)
+    except NotFound:
+        pass
+    if sig:
+        traceback.print_stack(frame)
+        sys.exit(0)
+
+
+def validate_region(output_table: t.Optional[str] = None,
+                    temp_location: t.Optional[str] = None,
+                    region: t.Optional[str] = None) -> None:
+    """Validates non-compatible regions scenarios by performing sanity check."""
+    if not region and not temp_location:
+        raise ValueError('Invalid GCS location: None.')
+
+    bucket_region = region
+    storage_client = storage.Client()
+    canary_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
+
+    # Doing cleanup if operation get cut off midway.
+    # TODO : Should we handle some other signals ?
+    do_bucket_cleanup = partial(_cleanup_bucket, storage_client, canary_bucket_name)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
+    signal.signal(signal.SIGINT, do_bucket_cleanup)
+    signal.signal(signal.SIGTSTP, do_bucket_cleanup)
+
+    if output_table:
+        table_region = None
+        bigquery_client = bigquery.Client()
+        canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX + str(uuid.uuid4())
+        do_bigquery_cleanup = partial(_cleanup_bigquery, bigquery_client, canary_output_table)
+        signal.signal(signal.SIGINT, do_bigquery_cleanup)
+        signal.signal(signal.SIGTSTP, do_bigquery_cleanup)
+
+    if temp_location:
+        parsed_temp_location = urlparse(temp_location)
+        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
+            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
+        bucket_name = parsed_temp_location.netloc
+        bucket_region = storage_client.get_bucket(bucket_name).location
+
+    try:
+        bucket = storage_client.create_bucket(canary_bucket_name, location=bucket_region)
+        with tempfile.NamedTemporaryFile(mode='w+') as temp:
+            json.dump(CANARY_RECORD, temp)
+            temp.flush()
+            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
+            blob.upload_from_filename(temp.name)
+
+        if output_table:
+            table = bigquery.Table(canary_output_table, schema=CANARY_TABLE_SCHEMA)
+            table = bigquery_client.create_table(table, exists_ok=True)
+            table_region = table.location
+
+            load_job = bigquery_client.load_table_from_uri(
+                f'gs://{canary_bucket_name}/{CANARY_RECORD_FILE_NAME}',
+                canary_output_table,
+            )
+            load_job.result()
+    except BadRequest:
+        if output_table:
+            raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
+        raise RuntimeError(f'Can\'t upload to destination: {bucket_region}')
+    finally:
+        _cleanup_bucket(storage_client, canary_bucket_name)
+        if output_table:
+            _cleanup_bigquery(bigquery_client, canary_output_table)
+        signal.signal(signal.SIGINT, original_sigint_handler)
+        signal.signal(signal.SIGINT, original_sigtstp_handler)
+
+
+def _shard(elem, num_shards: int):
+    return (np.random.randint(0, num_shards), elem)
+
+
+class RateLimit(beam.PTransform, abc.ABC):
+    """PTransform to extend to apply a global rate limit to an operation.
+
+    The input PCollection and be of any type and the output will be whatever is
+    returned by the `process` method.
+    """
+
+    def __init__(self,
+                 global_rate_limit_qps: int,
+                 latency_per_request: float,
+                 max_concurrent_requests: int):
+        """Creates a RateLimit object.
+
+        global_rate_limit_qps and latency_per_request are used to determine how the
+        data should be sharded via:
+        global_rate_limit_qps * latency_per_request.total_seconds()
+
+        For example, global_rate_limit_qps = 500 and latency_per_request=.5 seconds.
+        Then the data will be sharded into 500*.5=250 groups.  Each group can be
+        processed in parallel and will call the 'process' function at most once
+        every latency_per_request.
+
+        It is important to note that the max QPS may not be reach based on how many
+        workers are scheduled.
+
+        Args:
+            global_rate_limit_qps: QPS to rate limit requests across all workers to.
+            latency_per_request: The expected latency per request.
+            max_concurrent_requests: Maximum allowed concurrent api requests to EE.
+        """
+
+        self._rate_limit = global_rate_limit_qps
+        self._latency_per_request = datetime.timedelta(seconds=latency_per_request)
+        self._num_shards = max(1, min(int(self._rate_limit * self._latency_per_request.total_seconds()),
+                                      max_concurrent_requests))
+
+    @abc.abstractmethod
+    def process(self, elem: t.Any):
+        """Process is the operation that will be rate limited.
+
+        Results will be yielded each time time the process method is called.
+
+        Args:
+            elem: The individual element to process.
+
+        Returns:
+            Output can be anything, output will be the output of the RateLimit
+            PTransform.
+        """
+        pass
+
+    def expand(self, pcol: beam.PCollection):
+        return (pcol
+                | beam.Map(_shard, self._num_shards)
+                | beam.GroupByKey()
+                | beam.ParDo(
+                    _RateLimitDoFn(self.process, self._latency_per_request)))
+
+
+class _RateLimitDoFn(beam.DoFn):
+    """DoFn that ratelimits calls to rate_limit_fn."""
+
+    def __init__(self, rate_limit_fn: t.Callable, wait_time: datetime.timedelta):
+        self._rate_limit_fn = rate_limit_fn
+        self._wait_time = wait_time
+        self._is_generator = inspect.isgeneratorfunction(self._rate_limit_fn)  # type: ignore
+
+    def process(self, keyed_elem: t.Tuple[t.Any, t.Iterable[t.Any]]):
+        shard, elems = keyed_elem
+        logger.info(f'processing shard: {shard}')
+
+        start_time = datetime.datetime.now()
+        end_time = None
+        for elem in elems:
+            if end_time is not None and (end_time - start_time) < self._wait_time:
+                logger.info(f'previous operation took: {(end_time - start_time).total_seconds()}')
+                wait_time = (self._wait_time - (end_time - start_time))
+                logger.info(f'wating: {wait_time.total_seconds()}')
+                time.sleep(wait_time.total_seconds())
+            start_time = datetime.datetime.now()
+            if self._is_generator:
+                yield from self._rate_limit_fn(elem)
+            else:
+                yield self._rate_limit_fn(elem)
+            end_time = datetime.datetime.now()
