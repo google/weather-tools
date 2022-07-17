@@ -117,7 +117,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            print(
+            raise RuntimeError(
                 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
