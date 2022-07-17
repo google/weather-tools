@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7" "3.9", "3.9"]
+        python-version: ["3.7" "3.8", "3.9"]
         beam-sdk: ["2.38.0", "2.39.0", "2.40.0"]
 
     # Add "id-token" with the intended permissions.
