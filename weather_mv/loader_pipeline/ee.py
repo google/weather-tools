@@ -374,6 +374,8 @@ class ConvertToCog(beam.DoFn):
                                   compress='lzw') as f:
                     for i, da in enumerate(data):
                         f.write(da, i+1)
+                        f.update_tags(i+1, name=da.name)
+                    f.update_tags(start_time=start_time)
 
                 # Copy in-memory tiff to gcs.
                 target_path = os.path.join(self.tiff_location, file_name)
