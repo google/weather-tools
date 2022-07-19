@@ -15,7 +15,7 @@ import unittest
 from functools import wraps
 
 import weather_mv
-from .sinks import open_dataset
+from .sinks import open_dataset, is_bufr_file
 
 
 class TestDataBase(unittest.TestCase):
@@ -65,6 +65,35 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
+
+
+class IsBufrFileTest(TestDataBase):
+    def setUp(self) -> None:
+        super().setUp()
+
+    def test_is_bufr_file(self):
+        test_data_path = f'{self.test_data_folder}/test_bufr4.bin'
+
+        # Expecting True
+        actual = is_bufr_file(test_data_path)
+
+        self.assertTrue(actual)
+
+    def test_is_bufr_file__with_grib(self):
+        test_data_path = f'{self.test_data_folder}/test_grib2.bin'
+
+        # Expecting False
+        actual = is_bufr_file(test_data_path)
+
+        self.assertFalse(actual)
+
+    def test_is_bufr_file__with_netcdf(self):
+        test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
+
+        # Expecting False
+        actual = is_bufr_file(test_data_path)
+
+        self.assertFalse(actual)
 
 
 if __name__ == '__main__':

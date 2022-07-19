@@ -24,6 +24,7 @@ import os
 from pyproj import Transformer
 import numpy as np
 import datetime
+from eccodes import codes_bufr_new_from_file, codes_release
 
 import apache_beam as beam
 import rasterio
@@ -196,6 +197,24 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     return xr.merge(_data_array_list)
 
 
+def is_bufr_file(filename: str) -> bool:
+    """Checks if the file is in BUFR format or not."""
+    try:
+        with open(filename, 'rb') as f:
+            bufr = codes_bufr_new_from_file(f)
+            if bufr is None:
+                raise
+            codes_release(bufr)
+            return True
+    except Exception:
+        return False
+
+
+def __read_bufr_file(filename: str) -> xr.Dataset:
+    """Reads BUFR file and converts it into xarray dataset."""
+    pass
+
+
 def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
@@ -207,6 +226,9 @@ def __open_dataset_file(filename: str,
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
     if uri_extension == '.tif':
         return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
+    # If file is in BUFR format, try opening file by pdbufr.
+    elif is_bufr_file(filename):
+        return _add_is_normalized_attr(__read_bufr_file(filename), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
