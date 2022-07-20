@@ -33,6 +33,7 @@ weather_mv_requirements = [
     "numpy",
     "pandas",
     "xarray",
+    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",

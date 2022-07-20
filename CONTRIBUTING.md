@@ -74,6 +74,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
    git clone git@github.com:google/weather-tools.git
    cd weather-tools
    conda env create -f environment.yml
+   pip install -e .
    conda activate weather-tools
    ```
 

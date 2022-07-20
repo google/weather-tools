@@ -15,6 +15,7 @@ dependencies:
   - cfgrib
   - netcdf4
   - geojson
+  - more-itertools
   - simplejson
   - rioxarray
   - pyproj
@@ -32,3 +33,5 @@ dependencies:
     - google-cloud-datastore
     - google-cloud-bigquery
     - urllib3==1.26.5
+    - earthengine-api>=0.1.263
+    - google-cloud-storage==2.2.1
