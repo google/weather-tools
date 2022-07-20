@@ -13,7 +13,6 @@
 # limitations under the License.
 import argparse
 import dataclasses
-import glob
 import json
 import logging
 import os.path
@@ -73,6 +72,8 @@ class Regrid(ToDataSink):
         return f'{no_ext}.nc'
 
     def apply(self, uri: str):
+        import glob
+
         logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
 
         if self.dry_run:
