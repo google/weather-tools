@@ -16,34 +16,26 @@ import dataclasses
 import datetime
 import json
 import logging
-import math
 import os
-import signal
-import sys
-import tempfile
-import traceback
 import typing as t
-import uuid
-from functools import partial
 from pprint import pformat
-from urllib.parse import urlparse
 
 import apache_beam as beam
 import geojson
+import more_itertools as mitertools
 import numpy as np
-import pandas as pd
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
-from google.api_core.exceptions import BadRequest
-from google.api_core.exceptions import NotFound
-from google.cloud import bigquery, storage
+from google.cloud import bigquery
+from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
 from .util import (
     to_json_serializable_type,
+    validate_region,
     _only_target_vars,
-    _only_target_coordinate_vars
+    get_coordinates
 )
 
 logger = logging.getLogger(__name__)
@@ -55,12 +47,6 @@ DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 GEO_POINT_COLUMN = 'geo_point'
 LATITUDE_RANGE = (-90, 90)
-
-CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
-CANARY_RECORD = {'foo': 'bar'}
-CANARY_RECORD_FILE_NAME = 'canary_record.json'
-CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
-CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 
 @dataclasses.dataclass
@@ -205,14 +191,20 @@ class ToBigQuery(ToDataSink):
                     prepare_coordinates,
                     coordinate_chunk_size=self.coordinate_chunk_size,
                     area=self.area,
-                    import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     variables=self.variables,
                     disable_in_memory_copy=self.disable_in_memory_copy,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                     tif_metadata_for_datetime=self.tif_metadata_for_datetime)
                 | beam.Reshuffle()
-                | 'ExtractRows' >> beam.FlatMapTuple(extract_rows)
+                | 'ExtractRows' >> beam.FlatMapTuple(
+                    extract_rows,
+                    variables=self.variables,
+                    import_time=self.import_time,
+                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
+                    disable_in_memory_copy=self.disable_in_memory_copy,
+                    disable_grib_schema_normalization=self.disable_grib_schema_normalization,
+                    tif_metadata_for_datetime=self.tif_metadata_for_datetime)
         )
 
         if not self.dry_run:
@@ -284,11 +276,10 @@ def prepare_coordinates(
         coordinate_chunk_size: int,
         variables: t.Optional[t.List[str]] = None,
         area: t.Optional[t.List[int]] = None,
-        import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
         open_dataset_kwargs: t.Optional[t.Dict] = None,
         disable_in_memory_copy: bool = False,
         disable_grib_schema_normalization: bool = False,
-        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, str, str, pd.DataFrame]]:
+        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
@@ -300,121 +291,56 @@ def prepare_coordinates(
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
             logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        # Re-calculate import time for streaming extractions.
-        if not import_time:
-            import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+        for chunk in mitertools.ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
+            yield uri, list(chunk)
+
+
+def extract_rows(uri: str,
+                 coordinates: t.List[t.Dict],
+                 variables: t.Optional[t.List[str]] = None,
+                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
+                 open_dataset_kwargs: t.Optional[t.Dict] = None,
+                 disable_in_memory_copy: bool = False,
+                 disable_grib_schema_normalization: bool = False,
+                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Dict]:
+    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
+    logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
+
+    # Re-calculate import time for streaming extractions.
+    if not import_time:
+        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+
+    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, disable_grib_schema_normalization,
+                      tif_metadata_for_datetime) as ds:
+        data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
         first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
         first_time_step = to_json_serializable_type(first_ts_raw)
 
-        # Add coordinates for 0-dimension file.
-        if len(data_ds.to_array().shape) == 1:
-            for coord in data_ds.coords:
-                data_ds = data_ds.assign_coords({coord: [data_ds[coord].values]})
+        for it in coordinates:
+            # Use those index values to select a Dataset containing one row of data.
+            row_ds = data_ds.loc[it]
 
-        df = data_ds.to_dataframe().reset_index()
+            # Create a Name-Value map for data columns. Result looks like:
+            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                   for n, v in row_ds.data_vars.items()}
 
-        # Add un-indexed coordinates and drop unwanted variables.
-        if variables:
-            indices = list(ds.coords.indexes.keys())
-            to_keep = _only_target_coordinate_vars(ds, variables) + indices
-            to_drop = set(df.columns) - set(to_keep)
-            df.drop(to_drop, axis=1, inplace=True)
+            # Add indexed coordinates.
+            row.update(it)
+            # Add un-indexed coordinates.
+            for c in row_ds.coords:
+                if c not in it and (not variables or c in variables):
+                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
 
-        num_chunks = math.ceil(len(df) / coordinate_chunk_size)
-        for i in range(num_chunks):
-            chunk = df[i * coordinate_chunk_size:(i + 1) * coordinate_chunk_size]
-            yield uri, import_time, first_time_step, chunk
+            # Add import metadata.
+            row[DATA_IMPORT_TIME_COLUMN] = import_time
+            row[DATA_URI_COLUMN] = uri
+            row[DATA_FIRST_STEP] = first_time_step
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
-
-def _convert_time(val) -> t.Any:
-    """Converts pandas Timestamp values to ISO format."""
-    if isinstance(val, pd.Timestamp):
-        return val.replace(tzinfo=datetime.timezone.utc).isoformat()
-    elif isinstance(val, pd.Timedelta):
-        return val.total_seconds()
-    else:
-        return val
-
-
-def extract_rows(uri: str,
-                 import_time: str,
-                 first_time_step: str,
-                 rows: pd.DataFrame) -> t.Iterator[t.Dict]:
-    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
-    for _, row in rows.iterrows():
-        row = row.astype(object).where(pd.notnull(row), None)
-        row = {k: _convert_time(v) for k, v in row.iteritems()}
-
-        row[DATA_IMPORT_TIME_COLUMN] = import_time
-        row[DATA_URI_COLUMN] = uri
-        row[DATA_FIRST_STEP] = first_time_step
-        row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-
-        beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-        yield row
-
-
-def _cleanup(bigquery_client: bigquery.Client, storage_client: storage.Client, canary_output_table: str,
-             canay_bucket_name: str, sig: t.Optional[t.Any] = None, frame: t.Optional[t.Any] = None) -> None:
-    bigquery_client.delete_table(canary_output_table, not_found_ok=True)
-    try:
-        storage_client.get_bucket(canay_bucket_name).delete(force=True)
-    except NotFound:
-        pass
-    if sig:
-        traceback.print_stack(frame)
-        sys.exit(0)
-
-
-def validate_region(output_table: str, temp_location: t.Optional[str] = None, region: t.Optional[str] = None) -> None:
-    """Validates non-compatible regions scenarios by performing sanity check."""
-    if not region and not temp_location:
-        raise ValueError('Invalid GCS location: None.')
-
-    bigquery_client = bigquery.Client()
-    storage_client = storage.Client()
-    canary_output_table = output_table + CANARY_OUTPUT_TABLE_SUFFIX + str(uuid.uuid4())
-    canary_bucket_name = CANARY_BUCKET_NAME + str(uuid.uuid4())
-
-    # Doing cleanup if operation get cut off midway.
-    # TODO : Should we handle some other signals ?
-    do_cleanup = partial(_cleanup, bigquery_client, storage_client, canary_output_table, canary_bucket_name)
-    original_sigint_handler = signal.getsignal(signal.SIGINT)
-    original_sigtstp_handler = signal.getsignal(signal.SIGTSTP)
-    signal.signal(signal.SIGINT, do_cleanup)
-    signal.signal(signal.SIGTSTP, do_cleanup)
-
-    bucket_region = region
-    table_region = None
-
-    if temp_location:
-        parsed_temp_location = urlparse(temp_location)
-        if parsed_temp_location.scheme != 'gs' or parsed_temp_location.netloc == '':
-            raise ValueError(f'Invalid GCS location: {temp_location!r}.')
-        bucket_name = parsed_temp_location.netloc
-        bucket_region = storage_client.get_bucket(bucket_name).location
-
-    try:
-        bucket = storage_client.create_bucket(canary_bucket_name, location=bucket_region)
-        with tempfile.NamedTemporaryFile(mode='w+') as temp:
-            json.dump(CANARY_RECORD, temp)
-            temp.flush()
-            blob = bucket.blob(CANARY_RECORD_FILE_NAME)
-            blob.upload_from_filename(temp.name)
-
-        table = bigquery.Table(canary_output_table, schema=CANARY_TABLE_SCHEMA)
-        table = bigquery_client.create_table(table, exists_ok=True)
-        table_region = table.location
-
-        load_job = bigquery_client.load_table_from_uri(
-            f'gs://{canary_bucket_name}/{CANARY_RECORD_FILE_NAME}',
-            canary_output_table,
-        )
-        load_job.result()
-    except BadRequest:
-        raise RuntimeError(f'Can\'t migrate from source: {bucket_region} to destination: {table_region}')
-    finally:
-        _cleanup(bigquery_client, storage_client, canary_output_table, canary_bucket_name)
-        signal.signal(signal.SIGINT, original_sigint_handler)
-        signal.signal(signal.SIGINT, original_sigtstp_handler)
+            # 'row' ends up looking like:
+            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            yield row

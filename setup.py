@@ -33,11 +33,15 @@ weather_mv_requirements = [
     "numpy",
     "pandas",
     "xarray",
+    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",
+    "more-itertools",
     "simplejson",
     "rioxarray",
+    "rasterio",
+    "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]

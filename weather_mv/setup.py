@@ -32,12 +32,16 @@ base_requirements = [
     "numpy",
     "pandas",
     "xarray",
+    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",
+    "more-itertools",
     "simplejson",
     "rioxarray",
     "metview",
+    "rasterio",
+    "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]
@@ -84,13 +88,9 @@ class build(_build):  # pylint: disable=invalid-name
 """Install the ecCodes and MetView packages from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
-        'sudo add-apt-repository ppa:ubuntugis/ppa,'
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
-        'apt-get --assume-yes install gdal-bin',
-        'apt-get --assume-yes install libgdal-dev',
-        'export CPLUS_INCLUDE_PATH=/usr/include/gdal',
-        'export C_INCLUDE_PATH=/usr/include/gdal',
+        'conda install gdal -c conda-forge -y',
         'conda install metview-batch -c conda-forge -y',
     ]
 ]
@@ -130,7 +130,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.1',
+    version='0.2.3',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=base_requirements,

@@ -34,7 +34,7 @@ from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
-COORD_DISTRACTOR_SET = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -115,6 +115,12 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     return ds
 
 
+def _to_utc_timestring(np_time: np.datetime64) -> str:
+    """Turn a numpy datetime64 into UTC timestring."""
+    timestamp = float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
+    return datetime.datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 def _add_is_normalized_attr(ds: xr.Dataset, value: bool) -> xr.Dataset:
     """Adds is_normalized to the attrs of the xarray.Dataset.
 
@@ -123,11 +129,6 @@ def _add_is_normalized_attr(ds: xr.Dataset, value: bool) -> xr.Dataset:
     """
     ds.attrs['is_normalized'] = value
     return ds
-
-
-def _to_python_timestamp(np_time: np.datetime64) -> float:
-    """Turn a numpy datetime64 into floating point seconds."""
-    return float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
 
 
 def _is_3d_da(da):
@@ -142,7 +143,7 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
 
     for ds in list_ds:
         coords_set = set(ds.coords.keys())
-        level_set = coords_set.difference(COORD_DISTRACTOR_SET)
+        level_set = coords_set.difference(DEFAULT_COORD_KEYS)
         level = level_set.pop()
 
         # Now look at what data vars are in each level.
@@ -155,9 +156,9 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
 
             # We are going to treat the time field as start_time and the
             # valid_time field as the end_time for EE purposes. Also, get the
-            # times into python-like floating point seconds timestamps.
-            start_time = _to_python_timestamp(da.time.values)
-            end_time = _to_python_timestamp(da.valid_time.values)
+            # times into UTC timestrings.
+            start_time = _to_utc_timestring(da.time.values)
+            end_time = _to_utc_timestring(da.valid_time.values)
 
             attrs['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
             attrs['start_time'] = start_time
@@ -195,9 +196,11 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     return xr.merge(_data_array_list)
 
 
-def __open_dataset_file(filename: str, uri_extension: str, disable_grib_schema_normalization: bool,
+def __open_dataset_file(filename: str,
+                        uri_extension: str,
+                        disable_grib_schema_normalization: bool,
                         open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
-    """Open the dataset at 'uri' and return a xarray.Dataset."""
+    """Opens the dataset at 'uri' and returns a xarray.Dataset."""
     if open_dataset_kwargs:
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
@@ -247,15 +250,19 @@ def open_local(uri: str) -> t.Iterator[str]:
 
 
 @contextlib.contextmanager
-def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disable_in_memory_copy: bool = False,
-                 disable_grib_schema_normalization: bool = False, tif_metadata_for_datetime: t.Optional[str] = None) ->\
-                 t.Iterator[xr.Dataset]:
+def open_dataset(uri: str,
+                 open_dataset_kwargs: t.Optional[t.Dict] = None,
+                 disable_in_memory_copy: bool = False,
+                 disable_grib_schema_normalization: bool = False,
+                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
-            xr_dataset: xr.Dataset = __open_dataset_file(local_path, uri_extension, disable_grib_schema_normalization,
+            xr_dataset: xr.Dataset = __open_dataset_file(local_path,
+                                                         uri_extension,
+                                                         disable_grib_schema_normalization,
                                                          open_dataset_kwargs)
 
             if uri_extension == '.tif':
@@ -263,6 +270,11 @@ def open_dataset(uri: str, open_dataset_kwargs: t.Optional[t.Dict] = None, disab
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
+
+            # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+            with rasterio.open(local_path, 'r') as f:
+                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
             logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
