@@ -44,6 +44,7 @@ weather_mv_requirements = [
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
     "eccodes",
+    "pdbufr",
 ]
 
 weather_sp_requirements = [

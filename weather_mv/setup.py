@@ -44,6 +44,7 @@ base_requirements = [
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
     "eccodes",
+    "pdbufr",
 ]
 
 

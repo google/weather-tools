@@ -74,6 +74,7 @@ _Command options_:
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
+* `--bufr_data_vars`: Data variables to read from BUFR file in the form of a tuple.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. Used to
   tune parallel uploads.
@@ -328,6 +329,7 @@ _Command options_:
 * `--service_account`: Service account address when using a private key for earth engine authentication.
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
+* `--bufr_data_vars`: Data variables to read from BUFR file in the form of a tuple.
 * `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.

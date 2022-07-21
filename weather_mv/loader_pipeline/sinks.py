@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import dataclasses
 import logging
+import pdbufr
 import shutil
 import tempfile
 import typing as t
@@ -36,6 +37,7 @@ from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+REQUIRED_BUFR_COLUMNS = ('latitude', 'longitude')
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -210,15 +212,26 @@ def is_bufr_file(filename: str) -> bool:
         return False
 
 
-def __read_bufr_file(filename: str) -> xr.Dataset:
+def __read_bufr_file(filename: str, bufr_data_vars: t.Tuple[str]) -> xr.Dataset:
     """Reads BUFR file and converts it into xarray dataset."""
-    pass
+    # It would be a good idea to fetch all the columns from the BUFR file
+    # directly.
+    # I could not find an effiecient way to do this. Taking them as arguments
+    # from the user for now.
+
+    # Read BUFR into dataframe.
+    columns = REQUIRED_BUFR_COLUMNS + bufr_data_vars
+    df = pdbufr.read_bufr(filename, columns=columns, required_columns=REQUIRED_BUFR_COLUMNS)
+
+    # Convert dataframe into xr.Dataset.
+    return xr.Dataset.from_dataframe(df)
 
 
 def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
-                        open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
+                        open_dataset_kwargs: t.Optional[t.Dict] = None,
+                        bufr_data_vars: t.Optional[t.Tuple] = None) -> xr.Dataset:
     """Opens the dataset at 'uri' and returns a xarray.Dataset."""
     if open_dataset_kwargs:
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
@@ -227,8 +240,8 @@ def __open_dataset_file(filename: str,
     if uri_extension == '.tif':
         return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
     # If file is in BUFR format, try opening file by pdbufr.
-    elif is_bufr_file(filename):
-        return _add_is_normalized_attr(__read_bufr_file(filename), False)
+    elif is_bufr_file(filename) and bufr_data_vars:
+        return _add_is_normalized_attr(__read_bufr_file(filename, bufr_data_vars), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
@@ -276,7 +289,8 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 tif_metadata_for_datetime: t.Optional[str] = None,
+                 bufr_data_vars: t.Tuple = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
@@ -285,7 +299,8 @@ def open_dataset(uri: str,
             xr_dataset: xr.Dataset = __open_dataset_file(local_path,
                                                          uri_extension,
                                                          disable_grib_schema_normalization,
-                                                         open_dataset_kwargs)
+                                                         open_dataset_kwargs,
+                                                         bufr_data_vars)
 
             if uri_extension == '.tif':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)

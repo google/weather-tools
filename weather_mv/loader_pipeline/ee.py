@@ -178,6 +178,7 @@ class ToEarthEngine(ToDataSink):
     tiff_location: str
     ee_asset: str
     xarray_open_dataset_kwargs: t.Dict
+    bufr_data_vars: t.Tuple
     disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
@@ -197,6 +198,8 @@ class ToEarthEngine(ToDataSink):
                                ' will be pushed.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
+        subparser.add_argument('--bufr_data_vars', type=tuple, default=(),
+                               help='Data variables to read from BUFR file in the form of a tuple.')
         subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
                                help='To disable in-memory copying of dataset. Default: False')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
@@ -269,7 +272,8 @@ class ToEarthEngine(ToDataSink):
                         tiff_location=self.tiff_location,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                         disable_in_memory_copy=self.disable_in_memory_copy,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization))
+                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
+                        bufr_data_vars=self.bufr_data_vars))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_qps=self.ee_qps,
@@ -343,6 +347,7 @@ class ConvertToCog(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
+    bufr_data_vars: t.Tuple = None
 
     def process(self, uri: str) -> t.Iterator[TiffData]:
         """Opens grib files and yields TiffData."""
@@ -351,7 +356,8 @@ class ConvertToCog(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_in_memory_copy,
-                          self.disable_grib_schema_normalization) as ds:
+                          self.disable_grib_schema_normalization,
+                          self.bufr_data_vars) as ds:
 
             attrs = ds.attrs
             data = list(ds.values())
