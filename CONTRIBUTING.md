@@ -74,8 +74,8 @@ setup.py  # Project is pip-installable, project requirements managed here.
    git clone git@github.com:google/weather-tools.git
    cd weather-tools
    conda env create -f environment.yml
-   pip install -e ".[dev]"
    conda activate weather-tools
+   pip install -e ".[dev]"
    ```
 
 4. Install `gcloud`, the Google Cloud CLI, following these [instructions](https://cloud.google.com/sdk/docs/install).
