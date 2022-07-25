@@ -118,6 +118,41 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
+class SetupEarthEngine(RateLimit):
+    """A base class to setup the earth engine."""
+
+    def __init__(self,
+                 ee_qps: int,
+                 ee_latency: float,
+                 ee_max_concurrent: int,
+                 private_key: str,
+                 service_account: str,
+                 use_personal_account: bool):
+        super().__init__(global_rate_limit_qps=ee_qps,
+                         latency_per_request=ee_latency,
+                         max_concurrent_requests=ee_max_concurrent)
+        self._has_setup = False
+        self.private_key = private_key
+        self.service_account = service_account
+        self.use_personal_account = use_personal_account
+
+    def setup(self):
+        """Makes sure ee is set up on every worker."""
+        ee_initialize(use_personal_account=self.use_personal_account,
+                      service_account=self.service_account,
+                      private_key=self.private_key)
+        self._has_setup = True
+
+    def check_setup(self):
+        """Ensures that setup has been called."""
+        if not self._has_setup:
+            self.setup()
+
+    def process(self, *args, **kwargs):
+        """Checks that setup has been called then call the process implementation."""
+        self.check_setup()
+
+
 def _get_tiff_name(uri: str) -> str:
     """Extracts file name and converts it into an EE-safe name"""
     basename = os.path.basename(uri)
@@ -286,7 +321,7 @@ class ToEarthEngine(ToDataSink):
             )
 
 
-class FilterFilesTransform(RateLimit):
+class FilterFilesTransform(SetupEarthEngine):
     """Filters out paths for which the assets that are already in the earth engine.
 
     Attributes:
@@ -308,17 +343,18 @@ class FilterFilesTransform(RateLimit):
                  service_account: str,
                  use_personal_account: bool):
         """Sets up rate limit and initializes the earth engine."""
+        super().__init__(ee_qps=ee_qps,
+                         ee_latency=ee_latency,
+                         ee_max_concurrent=ee_max_concurrent,
+                         private_key=private_key,
+                         service_account=service_account,
+                         use_personal_account=use_personal_account)
         self.ee_asset = ee_asset
-
-        super().__init__(global_rate_limit_qps=ee_qps,
-                         latency_per_request=ee_latency,
-                         max_concurrent_requests=ee_max_concurrent)
-        ee_initialize(use_personal_account=use_personal_account,
-                      service_account=service_account,
-                      private_key=private_key)
 
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
+        self.check_setup()
+
         tiff_name = _get_tiff_name(uri)
         asset_id = os.path.join(self.ee_asset, tiff_name)
         try:
@@ -393,7 +429,7 @@ class ConvertToCog(beam.DoFn):
                 yield tiff_data
 
 
-class IngestIntoEETransform(RateLimit):
+class IngestIntoEETransform(SetupEarthEngine):
     """Ingests tiff image into earth engine and yields asset id.
 
     Attributes:
@@ -415,13 +451,13 @@ class IngestIntoEETransform(RateLimit):
                  service_account: str,
                  use_personal_account: bool):
         """Sets up rate limit."""
+        super().__init__(ee_qps=ee_qps,
+                         ee_latency=ee_latency,
+                         ee_max_concurrent=ee_max_concurrent,
+                         private_key=private_key,
+                         service_account=service_account,
+                         use_personal_account=use_personal_account)
         self.ee_asset = ee_asset
-        super().__init__(global_rate_limit_qps=ee_qps,
-                         latency_per_request=ee_latency,
-                         max_concurrent_requests=ee_max_concurrent)
-        ee_initialize(use_personal_account=use_personal_account,
-                      service_account=service_account,
-                      private_key=private_key)
 
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,
@@ -431,6 +467,8 @@ class IngestIntoEETransform(RateLimit):
     )
     def start_ingestion(self, asset_request: t.Dict) -> str:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
+        self.check_setup()
+
         try:
             result = ee.data.createAsset(asset_request)
         except ee.EEException as e:
