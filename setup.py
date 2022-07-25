@@ -33,11 +33,15 @@ weather_mv_requirements = [
     "numpy",
     "pandas",
     "xarray",
+    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",
+    "more-itertools",
     "simplejson",
     "rioxarray",
+    "rasterio",
+    "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
 ]
@@ -88,11 +92,11 @@ setup(
         'Operating System :: POSIX',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    # TODO(#166): Upgrade to python 3.9, since Apache Beam's Python SDK now supports it.
-    python_requires='>=3.7, <3.9',
+    python_requires='>=3.7, <3.10',
     install_requires=['apache-beam[gcp]'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
