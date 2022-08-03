@@ -414,6 +414,14 @@ class ConvertToCog(beam.DoFn):
                         f.update_tags(i+1, band_name=channel_names[i])
 
                     # Write some useful tags in tiff.
+                    if 'start_time' in attrs:
+                        f.update_tags(start_time=attrs['start_time'])
+                    if 'end_time' in attrs:
+                        f.update_tags(end_time=attrs['end_time'])
+                    if 'height' in attrs:
+                        f.update_tags(height=attrs['height'])
+                    if 'is_normalized' in attrs:
+                        f.update_tags(is_normalized=attrs['is_normalized'])
                     if 'standard_name' in attrs:
                         f.update_tags(standard_name=attrs['standard_name'])
                     if 'long_name' in attrs:
