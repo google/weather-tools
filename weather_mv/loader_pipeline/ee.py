@@ -413,21 +413,8 @@ class ConvertToCog(beam.DoFn):
                         f.write(da, i+1)
                         f.update_tags(i+1, band_name=channel_names[i])
 
-                    # Write some useful tags in tiff.
-                    if 'start_time' in attrs:
-                        f.update_tags(start_time=attrs['start_time'])
-                    if 'end_time' in attrs:
-                        f.update_tags(end_time=attrs['end_time'])
-                    if 'height' in attrs:
-                        f.update_tags(height=attrs['height'])
-                    if 'is_normalized' in attrs:
-                        f.update_tags(is_normalized=attrs['is_normalized'])
-                    if 'standard_name' in attrs:
-                        f.update_tags(standard_name=attrs['standard_name'])
-                    if 'long_name' in attrs:
-                        f.update_tags(long_name=attrs['long_name'])
-                    if 'forecast_hour' in attrs:
-                        f.update_tags(forecast_hour=attrs['forecast_hour'])
+                    # Write attributes as tags in tiff.
+                    f.update_tags(**attrs)
 
                 # Copy in-memory tiff to gcs.
                 target_path = os.path.join(self.tiff_location, file_name)
