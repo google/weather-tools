@@ -392,6 +392,7 @@ class ConvertToCog(beam.DoFn):
             attrs = ds.attrs
             data = list(ds.values())
             tiff_name = _get_tiff_name(uri)
+            channel_names = [da.name for da in data]
             start_time, end_time, is_normalized = (attrs.get(key) for key in
                                                    ('start_time', 'end_time', 'is_normalized'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
@@ -410,13 +411,16 @@ class ConvertToCog(beam.DoFn):
                                   compress='lzw') as f:
                     for i, da in enumerate(data):
                         f.write(da, i+1)
+                        f.update_tags(i+1, band_name=channel_names[i])
+
+                    # Write attributes as tags in tiff.
+                    f.update_tags(**attrs)
 
                 # Copy in-memory tiff to gcs.
                 target_path = os.path.join(self.tiff_location, file_name)
                 with FileSystems().create(target_path) as dst:
                     shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
 
-                channel_names = [da.name for da in data]
                 tiff_data = TiffData(
                     name=tiff_name,
                     target_path=target_path,
