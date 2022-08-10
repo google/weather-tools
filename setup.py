@@ -104,7 +104,7 @@ setup(
              'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
+        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'],
         'test': all_test_requirements,
         'regrid': ['metview']
     },

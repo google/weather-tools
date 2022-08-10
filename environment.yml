@@ -20,6 +20,7 @@ dependencies:
   - rioxarray
   - pyproj
   - gdal
+  - scipy
   - pygrib
   - flake8
   - pytest
@@ -35,3 +36,4 @@ dependencies:
     - urllib3==1.26.5
     - earthengine-api>=0.1.263
     - google-cloud-storage==2.2.1
+    - pytype==2021.11.29

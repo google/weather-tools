@@ -16,13 +16,18 @@
 ARG py_version=3.8
 FROM apache/beam_python${py_version}_sdk:2.40.0 as beam_sdk
 FROM continuumio/miniconda3:4.12.0
-ARG py_version
 
 # Update miniconda
 RUN conda update conda -y
 
-# Install desired python version
-RUN conda install python=${py_version} -y
+# Create conda env using environment.yml
+COPY environment.yml /tmp/environment.yml
+RUN conda env create -f /tmp/environment.yml
+
+# Activate the conda env and update the PATH
+ARG CONDA_ENV_NAME=weather-tools
+RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
+ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
 
 # Install SDK.
 RUN pip install --no-cache-dir apache-beam[gcp]==2.40.0

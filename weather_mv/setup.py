@@ -27,23 +27,23 @@ from distutils.command.build import build as _build  # type: ignore
 from setuptools import setup, find_packages, Command
 
 base_requirements = [
-    "apache-beam[gcp]",
-    "dataclasses",
-    "numpy",
-    "pandas",
-    "xarray",
-    "google-cloud-storage==2.2.1",
-    "cfgrib",
-    "netcdf4",
-    "geojson",
-    "more-itertools",
-    "simplejson",
-    "rioxarray",
-    "metview",
-    "rasterio",
-    "earthengine-api>=0.1.263",
-    "pyproj",  # requires separate binary installation!
-    "gdal",  # requires separate binary installation!
+    # "apache-beam[gcp]",
+    # "dataclasses",
+    # "numpy",
+    # "pandas",
+    # "xarray",
+    # "google-cloud-storage==2.2.1",
+    # "cfgrib",
+    # "netcdf4",
+    # "geojson",
+    # "more-itertools",
+    # "simplejson",
+    # "rioxarray",
+    # # "metview",
+    # "rasterio",
+    # "earthengine-api>=0.1.263",
+    # # "pyproj",  # requires separate binary installation!
+    # # "gdal",  # requires separate binary installation!
 ]
 
 
@@ -88,10 +88,9 @@ class build(_build):  # pylint: disable=invalid-name
 """Install the ecCodes and MetView packages from ECMWF."""
 CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
-        'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev',
-        'conda install gdal -c conda-forge -y',
-        'conda install metview-batch -c conda-forge -y',
+        # 'conda install eccodes -c conda-forge -y',
+        # 'conda install gdal -c conda-forge -y',
+        # 'conda install metview-batch -c conda-forge -y',
     ]
 ]
 
@@ -117,7 +116,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            raise print(
+            raise RuntimeError(
                 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
@@ -133,10 +132,10 @@ setup(
     version='0.2.5',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
-    install_requires=base_requirements,
-    cmdclass={
-        # Command class instantiated and run during pip install scenarios.
-        'build': build,
-        'CustomCommands': CustomCommands,
-    }
+    # install_requires=base_requirements,
+    # cmdclass={
+    #     # Command class instantiated and run during pip install scenarios.
+    #     'build': build,
+    #     'CustomCommands': CustomCommands,
+    # }
 )
