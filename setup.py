@@ -14,10 +14,26 @@
 
 from setuptools import find_packages, setup
 
+beam_gcp_requirements = [
+    "google-cloud-bigquery==2.34.4",
+    "google-cloud-bigquery-storage==2.14.1",
+    "google-cloud-bigtable==1.7.2",
+    "google-cloud-core==1.7.3",
+    "google-cloud-datastore==1.15.5",
+    "google-cloud-dlp==3.8.0",
+    "google-cloud-language==1.3.2",
+    "google-cloud-pubsub==2.13.4",
+    "google-cloud-pubsublite==1.4.2",
+    "google-cloud-recommendations-ai==0.2.0",
+    "google-cloud-spanner==1.19.3",
+    "google-cloud-videointelligence==1.16.3",
+    "google-cloud-vision==1.0.2",
+    "apache-beam[gcp]==2.40.0",
+]
+
 weather_dl_requirements = [
     "cdsapi",
     "ecmwf-api-client",
-    "apache-beam[gcp]",
     "numpy>=1.19.1",
     "pandas",
     "xarray",
@@ -28,12 +44,10 @@ weather_dl_requirements = [
 ]
 
 weather_mv_requirements = [
-    "apache-beam[gcp]",
     "dataclasses",
     "numpy",
     "pandas",
     "xarray",
-    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",
@@ -47,7 +61,6 @@ weather_mv_requirements = [
 ]
 
 weather_sp_requirements = [
-    "apache-beam[gcp]",
     "numpy>=1.20.3",
     "pygrib",
     "xarray",
@@ -67,7 +80,7 @@ test_requirements = [
     "metview",
 ]
 
-all_test_requirements = weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
+all_test_requirements = beam_gcp_requirements + weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
 
 setup(
     name='google-weather-tools',
@@ -97,7 +110,7 @@ setup(
 
     ],
     python_requires='>=3.7, <3.10',
-    install_requires=['apache-beam[gcp]'],
+    install_requires=['apache-beam[gcp]==2.40.0'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     scripts=['weather_dl/weather-dl', 'weather_dl/download-status',
