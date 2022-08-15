@@ -188,8 +188,8 @@ class Manifest(abc.ABC):
 class GCSManifest(Manifest):
     """Writes a JSON representation of the manifest to GCS.
 
-    This is an append-only implementation, the latest value in the manifest
-    represents the current state of a download.
+    This is an overriding implementation, the latest value in the manifest
+    file represents the current state of a download.
     """
 
     # Ensure no race conditions occurs on appends to objects in GCS
@@ -199,7 +199,7 @@ class GCSManifest(Manifest):
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         with GCSManifest._lock:
-            with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
+            with gcsio.GcsIO().open(self.location, 'w') as gcs_file:
                 json.dump(download_status._asdict(), gcs_file)
         logger.debug('Manifest written to.')
         logger.debug(download_status)
