@@ -80,7 +80,9 @@ test_requirements = [
     "metview",
 ]
 
-all_test_requirements = beam_gcp_requirements + weather_dl_requirements + weather_mv_requirements + weather_sp_requirements + test_requirements
+all_test_requirements = beam_gcp_requirements + weather_dl_requirements + \
+                        weather_mv_requirements + weather_sp_requirements + \
+                        test_requirements
 
 setup(
     name='google-weather-tools',
