@@ -13,14 +13,21 @@
 # limitations under the License.
 
 import json
+import logging
 import random
 import string
 import tempfile
 import time
 import typing as t
 import unittest
+import uuid
 
-from .manifest import LocalManifest, Location, DownloadStatus
+from apache_beam.io.gcp import gcsio
+from google.cloud import storage
+
+from .manifest import LocalManifest, Location, DownloadStatus, GCSManifest
+
+logger = logging.getLogger(__name__)
 
 
 def rand_str(max_len=32):
@@ -90,3 +97,40 @@ class LocalManifestTest(unittest.TestCase):
             json.dumps(json.load(file))
         except json.JSONDecodeError:
             self.fail('JSON is invalid.')
+
+
+# noinspection PyBroadException
+class GCSManifestTest(unittest.TestCase):
+
+    def test_write_valid_json(self):
+
+        # create temporary bucket
+        client = storage.Client()
+        bucket_name = str(uuid.uuid4())
+        path = f"/{str(uuid.uuid4())}/location.json"
+        url = f"gs://{bucket_name}{path}"
+        location = Location(url)
+        tmp_bucket = client.create_bucket(client.bucket(bucket_name))
+        logging.debug(f"Created temporary bucket {bucket_name}")
+
+        try:
+            manifest = GCSManifest(location=location)
+            status = make_download_status(location)
+            manifest._update(status)
+
+            with gcsio.GcsIO().open(url, "rb") as f:
+                j = json.load(f)
+                self.assertEqual(j, status._asdict())
+        finally:
+            try:
+                # clear the bucket's files
+                for blob in tmp_bucket.list_blobs():
+                    blob.delete()
+                # delete the bucket
+                tmp_bucket.delete()
+                logging.debug(f"Deleted temporary bucket {bucket_name}")
+            except Exception as e:
+                logging.error(e)
+                logging.error(f"Error deleting temporary bucket {bucket_name},"
+                              f" to avoid unnecessary Cloud Storage charges "
+                              f"make sure to delete it manually.")

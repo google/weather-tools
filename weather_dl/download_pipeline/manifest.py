@@ -199,9 +199,10 @@ class GCSManifest(Manifest):
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         with GCSManifest._lock:
-            with gcsio.GcsIO().open(self.location, 'w') as gcs_file:
-                json.dump(download_status._asdict(), gcs_file)
-        logger.debug('Manifest written to.')
+            with gcsio.GcsIO().open(self.location, 'wb') as gcs_file:
+                json_str = json.dumps(download_status._asdict())
+                gcs_file.write(json_str.encode("utf-8"))
+        logger.debug(f'Manifest written to {self.location}')
         logger.debug(download_status)
 
 
