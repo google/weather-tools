@@ -18,6 +18,8 @@ import configparser
 import copy as cp
 import datetime
 import json
+import logging
+import re
 import string
 import textwrap
 import typing as t
@@ -25,9 +27,17 @@ import numpy as np
 from collections import OrderedDict
 from urllib.parse import urlparse
 
+from apache_beam.io.gcp import gcsio
+from google.api_core.exceptions import GoogleAPIError
+from google.cloud import storage
+from google.resumable_media import InvalidResponse
+
 from .clients import CLIENTS
 from .config import Config
+from .config import prepare_partitions
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
+
+logger = logging.getLogger(__name__)
 
 
 def date(candidate: str) -> datetime.date:
@@ -326,6 +336,36 @@ def _number_of_replacements(s: t.Text):
     return len(set(format_names)) + num_empty_names
 
 
+def _validate_target_path(config: Config):
+    """
+    Checks accessibility of target locations before execution start
+    """
+    client = storage.Client()
+    for partition_conf in prepare_partitions(config):
+        target = prepare_target_name(partition_conf)
+        parsed = urlparse(target)
+        if parsed.scheme == 'gs':
+            # check bucket access
+            try:
+                bucket = client.get_bucket(parsed.netloc)
+            except GoogleAPIError as e:
+                raise ValueError(f"bucket \"{parsed.netloc}\" not accessible:\n{e}")
+            # initial slash returned by urlparse not accepted by GCS client
+            blob_name = re.sub('^/', '', parsed.path)
+            blob = bucket.blob(blob_name)
+            # verify that file path does not already exist and is writeable
+            if blob.exists():
+                raise ValueError(f"GCS file {target} already exists.")
+            else:
+                try:
+                    f = blob.open("w")
+                    f.close()
+                    blob.delete()
+                    logging.info(f"GCS path {target} verified accessible")
+                except InvalidResponse:
+                    raise ValueError(f"GCS address {target} not writeable")
+
+
 def parse_subsections(config: t.Dict) -> t.Dict:
     """Interprets [section.subsection] as nested dictionaries in `.cfg` files."""
     copy = cp.deepcopy(config)
@@ -441,13 +481,17 @@ def process_config(file: t.IO) -> Config:
         if not isinstance(selection[key], list):
             selection[key] = [selection[key]]
 
-    return Config.from_dict(config)
+    config = Config.from_dict(config)
+
+    _validate_target_path(config)
+
+    return config
 
 
-def prepare_target_name(config: Config) -> str:
+def prepare_target_name(partition_config: Config) -> str:
     """Returns name of target location."""
-    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in config.partition_keys)
-    target = config.target_path.format(*partition_dict.values(), **partition_dict)
+    partition_dict = OrderedDict((key, typecast(key, partition_config.selection[key][0])) for key in partition_config.partition_keys)
+    target = partition_config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 
