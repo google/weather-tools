@@ -153,7 +153,7 @@ class SetupEarthEngine(RateLimit):
         self.check_setup()
 
 
-def _get_tiff_name(uri: str) -> str:
+def get_ee_safe_name(uri: str) -> str:
     """Extracts file name and converts it into an EE-safe name"""
     basename = os.path.basename(uri)
     # Strip the extension from the basename.
@@ -355,7 +355,7 @@ class FilterFilesTransform(SetupEarthEngine):
         """Yields uri if the asset does not already exist."""
         self.check_setup()
 
-        tiff_name = _get_tiff_name(uri)
+        tiff_name = get_ee_safe_name(uri)
         asset_id = os.path.join(self.ee_asset, tiff_name)
         try:
             ee.data.getAsset(asset_id)
@@ -391,7 +391,7 @@ class ConvertToCog(beam.DoFn):
 
             attrs = ds.attrs
             data = list(ds.values())
-            tiff_name = _get_tiff_name(uri)
+            tiff_name = get_ee_safe_name(uri)
             channel_names = [da.name for da in data]
             start_time, end_time, is_normalized = (attrs.get(key) for key in
                                                    ('start_time', 'end_time', 'is_normalized'))
@@ -412,7 +412,7 @@ class ConvertToCog(beam.DoFn):
                     for i, da in enumerate(data):
                         f.write(da, i+1)
                         # Making the channel name EE-safe before adding it as a band name.
-                        f.set_band_description(i+1, _get_tiff_name(channel_names[i]))
+                        f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
                         f.update_tags(i+1, band_name=channel_names[i])
 
                     # Write attributes as tags in tiff.

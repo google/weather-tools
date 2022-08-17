@@ -17,7 +17,7 @@ import tempfile
 import unittest
 
 from .ee import (
-    _get_tiff_name,
+    get_ee_safe_name,
     ConvertToCog
 )
 from .sinks_test import TestDataBase
@@ -31,7 +31,7 @@ class TiffNameCreationTests(unittest.TestCase):
         uri = 'weather_mv/test_data/grib_multiple_edition_single_timestep.bz2'
         expected = 'grib_multiple_edition_single_timestep'
 
-        actual = _get_tiff_name(uri)
+        actual = get_ee_safe_name(uri)
 
         self.assertEqual(actual, expected)
 
@@ -39,7 +39,7 @@ class TiffNameCreationTests(unittest.TestCase):
         uri = 'weather_mv/test_data/grib@2nd-edition&timestep#1.bz2'
         expected = 'grib_2nd-edition_timestep_1'
 
-        actual = _get_tiff_name(uri)
+        actual = get_ee_safe_name(uri)
 
         self.assertEqual(actual, expected)
 
@@ -47,7 +47,7 @@ class TiffNameCreationTests(unittest.TestCase):
         uri = 'weather_mv/test_data/'
         expected = ''
 
-        actual = _get_tiff_name(uri)
+        actual = get_ee_safe_name(uri)
 
         self.assertEqual(actual, expected)
 
@@ -55,7 +55,7 @@ class TiffNameCreationTests(unittest.TestCase):
         uri = 'grib@2nd-edition&timestep#1.bz2'
         expected = 'grib_2nd-edition_timestep_1'
 
-        actual = _get_tiff_name(uri)
+        actual = get_ee_safe_name(uri)
 
         self.assertEqual(actual, expected)
 
