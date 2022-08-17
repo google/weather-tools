@@ -411,6 +411,8 @@ class ConvertToCog(beam.DoFn):
                                   compress='lzw') as f:
                     for i, da in enumerate(data):
                         f.write(da, i+1)
+                        # Making the channel name EE-safe before adding it as a band name.
+                        f.set_band_description(i+1, _get_tiff_name(channel_names[i]))
                         f.update_tags(i+1, band_name=channel_names[i])
 
                     # Write attributes as tags in tiff.
