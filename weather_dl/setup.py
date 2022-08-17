@@ -14,17 +14,33 @@
 
 from setuptools import setup, find_packages
 
+beam_gcp_requirements = [
+    "google-cloud-bigquery==2.34.4",
+    "google-cloud-bigquery-storage==2.14.1",
+    "google-cloud-bigtable==1.7.2",
+    "google-cloud-core==1.7.3",
+    "google-cloud-datastore==1.15.5",
+    "google-cloud-dlp==3.8.0",
+    "google-cloud-language==1.3.2",
+    "google-cloud-pubsub==2.13.4",
+    "google-cloud-pubsublite==1.4.2",
+    "google-cloud-recommendations-ai==0.2.0",
+    "google-cloud-spanner==1.19.3",
+    "google-cloud-videointelligence==1.16.3",
+    "google-cloud-vision==1.0.2",
+    "apache-beam[gcp]==2.40.0",
+]
+
 base_requirements = [
     "cdsapi",
     "ecmwf-api-client",
-    "apache-beam[gcp]",
     "numpy>=1.19.1",
     "pandas",
     "xarray",
     "requests>=2.24.0",
     "firebase-admin>=5.0.0",
-    "google-cloud-firestore",
     "urllib3==1.26.5",
+    "google-cloud-firestore==2.6.0",
 ]
 
 setup(
@@ -35,5 +51,5 @@ setup(
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
-    install_requires=base_requirements,
+    install_requires=beam_gcp_requirements + base_requirements,
 )

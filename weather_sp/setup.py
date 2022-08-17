@@ -14,8 +14,24 @@
 
 from setuptools import setup, find_packages
 
+beam_gcp_requirements = [
+    "google-cloud-bigquery==2.34.4",
+    "google-cloud-bigquery-storage==2.14.1",
+    "google-cloud-bigtable==1.7.2",
+    "google-cloud-core==1.7.3",
+    "google-cloud-datastore==1.15.5",
+    "google-cloud-dlp==3.8.0",
+    "google-cloud-language==1.3.2",
+    "google-cloud-pubsub==2.13.4",
+    "google-cloud-pubsublite==1.4.2",
+    "google-cloud-recommendations-ai==0.2.0",
+    "google-cloud-spanner==1.19.3",
+    "google-cloud-videointelligence==1.16.3",
+    "google-cloud-vision==1.0.2",
+    "apache-beam[gcp]==2.40.0",
+]
+
 base_requirements = [
-    "apache-beam[gcp]",
     "pygrib",
     "numpy>=1.20.3",
     "xarray",
@@ -30,5 +46,5 @@ setup(
     version='0.3.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_sp/',
     description='A tool to split weather data files into per-variable files.',
-    install_requires=base_requirements,
+    install_requires=beam_gcp_requirements + base_requirements,
 )

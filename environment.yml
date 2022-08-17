@@ -5,7 +5,7 @@ dependencies:
   - python=3.8
   - cdsapi
   - ecmwf-api-client
-  - apache-beam[gcp]
+  - apache-beam[gcp]==2.40.0
   - numpy
   - pandas
   - xarray

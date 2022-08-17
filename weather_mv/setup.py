@@ -26,13 +26,28 @@ from distutils.command.build import build as _build  # type: ignore
 
 from setuptools import setup, find_packages, Command
 
+beam_gcp_requirements = [
+    "google-cloud-bigquery==2.34.4",
+    "google-cloud-bigquery-storage==2.14.1",
+    "google-cloud-bigtable==1.7.2",
+    "google-cloud-core==1.7.3",
+    "google-cloud-datastore==1.15.5",
+    "google-cloud-dlp==3.8.0",
+    "google-cloud-language==1.3.2",
+    "google-cloud-pubsub==2.13.4",
+    "google-cloud-pubsublite==1.4.2",
+    "google-cloud-recommendations-ai==0.2.0",
+    "google-cloud-spanner==1.19.3",
+    "google-cloud-videointelligence==1.16.3",
+    "google-cloud-vision==1.0.2",
+    "apache-beam[gcp]==2.40.0",
+]
+
 base_requirements = [
-    "apache-beam[gcp]",
     "dataclasses",
     "numpy",
     "pandas",
     "xarray",
-    "google-cloud-storage==2.2.1",
     "cfgrib",
     "netcdf4",
     "geojson",
@@ -133,7 +148,7 @@ setup(
     version='0.2.5',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
-    install_requires=base_requirements,
+    install_requires=beam_gcp_requirements + base_requirements,
     cmdclass={
         # Command class instantiated and run during pip install scenarios.
         'build': build,
