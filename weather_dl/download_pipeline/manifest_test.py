@@ -102,35 +102,48 @@ class LocalManifestTest(unittest.TestCase):
 # noinspection PyBroadException
 class GCSManifestTest(unittest.TestCase):
 
-    def test_write_valid_json(self):
+    def setUp(self) -> None:
+        super().setUp()
 
-        # create temporary bucket
-        client = storage.Client()
-        bucket_name = str(uuid.uuid4())
-        path = f"/{str(uuid.uuid4())}/location.json"
-        url = f"gs://{bucket_name}{path}"
-        location = Location(url)
-        tmp_bucket = client.create_bucket(client.bucket(bucket_name))
-        logging.debug(f"Created temporary bucket {bucket_name}")
+        # generate temporary bucket name
+        self.bucket_name = str(uuid.uuid4())
+
+        # create client and bucket
+        self.client = storage.Client()
+        self.bucket = self.client.create_bucket(self.client.bucket(self.bucket_name))
+        logger.info(f"Created temporary bucket {self.bucket_name}")
+
+    def tearDown(self) -> None:
+        super().tearDown()
 
         try:
-            manifest = GCSManifest(location=location)
-            status = make_download_status(location)
-            manifest._update(status)
+            # clear the bucket's files
+            for blob in self.bucket.list_blobs():
+                blob.delete()
+            # delete the bucket
+            self.bucket.delete()
+            logger.info(f"Deleted temporary bucket {self.bucket_name}")
+        except Exception as e:
+            logging.error(f"Error deleting temporary bucket {self.bucket_name},"
+                          f" to avoid unnecessary Cloud Storage charges "
+                          f"make sure to delete it manually.")
+            raise e
 
-            with gcsio.GcsIO().open(url, "rb") as f:
-                j = json.load(f)
-                self.assertEqual(j, status._asdict())
-        finally:
-            try:
-                # clear the bucket's files
-                for blob in tmp_bucket.list_blobs():
-                    blob.delete()
-                # delete the bucket
-                tmp_bucket.delete()
-                logging.debug(f"Deleted temporary bucket {bucket_name}")
-            except Exception as e:
-                logging.error(e)
-                logging.error(f"Error deleting temporary bucket {bucket_name},"
-                              f" to avoid unnecessary Cloud Storage charges "
-                              f"make sure to delete it manually.")
+        self.client.close()
+
+    def test_write_valid_json(self):
+
+        # generate GCS file path
+        path = f"/{str(uuid.uuid4())}/location.json"
+        url = f"gs://{self.bucket_name}{path}"
+        location = Location(url)
+
+        # create and update manifest
+        manifest = GCSManifest(location=location)
+        status = make_download_status()
+        manifest._update(status)
+
+        # verify output JSON integrity
+        with gcsio.GcsIO().open(url, "rb") as f:
+            j = json.load(f)
+            self.assertEqual(j, status._asdict())
