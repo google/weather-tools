@@ -22,6 +22,7 @@ import typing as t
 import unittest
 import uuid
 
+import pytest
 from apache_beam.io.gcp import gcsio
 from google.cloud import storage
 
@@ -100,6 +101,7 @@ class LocalManifestTest(unittest.TestCase):
 
 
 # noinspection PyBroadException
+@pytest.mark.skip(reason="Current CI agent does not have GCS access")
 class GCSManifestTest(unittest.TestCase):
 
     def setUp(self) -> None:
