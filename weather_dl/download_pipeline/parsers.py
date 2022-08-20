@@ -19,7 +19,6 @@ import copy as cp
 import datetime
 import json
 import logging
-import re
 import string
 import textwrap
 import typing as t
@@ -27,10 +26,9 @@ import numpy as np
 from collections import OrderedDict
 from urllib.parse import urlparse
 
-from apache_beam.io.gcp import gcsio
-from google.api_core.exceptions import GoogleAPIError
-from google.cloud import storage
-from google.resumable_media import InvalidResponse
+from apache_beam.io.aws.s3io import S3IO
+from apache_beam.io.filesystems import FileSystems
+from apache_beam.io.gcp.gcsio import GcsIO
 
 from .clients import CLIENTS
 from .config import Config, prepare_partitions
@@ -337,30 +335,25 @@ def _number_of_replacements(s: t.Text):
 
 def _validate_target_path(config: Config):
     """Checks accessibility of target locations before execution start"""
-    client = storage.Client()
     for partition_conf in prepare_partitions(config):
         target = prepare_target_name(partition_conf)
         parsed = urlparse(target)
-        if parsed.scheme == 'gs':
-            # check bucket access
-            try:
-                bucket = client.get_bucket(parsed.netloc)
-            except GoogleAPIError as e:
-                raise ValueError(f"bucket \"{parsed.netloc}\" not accessible:\n{e}")
-            # initial slash returned by urlparse not accepted by GCS client
-            blob_name = re.sub('^/', '', parsed.path)
-            blob = bucket.blob(blob_name)
-            # verify that file path does not already exist and is writeable
-            if blob.exists():
-                raise ValueError(f"GCS file {target} already exists.")
+        if FileSystems.exists(target):
+            raise ValueError(f"Path {target} already exists.")
+        try:
+            if parsed.scheme == "gs":
+                GcsIO().open(target, 'w').close()
+            elif parsed.scheme == "s3":
+                S3IO().open(target, 'w').close()
+            elif parsed.scheme == "" or parsed.scheme == "fs":
+                open(target, 'w').close()
             else:
-                try:
-                    f = blob.open("w")
-                    f.close()
-                    blob.delete()
-                    logging.info(f"GCS path {target} verified accessible")
-                except InvalidResponse:
-                    raise ValueError(f"GCS address {target} not writeable")
+                logger.warning(f"Unable to verify path {target} writeable."
+                               f"Persistent IO errors when writing to the target"
+                               f"path during execution may cause deadlocks.")
+        except Exception:
+            raise ValueError(f"Unable to write to {target}")
+        FileSystems.delete([target])
 
 
 def parse_subsections(config: t.Dict) -> t.Dict:
