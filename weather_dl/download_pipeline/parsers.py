@@ -33,8 +33,7 @@ from google.cloud import storage
 from google.resumable_media import InvalidResponse
 
 from .clients import CLIENTS
-from .config import Config
-from .config import prepare_partitions
+from .config import Config, prepare_partitions
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
 
 logger = logging.getLogger(__name__)
@@ -337,9 +336,7 @@ def _number_of_replacements(s: t.Text):
 
 
 def _validate_target_path(config: Config):
-    """
-    Checks accessibility of target locations before execution start
-    """
+    """Checks accessibility of target locations before execution start"""
     client = storage.Client()
     for partition_conf in prepare_partitions(config):
         target = prepare_target_name(partition_conf)
@@ -490,7 +487,9 @@ def process_config(file: t.IO) -> Config:
 
 def prepare_target_name(partition_config: Config) -> str:
     """Returns name of target location."""
-    partition_dict = OrderedDict((key, typecast(key, partition_config.selection[key][0])) for key in partition_config.partition_keys)
+    partition_dict = OrderedDict(
+        (key, typecast(key, partition_config.selection[key][0]))
+        for key in partition_config.partition_keys)
     target = partition_config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
