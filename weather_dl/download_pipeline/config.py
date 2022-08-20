@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import calendar
-import copy
 import copy as cp
 import dataclasses
 import itertools
@@ -80,7 +79,7 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
 
     Used to support custom syntax and optimizations, such as 'all'.
     """
-    selection_ = copy.deepcopy(selection)
+    selection_ = cp.deepcopy(selection)
 
     if 'day' in selection_.keys() and selection_['day'] == 'all':
         year, month = selection_['year'], selection_['month']
