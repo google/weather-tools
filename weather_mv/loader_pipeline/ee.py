@@ -487,14 +487,9 @@ class IngestIntoEETransform(SetupEarthEngine):
         """Uploads a tiff image into the earth engine."""
         target_path = tiff_data.target_path
         asset_name = os.path.join(self.ee_asset, tiff_data.name)
-        channel_names = tiff_data.channel_names
         start_time = tiff_data.start_time
         end_time = tiff_data.end_time
         properties = tiff_data.properties
-
-        # No way to rename channels here. For now, putting them in metadata.
-        for _channel_idx, _channel_name in enumerate(channel_names):
-            properties[f'B{_channel_idx}'] = _channel_name
 
         request = {
             'type': 'IMAGE',
