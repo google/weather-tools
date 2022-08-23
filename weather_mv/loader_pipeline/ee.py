@@ -16,6 +16,7 @@ import dataclasses
 import ee
 import json
 import logging
+import numpy as np
 import os
 import re
 import shutil
@@ -406,6 +407,7 @@ class ConvertToCog(beam.DoFn):
                                   width=data[0].data.shape[1],
                                   height=data[0].data.shape[0],
                                   count=len(data),
+                                  nodata=np.nan,
                                   crs=crs,
                                   transform=transform,
                                   compress='lzw') as f:
