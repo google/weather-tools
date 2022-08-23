@@ -486,11 +486,11 @@ class IngestIntoEETransform(SetupEarthEngine):
         self.check_setup()
 
         try:
-            ingestion_as_per_asset_type = {
-                'IMAGE': ee.data.createAsset(asset_request),
-                'TABLE': ee.data.startTableIngestion(asset_request['name'], asset_request)
-            }
-            result = ingestion_as_per_asset_type[self.ee_asset_type]
+            if self.ee_asset_type == 'IMAGE':
+                result = ee.data.createAsset(asset_request)
+            elif self.ee_asset_type == 'TABLE':
+                task_id = ee.data.newTaskId(1)[0]
+                result = ee.data.startTableIngestion(task_id, asset_request)
         except ee.EEException as e:
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
             raise
