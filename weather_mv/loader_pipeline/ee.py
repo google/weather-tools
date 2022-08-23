@@ -212,6 +212,7 @@ class ToEarthEngine(ToDataSink):
     """
     tiff_location: str
     ee_asset: str
+    ee_asset_type: str
     xarray_open_dataset_kwargs: t.Dict
     disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
@@ -230,6 +231,8 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--ee_asset', type=str, required=True, default=None,
                                help='The asset folder path in earth engine project where the tiff image files'
                                ' will be pushed.')
+        subparser.add_argument('--ee_asset_type', type=str, default='IMAGE',
+                               help='The type of asset to ingest in the earth engine.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
         subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
@@ -259,6 +262,9 @@ class ToEarthEngine(ToDataSink):
         # Check that ee_asset is in correct format.
         if not re.match("^projects/.+/assets.*", known_args.ee_asset):
             raise RuntimeError("'--ee_asset' is required to be in format: projects/+/assets/*.")
+
+        if known_args.ee_asset_type not in ['IMAGE', 'TABLE']:
+            raise RuntimeError("Asset type not supported.")
 
         # Check that both service_account and private_key are provided, or none is.
         if bool(known_args.service_account) ^ bool(known_args.private_key):
@@ -307,6 +313,7 @@ class ToEarthEngine(ToDataSink):
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
+                    ee_asset_type=self.ee_asset_type,
                     ee_qps=self.ee_qps,
                     ee_latency=self.ee_latency,
                     ee_max_concurrent=self.ee_max_concurrent,
@@ -440,6 +447,7 @@ class IngestIntoEETransform(SetupEarthEngine):
 
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        ee_asset_type: The type of asset to ingest in the earth engine.
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
@@ -450,6 +458,7 @@ class IngestIntoEETransform(SetupEarthEngine):
 
     def __init__(self,
                  ee_asset: str,
+                 ee_asset_type: str,
                  ee_qps: int,
                  ee_latency: float,
                  ee_max_concurrent: int,
@@ -464,6 +473,7 @@ class IngestIntoEETransform(SetupEarthEngine):
                          service_account=service_account,
                          use_personal_account=use_personal_account)
         self.ee_asset = ee_asset
+        self.ee_asset_type = ee_asset_type
 
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,
@@ -476,7 +486,11 @@ class IngestIntoEETransform(SetupEarthEngine):
         self.check_setup()
 
         try:
-            result = ee.data.createAsset(asset_request)
+            ingestion_as_per_asset_type = {
+                'IMAGE': ee.data.createAsset(asset_request),
+                'TABLE': ee.data.startTableIngestion(asset_request['name'], asset_request)
+            }
+            result = ingestion_as_per_asset_type[self.ee_asset_type]
         except ee.EEException as e:
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
             raise
@@ -492,15 +506,27 @@ class IngestIntoEETransform(SetupEarthEngine):
         properties = tiff_data.properties
 
         request = {
-            'type': 'IMAGE',
             'name': asset_name,
-            'gcs_location': {
-                'uris': [target_path]
-            },
             'startTime': start_time,
             'endTime': end_time,
             'properties': properties
         }
+
+        # Add uris.
+        uris_as_per_asset_type = {
+            'IMAGE': {
+                'type': self.ee_asset_type,
+                'gcs_location': {
+                    'uris': [target_path]
+                }
+            },
+            'TABLE': {
+                'sources': [{
+                    'uris': [target_path]
+                }]
+            }
+        }
+        request.update(uris_as_per_asset_type[self.ee_asset_type])
 
         logger.info(f"Uploading GeoTiff {target_path} to Asset ID '{asset_name}'.")
         asset_id = self.start_ingestion(request)

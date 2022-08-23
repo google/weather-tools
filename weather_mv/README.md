@@ -308,7 +308,7 @@ For a full list of how to configure the Dataflow pipeline, please review
 
 ```
 usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_asset EE_ASSET
-                           [--disable_grib_schema_normalization] [--use_personal_account] [-s]
+                           [--ee_asset_type ASSET_TYPE] [--disable_grib_schema_normalization] [--use_personal_account] [-s]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
                            [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
                            [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
@@ -323,6 +323,7 @@ _Command options_:
 * `--ee_asset`: (required) The asset folder path in earth engine project where the tiff image files will be pushed.
   It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there
   under <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar.
+* `--ee_asset_type`: The type of asset to ingest in the earth engine.
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
 * `--service_account`: Service account address when using a private key for earth engine authentication.
@@ -387,6 +388,15 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --service_account "my-service-account@...gserviceaccount.com" \
            --private_key "path/to/private_key.json"
+```
+
+Ingest asset as table in earth engine:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --ee_asset_type "TABLE"
 ```
 
 Restrict merging all bands or grib normalization:
