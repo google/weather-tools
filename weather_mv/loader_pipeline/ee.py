@@ -263,9 +263,6 @@ class ToEarthEngine(ToDataSink):
         if not re.match("^projects/.+/assets.*", known_args.ee_asset):
             raise RuntimeError("'--ee_asset' is required to be in format: projects/+/assets/*.")
 
-        if known_args.ee_asset_type not in ['IMAGE', 'TABLE']:
-            raise RuntimeError("Asset type not supported.")
-
         # Check that both service_account and private_key are provided, or none is.
         if bool(known_args.service_account) ^ bool(known_args.private_key):
             raise RuntimeError("'--service_account' and '--private_key' both are required.")
