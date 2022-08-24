@@ -231,7 +231,7 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--ee_asset', type=str, required=True, default=None,
                                help='The asset folder path in earth engine project where the tiff image files'
                                ' will be pushed.')
-        subparser.add_argument('--ee_asset_type', type=str, default='IMAGE',
+        subparser.add_argument('--ee_asset_type', type=str, choices=['IMAGE', 'TABLE'], default='IMAGE',
                                help='The type of asset to ingest in the earth engine.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
@@ -447,7 +447,7 @@ class IngestIntoEETransform(SetupEarthEngine):
 
     Attributes:
         ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
-        ee_asset_type: The type of asset to ingest in the earth engine.
+        ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
