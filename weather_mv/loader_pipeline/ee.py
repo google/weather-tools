@@ -418,6 +418,7 @@ class ConvertToAsset(beam.DoFn):
                                       width=data[0].data.shape[1],
                                       height=data[0].data.shape[0],
                                       count=len(data),
+                                      nodata=np.nan,
                                       crs=crs,
                                       transform=transform,
                                       compress='lzw') as f:
