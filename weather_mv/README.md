@@ -324,6 +324,9 @@ _Command options_:
   It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there
   under <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar.
 * `--ee_asset_type`: The type of asset to ingest in the earth engine. Default: IMAGE.
+  Supported types are `IMAGE` and `TABLE`.\
+  `IMAGE`: Uploads georeferenced raster datasets in GeoTIFF format.\
+  `TABLE`: Uploads the datsets in the CSV format. Useful in case of point data (sparse data). 
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
 * `--service_account`: Service account address when using a private key for earth engine authentication.
