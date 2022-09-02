@@ -18,16 +18,16 @@ import unittest
 
 from .ee import (
     get_ee_safe_name,
-    ConvertToCog
+    ConvertToAsset
 )
 from .sinks_test import TestDataBase
 
 logger = logging.getLogger(__name__)
 
 
-class TiffNameCreationTests(unittest.TestCase):
+class AssetNameCreationTests(unittest.TestCase):
 
-    def test_tiff_name_creation(self):
+    def test_asset_name_creation(self):
         uri = 'weather_mv/test_data/grib_multiple_edition_single_timestep.bz2'
         expected = 'grib_multiple_edition_single_timestep'
 
@@ -35,7 +35,7 @@ class TiffNameCreationTests(unittest.TestCase):
 
         self.assertEqual(actual, expected)
 
-    def test_tiff_name_creation__with_special_chars(self):
+    def test_asset_name_creation__with_special_chars(self):
         uri = 'weather_mv/test_data/grib@2nd-edition&timestep#1.bz2'
         expected = 'grib_2nd-edition_timestep_1'
 
@@ -43,7 +43,7 @@ class TiffNameCreationTests(unittest.TestCase):
 
         self.assertEqual(actual, expected)
 
-    def test_tiff_name_creation__with_missing_filename(self):
+    def test_asset_name_creation__with_missing_filename(self):
         uri = 'weather_mv/test_data/'
         expected = ''
 
@@ -51,7 +51,7 @@ class TiffNameCreationTests(unittest.TestCase):
 
         self.assertEqual(actual, expected)
 
-    def test_tiff_name_creation__with_only_filename(self):
+    def test_asset_name_creation__with_only_filename(self):
         uri = 'grib@2nd-edition&timestep#1.bz2'
         expected = 'grib_2nd-edition_timestep_1'
 
@@ -60,33 +60,52 @@ class TiffNameCreationTests(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class ConvertToCogTests(TestDataBase):
+class ConvertToAssetTests(TestDataBase):
 
     def setUp(self) -> None:
         super().setUp()
         self.tmpdir = tempfile.TemporaryDirectory()
-        self.convert_to_cog = ConvertToCog(tiff_location=self.tmpdir.name)
+        self.convert_to_image_asset = ConvertToAsset(asset_location=self.tmpdir.name)
+        self.convert_to_table_asset = ConvertToAsset(asset_location=self.tmpdir.name, ee_asset_type='TABLE')
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
-    def test_convert_to_cog(self):
+    def test_convert_to_image_asset(self):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        tiff_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
 
-        next(self.convert_to_cog.process(data_path))
+        next(self.convert_to_image_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
-        self.assertTrue(os.path.getsize(tiff_path) > os.path.getsize(data_path))
+        self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
 
-    def test_convert_to_cog__with_multiple_grib_edition(self):
+    def test_convert_to_image_asset__with_multiple_grib_edition(self):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        tiff_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
 
-        next(self.convert_to_cog.process(data_path))
+        next(self.convert_to_image_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
-        self.assertTrue(os.path.getsize(tiff_path) > os.path.getsize(data_path))
+        self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
+
+    def test_convert_to_table_asset(self):
+        data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.csv')
+
+        next(self.convert_to_table_asset.process(data_path))
+
+        # The size of tiff is expected to be more than grib.
+        self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
+
+    def test_convert_to_table_asset__with_multiple_grib_edition(self):
+        data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.csv')
+
+        next(self.convert_to_table_asset.process(data_path))
+
+        # The size of tiff is expected to be more than grib.
+        self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
 
 
 if __name__ == '__main__':

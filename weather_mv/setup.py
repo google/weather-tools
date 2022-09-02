@@ -145,7 +145,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.7',
+    version='0.2.8',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=beam_gcp_requirements + base_requirements,
