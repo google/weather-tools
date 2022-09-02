@@ -520,17 +520,13 @@ class IngestIntoEETransform(SetupEarthEngine):
 
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
-        target_path = asset_data.target_path
         asset_name = os.path.join(self.ee_asset, asset_data.name)
-        start_time = asset_data.start_time
-        end_time = asset_data.end_time
-        properties = asset_data.properties
 
         request = {
             'name': asset_name,
-            'startTime': start_time,
-            'endTime': end_time,
-            'properties': properties
+            'startTime': asset_data.start_time,
+            'endTime': asset_data.end_time,
+            'properties': asset_data.properties
         }
 
         # Add uris.
@@ -538,18 +534,18 @@ class IngestIntoEETransform(SetupEarthEngine):
             'IMAGE': {
                 'type': self.ee_asset_type,
                 'gcs_location': {
-                    'uris': [target_path]
+                    'uris': [asset_data.target_path]
                 }
             },
             'TABLE': {
                 'sources': [{
-                    'uris': [target_path]
+                    'uris': [asset_data.target_path]
                 }]
             }
         }
         request.update(uris_as_per_asset_type[self.ee_asset_type])
 
-        logger.info(f"Uploading asset {target_path} to Asset ID '{asset_name}'.")
+        logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
         asset_id = self.start_ingestion(request)
 
         beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
