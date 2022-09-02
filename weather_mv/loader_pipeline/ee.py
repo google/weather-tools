@@ -203,6 +203,7 @@ class ToEarthEngine(ToDataSink):
     Attributes:
         asset_location: The bucket location at which asset files will be pushed.
         ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
+        ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
