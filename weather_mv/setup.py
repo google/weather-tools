@@ -51,7 +51,6 @@ base_requirements = [
     "cfgrib",
     "netcdf4",
     "geojson",
-    "more-itertools",
     "simplejson",
     "rioxarray",
     "metview",
