@@ -31,6 +31,8 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
+from download_pipeline.config import Config
+
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
 
@@ -184,6 +186,11 @@ class Manifest(abc.ABC):
     def _update(self, download_status: DownloadStatus) -> None:
         pass
 
+    @abc.abstractmethod
+    def should_skip(self, location: str) -> bool:
+        """Test if we should skip this download target, because it is in progress or successfully finished."""
+        pass
+
 
 class GCSManifest(Manifest):
     """Writes a JSON representation of the manifest to GCS.
@@ -191,7 +198,6 @@ class GCSManifest(Manifest):
     This is an append-only implementation, the latest value in the manifest
     represents the current state of a download.
     """
-
     # Ensure no race conditions occurs on appends to objects in GCS
     # (i.e. JSON manifests).
     _lock = threading.Lock()
@@ -204,9 +210,25 @@ class GCSManifest(Manifest):
         logger.debug('Manifest written to.')
         logger.debug(download_status)
 
+    def should_skip(self, location: str) -> bool:
+        with GCSManifest._lock:
+            with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
+                manifest = json.load(gcs_file)
+                if location not in manifest:
+                    return False
+                #     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
+                status = manifest.get(location, {'status': 'unknown'})['status']
+                if status in ['success', 'in-progress']:
+                    return True
+
+                return False
+
 
 class LocalManifest(Manifest):
     """Writes a JSON representation of the manifest to local file."""
+
+    def should_skip(self, location: str) -> bool:
+        pass
 
     _lock = threading.Lock()
 
@@ -239,6 +261,9 @@ class LocalManifest(Manifest):
 class MockManifest(Manifest):
     """In-memory mock manifest."""
 
+    def should_skip(self, location: str) -> bool:
+        pass
+
     def __init__(self, location: Location) -> None:
         super().__init__(location)
         self.records = {}
@@ -251,6 +276,9 @@ class MockManifest(Manifest):
 
 class NoOpManifest(Manifest):
     """A manifest that performs no operations."""
+
+    def should_skip(self, location: str) -> bool:
+        pass
 
     def _update(self, download_status: DownloadStatus) -> None:
         pass
@@ -278,6 +306,9 @@ class FirestoreManifest(Manifest):
 
     Where `[<name>]` indicates a collection and `<name> {...}` indicates a document.
     """
+
+    def should_skip(self, location: str) -> bool:
+        pass
 
     def _get_db(self) -> firestore.firestore.Client:
         """Acquire a firestore client, initializing the firebase app if necessary.
