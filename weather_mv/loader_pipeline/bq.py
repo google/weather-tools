@@ -34,7 +34,8 @@ from .util import (
     to_json_serializable_type,
     validate_region,
     _only_target_vars,
-    get_coordinates, ichunked
+    get_coordinates,
+    ichunked,
 )
 
 logger = logging.getLogger(__name__)
