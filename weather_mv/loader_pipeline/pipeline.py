@@ -81,7 +81,11 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Common arguments to all commands
     base = argparse.ArgumentParser(add_help=False)
     base.add_argument('-i', '--uris', type=str, required=True,
-                      help="URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'.")
+                      help="URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'. Or, "
+                           "a path to a Zarr.")
+    base.add_argument('--zarr', action='store_true', default=False,
+                      help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
+                           "Default: off")
     base.add_argument('--topic', type=str,
                       help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
                            "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
@@ -92,7 +96,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                       help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
                            'the `topic` flag. Default: 5 shards.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
-                      help='Preview the load into BigQuery. Default: off')
+                      help='Preview the weather-mv job. Default: off')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
@@ -115,9 +119,14 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
+    if known_args.uris.endswith('.zarr'):
+        known_args.zarr = True
+
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
         ToBigQuery.validate_arguments(known_args, pipeline_args)
+    elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
+        Regrid.validate_arguments(known_args, pipeline_args)
     elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
         ToEarthEngine.validate_arguments(known_args, pipeline_args)
 

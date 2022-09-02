@@ -35,6 +35,12 @@ class CLITests(unittest.TestCase):
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
         ).split()
+        self.ee_cli_args = (
+            'weather-mv ee '
+            '-i weather_mv/test_data/test_data_2018*.nc '
+            '--asset_location gs://bucket/my-assets/ '
+            '--ee_asset "projects/my-project/assets/asset_dir'
+        ).split()
         self.base_cli_known_args = {
             'subcommand': 'bq',
             'uris': f'{self.test_data_folder}/test_data_2018*.nc',
@@ -94,6 +100,13 @@ class TestCLI(CLITests):
         )
         self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
 
+    def test_bq_does_not_yet_support_zarr(self):
+        with self.assertRaisesRegex(AssertionError, 'Reading Zarr'):
+            run(self.base_cli_args + ['--zarr'])
+
+    def test_ee_does_not_yet_support_zarr(self):
+        with self.assertRaisesRegex(AssertionError, 'Reading Zarr'):
+            run(self.ee_cli_args + ['--zarr'])
 
 class IntegrationTest(CLITests):
     def test_dry_runs_are_allowed(self):

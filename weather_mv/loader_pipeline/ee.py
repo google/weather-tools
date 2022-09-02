@@ -261,6 +261,8 @@ class ToEarthEngine(ToDataSink):
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
 
+        assert not known_args.zarr, 'Reading Zarr is not (yet) supported.'
+
         # Check that ee_asset is in correct format.
         if not re.match("^projects/.+/assets.*", known_args.ee_asset):
             raise RuntimeError("'--ee_asset' is required to be in format: projects/+/assets/*.")
