@@ -14,6 +14,7 @@
 """Pipeline for loading weather data into analysis-ready mediums, like Google BigQuery."""
 
 import argparse
+import json
 import logging
 import typing as t
 
@@ -25,7 +26,6 @@ from .regrid import Regrid
 from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -36,17 +36,21 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
+def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str]:
+    if is_zarr:
+        return [match_pattern]
+
     for match in FileSystems().match([match_pattern]):
         yield from [x.path for x in match.metadata_list]
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
-    all_uris = list(pattern_to_uris(known_args.uris))
+    all_uris = list(pattern_to_uris(known_args.uris, known_args.zarr))
     if not all_uris:
-        raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
+        raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
 
     with beam.Pipeline(argv=pipeline_args) as p:
+        # TODO(alxr): Consider having a seperate branch for Zarr files.
         if known_args.topic:
             paths = (
                     p
@@ -83,9 +87,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('-i', '--uris', type=str, required=True,
                       help="URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'. Or, "
                            "a path to a Zarr.")
-    base.add_argument('--zarr', action='store_true', default=False,
-                      help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
-                           "Default: off")
     base.add_argument('--topic', type=str,
                       help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
                            "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
@@ -95,6 +96,13 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('--num_shards', type=int, default=5,
                       help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
                            'the `topic` flag. Default: 5 shards.')
+    base.add_argument('--zarr', action='store_true', default=False,
+                      help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
+                           "Default: off")
+    base.add_argument('--zarr_chunks', type=json.loads, default='{}',
+                      help='Optional chunking scheme for reading in Zarr. Required if the dataset is *not* already'
+                           'chunked. If the dataset *is* already chunked with Dask, `chunks` takes'
+                           'precedence over the existing chunks.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
                       help='Preview the weather-mv job. Default: off')
 
@@ -119,8 +127,12 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
+    # Validate Zarr arguments
     if known_args.uris.endswith('.zarr'):
         known_args.zarr = True
+
+    if known_args.zarr_chunks and not known_args.zarr:
+        raise ValueError('`--zarr_chunks` argument is only allowed with valid Zarr input URI.')
 
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
@@ -132,6 +144,9 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     # If a topic is used, then the pipeline must be a streaming pipeline.
     if known_args.topic:
+        if known_args.zarr:
+            raise ValueError('streaming updates to a Zarr file is not (yet) supported.')
+
         pipeline_args.extend('--streaming true'.split())
 
         # make sure we re-compute utcnow() every time rows are extracted from a file.

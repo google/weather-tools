@@ -56,6 +56,7 @@ weather_mv_requirements = [
     "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
+    "xarray-beam==0.3.1",
 ]
 
 weather_sp_requirements = [

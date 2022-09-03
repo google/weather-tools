@@ -22,6 +22,8 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
+import apache_beam.pvalue
+import xarray_beam as xbeam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
@@ -55,13 +57,18 @@ class Regrid(ToDataSink):
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_options: t.List[str]) -> None:
-        pass
+        if known_args.zarr and known_args.to_netcdf:
+            raise ValueError('only Zarr-to-Zarr regridding is allowed!')
 
     def target_from(self, uri: str) -> str:
         """Create the target path from the input URI.
 
-        Will change the extension if the target is a NetCDF.
+        In the case of Zarr, the output will be treated like a valid path.
+        For NetCDF, this will change the extension to '.nc'.
         """
+        if self.zarr:
+            return self.output_path
+
         base = os.path.basename(uri)
         in_dest = os.path.join(self.output_path, base)
 
@@ -108,4 +115,11 @@ class Regrid(ToDataSink):
                 shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
     def expand(self, paths):
-        paths | beam.Map(self.apply)
+        if not self.zarr:
+            paths | beam.Map(self.apply)
+            return
+
+        # TODO(alxr): Create xbeam pipeline for processing Zarr.
+        # WIP:
+        # source_zarr = apache_beam.pvalue.AsSingleton(paths)
+        # xbeam.DatasetToChunks()

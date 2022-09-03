@@ -41,6 +41,11 @@ class CLITests(unittest.TestCase):
             '--asset_location gs://bucket/my-assets/ '
             '--ee_asset "projects/my-project/assets/asset_dir'
         ).split()
+        self.rg_cli_args = (
+            'weather-mv rg '
+            '-i weather_mv/test_data/test_data_2018*.nc '
+            '-o weather_mv/test_data/output/ '
+        ).split()
         self.base_cli_known_args = {
             'subcommand': 'bq',
             'uris': f'{self.test_data_folder}/test_data_2018*.nc',
@@ -102,11 +107,20 @@ class TestCLI(CLITests):
 
     def test_bq_does_not_yet_support_zarr(self):
         with self.assertRaisesRegex(AssertionError, 'Reading Zarr'):
-            run(self.base_cli_args + ['--zarr'])
+            run(self.base_cli_args + '--zarr'.split())
 
     def test_ee_does_not_yet_support_zarr(self):
         with self.assertRaisesRegex(AssertionError, 'Reading Zarr'):
-            run(self.ee_cli_args + ['--zarr'])
+            run(self.ee_cli_args + '--zarr'.split())
+
+    def test_rg_zarr_cant_output_netcdf(self):
+        with self.assertRaisesRegex(ValueError, 'only Zarr-to-Zarr'):
+            run(self.rg_cli_args + '--zarr --to_netcdf'.split())
+
+    def test_zarr_chunks_must_come_with_zarr(self):
+        with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
+            run(self.base_cli_args + ['--zarr_chunks', json.dumps({"time": 100})])
+
 
 class IntegrationTest(CLITests):
     def test_dry_runs_are_allowed(self):
