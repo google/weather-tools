@@ -155,7 +155,7 @@ def _prod(xs: t.Iterable[int]) -> int:
 
 
 def ichunked(lst: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
-    """Yield evenly-sized chunks from a list."""
+    """Yield evenly-sized chunks from an iterable."""
     i = 0
     try:
         while True:
