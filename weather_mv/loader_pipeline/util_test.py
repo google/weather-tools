@@ -17,7 +17,7 @@ from collections import Counter
 import xarray as xr
 
 from .sinks_test import TestDataBase
-from .util import get_coordinates
+from .util import get_coordinates, ichunked
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -38,6 +38,35 @@ class GetCoordinatesTest(TestDataBase):
         # Assert that all the coordinates are unique.
         counts = Counter([tuple(c.values()) for c in get_coordinates(ds)])
         self.assertTrue(all((c == 1 for c in counts.values())))
+
+
+class IChunksTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.items = range(20)
+
+    def test_even_chunks(self):
+        actual = []
+        for chunk in ichunked(self.items, 4):
+            actual.append(list(chunk))
+
+        self.assertEqual(actual, [
+            [0, 1, 2, 3],
+            [4, 5, 6, 7],
+            [8, 9, 10, 11],
+            [12, 13, 14, 15],
+            [16, 17, 18, 19],
+        ])
+
+    def test_odd_chunks(self):
+        actual = []
+        for chunk in ichunked(self.items, 7):
+            actual.append(list(chunk))
+
+        self.assertEqual(actual, [
+            [0, 1, 2, 3, 4, 5, 6],
+            [7, 8, 9, 10, 11, 12, 13],
+            [14, 15, 16, 17, 18, 19]
+        ])
 
 
 class ToJsonSerializableTypeTests(unittest.TestCase):

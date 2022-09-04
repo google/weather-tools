@@ -155,17 +155,16 @@ def _prod(xs: t.Iterable[int]) -> int:
 
 
 def ichunked(lst: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
-    """Yield evenly-sized chunks from a list.
-
-    Implementation based on https://stackoverflow.com/a/312464.
-    """
+    """Yield evenly-sized chunks from a list."""
+    i = 0
     try:
-        i = 0
         while True:
-            yield itertools.islice(lst, i, i + n)
+            it = itertools.islice(lst, i, i + n)
+            first = next(it)
+            yield itertools.chain([first], it)
             i += n
     except StopIteration:
-        return
+        pass
 
 
 def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
