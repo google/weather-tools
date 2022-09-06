@@ -160,6 +160,7 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
     try:
         while True:
             it = itertools.islice(input_, n)
+            # peek to check if 'it' has next item.
             first = next(it)
             yield itertools.chain([first], it)
     except StopIteration:
