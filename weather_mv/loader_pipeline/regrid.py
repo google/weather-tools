@@ -23,7 +23,9 @@ import typing as t
 
 import apache_beam as beam
 import apache_beam.pvalue
+import dask
 import xarray_beam as xbeam
+import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
@@ -44,6 +46,15 @@ class Regrid(ToDataSink):
     output_path: str
     regrid_kwargs: t.Dict
     to_netcdf: bool = False
+    zarr_input_chunks: t.Optional[t.Dict] = None
+    zarr_output_chunks: t.Optional[t.Dict] = None
+
+    def __post_init__(self):
+        if not self.zarr_input_chunks:
+            self.zarr_input_chunks = None
+
+        if not self.zarr_output_chunks:
+            self.zarr_output_chunks = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser) -> None:
@@ -54,11 +65,18 @@ class Regrid(ToDataSink):
                                     """Will default to '{"grid": [0.25, 0.25]}'.""")
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
+        subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default='{}',
+                               help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
+        subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default='{}',
+                               help='When writing a Zarr, write the data with chunks. Takes a JSON string.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_options: t.List[str]) -> None:
         if known_args.zarr and known_args.to_netcdf:
             raise ValueError('only Zarr-to-Zarr regridding is allowed!')
+
+        if not known_args.zarr and (known_args.zarr_input_chunks or known_args.zarr_output_chunks):
+            raise ValueError('chunks can only be set when input URI is a Zarr.')
 
     def target_from(self, uri: str) -> str:
         """Create the target path from the input URI.
@@ -114,12 +132,37 @@ class Regrid(ToDataSink):
             with FileSystems().create(self.target_from(uri)) as dst:
                 shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
+    def regrid_chunk(self, key: xbeam.Key, dataset: xr.Dataset) -> t.Tuple[xbeam.Key, xr.Dataset]:
+        return key, dataset
+
+    def template(self, source_ds: xr.Dataset) -> xr.Dataset:
+        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+            zeros = source_ds.chunk().pipe(xr.zeros_like)
+            try:
+                fs = mv.dataset_to_fieldset(zeros)
+                regridded = mv.regrid(data=fs, **self.regrid_kwargs)
+
+                return regridded.to_dataset()
+            except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
+                raise ImportError('Please install MetView with Anaconda:\n'
+                                  '`conda install metview-batch -c conda-forge`') from e
+
     def expand(self, paths):
         if not self.zarr:
             paths | beam.Map(self.apply)
             return
 
-        # TODO(alxr): Create xbeam pipeline for processing Zarr.
-        # WIP:
-        # source_zarr = apache_beam.pvalue.AsSingleton(paths)
-        # xbeam.DatasetToChunks()
+        source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs, chunks=None)
+
+        regridded = (
+                paths
+                | xbeam.DatasetToChunks(source_ds, self.zarr_input_chunks)
+                | 'Regrid' >> beam.MapTuple(self.regrid_chunk)
+        )
+
+        if self.zarr_output_chunks:
+            to_write = regridded | xbeam.ConsolidateChunks(self.zarr_output_chunks)
+        else:
+            to_write = regridded
+
+        to_write | xbeam.ChunksToZarr(self.output_path, self.template(source_ds), self.zarr_output_chunks)

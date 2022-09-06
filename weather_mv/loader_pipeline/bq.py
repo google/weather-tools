@@ -64,7 +64,6 @@ class ToBigQuery(ToDataSink):
     `these docs`_ for more.
 
     Attributes:
-        example_uri: URI to a weather data file, used to infer the BigQuery schema.
         output_table: The destination for where data should be written in BigQuery
         variables: Target variables (or coordinates) for the BigQuery schema. By default,
           all data variables will be imported as columns.
@@ -86,7 +85,6 @@ class ToBigQuery(ToDataSink):
 
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
-    example_uri: str
     output_table: str
     variables: t.List[str]
     area: t.Tuple[int, int, int, int]
@@ -154,7 +152,7 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
-        with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs,
+        with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:

@@ -49,8 +49,11 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     if not all_uris:
         raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
 
+    # First URI is useful to get an example data shard. It also can be a Zarr path.
+    known_args.first_uri = next(iter(all_uris))
+
     with beam.Pipeline(argv=pipeline_args) as p:
-        # TODO(alxr): Consider having a seperate branch for Zarr files.
+        # TODO(alxr): Consider having a separate branch for Zarr files.
         if known_args.topic:
             paths = (
                     p
@@ -64,7 +67,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
             paths = p | 'Create' >> beam.Create(all_uris)
 
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
-            paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(example_uri=next(iter(all_uris)), **vars(known_args))
+            paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
@@ -99,10 +102,9 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('--zarr', action='store_true', default=False,
                       help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
                            "Default: off")
-    base.add_argument('--zarr_chunks', type=json.loads, default='{}',
-                      help='Optional chunking scheme for reading in Zarr. Required if the dataset is *not* already'
-                           'chunked. If the dataset *is* already chunked with Dask, `chunks` takes'
-                           'precedence over the existing chunks.')
+    base.add_argument('--zarr_kwargs', type=json.loads, default='{"chunks": null, "consolidated": true}',
+                      help='Keyword arguments to pass into `xarray.open_zarr()`, as a JSON string. '
+                           'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
                       help='Preview the weather-mv job. Default: off')
 
@@ -131,8 +133,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     if known_args.uris.endswith('.zarr'):
         known_args.zarr = True
 
-    if known_args.zarr_chunks and not known_args.zarr:
-        raise ValueError('`--zarr_chunks` argument is only allowed with valid Zarr input URI.')
+    if known_args.zarr_kwargs and not known_args.zarr:
+        raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
 
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':

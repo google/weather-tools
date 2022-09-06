@@ -117,9 +117,9 @@ class TestCLI(CLITests):
         with self.assertRaisesRegex(ValueError, 'only Zarr-to-Zarr'):
             run(self.rg_cli_args + '--zarr --to_netcdf'.split())
 
-    def test_zarr_chunks_must_come_with_zarr(self):
+    def test_zarr_kwargs_must_come_with_zarr(self):
         with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
-            run(self.base_cli_args + ['--zarr_chunks', json.dumps({"time": 100})])
+            run(self.base_cli_args + ['--zarr_kwargs', json.dumps({"time": 100})])
 
 
 class IntegrationTest(CLITests):
