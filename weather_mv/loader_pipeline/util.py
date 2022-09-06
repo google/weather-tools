@@ -159,7 +159,7 @@ def ichunked(lst: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
     i = iter(lst)
     try:
         while True:
-            it = itertools.islice(lst, n)
+            it = itertools.islice(i, n)
             first = next(it)
             yield itertools.chain([first], it)
     except StopIteration:
