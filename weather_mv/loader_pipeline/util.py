@@ -154,12 +154,12 @@ def _prod(xs: t.Iterable[int]) -> int:
     return reduce(operator.mul, xs, 1)
 
 
-def ichunked(lst: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
+def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
     """Yield evenly-sized chunks from an iterable."""
-    i = iter(lst)
+    input_ = iter(iterable)
     try:
         while True:
-            it = itertools.islice(i, n)
+            it = itertools.islice(input_, n)
             first = next(it)
             yield itertools.chain([first], it)
     except StopIteration:
