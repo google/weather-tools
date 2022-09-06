@@ -164,16 +164,6 @@ def ichunked(lst: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
             yield itertools.chain([first], it)
     except StopIteration:
         pass
-    """Yield evenly-sized chunks from an iterable."""
-    i = 0
-    try:
-        while True:
-            it = itertools.islice(lst, i, i + n)
-            first = next(it)
-            yield itertools.chain([first], it)
-            i += n
-    except StopIteration:
-        pass
 
 
 def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
