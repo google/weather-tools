@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import contextlib
 import dataclasses
 import glob
 import json
@@ -22,10 +23,9 @@ import tempfile
 import typing as t
 
 import apache_beam as beam
-import apache_beam.pvalue
 import dask
-import xarray_beam as xbeam
 import xarray as xr
+import xarray_beam as xbeam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
@@ -41,8 +41,41 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
     mv = None  # noqa
 
 
+def _clear_metview():
+    """Clear the metview temporary directory."""
+    cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
+    shutil.rmtree(cache_dir)
+    os.makedirs(cache_dir)
+
+
+@contextlib.contextmanager
+def _metview_op() -> t.Iterator[None]:
+    """Perform operation with MetView, including error handling and cleanup."""
+    try:
+        yield
+    except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
+        raise ImportError('Please install MetView with Anaconda:\n'
+                          '`conda install metview-batch -c conda-forge`') from e
+    finally:
+        _clear_metview()
+
+
 @dataclasses.dataclass
 class Regrid(ToDataSink):
+    """Regrid data using MetView.
+
+    See https://metview.readthedocs.io/en/latest/metview/using_metview/regrid_intro.html
+    for an in-depth intro on regridding with MetView.
+
+    Attributes:
+        output_path: URI for regridding target. Can be a glob pattern of NetCDF or Grib files; optionally,
+            it can be a Zarr corpus is supported.
+        regrid_kwargs: A dictionary of keyword-args to be passed into `mv.regrid()` (excluding the dataset).
+        to_netcdf: When set, it raw data output will be written as NetCDF. Cannot use with Zarr datasets.
+        zarr_input_chunks: (Optional) When regridding Zarr data, how the input dataset should be chunked upon open.
+        zarr_output_chunks: (Optional, recommended) When regridding Zarr data, how the output Zarr dataset should be
+            divided into chunks.
+    """
     output_path: str
     regrid_kwargs: t.Dict
     to_netcdf: bool = False
@@ -103,49 +136,73 @@ class Regrid(ToDataSink):
         if self.dry_run:
             return
 
-        logger.debug(f'Copying grib from {uri!r} to local disk.')
-        with open_local(uri) as local_grib:
-            # TODO(alxr): Figure out way to open fieldset in memory...
-            logger.debug(f'Regridding {uri!r}.')
-            try:
+        with _metview_op():
+            logger.debug(f'Copying grib from {uri!r} to local disk.')
+
+            with open_local(uri) as local_grib:
+                # TODO(alxr): Figure out way to open fieldset in memory...
+                logger.debug(f'Regridding {uri!r}.')
                 fs = mv.bindings.Fieldset(path=local_grib)
                 fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
-            except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
-                raise ImportError('Please install MetView with Anaconda:\n'
-                                  '`conda install metview-batch -c conda-forge`') from e
 
-        with tempfile.NamedTemporaryFile() as src:
-            logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
-            if self.to_netcdf:
-                fieldset.to_dataset().to_netcdf(src.name)
-            else:
-                mv.write(src.name, fieldset)
+            with tempfile.NamedTemporaryFile() as src:
+                logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
+                if self.to_netcdf:
+                    fieldset.to_dataset().to_netcdf(src.name)
+                else:
+                    mv.write(src.name, fieldset)
 
-            src.flush()
+                src.flush()
 
-            # Clear the metview temporary directory.
-            cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
-            shutil.rmtree(cache_dir)
-            os.makedirs(cache_dir)
+                _clear_metview()
 
-            logger.info(f'Uploading {self.target_from(uri)!r}.')
-            with FileSystems().create(self.target_from(uri)) as dst:
-                shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+                logger.info(f'Uploading {self.target_from(uri)!r}.')
+                with FileSystems().create(self.target_from(uri)) as dst:
+                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
-    def regrid_chunk(self, key: xbeam.Key, dataset: xr.Dataset) -> t.Tuple[xbeam.Key, xr.Dataset]:
-        return key, dataset
+    def regrid_dataset(self, ds: xr.Dataset) -> xr.Dataset:
+        """Regrid an xarray.Dataset using MetView, returning another xr.Dataset.
+
+        Warning: This cannot process large Datasets without a decent amount of disk space!
+        """
+        # Clear metadata so ecCodes doesn't mess up the conversion.
+        # Instead of these fields, ecCodes will use the parameter ID.
+        # Thus, the fields will appear in the final, regridded dataset.
+        for dv in ds.data_vars:
+            for to_del in ['GRIB_cfName', 'GRIB_shortName', 'GRIB_cfVarName']:
+                del ds[dv].attrs[to_del]
+
+        with _metview_op():
+            fs = mv.dataset_to_fieldset(ds)
+            regridded = mv.regrid(data=fs, **self.regrid_kwargs)
+            return regridded.to_dataset().compute()
 
     def template(self, source_ds: xr.Dataset) -> xr.Dataset:
+        """Calculate the output Zarr template by regridding a tiny slice of the input dataset."""
+        # Silence Dask warning...
         with dask.config.set(**{'array.slicing.split_large_chunks': False}):
             zeros = source_ds.chunk().pipe(xr.zeros_like)
-            try:
-                fs = mv.dataset_to_fieldset(zeros)
-                regridded = mv.regrid(data=fs, **self.regrid_kwargs)
 
-                return regridded.to_dataset()
-            except (ModuleNotFoundError, ImportError, FileNotFoundError) as e:
-                raise ImportError('Please install MetView with Anaconda:\n'
-                                  '`conda install metview-batch -c conda-forge`') from e
+            # Get a single timeslice of the zeros Dataset (or equivalent chunkable dimension).
+            # We don't know for sure that 'time' is in the Zarr dataset, so here we make our
+            # best attempt to find a good slice.
+            t0 = None
+            for dim in ['time', *self.zarr_input_chunks.keys()]:
+                if dim in zeros:
+                    t0 = zeros.isel({dim: 0}, drop=True)
+                    break
+            if t0 is None:
+                raise ValueError('cannot infer any dimension when creating a Zarr template. '
+                                 'Please define at least one chunk in `--zarr_input_chunks`.')
+
+            # Regrid the single time, then expand the Dataset to span all times.
+            tmpl = (
+                self.regrid_dataset(t0)
+                .chunk()
+                .expand_dims({dim: zeros[dim]}, 0)
+            )
+
+            return tmpl
 
     def expand(self, paths):
         if not self.zarr:
@@ -157,7 +214,7 @@ class Regrid(ToDataSink):
         regridded = (
                 paths
                 | xbeam.DatasetToChunks(source_ds, self.zarr_input_chunks)
-                | 'Regrid' >> beam.MapTuple(self.regrid_chunk)
+                | 'Regrid' >> beam.MapTuple(lambda k, ds: (k, self.regrid_dataset(ds)))
         )
 
         if self.zarr_output_chunks:
