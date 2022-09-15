@@ -499,15 +499,18 @@ class IngestIntoEETransform(SetupEarthEngine):
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
 
+    def ee_tasks_remaining(self) -> int:
+        """Returns the remaining number of tasks in the tassk queue of earth engine."""
+        return len([task for task in ee.data.getTaskList()
+                    if task['state'] in ["UNSUBMITTED", "READY", "RUNNING"]])
+
     def wait_for_task_queue(self) -> None:
         """Waits until the task queue has space.
-        
+
         Ingestion of table in the earth engine creates a task and every project has a limited task queue size. This
         function checks the task queue size and waits until the task queue has some space.
         """
-        tasks_remaining = lambda: len([task for task in ee.data.getTaskList()
-                                       if task['state'] in ["UNSUBMITTED", "READY", "RUNNING"]])
-        while tasks_remaining() >= self._num_shards:
+        while self.ee_tasks_remaining() >= self._num_shards:
             time.sleep(TASK_QUEUE_WAIT_TIME)
 
     @retry.with_exponential_backoff(
