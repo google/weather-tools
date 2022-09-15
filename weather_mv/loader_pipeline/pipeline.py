@@ -102,7 +102,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('--zarr', action='store_true', default=False,
                       help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
                            "Default: off")
-    base.add_argument('--zarr_kwargs', type=json.loads, default='{"chunks": null, "consolidated": true}',
+    base.add_argument('--zarr_kwargs', type=json.loads, default='{}',
                       help='Keyword arguments to pass into `xarray.open_zarr()`, as a JSON string. '
                            'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,

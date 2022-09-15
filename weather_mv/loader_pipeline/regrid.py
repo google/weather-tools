@@ -43,9 +43,10 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
 
 def _clear_metview():
     """Clear the metview temporary directory."""
-    cache_dir = glob.glob(f'{tempfile.gettempdir()}/mv*')[0]
-    shutil.rmtree(cache_dir)
-    os.makedirs(cache_dir)
+    cache_dirs = glob.glob(f'{tempfile.gettempdir()}/mv.*')
+    for cache_dir in cache_dirs:
+        shutil.rmtree(cache_dir)
+        os.makedirs(cache_dir)
 
 
 @contextlib.contextmanager
@@ -170,7 +171,8 @@ class Regrid(ToDataSink):
         # Thus, the fields will appear in the final, regridded dataset.
         for dv in ds.data_vars:
             for to_del in ['GRIB_cfName', 'GRIB_shortName', 'GRIB_cfVarName']:
-                del ds[dv].attrs[to_del]
+                if to_del in ds[dv].attrs:
+                    del ds[dv].attrs[to_del]
 
         with _metview_op():
             fs = mv.dataset_to_fieldset(ds)
@@ -187,7 +189,7 @@ class Regrid(ToDataSink):
             # We don't know for sure that 'time' is in the Zarr dataset, so here we make our
             # best attempt to find a good slice.
             t0 = None
-            for dim in ['time', *self.zarr_input_chunks.keys()]:
+            for dim in ['time', *(self.zarr_input_chunks or {}).keys()]:
                 if dim in zeros:
                     t0 = zeros.isel({dim: 0}, drop=True)
                     break
