@@ -22,7 +22,6 @@ from pprint import pformat
 
 import apache_beam as beam
 import geojson
-import more_itertools as mitertools
 import numpy as np
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
@@ -35,7 +34,8 @@ from .util import (
     to_json_serializable_type,
     validate_region,
     _only_target_vars,
-    get_coordinates
+    get_coordinates,
+    ichunked,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,7 +291,7 @@ def prepare_coordinates(
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
             logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        for chunk in mitertools.ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
+        for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
             yield uri, list(chunk)
 
 
