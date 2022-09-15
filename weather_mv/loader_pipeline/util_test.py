@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import unittest
 from collections import Counter
 
+import xarray
 import xarray as xr
 
 from .sinks_test import TestDataBase
@@ -40,9 +42,12 @@ class GetCoordinatesTest(TestDataBase):
         self.assertTrue(all((c == 1 for c in counts.values())))
 
 
-class IChunksTests(unittest.TestCase):
+class IChunksTests(TestDataBase):
     def setUp(self) -> None:
+        super().setUp()
+        test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         self.items = range(20)
+        self.coords = get_coordinates(xarray.open_dataset(test_data_path), test_data_path)
 
     def test_even_chunks(self):
         actual = []
@@ -67,6 +72,25 @@ class IChunksTests(unittest.TestCase):
             [7, 8, 9, 10, 11, 12, 13],
             [14, 15, 16, 17, 18, 19]
         ])
+
+    def test_get_coordinates(self):
+        actual = []
+        for chunk in ichunked(itertools.islice(self.coords, 4), 3):
+            actual.append(list(chunk))
+
+        self.assertEqual(
+            actual,
+            [
+                [
+                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T06:00:00+00:00'},
+                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T07:00:00+00:00'},
+                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T08:00:00+00:00'},
+                ],
+                [
+                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T09:00:00+00:00'}
+                ]
+            ]
+        )
 
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
