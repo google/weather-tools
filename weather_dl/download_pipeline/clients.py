@@ -69,16 +69,6 @@ class Client(abc.ABC):
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
-    @abc.abstractmethod
-    def fetch(self, dataset: str, selection: t.Dict) -> t.Dict:
-        """Fetch data from data source."""
-        pass
-
-    @abc.abstractmethod
-    def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        """Download from data source."""
-        pass
-
     @property
     @abc.abstractmethod
     def license_url(self):
@@ -293,14 +283,6 @@ class MarsClient(Client):
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
             self.c.execute(req=selection_, target=output)
-
-    def fetch(self, dataset: str, selection: t.Dict) -> t.Dict:
-        with StdoutLogger(self.logger, level=logging.DEBUG):
-            return self.c.fetch(req=selection)
-
-    def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        with StdoutLogger(self.logger, level=logging.DEBUG):
-            self.c.download(res=result, target=output)
 
     @property
     def license_url(self):
