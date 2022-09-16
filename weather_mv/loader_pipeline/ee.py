@@ -502,7 +502,7 @@ class IngestIntoEETransform(SetupEarthEngine):
     def ee_tasks_remaining(self) -> int:
         """Returns the remaining number of tasks in the tassk queue of earth engine."""
         return len([task for task in ee.data.getTaskList()
-                    if task['state'] in ["UNSUBMITTED", "READY", "RUNNING"]])
+                    if task['state'] in ['UNSUBMITTED', 'READY', 'RUNNING']])
 
     def wait_for_task_queue(self) -> None:
         """Waits until the task queue has space.
