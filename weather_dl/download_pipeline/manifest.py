@@ -26,7 +26,6 @@ import typing as t
 from urllib.parse import urlparse, parse_qsl
 
 import firebase_admin
-from apache_beam.io.gcp import gcsio
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
@@ -183,27 +182,6 @@ class Manifest(abc.ABC):
     @abc.abstractmethod
     def _update(self, download_status: DownloadStatus) -> None:
         pass
-
-
-class GCSManifest(Manifest):
-    """Writes a JSON representation of the manifest to GCS.
-
-    This is an overriding implementation, the latest value in the manifest
-    file represents the current state of a download.
-    """
-
-    # Ensure no race conditions occurs on appends to objects in GCS
-    # (i.e. JSON manifests).
-    _lock = threading.Lock()
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        """Writes the JSON data to a manifest."""
-        with GCSManifest._lock:
-            with gcsio.GcsIO().open(self.location, 'wb') as gcs_file:
-                json_str = json.dumps(download_status._asdict())
-                gcs_file.write(json_str.encode("utf-8"))
-        logger.debug(f'Manifest written to {self.location}')
-        logger.debug(download_status)
 
 
 class LocalManifest(Manifest):
@@ -376,7 +354,6 @@ If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse
 """
 MANIFESTS = collections.OrderedDict({
     'fs': FirestoreManifest,
-    'gs': GCSManifest,
     '': LocalManifest,
 })
 

@@ -39,7 +39,7 @@ _Common options_:
   to '<$CWD>/local_run'. The runner will be set to `DirectRunner`. The only other relevant option is the config
   and `--direct_num_workers`
 * `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI
-  ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
+  ('fs://<my-collection>?projectId=<my-project-id>'), or 'noop://<name>' for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 

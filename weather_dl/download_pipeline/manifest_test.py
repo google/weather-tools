@@ -20,11 +20,7 @@ import tempfile
 import time
 import typing as t
 import unittest
-import uuid
 
-import pytest
-from apache_beam.io.gcp import gcsio
-from google.cloud import storage
 
 from .manifest import LocalManifest, Location, DownloadStatus, GCSManifest
 
@@ -98,54 +94,3 @@ class LocalManifestTest(unittest.TestCase):
             json.dumps(json.load(file))
         except json.JSONDecodeError:
             self.fail('JSON is invalid.')
-
-
-# noinspection PyBroadException
-@pytest.mark.skip(reason="Current CI agent does not have GCS access")
-class GCSManifestTest(unittest.TestCase):
-
-    def setUp(self) -> None:
-        super().setUp()
-
-        # generate temporary bucket name
-        self.bucket_name = str(uuid.uuid4())
-
-        # create client and bucket
-        self.client = storage.Client()
-        self.bucket = self.client.create_bucket(self.client.bucket(self.bucket_name))
-        logger.info(f"Created temporary bucket {self.bucket_name}")
-
-    def tearDown(self) -> None:
-        super().tearDown()
-
-        try:
-            # clear the bucket's files
-            for blob in self.bucket.list_blobs():
-                blob.delete()
-            # delete the bucket
-            self.bucket.delete()
-            logger.info(f"Deleted temporary bucket {self.bucket_name}")
-        except Exception as e:
-            logging.error(f"Error deleting temporary bucket {self.bucket_name},"
-                          f" to avoid unnecessary Cloud Storage charges "
-                          f"make sure to delete it manually.")
-            raise e
-
-        self.client.close()
-
-    def test_write_valid_json(self):
-
-        # generate GCS file path
-        path = f"/{str(uuid.uuid4())}/location.json"
-        url = f"gs://{self.bucket_name}{path}"
-        location = Location(url)
-
-        # create and update manifest
-        manifest = GCSManifest(location=location)
-        status = make_download_status()
-        manifest._update(status)
-
-        # verify output JSON integrity
-        with gcsio.GcsIO().open(url, "rb") as f:
-            j = json.load(f)
-            self.assertEqual(j, status._asdict())
