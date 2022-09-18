@@ -307,8 +307,8 @@ For a full list of how to configure the Dataflow pipeline, please review
 ### `weather-mv earthengine`
 
 ```
-usage: weather-mv earthengine [-h] -i URIS --tiff_location TIFF_LOCATION --ee_asset EE_ASSET
-                           [--disable_grib_schema_normalization] [--use_personal_account] [-s]
+usage: weather-mv earthengine [-h] -i URIS --asset_location ASSET_LOCATION --ee_asset EE_ASSET
+                           [--ee_asset_type ASSET_TYPE] [--disable_grib_schema_normalization] [--use_personal_account] [-s]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
                            [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
                            [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
@@ -319,10 +319,14 @@ users may specify command-specific options:
 
 _Command options_:
 
-* `--tiff_location`: (required) Bucket location at which tiff files will be pushed.
-* `--ee_asset`: (required) The asset folder path in earth engine project where the tiff image files will be pushed.
+* `--asset_location`: (required) Bucket location at which asset files will be pushed.
+* `--ee_asset`: (required) The asset folder path in earth engine project where the asset files will be pushed.
   It should be in format: `projects/<project-id>/assets/<asset-folder>`. Make sure that <asset-folder> is there
   under <project-id> in earth engine assets. i.e. projects/my-gcp-project/assets/my/foo/bar.
+* `--ee_asset_type`: The type of asset to ingest in the earth engine. Default: IMAGE.
+  Supported types are `IMAGE` and `TABLE`.\
+  `IMAGE`: Uploads georeferenced raster datasets in GeoTIFF format.\
+  `TABLE`: Uploads the datsets in the CSV format. Useful in case of point data (sparse data). 
 * `--disable_grib_schema_normalization`:  Restricts merging of grib datasets. Default: False
 * `-u, --use_personal_account`: To use personal account for earth engine authentication.
 * `--service_account`: Service account address when using a private key for earth engine authentication.
@@ -340,7 +344,7 @@ _Usage examples_:
 
 ```bash
 weather-mv earthengine --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir"
 ```
 
@@ -348,7 +352,7 @@ Using the subcommand alias `ee`:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir"
 ```
 
@@ -356,7 +360,7 @@ Preview ingestion with a dry run:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --dry-run
 ```
@@ -365,7 +369,7 @@ Restrict in-memory copying of dataset:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --disable_in_memory_copy
 ```
@@ -374,7 +378,7 @@ Authenticate earth engine using personal account:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --use_personal_account
 ```
@@ -383,17 +387,26 @@ Authenticate earth engine using a private key:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --service_account "my-service-account@...gserviceaccount.com" \
            --private_key "path/to/private_key.json"
+```
+
+Ingest asset as table in earth engine:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --ee_asset_type "TABLE"
 ```
 
 Restrict merging all bands or grib normalization:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --disable_grib_schema_normalization
 ```
@@ -402,7 +415,7 @@ Control how weather data is opened with XArray:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir"
            --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
            --temp_location "gs://$BUCKET/tmp"
@@ -412,7 +425,7 @@ Limit EE requests:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --ee_qps 10 \
            --ee_latency 0.5 \
@@ -423,7 +436,7 @@ Using DataflowRunner:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --tiff_location "gs://$BUCKET/tiffs" \  # Needed to store tiffs generated from *.grib
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir"
            --runner DataflowRunner \
            --project $PROJECT \

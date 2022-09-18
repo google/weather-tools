@@ -154,6 +154,19 @@ def _prod(xs: t.Iterable[int]) -> int:
     return reduce(operator.mul, xs, 1)
 
 
+def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
+    """Yield evenly-sized chunks from an iterable."""
+    input_ = iter(iterable)
+    try:
+        while True:
+            it = itertools.islice(input_, n)
+            # peek to check if 'it' has next item.
+            first = next(it)
+            yield itertools.chain([first], it)
+    except StopIteration:
+        pass
+
+
 def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
     """Generates normalized coordinate dictionaries that can be used to index Datasets with `.loc[]`."""
     # Creates flattened iterator of all coordinate positions in the Dataset.

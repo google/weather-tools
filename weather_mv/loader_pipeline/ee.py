@@ -16,11 +16,14 @@ import dataclasses
 import ee
 import json
 import logging
+import numpy as np
 import os
 import re
 import shutil
 import subprocess
+import tempfile
 import typing as t
+import xarray as xr
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -160,21 +163,21 @@ def get_ee_safe_name(uri: str) -> str:
     basename, _ = os.path.splitext(basename)
     # An asset ID can only contain letters, numbers, hyphens, and underscores.
     # Converting everything else to underscore.
-    tiff_name = re.sub(r'[^a-zA-Z0-9-_]+', r'_', basename)
-    return tiff_name
+    asset_name = re.sub(r'[^a-zA-Z0-9-_]+', r'_', basename)
+    return asset_name
 
 
 @dataclasses.dataclass
-class TiffData:
-    """A class for holding the tiff data.
+class AssetData:
+    """A class for holding the asset data.
 
     Attributes:
-        name: The EE-safe name of the tiff image.
-        target_path: The location of the GeoTiff in GCS.
-        channel_names: A list of channel names in tiff image.
+        name: The EE-safe name of the asset.
+        target_path: The location of the asset in GCS.
+        channel_names: A list of channel names in the asset.
         start_time: Image start time in floating point seconds since epoch.
         end_time: Image end time in floating point seconds since epoch.
-        properties: A dictionary of tiff metadata.
+        properties: A dictionary of asset metadata.
     """
     name: str
     target_path: str
@@ -191,15 +194,16 @@ class ToEarthEngine(ToDataSink):
     A sink that loads dataset (either normalized or read using user-provided kwargs).
     This sink will read each channel data and merge them into a single dataset if the
     `disable_grib_schema_normalization` flag is not specified. It will read the
-    dataset and create a tiff image. Next, it will write the tiff image to the specified
+    dataset and create an asset. Next, it will write the asset to the specified
     bucket path and initiate the earth engine upload request.
 
     When using the default service account bound to the VM, it is required to register the
     service account with EE from `here`_. See `this doc`_ for more detail.
 
     Attributes:
-        tiff_location: The bucket location at which tiff files will be pushed.
-        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        asset_location: The bucket location at which asset files will be pushed.
+        ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
+        ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
@@ -210,8 +214,9 @@ class ToEarthEngine(ToDataSink):
     .. _here: https://signup.earthengine.google.com/#!/service_accounts
     .. _this doc: https://developers.google.com/earth-engine/guides/service_account
     """
-    tiff_location: str
+    asset_location: str
     ee_asset: str
+    ee_asset_type: str
     xarray_open_dataset_kwargs: t.Dict
     disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
@@ -225,11 +230,13 @@ class ToEarthEngine(ToDataSink):
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
-        subparser.add_argument('--tiff_location', type=str, required=True, default=None,
-                               help='The GCS location where the tiff files will be pushed.')
+        subparser.add_argument('--asset_location', type=str, required=True, default=None,
+                               help='The GCS location where the asset files will be pushed.')
         subparser.add_argument('--ee_asset', type=str, required=True, default=None,
-                               help='The asset folder path in earth engine project where the tiff image files'
+                               help='The asset folder path in earth engine project where the asset files'
                                ' will be pushed.')
+        subparser.add_argument('--ee_asset_type', type=str, choices=['IMAGE', 'TABLE'], default='IMAGE',
+                               help='The type of asset to ingest in the earth engine.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
         subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
@@ -286,7 +293,7 @@ class ToEarthEngine(ToDataSink):
             logger.info('Region validation completed successfully.')
 
     def expand(self, paths):
-        """Converts input data files into tiff and uploads them into the earth engine."""
+        """Converts input data files into assets and uploads them into the earth engine."""
         if not self.dry_run:
             (
                 paths
@@ -299,14 +306,16 @@ class ToEarthEngine(ToDataSink):
                     service_account=self.service_account,
                     use_personal_account=self.use_personal_account)
                 | 'ReshuffleFiles' >> beam.Reshuffle()
-                | 'ConvertToCog' >> beam.ParDo(
-                    ConvertToCog(
-                        tiff_location=self.tiff_location,
+                | 'ConvertToAsset' >> beam.ParDo(
+                    ConvertToAsset(
+                        asset_location=self.asset_location,
+                        ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                         disable_in_memory_copy=self.disable_in_memory_copy,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
+                    ee_asset_type=self.ee_asset_type,
                     ee_qps=self.ee_qps,
                     ee_latency=self.ee_latency,
                     ee_max_concurrent=self.ee_max_concurrent,
@@ -325,7 +334,7 @@ class FilterFilesTransform(SetupEarthEngine):
     """Filters out paths for which the assets that are already in the earth engine.
 
     Attributes:
-        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
@@ -355,8 +364,8 @@ class FilterFilesTransform(SetupEarthEngine):
         """Yields uri if the asset does not already exist."""
         self.check_setup()
 
-        tiff_name = get_ee_safe_name(uri)
-        asset_id = os.path.join(self.ee_asset, tiff_name)
+        asset_name = get_ee_safe_name(uri)
+        asset_id = os.path.join(self.ee_asset, asset_name)
         try:
             ee.data.getAsset(asset_id)
             logger.info(f'Asset {asset_id} already exists in EE. Skipping...')
@@ -365,23 +374,25 @@ class FilterFilesTransform(SetupEarthEngine):
 
 
 @dataclasses.dataclass
-class ConvertToCog(beam.DoFn):
-    """Writes tiff image after extracting input data and uploads it to GCS.
+class ConvertToAsset(beam.DoFn):
+    """Writes asset after extracting input data and uploads it to GCS.
 
     Attributes:
-        tiff_location: The bucket location at which tiff files will be pushed.
+        ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
+        asset_location: The bucket location at which asset files will be pushed.
         open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
     """
 
-    tiff_location: str
+    asset_location: str
+    ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
 
-    def process(self, uri: str) -> t.Iterator[TiffData]:
-        """Opens grib files and yields TiffData."""
+    def process(self, uri: str) -> t.Iterator[AssetData]:
+        """Opens grib files and yields AssetData."""
 
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
@@ -391,55 +402,74 @@ class ConvertToCog(beam.DoFn):
 
             attrs = ds.attrs
             data = list(ds.values())
-            tiff_name = get_ee_safe_name(uri)
+            asset_name = get_ee_safe_name(uri)
             channel_names = [da.name for da in data]
             start_time, end_time, is_normalized = (attrs.get(key) for key in
                                                    ('start_time', 'end_time', 'is_normalized'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
             attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
 
-            file_name = f'{tiff_name}.tiff'
+            # For tiff ingestions.
+            if self.ee_asset_type == 'IMAGE':
+                file_name = f'{asset_name}.tiff'
 
-            with MemoryFile() as memfile:
-                with memfile.open(driver='COG',
-                                  dtype=dtype,
-                                  width=data[0].data.shape[1],
-                                  height=data[0].data.shape[0],
-                                  count=len(data),
-                                  crs=crs,
-                                  transform=transform,
-                                  compress='lzw') as f:
-                    for i, da in enumerate(data):
-                        f.write(da, i+1)
-                        # Making the channel name EE-safe before adding it as a band name.
-                        f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                        f.update_tags(i+1, band_name=channel_names[i])
+                with MemoryFile() as memfile:
+                    with memfile.open(driver='COG',
+                                      dtype=dtype,
+                                      width=data[0].data.shape[1],
+                                      height=data[0].data.shape[0],
+                                      count=len(data),
+                                      nodata=np.nan,
+                                      crs=crs,
+                                      transform=transform,
+                                      compress='lzw') as f:
+                        for i, da in enumerate(data):
+                            f.write(da, i+1)
+                            # Making the channel name EE-safe before adding it as a band name.
+                            f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                            f.update_tags(i+1, band_name=channel_names[i])
 
-                    # Write attributes as tags in tiff.
-                    f.update_tags(**attrs)
+                        # Write attributes as tags in tiff.
+                        f.update_tags(**attrs)
 
-                # Copy in-memory tiff to gcs.
-                target_path = os.path.join(self.tiff_location, file_name)
-                with FileSystems().create(target_path) as dst:
-                    shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                    # Copy in-memory tiff to gcs.
+                    target_path = os.path.join(self.asset_location, file_name)
+                    with FileSystems().create(target_path) as dst:
+                        shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+            # For feature collection ingestions.
+            elif self.ee_asset_type == 'TABLE':
+                file_name = f'{asset_name}.csv'
 
-                tiff_data = TiffData(
-                    name=tiff_name,
-                    target_path=target_path,
-                    channel_names=channel_names,
-                    start_time=start_time,
-                    end_time=end_time,
-                    properties=attrs
-                )
+                df = xr.Dataset.to_dataframe(ds)
+                df = df.reset_index()
 
-                yield tiff_data
+                # Copy in-memory dataframe to gcs.
+                target_path = os.path.join(self.asset_location, file_name)
+                with tempfile.NamedTemporaryFile() as tmp_df:
+                    df.to_csv(tmp_df.name, index=False)
+                    tmp_df.flush()
+                    tmp_df.seek(0)
+                    with FileSystems().create(target_path) as dst:
+                        shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+
+            asset_data = AssetData(
+                name=asset_name,
+                target_path=target_path,
+                channel_names=[],
+                start_time=start_time,
+                end_time=end_time,
+                properties=attrs
+            )
+
+            yield asset_data
 
 
 class IngestIntoEETransform(SetupEarthEngine):
-    """Ingests tiff image into earth engine and yields asset id.
+    """Ingests asset into earth engine and yields asset id.
 
     Attributes:
-        ee_asset: The asset folder path in earth engine project where the tiff image files will be pushed.
+        ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
+        ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
@@ -450,6 +480,7 @@ class IngestIntoEETransform(SetupEarthEngine):
 
     def __init__(self,
                  ee_asset: str,
+                 ee_asset_type: str,
                  ee_qps: int,
                  ee_latency: float,
                  ee_max_concurrent: int,
@@ -464,6 +495,7 @@ class IngestIntoEETransform(SetupEarthEngine):
                          service_account=service_account,
                          use_personal_account=use_personal_account)
         self.ee_asset = ee_asset
+        self.ee_asset_type = ee_asset_type
 
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,
@@ -476,38 +508,45 @@ class IngestIntoEETransform(SetupEarthEngine):
         self.check_setup()
 
         try:
-            result = ee.data.createAsset(asset_request)
+            if self.ee_asset_type == 'IMAGE':
+                result = ee.data.createAsset(asset_request)
+            elif self.ee_asset_type == 'TABLE':
+                task_id = ee.data.newTaskId(1)[0]
+                result = ee.data.startTableIngestion(task_id, asset_request)
         except ee.EEException as e:
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
             raise
 
         return result.get('id')
 
-    def process(self, tiff_data: TiffData) -> t.Iterator[str]:
-        """Uploads a tiff image into the earth engine."""
-        target_path = tiff_data.target_path
-        asset_name = os.path.join(self.ee_asset, tiff_data.name)
-        channel_names = tiff_data.channel_names
-        start_time = tiff_data.start_time
-        end_time = tiff_data.end_time
-        properties = tiff_data.properties
-
-        # No way to rename channels here. For now, putting them in metadata.
-        for _channel_idx, _channel_name in enumerate(channel_names):
-            properties[f'B{_channel_idx}'] = _channel_name
+    def process(self, asset_data: AssetData) -> t.Iterator[str]:
+        """Uploads an asset into the earth engine."""
+        asset_name = os.path.join(self.ee_asset, asset_data.name)
 
         request = {
-            'type': 'IMAGE',
             'name': asset_name,
-            'gcs_location': {
-                'uris': [target_path]
-            },
-            'startTime': start_time,
-            'endTime': end_time,
-            'properties': properties
+            'startTime': asset_data.start_time,
+            'endTime': asset_data.end_time,
+            'properties': asset_data.properties
         }
 
-        logger.info(f"Uploading GeoTiff {target_path} to Asset ID '{asset_name}'.")
+        # Add uris.
+        uris_as_per_asset_type = {
+            'IMAGE': {
+                'type': self.ee_asset_type,
+                'gcs_location': {
+                    'uris': [asset_data.target_path]
+                }
+            },
+            'TABLE': {
+                'sources': [{
+                    'uris': [asset_data.target_path]
+                }]
+            }
+        }
+        request.update(uris_as_per_asset_type[self.ee_asset_type])
+
+        logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
         asset_id = self.start_ingestion(request)
 
         beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()

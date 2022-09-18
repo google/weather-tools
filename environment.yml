@@ -15,7 +15,6 @@ dependencies:
   - cfgrib
   - netcdf4
   - geojson
-  - more-itertools
   - simplejson
   - rioxarray
   - pyproj
