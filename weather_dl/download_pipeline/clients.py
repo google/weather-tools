@@ -113,12 +113,6 @@ class CdsClient(Client):
         selection_ = optimize_selection_partition(selection)
         self.c.retrieve(dataset, selection_, target)
 
-    def fetch(self, dataset: str, selection: t.Dict) -> None:
-        raise NotImplementedError()
-
-    def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        raise NotImplementedError()
-
     @property
     def license_url(self):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
@@ -310,12 +304,6 @@ class FakeClient(Client):
         self.logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
-
-    def fetch(self, dataset: str, selection: t.Dict) -> None:
-        raise NotImplementedError()
-
-    def download(self, dataset: str, result: t.Dict, output: str) -> None:
-        raise NotImplementedError()
 
     @property
     def license_url(self):
