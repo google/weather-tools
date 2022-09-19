@@ -173,7 +173,6 @@ class SplitMARSRequest(api.APIRequest):
     """Extended MARS APIRequest class that separates fetch and download stage."""
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
-        existing_size = 0
         req = Request(url)
 
         if os.path.exists(path):
@@ -184,7 +183,7 @@ class SplitMARSRequest(api.APIRequest):
             mode = "wb"
 
         self.log(
-            "Transfering %s into %s" % (self._bytename(size), path)
+            "Transferring %s into %s" % (self._bytename(size), path)
         )
         self.log("From %s" % (url,))
 
@@ -282,7 +281,8 @@ class MarsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            self.c.execute(req=selection_, target=output)
+            result = self.c.fetch(req=selection_)
+            self.c.download(result, target=output)
 
     @property
     def license_url(self):
