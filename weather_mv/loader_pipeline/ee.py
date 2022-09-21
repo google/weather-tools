@@ -46,7 +46,7 @@ COMPUTE_ENGINE_STR = 'Metadata-Flavor: Google'
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
 NUM_RETRIES = 10  # Number of tries with exponential backoff.
-TASK_QUEUE_WAIT_TIME = 30  # Task queue wait time in seconds.
+TASK_QUEUE_WAIT_TIME = 120  # Task queue wait time in seconds.
 
 
 def is_compute_engine() -> bool:
