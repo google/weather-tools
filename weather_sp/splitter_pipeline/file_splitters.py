@@ -84,7 +84,6 @@ class GribSplitter(FileSplitter):
     def split_data(self) -> None:
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
-        outputs = dict()
 
         if self.should_skip():
             metrics.Metrics.counter('file_splitters', 'skipped').inc()
@@ -92,9 +91,16 @@ class GribSplitter(FileSplitter):
                              repr(self.input_path))
             return
 
+        # Here, we keep a map of open file objects (`outputs`). We need these since
+        # each output grib file (named `key`) will include multiple `grb` messages
+        # each. By writing data to the cache of open file objects, we can keep a
+        # minimal amount of data in memory at a time.
+        outputs = dict()
         with self._open_grib_locally() as grbs:
             try:
                 for grb in grbs:
+                    # Iterate through the split dimensions of the grib message in order to
+                    # produce the right output file.
                     splits = dict()
                     for dim in self.output_info.split_dims():
                         try:
@@ -103,6 +109,9 @@ class GribSplitter(FileSplitter):
                             self.logger.error(
                                 'Variable not found in grib: %s', dim)
                     key = self.output_info.formatted_output_path(splits)
+
+                    # Append the current grib message to a set number of output files.
+                    # If the target shard doesn't exist, create it.
                     if key not in outputs:
                         outputs[key] = FileSystems.create(key)
                     outputs[key].write(grb.tostring())
