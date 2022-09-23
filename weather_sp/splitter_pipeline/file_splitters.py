@@ -93,22 +93,23 @@ class GribSplitter(FileSplitter):
             return
 
         with self._open_grib_locally() as grbs:
-            for grb in grbs:
-                splits = dict()
-                for dim in self.output_info.split_dims():
-                    try:
-                        splits[dim] = getattr(grb, dim)
-                    except RuntimeError:
-                        self.logger.error(
-                            'Variable not found in grib: %s', dim)
-                key = self.output_info.formatted_output_path(splits)
-                if key not in outputs:
-                    outputs[key] = FileSystems.create(key)
-                outputs[key].write(grb.tostring())
-                outputs[key].flush()
-
-            for out in outputs.values():
-                out.close()
+            try:
+                for grb in grbs:
+                    splits = dict()
+                    for dim in self.output_info.split_dims():
+                        try:
+                            splits[dim] = getattr(grb, dim)
+                        except RuntimeError:
+                            self.logger.error(
+                                'Variable not found in grib: %s', dim)
+                    key = self.output_info.formatted_output_path(splits)
+                    if key not in outputs:
+                        outputs[key] = FileSystems.create(key)
+                    outputs[key].write(grb.tostring())
+                    outputs[key].flush()
+            finally:
+                for out in outputs.values():
+                    out.close()
             self.logger.info('split %s into %d files',
                              self.input_path, len(outputs))
 
