@@ -117,31 +117,35 @@ def run(argv: t.List[str], save_main_session: bool = True):
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
-    input_base_dir = _get_base_input_directory(known_args.input_pattern)
+    input_pattern = known_args.input_pattern
+    input_base_dir = _get_base_input_directory(input_pattern)
+    output_template = known_args.output_template
+    output_dir = known_args.output_dir
+    formatting = known_args.formatting
 
-    if not known_args.output_template and not known_args.output_dir:
+    if not output_template and not output_dir:
         raise ValueError('No output specified')
+    dry_run = known_args.dry_run
 
-    logger.debug('input_pattern: %s', known_args.input_pattern)
+    logger.debug('input_pattern: %s', input_pattern)
     logger.debug('input_base_dir: %s', input_base_dir)
-    if known_args.output_template:
-        logger.debug('output_template: %s', known_args.output_template)
-    if known_args.output_dir:
-        logger.debug('output_dir: %s', known_args.output_dir)
+    if output_template:
+        logger.debug('output_template: %s', output_template)
+    if output_dir:
+        logger.debug('output_dir: %s', output_dir)
     logger.debug('dry_run: %s', known_args.dry_run)
-
     with beam.Pipeline(options=pipeline_options) as p:
         (
             p
-            | 'MatchFiles' >> MatchFiles(known_args.input_pattern)
+            | 'MatchFiles' >> MatchFiles(input_pattern)
             | 'ReadMatches' >> ReadMatches()
             | 'Shuffle' >> beam.Reshuffle()
             | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
             | 'SplitFiles' >> beam.Map(split_file,
                                        input_base_dir,
-                                       known_args.output_template,
-                                       known_args.output_dir,
-                                       known_args.formatting,
-                                       known_args.dry_run,
+                                       output_template,
+                                       output_dir,
+                                       formatting,
+                                       dry_run,
                                        known_args.force)
         )
