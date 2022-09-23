@@ -115,7 +115,8 @@ class GribSplitter(FileSplitter):
     @contextmanager
     def _open_grib_locally(self) -> t.Iterator[t.Iterator[pygrib.gribmessage]]:
         with self._copy_to_local_file() as local_file:
-            yield pygrib.open(local_file.name)
+            with pygrib.open(local_file.name) as gb:
+                yield gb
 
 
 class NetCdfSplitter(FileSplitter):
