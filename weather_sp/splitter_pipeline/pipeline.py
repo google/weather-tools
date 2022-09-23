@@ -18,8 +18,8 @@ import os
 import typing as t
 
 import apache_beam as beam
-from apache_beam.io.fileio import MatchFiles, ReadMatches
 import apache_beam.metrics as metrics
+from apache_beam.io.fileio import MatchFiles, ReadMatches
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .file_name_utils import OutFileInfo, get_output_file_info
