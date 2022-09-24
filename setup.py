@@ -77,6 +77,7 @@ test_requirements = [
     "xarray-beam",
     "absl-py",
     "metview",
+    "h5py",
 ]
 
 all_test_requirements = beam_gcp_requirements + weather_dl_requirements + \

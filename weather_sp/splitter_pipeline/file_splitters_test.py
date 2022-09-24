@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import os
-import pygrib
 import shutil
 import unittest
-import xarray as xr
 from collections import defaultdict
+
+import h5py
+import numpy as np
+import pygrib
+import xarray as xr
 
 import weather_sp
 from .file_name_utils import OutFileInfo
@@ -253,6 +255,24 @@ class NetCdfSplitterTest(unittest.TestCase):
         splitter.split_data()
         self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
         self.assertFalse(splitter.should_skip())
+
+    def test_split_data__is_netcdf4(self):
+        input_path = f'{self._data_dir}/era5_sample.nc'
+        self.assertFalse(h5py.is_hdf5(input_path))
+        output_base = f'{self._data_dir}/split_files/era5_sample'
+        splitter = NetCdfSplitter(
+            input_path,
+            OutFileInfo(output_base,
+                        formatting='_{time}_{variable}',
+                        ending='.nc',
+                        template_folders=[]))
+
+        splitter.split_data()
+        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        for time in ['2015-01-15T00:00', '2015-01-15T06:00', '2015-01-15T12:00', '2015-01-15T18:00']:
+            for sn in ['d', 'cc', 'z']:
+                split_file = f'{self._data_dir}/split_files/era5_sample_{time}_{sn}.nc'
+                self.assertTrue(h5py.is_hdf5(split_file))
 
 
 class DrySplitterTest(unittest.TestCase):
