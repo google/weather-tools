@@ -78,6 +78,8 @@ test_requirements = [
     "xarray-beam",
     "absl-py",
     "metview",
+    "memray",
+    "pytest-memray",
     "h5py",
 ]
 
