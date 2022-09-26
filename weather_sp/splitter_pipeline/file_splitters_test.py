@@ -167,7 +167,7 @@ class TestGribSplitter:
         assert os.path.exists(f'{data_dir}/split_files/')
         assert not splitter.should_skip()
 
-    @pytest.mark.limit_memory('1 MB')
+    @pytest.mark.limit_memory('2.5 MB')
     def test_split__fits_memory_bounds(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
         output_base = f'{data_dir}/split_files/era5_sample'
