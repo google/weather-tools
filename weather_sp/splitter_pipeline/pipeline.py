@@ -41,7 +41,7 @@ def split_file(input_file: str,
                output_dir: t.Optional[str],
                formatting: str,
                dry_run: bool,
-               use_version: str,
+               use_version: str = 'v1',
                force_split: bool = False):
     logger.info('Splitting file %s', input_file)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
