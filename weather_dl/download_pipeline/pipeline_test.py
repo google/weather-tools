@@ -35,7 +35,10 @@ CONFIG = {
                                       '-pressure-{pressure_level}.nc',
                        'partition_keys': ['year', 'month', 'day', 'pressure_level'],
                        'force_download': False,
-                       'user_id': getpass.getuser()},
+                       'user_id': getpass.getuser(),
+                       'api_url': 'https://cds.climate.copernicus.eu/api/v2',
+                       'api_key': '12345:1234567-ab12-34cd-9876-4o4fake90909',  # fake key for testing.
+                       },
         'selection': {'product_type': 'reanalysis',
                       'format': 'netcdf',
                       'variable': ['divergence', 'fraction_of_cloud_cover', 'geopotential'],
