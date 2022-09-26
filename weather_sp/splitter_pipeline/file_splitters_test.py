@@ -24,7 +24,7 @@ import xarray as xr
 import weather_sp
 from .file_name_utils import OutFileInfo
 from .file_name_utils import get_output_file_info
-from .file_splitters import DrySplitter
+from .file_splitters import DrySplitter, GribSplitterV2
 from .file_splitters import GribSplitter
 from .file_splitters import NetCdfSplitter
 from .file_splitters import get_splitter
@@ -37,6 +37,11 @@ def data_dir():
     split_dir = f'{data_dir}/split_files/'
     if os.path.exists(split_dir):
         shutil.rmtree(split_dir)
+
+
+@pytest.fixture(params=[GribSplitter, GribSplitterV2])
+def grib_splitter(request):
+    return request.param
 
 
 class TestGetSplitter:
@@ -84,8 +89,8 @@ class TestGetSplitter:
 
 
 class TestGribSplitter:
-    def test_get_output_file_path(self):
-        splitter = GribSplitter(
+    def test_get_output_file_path(self, grib_splitter):
+        splitter = grib_splitter(
             'path/to/input',
             OutFileInfo(
                 file_name_template='path/output/file.{typeOfLevel}_{shortName}',
@@ -97,10 +102,10 @@ class TestGribSplitter:
             {'typeOfLevel': 'surface', 'shortName': 'cc'})
         assert out == 'path/output/file.surface_cc.grib'
 
-    def test_split_data(self, data_dir):
+    def test_split_data(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
         output_base = f'{data_dir}/split_files/era5_sample'
-        splitter = GribSplitter(
+        splitter = grib_splitter(
             input_path,
             OutFileInfo(
                 output_base,
@@ -131,9 +136,9 @@ class TestGribSplitter:
             assert orig.shape == split.shape
             np.testing.assert_allclose(orig, split)
 
-    def test_skips_existing_split(self, data_dir):
+    def test_skips_existing_split(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
-        splitter = GribSplitter(
+        splitter = grib_splitter(
             input_path,
             OutFileInfo(f'{data_dir}/split_files/era5_sample',
                         formatting='_{typeOfLevel}_{shortName}',
@@ -145,10 +150,10 @@ class TestGribSplitter:
         assert os.path.exists(f'{data_dir}/split_files/')
         assert splitter.should_skip()
 
-    def test_does_not_skip__if_forced(self, data_dir):
+    def test_does_not_skip__if_forced(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
         output_base = f'{data_dir}/split_files/era5_sample'
-        splitter = GribSplitter(
+        splitter = grib_splitter(
             input_path,
             OutFileInfo(
                 output_base,
@@ -162,11 +167,11 @@ class TestGribSplitter:
         assert os.path.exists(f'{data_dir}/split_files/')
         assert not splitter.should_skip()
 
-    @pytest.mark.limit_memory('2.5 MB')
-    def test_split__fits_memory_bounds(self, data_dir):
+    @pytest.mark.limit_memory('1 MB')
+    def test_split__fits_memory_bounds(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
         output_base = f'{data_dir}/split_files/era5_sample'
-        splitter = GribSplitter(
+        splitter = grib_splitter(
             input_path,
             OutFileInfo(
                 output_base,
