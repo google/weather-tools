@@ -260,7 +260,7 @@ class DrySplitter(FileSplitter):
         return {name: name for name in self.output_info.split_dims()}
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, use_version: str,
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, use_version: str = 'v1',
                  force_split: bool = False) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
