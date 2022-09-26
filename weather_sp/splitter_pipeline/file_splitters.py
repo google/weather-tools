@@ -260,7 +260,8 @@ class DrySplitter(FileSplitter):
         return {name: name for name in self.output_info.split_dims()}
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, use_version: str,
+                 force_split: bool = False) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
 
@@ -269,7 +270,13 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
 
     if b'GRIB' in header:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
-        return GribSplitterV2(file_path, output_info, force_split)
+
+        if '1' in use_version:
+            return GribSplitter(file_path, output_info, force_split)
+        elif '2' in use_version:
+            return GribSplitterV2(file_path, output_info, force_split)
+        else:
+            raise ValueError(f'version {use_version} is not recognized!')
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses

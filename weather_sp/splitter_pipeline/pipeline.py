@@ -41,6 +41,7 @@ def split_file(input_file: str,
                output_dir: t.Optional[str],
                formatting: str,
                dry_run: bool,
+               use_version: str,
                force_split: bool = False):
     logger.info('Splitting file %s', input_file)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
@@ -51,6 +52,7 @@ def split_file(input_file: str,
                                                  output_dir=output_dir,
                                                  formatting=formatting),
                             dry_run,
+                            use_version,
                             force_split)
     splitter.split_data()
 
@@ -111,6 +113,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Test the input file matching and the output file scheme without splitting.')
     parser.add_argument('-f', '--force', action='store_true', default=False,
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
+    parser.add_argument('--use-version', type=str, default='v1',
+                        help='Choose splitting implementation version (which depends on the data type). Default: v1.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
@@ -147,5 +151,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                                        output_dir,
                                        formatting,
                                        dry_run,
+                                       known_args.use_version,
                                        known_args.force)
         )

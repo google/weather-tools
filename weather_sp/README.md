@@ -12,7 +12,8 @@ Splits NetCDF and Grib files into several files by variable or other dimension. 
 ## Usage
 
 ```
-usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR) [--formatting FORMATTING] [-d] [-f]
+usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR)
+                  [--formatting FORMATTING] [-d] [-f] [--use-version USE_VERSION]
 ```
 
 _Common options_:
@@ -26,6 +27,8 @@ _Common options_:
    using Python formatting, see [Output section](#output) below.
 * `-f, --force`: Force re-splitting of the pipeline. Turns of skipping of already split data.
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
+* `--use-version`: Choose splitting implementation version (which depends on the data type)
+  Default: v1.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -33,7 +36,7 @@ _Usage examples_:
 
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
-           --output-dir 'gs://test-tmp/era5/splits'
+           --output-dir 'gs://test-tmp/era5/splits' \
            --formatting '.{typeOfLevel}'
 ```
 
@@ -42,8 +45,17 @@ Preview splits with a dry run:
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits' \
-           --formatting '.{typeOfLevel}'
+           --formatting '.{typeOfLevel}' \
            --dry-run
+```
+
+Use a different version of Grib Splitting:
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
+           --output-dir 'gs://test-tmp/era5/splits' \
+           --formatting '.{typeOfLevel}' \
+           --use-version v2
 ```
 
 Using DataflowRunner
