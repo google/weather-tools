@@ -15,15 +15,15 @@
 import abc
 import itertools
 import logging
-import numpy as np
-import pygrib
 import shutil
 import tempfile
 import typing as t
-import xarray as xr
 from contextlib import contextmanager
 
 import apache_beam.metrics as metrics
+import numpy as np
+import pygrib
+import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 
 from .file_name_utils import OutFileInfo
@@ -180,8 +180,15 @@ class NetCdfSplitter(FileSplitter):
             ds.close()
 
     def _write_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> None:
-        with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
-            dest_file.write(dataset.to_netcdf())
+        """Write destination NetCDF file in NETCDF4 format."""
+        # Here, we need to write the file locally, since only the scipy engine supports file objects or
+        # returning bytes. Further, the scipy engine does not support NETCDF4 (which is HDF5 compliant).
+        # Storing data in HDF5 is advantageous since it allows opening NetCDF files with buffered readers.
+        with tempfile.NamedTemporaryFile() as tmp:
+            with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
+                dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
+                tmp.seek(0)
+                shutil.copyfileobj(tmp, dest_file)
 
     def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}
