@@ -163,7 +163,11 @@ class GribSplitterV2(GribSplitter):
             with tempfile.TemporaryDirectory() as tmpdir:
                 dest = os.path.join(tmpdir, output_template)
 
-                subprocess.run(f"{shutil.which('grib_copy')} {local_file.name} {dest!r}",
+                cmd = shutil.which('grib_copy')
+                if not cmd:
+                    raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
+
+                subprocess.run(f"{cmd} {local_file.name} {dest!r}",
                                check=True, shell=True)
 
                 for target in os.listdir(tmpdir):

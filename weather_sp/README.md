@@ -49,26 +49,33 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --dry-run
 ```
 
-Use a different version of Grib Splitting:
-
-```bash
-weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
-           --output-dir 'gs://test-tmp/era5/splits' \
-           --formatting '.{typeOfLevel}' \
-           --use-version v2
-```
-
 Using DataflowRunner
 
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --output-dir 'gs://test-tmp/era5/splits'
-           --formatting '.{typeOfLevel}'
+           --formatting '.{typeOfLevel}' \
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME
 ```
+
+Using ecCodes-powered grib splitting on Dataflow:
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
+           --output-dir 'gs://test-tmp/era5/splits' \
+           --formatting '.{typeOfLevel}' \
+           --use-version v2 \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --experiment=use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
+           --job_name $JOB_NAME
+```
+_See the `weather-mv` documentation for more information about the container image._
 
 For a full list of how to configure the Dataflow pipeline, please review
 [this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).
