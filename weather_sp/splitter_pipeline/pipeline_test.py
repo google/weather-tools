@@ -45,7 +45,7 @@ class PipelineTest(unittest.TestCase):
             formatting='.{shortName}',
             output_dir='out/there').file_name_template, 'out/there/somefile')
 
-    @patch('weather_sp.splitter_pipeline.file_splitters.get_splitter')
+    @patch('.file_splitters.get_splitter')
     @unittest.skip('bad mocks')
     def test_split_file(self, mock_get_splitter):
         split_file(input_file='somewhere/somefile',
