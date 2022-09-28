@@ -149,7 +149,8 @@ def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> t.
     should_skip = skip_partition(candidate, store)
     if not should_skip:
         yield candidate
-    beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
+    else:
+        beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
 
 
 def assemble_config(partition: Partition, manifest: Manifest) -> Config:
