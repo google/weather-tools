@@ -68,11 +68,11 @@ if __name__ == '__main__':
             pkg_archive = glob.glob(os.path.join(tmpdir, '*.tar.gz'))[0]
 
             with tarfile.open(pkg_archive, 'r') as tar:
-                assert any([f.endswith('.py') for f in
-                            tar.getnames()]), 'extra_package must include python files!'
+                assert any([f.endswith('.py') for f in tar.getnames()]), 'extra_package must include python files!'
 
             # cleanup memory to prevent pickling error.
             tar = None
             weather_sp = None
+            f = None
 
             cli(['--extra_package', pkg_archive])
