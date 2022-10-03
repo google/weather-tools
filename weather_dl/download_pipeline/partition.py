@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy as cp
 import dataclasses
 import itertools
 import logging
@@ -19,6 +18,7 @@ import typing as t
 
 import apache_beam as beam
 
+from .config import prepare_partitions
 from .manifest import Manifest
 from .parsers import prepare_target_name
 from .config import Config
@@ -84,33 +84,6 @@ class PartitionConfig(beam.PTransform):
         )
 
 
-def _create_partition_config(option: t.Tuple, config: Config) -> Config:
-    """Create a config for a single partition option.
-
-    Output a config dictionary, overriding the range of values for
-    each key with the partition instance in 'selection'.
-    Continuing the example from prepare_partitions, the selection section
-    would be:
-      { 'foo': ..., 'year': ['2020'], 'month': ['01'], ... }
-      { 'foo': ..., 'year': ['2020'], 'month': ['02'], ... }
-      { 'foo': ..., 'year': ['2020'], 'month': ['03'], ... }
-
-    Args:
-        option: A single item in the range of partition_keys.
-        config: The download config, including the parameters and selection sections.
-
-    Returns:
-        A configuration with that selects a single download partition.
-    """
-    copy = cp.deepcopy(config.selection)
-    out = cp.deepcopy(config)
-    for idx, key in enumerate(config.partition_keys):
-        copy[key] = [option[idx]]
-
-    out.selection = copy
-    return out
-
-
 def skip_partition(config: Config, store: Store) -> bool:
     """Return true if partition should be skipped."""
 
@@ -123,22 +96,6 @@ def skip_partition(config: Config, store: Store) -> bool:
         return True
 
     return False
-
-
-def prepare_partitions(config: Config) -> t.Iterator[Config]:
-    """Iterate over client parameters, partitioning over `partition_keys`.
-
-    This produces a Cartesian-Cross over the range of keys.
-
-    For example, if the keys were 'year' and 'month', it would produce
-    an iterable like:
-        ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
-
-    Returns:
-        An iterator of `Config`s.
-    """
-    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
-        yield _create_partition_config(option, config)
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:

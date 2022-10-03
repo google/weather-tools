@@ -18,6 +18,7 @@ import configparser
 import copy as cp
 import datetime
 import json
+import logging
 import string
 import textwrap
 import typing as t
@@ -25,9 +26,15 @@ import numpy as np
 from collections import OrderedDict
 from urllib.parse import urlparse
 
+from apache_beam.io.aws.s3io import S3IO
+from apache_beam.io.filesystems import FileSystems
+from apache_beam.io.gcp.gcsio import GcsIO
+
 from .clients import CLIENTS
-from .config import Config
+from .config import Config, prepare_partitions
 from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
+
+logger = logging.getLogger(__name__)
 
 
 def date(candidate: str) -> datetime.date:
@@ -326,6 +333,29 @@ def _number_of_replacements(s: t.Text):
     return len(set(format_names)) + num_empty_names
 
 
+def _validate_target_path(config: Config):
+    """Checks accessibility of target locations before execution start"""
+    for partition_conf in prepare_partitions(config):
+        target = prepare_target_name(partition_conf)
+        parsed = urlparse(target)
+        if FileSystems.exists(target):
+            raise ValueError(f"Path {target} already exists.")
+        try:
+            if parsed.scheme == "gs":
+                GcsIO().open(target, 'w').close()
+            elif parsed.scheme == "s3":
+                S3IO().open(target, 'w').close()
+            elif parsed.scheme == "" or parsed.scheme == "fs":
+                open(target, 'w').close()
+            else:
+                logger.warning(f"Unable to verify path {target} writeable."
+                               f"Persistent IO errors when writing to the target"
+                               f"path during execution may cause deadlocks.")
+        except Exception:
+            raise ValueError(f"Unable to write to {target}")
+        FileSystems.delete([target])
+
+
 def parse_subsections(config: t.Dict) -> t.Dict:
     """Interprets [section.subsection] as nested dictionaries in `.cfg` files."""
     copy = cp.deepcopy(config)
@@ -441,13 +471,19 @@ def process_config(file: t.IO) -> Config:
         if not isinstance(selection[key], list):
             selection[key] = [selection[key]]
 
-    return Config.from_dict(config)
+    config = Config.from_dict(config)
+
+    _validate_target_path(config)
+
+    return config
 
 
-def prepare_target_name(config: Config) -> str:
+def prepare_target_name(partition_config: Config) -> str:
     """Returns name of target location."""
-    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in config.partition_keys)
-    target = config.target_path.format(*partition_dict.values(), **partition_dict)
+    partition_dict = OrderedDict(
+        (key, typecast(key, partition_config.selection[key][0]))
+        for key in partition_config.partition_keys)
+    target = partition_config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
 
