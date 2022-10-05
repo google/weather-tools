@@ -18,7 +18,6 @@ import logging
 import typing as t
 
 import apache_beam as beam
-from xarray_beam._src import threadmap
 
 from .manifest import Manifest
 from .parsers import prepare_target_name
@@ -79,7 +78,7 @@ class PartitionConfig(beam.PTransform):
         return (
                 configs
                 | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
-                | 'Skip existing downloads' >> threadmap.FlatThreadMap(new_downloads_only, store=self.store)
+                | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=self.store)
                 | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
                 | 'Assemble the data request' >> beam.Map(assemble_config, manifest=self.manifest)
         )
@@ -142,14 +141,14 @@ def prepare_partitions(config: Config) -> t.Iterator[Config]:
         yield _create_partition_config(option, config)
 
 
-def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> t.Iterator[Config]:
+def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
     """Predicate function to skip already downloaded partitions."""
     if store is None:
         store = FSStore()
     should_skip = skip_partition(candidate, store)
-    if not should_skip:
-        yield candidate
-    beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
+    if should_skip:
+        beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
+    return not should_skip
 
 
 def assemble_config(partition: Partition, manifest: Manifest) -> Config:
