@@ -19,9 +19,9 @@ import typing as t
 
 import apache_beam as beam
 
+from .config import Config
 from .manifest import Manifest
 from .parsers import prepare_target_name
-from .config import Config
 from .stores import Store, FSStore
 
 Partition = t.Tuple[str, t.Dict, Config]
@@ -77,11 +77,12 @@ class PartitionConfig(beam.PTransform):
 
         return (
                 configs
-                | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
+                | 'Product' >> beam.FlatMap(prepare_partition_index)
                 | beam.Reshuffle()
-                | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=self.store)
-                | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
-                | 'Assemble the data request' >> beam.Map(assemble_config, manifest=self.manifest)
+                | 'To configs' >> beam.MapTuple(prepare_partitions_from_index)
+                | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
+                | 'Cycle subsections' >> beam.Map(loop_through_subsections)
+                | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
         )
 
 
@@ -126,20 +127,35 @@ def skip_partition(config: Config, store: Store) -> bool:
     return False
 
 
-def prepare_partitions(config: Config) -> t.Iterator[Config]:
-    """Iterate over client parameters, partitioning over `partition_keys`.
+def prepare_partition_index(config: Config) -> t.Iterator[t.Tuple[Config, t.Tuple[int]]]:
+    """Produce indexes over client parameters, partitioning over `partition_keys`
 
     This produces a Cartesian-Cross over the range of keys.
 
     For example, if the keys were 'year' and 'month', it would produce
     an iterable like:
+        ( (0, 0), (0, 1), (0, 2), ...)
+
+    After the indexes were converted back to keys, it would produce values like:
         ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
 
     Returns:
-        An iterator of `Config`s.
+        An iterator of index tuples.
     """
-    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
-        yield _create_partition_config(option, config)
+    for option_idx in itertools.product(range(len(config.partition_keys))):
+        yield config, tuple(option_idx)
+
+
+def prepare_partitions_from_index(config: Config, index: t.Tuple[int]) -> Config:
+    """Convert a partition index into a config.
+
+    Returns: from an option index.
+        A partition `Config` from an option index.
+    """
+    option = tuple(
+        config.selection[config.partition_keys[key_idx]][val_idx] for key_idx, val_idx in enumerate(index)
+    )
+    return _create_partition_config(option, config)
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
