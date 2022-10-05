@@ -78,6 +78,7 @@ class PartitionConfig(beam.PTransform):
         return (
                 configs
                 | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
+                | beam.Reshuffle()
                 | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=self.store)
                 | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
                 | 'Assemble the data request' >> beam.Map(assemble_config, manifest=self.manifest)
