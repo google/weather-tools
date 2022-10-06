@@ -142,7 +142,7 @@ def prepare_partition_index(config: Config) -> t.Iterator[t.Tuple[Config, t.Tupl
     Returns:
         An iterator of index tuples.
     """
-    for option_idx in itertools.product(range(len(config.partition_keys))):
+    for option_idx in itertools.product(*[range(len(config.selection[key])) for key in config.partition_keys]):
         yield config, tuple(option_idx)
 
 
