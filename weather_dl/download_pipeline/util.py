@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
+import typing as t
 import socket
 import sys
 
@@ -42,3 +44,17 @@ def retry_with_exponential_backoff(fun):
         retry_filter=_retry_if_valid_input_but_server_or_socket_error_and_timeout_filter,
         clock=clock,
     )(fun)
+
+
+# TODO(#245): Group with common utilities (duplicated)
+def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
+    """Yield evenly-sized chunks from an iterable."""
+    input_ = iter(iterable)
+    try:
+        while True:
+            it = itertools.islice(input_, n)
+            # peek to check if 'it' has next item.
+            first = next(it)
+            yield itertools.chain([first], it)
+    except StopIteration:
+        pass
