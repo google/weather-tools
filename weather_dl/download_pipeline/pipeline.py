@@ -28,6 +28,7 @@ from apache_beam.options.pipeline_options import (
 )
 
 from .clients import CLIENTS
+from .config import Config
 from .fetcher import Fetcher
 from .manifest import (
     Location,
@@ -39,7 +40,6 @@ from .parsers import (
     parse_manifest,
     process_config, get_subsections,
 )
-from .config import Config
 from .partition import PartitionConfig
 from .stores import TempFileStore, LocalFileStore
 

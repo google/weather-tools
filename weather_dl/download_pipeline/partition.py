@@ -15,8 +15,8 @@ import copy as cp
 import dataclasses
 import itertools
 import logging
-import typing as t
 import math
+import typing as t
 
 import apache_beam as beam
 

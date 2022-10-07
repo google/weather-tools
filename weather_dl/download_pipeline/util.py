@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import typing as t
 import socket
 import sys
+import typing as t
 
 from apache_beam.utils import retry
 
