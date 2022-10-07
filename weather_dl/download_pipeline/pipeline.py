@@ -102,13 +102,15 @@ def pipeline(args: PipelineArgs) -> None:
 
     subsections_cycle = itertools.cycle(subsections)
 
+    partition = PartitionConfig(args.store, subsections_cycle, args.manifest, args.known_args.partition_chunks)
+
     with beam.Pipeline(options=args.pipeline_options) as p:
         (
                 p
-                | 'Create the initial config' >> beam.Create([args.config])
-                | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest)
-                | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
+                | 'Create Configs' >> beam.Create([args.config])
+                | 'Prepare Partitions' >> partition
+                | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
+                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
         )
 
 
@@ -135,6 +137,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
                              'Please see the client documentation for more details.')
+    parser.add_argument('-p', '--partition-chunks', type=int, default=None,
+                        help='Group shards into this many collections when computing the partitions. Specifically, '
+                             'this affects how we chunk elements in a cartesian product, which affects '
+                             'parallelization of that step. Default: 50 groups of partitions.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

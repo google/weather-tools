@@ -45,11 +45,15 @@ class PartitionConfig(beam.PTransform):
         store: A cloud storage system, used for checking the existence of downloads.
         subsections: A cycle of (name, parameter) tuples.
         manifest: A download manifest to register preparation state.
+        partition_chunks: The number of chunks of partition shards to use during the
+            fan-out stage. By default, this operation will aim to divide all the
+            partitions into groups of about 50 chunks.
     """
 
     store: Store
     subsections: itertools.cycle
     manifest: Manifest
+    partition_chunks: t.Optional[int] = None
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -79,7 +83,7 @@ class PartitionConfig(beam.PTransform):
 
         return (
                 configs
-                | 'Fan-out' >> beam.FlatMap(prepare_partition_index)
+                | 'Fan-out' >> beam.FlatMap(prepare_partition_index, n_chunks=self.partition_chunks)
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
                 | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
@@ -129,7 +133,8 @@ def skip_partition(config: Config, store: Store) -> bool:
     return False
 
 
-def prepare_partition_index(config: Config, chunks: int = 100_000) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
+def prepare_partition_index(config: Config,
+                            n_chunks: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
     """Produce indexes over client parameters, partitioning over `partition_keys`
 
     This produces a Cartesian-Cross over the range of keys.
@@ -145,9 +150,15 @@ def prepare_partition_index(config: Config, chunks: int = 100_000) -> t.Iterator
         An iterator of index tuples.
     """
     dims = [range(len(config.selection[key])) for key in config.partition_keys]
-    logger.info(f'Creating {math.prod([len(d) for d in dims])} partitions.')
+    n_partitions = math.prod([len(d) for d in dims])
+    logger.info(f'Creating {n_partitions} partitions.')
 
-    for option_idx in ichunked(itertools.product(*dims), chunks):
+    if n_chunks is None:
+        n_chunks = 50
+
+    chunk_size = n_partitions // n_chunks + 1
+
+    for option_idx in ichunked(itertools.product(*dims), chunk_size):
         yield config, list(option_idx)
 
 
