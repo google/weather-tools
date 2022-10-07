@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import itertools
+import operator
 import socket
 import sys
 import typing as t
@@ -44,6 +46,11 @@ def retry_with_exponential_backoff(fun):
         retry_filter=_retry_if_valid_input_but_server_or_socket_error_and_timeout_filter,
         clock=clock,
     )(fun)
+
+
+# TODO(#245): Group with common utilities (duplicated)
+def prod(xs: t.Iterable[int]) -> int:
+    return functools.reduce(operator.mul, xs, 1)
 
 
 # TODO(#245): Group with common utilities (duplicated)
