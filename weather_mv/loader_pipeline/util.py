@@ -18,7 +18,6 @@ import itertools
 import json
 import logging
 import math
-import operator
 import signal
 import sys
 import tempfile
@@ -26,7 +25,7 @@ import time
 import traceback
 import typing as t
 import uuid
-from functools import partial, reduce
+from functools import partial
 from urllib.parse import urlparse
 
 import apache_beam as beam
