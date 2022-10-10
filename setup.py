@@ -105,13 +105,12 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         # 'Operating System :: Microsoft :: Windows',  # TODO(#64): Fully support Windows.
         'Operating System :: POSIX',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    python_requires='>=3.7, <3.10',
+    python_requires='>=3.8, <3.10',
     install_requires=['apache-beam[gcp]==2.40.0'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
