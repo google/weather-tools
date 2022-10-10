@@ -49,11 +49,6 @@ def retry_with_exponential_backoff(fun):
 
 
 # TODO(#245): Group with common utilities (duplicated)
-def prod(xs: t.Iterable[int]) -> int:
-    return functools.reduce(operator.mul, xs, 1)
-
-
-# TODO(#245): Group with common utilities (duplicated)
 def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
     """Yield evenly-sized chunks from an iterable."""
     input_ = iter(iterable)

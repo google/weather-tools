@@ -15,6 +15,7 @@ import copy as cp
 import dataclasses
 import itertools
 import logging
+import math
 import typing as t
 
 import apache_beam as beam
@@ -23,7 +24,7 @@ from .config import Config
 from .manifest import Manifest
 from .parsers import prepare_target_name
 from .stores import Store, FSStore
-from .util import ichunked, prod
+from .util import ichunked
 
 Partition = t.Tuple[str, t.Dict, Config]
 
@@ -149,7 +150,7 @@ def prepare_partition_index(config: Config,
         An iterator of index tuples.
     """
     dims = [range(len(config.selection[key])) for key in config.partition_keys]
-    n_partitions = prod([len(d) for d in dims])
+    n_partitions = math.prod([len(d) for d in dims])
     logger.info(f'Creating {n_partitions} partitions.')
 
     if n_chunks is None:
