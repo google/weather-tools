@@ -15,14 +15,16 @@ import copy as cp
 import dataclasses
 import itertools
 import logging
+import math
 import typing as t
 
 import apache_beam as beam
 
+from .config import Config
 from .manifest import Manifest
 from .parsers import prepare_target_name
-from .config import Config
 from .stores import Store, FSStore
+from .util import ichunked
 
 Partition = t.Tuple[str, t.Dict, Config]
 
@@ -43,11 +45,15 @@ class PartitionConfig(beam.PTransform):
         store: A cloud storage system, used for checking the existence of downloads.
         subsections: A cycle of (name, parameter) tuples.
         manifest: A download manifest to register preparation state.
+        partition_chunks: The size of chunks of partition shards to use during the
+            fan-out stage. By default, this operation will aim to divide all the
+            partitions into groups of about 1000 sized-chunks.
     """
 
     store: Store
     subsections: itertools.cycle
     manifest: Manifest
+    partition_chunks: t.Optional[int] = None
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -77,10 +83,12 @@ class PartitionConfig(beam.PTransform):
 
         return (
                 configs
-                | 'Prepare partitions' >> beam.FlatMap(prepare_partitions)
-                | 'Skip existing downloads' >> beam.Filter(new_downloads_only, store=self.store)
-                | 'Cycle through subsections' >> beam.Map(loop_through_subsections)
-                | 'Assemble the data request' >> beam.Map(assemble_config, manifest=self.manifest)
+                | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
+                | beam.Reshuffle()
+                | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
+                | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
+                | 'Cycle subsections' >> beam.Map(loop_through_subsections)
+                | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
         )
 
 
@@ -125,19 +133,43 @@ def skip_partition(config: Config, store: Store) -> bool:
     return False
 
 
-def prepare_partitions(config: Config) -> t.Iterator[Config]:
-    """Iterate over client parameters, partitioning over `partition_keys`.
+def prepare_partition_index(config: Config,
+                            chunk_size: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
+    """Produce indexes over client parameters, partitioning over `partition_keys`
 
     This produces a Cartesian-Cross over the range of keys.
 
     For example, if the keys were 'year' and 'month', it would produce
     an iterable like:
+        ( (0, 0), (0, 1), (0, 2), ...)
+
+    After the indexes were converted back to keys, it would produce values like:
         ( ('2020', '01'), ('2020', '02'), ('2020', '03'), ...)
 
     Returns:
-        An iterator of `Config`s.
+        An iterator of index tuples.
     """
-    for option in itertools.product(*[config.selection[key] for key in config.partition_keys]):
+    dims = [range(len(config.selection[key])) for key in config.partition_keys]
+    n_partitions = math.prod([len(d) for d in dims])
+    logger.info(f'Creating {n_partitions} partitions.')
+
+    if chunk_size is None:
+        chunk_size = 1000
+
+    for option_idx in ichunked(itertools.product(*dims), chunk_size):
+        yield config, list(option_idx)
+
+
+def prepare_partitions_from_index(config: Config, indexes: t.List[t.Tuple[int]]) -> t.Iterator[Config]:
+    """Convert a partition index into a config.
+
+    Returns: from an option index.
+        A partition `Config` from an option index.
+    """
+    for index in indexes:
+        option = tuple(
+            config.selection[config.partition_keys[key_idx]][val_idx] for key_idx, val_idx in enumerate(index)
+        )
         yield _create_partition_config(option, config)
 
 

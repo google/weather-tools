@@ -22,10 +22,10 @@ import unittest
 from apache_beam.options.pipeline_options import PipelineOptions
 
 import weather_dl
+from .config import Config
 from .manifest import FirestoreManifest, Location, NoOpManifest, LocalManifest
 from .pipeline import run, PipelineArgs
 from .stores import TempFileStore, LocalFileStore
-from .config import Config
 
 PATH_TO_CONFIG = os.path.join(os.path.dirname(list(weather_dl.__path__)[0]), 'configs', 'era5_example_config.cfg')
 CONFIG = {
@@ -53,7 +53,8 @@ DEFAULT_ARGS = PipelineArgs(
                                   dry_run=False,
                                   local_run=False,
                                   manifest_location='fs://downloader-manifest',
-                                  num_requests_per_key=-1),
+                                  num_requests_per_key=-1,
+                                  partition_chunks=None),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
     config=Config.from_dict(CONFIG),
     client_name='cds',

@@ -28,6 +28,7 @@ from apache_beam.options.pipeline_options import (
 )
 
 from .clients import CLIENTS
+from .config import Config
 from .fetcher import Fetcher
 from .manifest import (
     Location,
@@ -39,7 +40,6 @@ from .parsers import (
     parse_manifest,
     process_config, get_subsections,
 )
-from .config import Config
 from .partition import PartitionConfig
 from .stores import TempFileStore, LocalFileStore
 
@@ -89,10 +89,11 @@ def pipeline(args: PipelineArgs) -> None:
 
     subsections = get_subsections(args.config)
 
-    # capping the max number of workers to N i.e. possible simultaneous requests + fudge factor
-    max_num_workers = len(subsections) * args.num_requesters_per_key + 10
-    args.pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
-    logger.info(f"Capped the max number of workers to '{max_num_workers}'.")
+    # Capping the max number of workers to N i.e. possible simultaneous requests + fudge factor
+    if args.pipeline_options.view_as(WorkerOptions).max_num_workers is None:
+        max_num_workers = len(subsections) * args.num_requesters_per_key + 10
+        args.pipeline_options.view_as(WorkerOptions).max_num_workers = max_num_workers
+        logger.info(f"Capped the max number of workers to '{max_num_workers}'.")
 
     request_idxs = {name: itertools.cycle(range(args.num_requesters_per_key)) for name, _ in subsections}
 
@@ -102,13 +103,15 @@ def pipeline(args: PipelineArgs) -> None:
 
     subsections_cycle = itertools.cycle(subsections)
 
+    partition = PartitionConfig(args.store, subsections_cycle, args.manifest, args.known_args.partition_chunks)
+
     with beam.Pipeline(options=args.pipeline_options) as p:
         (
                 p
-                | 'Create the initial config' >> beam.Create([args.config])
-                | 'Prepare Partitions' >> PartitionConfig(args.store, subsections_cycle, args.manifest)
-                | 'GroupBy request limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
+                | 'Create Configs' >> beam.Create([args.config])
+                | 'Prepare Partitions' >> partition
+                | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
+                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
         )
 
 
@@ -135,6 +138,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
                              'Please see the client documentation for more details.')
+    parser.add_argument('-p', '--partition-chunks', type=int, default=None,
+                        help='Group shards into chunks of this size when computing the partitions. Specifically, '
+                             'this affects how we chunk elements in a cartesian product, which affects '
+                             'parallelization of that step. Default: chunks of 1000 elements.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
