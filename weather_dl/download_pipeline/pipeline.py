@@ -139,9 +139,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              'Default: make an educated guess per client & config. '
                              'Please see the client documentation for more details.')
     parser.add_argument('-p', '--partition-chunks', type=int, default=None,
-                        help='Group shards into this many collections when computing the partitions. Specifically, '
+                        help='Group shards into chunks of this size when computing the partitions. Specifically, '
                              'this affects how we chunk elements in a cartesian product, which affects '
-                             'parallelization of that step. Default: 50 groups of partitions.')
+                             'parallelization of that step. Default: chunks of 1000 elements.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

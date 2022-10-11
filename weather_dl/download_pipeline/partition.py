@@ -45,9 +45,9 @@ class PartitionConfig(beam.PTransform):
         store: A cloud storage system, used for checking the existence of downloads.
         subsections: A cycle of (name, parameter) tuples.
         manifest: A download manifest to register preparation state.
-        partition_chunks: The number of chunks of partition shards to use during the
+        partition_chunks: The size of chunks of partition shards to use during the
             fan-out stage. By default, this operation will aim to divide all the
-            partitions into groups of about 50 chunks.
+            partitions into groups of about 1000 sized-chunks.
     """
 
     store: Store
@@ -83,7 +83,7 @@ class PartitionConfig(beam.PTransform):
 
         return (
                 configs
-                | 'Fan-out' >> beam.FlatMap(prepare_partition_index, n_chunks=self.partition_chunks)
+                | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
                 | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
@@ -134,7 +134,7 @@ def skip_partition(config: Config, store: Store) -> bool:
 
 
 def prepare_partition_index(config: Config,
-                            n_chunks: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
+                            chunk_size: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
     """Produce indexes over client parameters, partitioning over `partition_keys`
 
     This produces a Cartesian-Cross over the range of keys.
@@ -153,10 +153,8 @@ def prepare_partition_index(config: Config,
     n_partitions = math.prod([len(d) for d in dims])
     logger.info(f'Creating {n_partitions} partitions.')
 
-    if n_chunks is None:
-        n_chunks = 50
-
-    chunk_size = n_partitions // n_chunks + 1
+    if chunk_size is None:
+        chunk_size = 1000
 
     for option_idx in ichunked(itertools.product(*dims), chunk_size):
         yield config, list(option_idx)

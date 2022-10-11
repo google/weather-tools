@@ -42,9 +42,9 @@ _Common options_:
   ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
-* `-p, --partition-chunks`: Group shards into this many collections when computing the partitions. Specifically, this
-  affects how we chunk elements in a cartesian product, which affects parallelization of that step. Default: 50 groups 
-  of partitions.
+* `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
+  affects how we chunk elements in a cartesian product, which affects parallelization of that step. Default: chunks of
+  1000 elements.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
