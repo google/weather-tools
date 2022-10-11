@@ -1,6 +1,6 @@
 import unittest
 
-from download_pipeline.util import ichunked
+from .util import ichunked
 
 
 # TODO(#245): Duplicate tests; remove.
