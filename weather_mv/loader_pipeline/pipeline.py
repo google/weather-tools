@@ -43,7 +43,7 @@ def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
     all_uris = list(pattern_to_uris(known_args.uris))
-    if not all_uris:
+    if not all_uris and not known_args.topic:
         raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
 
     with beam.Pipeline(argv=pipeline_args) as p:
