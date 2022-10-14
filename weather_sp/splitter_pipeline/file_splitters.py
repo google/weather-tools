@@ -25,6 +25,7 @@ import numpy as np
 import pygrib
 import xarray as xr
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE, WRITE_CHUNK_SIZE
 
 from .file_name_utils import OutFileInfo
 
@@ -52,13 +53,9 @@ class FileSplitter(abc.ABC):
     def _copy_to_local_file(self) -> t.Iterator[t.IO]:
         with FileSystems().open(self.input_path) as source_file:
             with tempfile.NamedTemporaryFile() as dest_file:
-                shutil.copyfileobj(source_file, dest_file)
+                shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
                 dest_file.flush()
                 yield dest_file
-
-    def _copy_dataset_to_storage(self, src_file: t.IO, target: str):
-        with FileSystems().create(target) as dest_file:
-            shutil.copyfileobj(src_file, dest_file)
 
     def should_skip(self):
         """Skip splitting if the data was already split."""
@@ -188,7 +185,7 @@ class NetCdfSplitter(FileSplitter):
             with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
                 dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
                 tmp.seek(0)
-                shutil.copyfileobj(tmp, dest_file)
+                shutil.copyfileobj(tmp, dest_file, WRITE_CHUNK_SIZE)
 
     def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}
