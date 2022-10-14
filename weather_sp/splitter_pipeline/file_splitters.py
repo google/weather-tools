@@ -119,7 +119,7 @@ class GribSplitter(FileSplitter):
 
                     # Delete the grib message from memory – *and disk* – before moving on to the next
                     # grib message. See the pygrib sources for more info.
-                    # https://github.com/jswhit/pygrib/blob/aac60e86c665a94face3b9a52a8977735e3ac377/src/pygrib/_pygrib.pyx#L796
+                    # https://github.com/jswhit/pygrib/blob/v2.1.4rel/src/pygrib/_pygrib.pyx#L759
                     del grb
             finally:
                 for out in outputs.values():
