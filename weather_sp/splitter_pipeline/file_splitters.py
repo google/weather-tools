@@ -116,6 +116,11 @@ class GribSplitter(FileSplitter):
                         outputs[key] = FileSystems.create(key)
                     outputs[key].write(grb.tostring())
                     outputs[key].flush()
+
+                    # Delete the grib message from memory – *and disk* – before moving on to the next
+                    # grib message. See the pygrib sources for more info.
+                    # https://github.com/jswhit/pygrib/blob/aac60e86c665a94face3b9a52a8977735e3ac377/src/pygrib/_pygrib.pyx#L796
+                    del grb
             finally:
                 for out in outputs.values():
                     out.close()
