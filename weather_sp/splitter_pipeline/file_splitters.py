@@ -24,8 +24,9 @@ import apache_beam.metrics as metrics
 import numpy as np
 import pygrib
 import xarray as xr
+from apache_beam.io.filesystem import DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE, WRITE_CHUNK_SIZE
+from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
 from .file_name_utils import OutFileInfo
 
