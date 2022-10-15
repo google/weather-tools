@@ -515,6 +515,11 @@ class IngestIntoEETransform(SetupEarthEngine):
                 result = ee.data.startTableIngestion(task_id, asset_request)
         except ee.EEException as e:
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
+            # We do have logic for skipping the already created assets in FilterFilesTransform but
+            # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
+            # so this will act as a quick fix for this issue.
+            if f"Cannot overwrite asset '{asset_request['name']}'" in repr(e):
+                ee.data.deleteAsset(asset_request['name'])
             raise
 
         return result.get('id')
