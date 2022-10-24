@@ -16,6 +16,7 @@
 import glob
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -50,6 +51,8 @@ if __name__ == '__main__':
     if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
         cli()
     else:
+        regrid_enabled = 'rg' in sys.argv or 'regrid' in sys.argv
+
         with tempfile.TemporaryDirectory() as tmpdir:
             original_dir = os.getcwd()
 
@@ -59,10 +62,24 @@ if __name__ == '__main__':
                 f'{sys.executable} ./setup.py -q sdist --dist-dir {tmpdir}'.split(),
             )
 
+            # Convert regrid-specific package to a tarball
+            if regrid_enabled:
+                shutil.copy('./setup_regrid.py', f'{tmpdir}/setup.py')
+                os.chdir(tmpdir)
+                subprocess.check_call(
+                    f'{sys.executable} ./setup.py -q sdist --dist-dir {tmpdir}'.split(),
+                )
+                # Reset dir state before operation...
+                os.chdir(site_pkg)
+
             os.chdir(original_dir)
 
             # Set tarball as extra packages for Beam.
-            pkg_archive = glob.glob(os.path.join(tmpdir, '*.tar.gz'))[0]
+            pkg_archive = glob.glob(os.path.join(tmpdir, '*loader_pipeline*.tar.gz'))[0]
+
+            # Get additional package for regridding (when needed).
+            if regrid_enabled:
+                regrid_archive = glob.glob(os.path.join(tmpdir, '*regrid*.tar.gz'))[0]
 
             with tarfile.open(pkg_archive, 'r') as tar:
                 assert any([f.endswith('.py') for f in tar.getnames()]), 'extra_package must include python files!'
@@ -71,4 +88,8 @@ if __name__ == '__main__':
             tar = None
             weather_mv = None
 
-            cli(['--extra_package', pkg_archive])
+            extras = ['--extra_package', pkg_archive]
+            if regrid_enabled:
+                extras.extend(['--extra_package', regrid_archive])
+
+            cli(extras)

@@ -120,9 +120,8 @@ setup(
     extras_require={
         'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
         'test': all_test_requirements,
-        'regrid': ['metview']
     },
     project_urls={
-        'Issue Tracking': 'http://github.com/google/weather-tools/issues',
+        'Issue Tracking': 'https://github.com/google/weather-tools/issues',
     },
 )
