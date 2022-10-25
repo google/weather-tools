@@ -38,7 +38,6 @@ weather_dl_requirements = [
     "pandas",
     "xarray",
     "requests>=2.24.0",
-    "firebase-admin>=5.0.0",
     "google-cloud-firestore",
     "urllib3==1.26.5",
 ]
@@ -114,8 +113,7 @@ setup(
     install_requires=['apache-beam[gcp]==2.40.0'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
-    scripts=['weather_dl/weather-dl', 'weather_dl/download-status',
-             'weather_mv/weather-mv', 'weather_sp/weather-sp'],
+    scripts=['weather_dl/weather-dl', 'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
         'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,

@@ -38,8 +38,8 @@ _Common options_:
 * `-l, --local-run`: Run locally and download to local hard drive. The data and manifest directory is set by default
   to '<$CWD>/local_run'. The runner will be set to `DirectRunner`. The only other relevant option is the config
   and `--direct_num_workers`
-* `-m, --manifest-location MANIFEST_LOCATION`:  Location of the manifest. Either a Firestore collection URI
-  ('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' for an in-memory location.
+* `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging (std for
+* direct runner). User can specify a GCS bucket URI, or 'noop://<name>' for an in-memory location. 
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 * `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
@@ -101,31 +101,4 @@ inspect the progress of your downloads. For example:
 gsutil du -h gs://your-cloud-bucket/mars-data/*T00z.nc 
 # See how many downloads have finished
 gsutil du -h gs://your-cloud-bucket/mars-data/*T00z.nc | wc -l
-```
-
-### `download-status`
-
-In addition, we've provided a simple tool for getting a rough measure of download state. Provided a bucket prefix, it
-will output the counts of the statuses in that prefix.
-
-```shell
-usage: download-status [-h] [-m MANIFEST_LOCATION] prefix
-
-Check statuses of `weather-dl` downloads.
-
-positional arguments:
-  prefix                Prefix of the location string (e.g. a cloud bucket); used to filter which statuses to check.
-```
-
-_Options_
-
-* `-m`, `--manifest-location`: Specify the location to a manifest; this is the same as `weather-dl`. Only supports
-  Firebase Manifests.
-
-_Usage Examples_:
-
-```shell
-download-status "gs://ecmwf-downloads/hres/world/
-...
-The current download statuses for 'gs://ecmwf-downloads/hres/world/' are: Counter({'scheduled': 245, 'success': 116, 'in-progress': 4, 'failure': 1}).
 ```
