@@ -25,6 +25,7 @@ import traceback
 import typing as t
 
 from apache_beam.io.gcp import gcsio
+from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
@@ -182,13 +183,12 @@ class Manifest(abc.ABC):
 
 class ConsoleManifest(Manifest):
 
-    def __init__(self, *args, name: str = 'Manifest'):
-        super().__init__(*args)
-        self.logger = logging.getLogger(f'[{name}]')
-        self.logger.setLevel(logging.INFO)
+    def __post_init__(self):
+        super().__post_init__()
+        self.name = urlparse(self.location).hostname
 
     def _update(self, download_status: DownloadStatus) -> None:
-        self.logger.info(vars(download_status))
+        logger.info(f'[{self.name}] {download_status._asdict()!r}')
 
 
 class GCSManifest(Manifest):

@@ -38,8 +38,10 @@ _Common options_:
 * `-l, --local-run`: Run locally and download to local hard drive. The data and manifest directory is set by default
   to '<$CWD>/local_run'. The runner will be set to `DirectRunner`. The only other relevant option is the config
   and `--direct_num_workers`
-* `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging (std for
-* direct runner). User can specify a GCS bucket URI, or 'noop://<name>' for an in-memory location. 
+* `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging 
+  (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol. 
+  For example, 'cli://manifest' will prefix all the manifest logs as '[manifest]'. In addition, users can specify a GCS 
+  bucket URI, or 'noop://<name>' for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 * `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
