@@ -22,7 +22,6 @@ from time import perf_counter
 import geojson
 import numpy as np
 import pandas as pd
-import pytest
 import simplejson
 import xarray as xr
 from google.cloud.bigquery import SchemaField
@@ -364,7 +363,6 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
 
-    @pytest.mark.skip(reason='Segfault running tests in CI with dependencies.')
     def test_extract_rows(self):
         actual = next(self.extract(self.test_data_path, tif_metadata_for_datetime='start_time'))
         expected = {
