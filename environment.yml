@@ -28,7 +28,6 @@ dependencies:
   - metview-batch
   - pip
   - pip:
-    - firebase-admin
     - google-cloud-datastore
     - google-cloud-bigquery
     - urllib3==1.26.5

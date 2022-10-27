@@ -23,7 +23,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 
 import weather_dl
 from .config import Config
-from .manifest import FirestoreManifest, Location, NoOpManifest, LocalManifest
+from .manifest import Location, NoOpManifest, LocalManifest, ConsoleManifest
 from .pipeline import run, PipelineArgs
 from .stores import TempFileStore, LocalFileStore
 
@@ -59,7 +59,7 @@ DEFAULT_ARGS = PipelineArgs(
     config=Config.from_dict(CONFIG),
     client_name='cds',
     store=None,
-    manifest=FirestoreManifest(Location('fs://downloader-manifest?projectId=None')),
+    manifest=ConsoleManifest(Location('cli://localhost')),
     num_requesters_per_key=5,
 )
 

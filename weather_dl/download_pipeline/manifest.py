@@ -23,13 +23,9 @@ import threading
 import time
 import traceback
 import typing as t
-from urllib.parse import urlparse, parse_qsl
 
-import firebase_admin
 from apache_beam.io.gcp import gcsio
-from firebase_admin import firestore
-from google.cloud.firestore_v1 import DocumentReference
-from google.cloud.firestore_v1.types import WriteResult
+from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
@@ -185,6 +181,16 @@ class Manifest(abc.ABC):
         pass
 
 
+class ConsoleManifest(Manifest):
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.name = urlparse(self.location).hostname
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        logger.info(f'[{self.name}] {download_status._asdict()!r}')
+
+
 class GCSManifest(Manifest):
     """Writes a JSON representation of the manifest to GCS.
 
@@ -256,115 +262,6 @@ class NoOpManifest(Manifest):
         pass
 
 
-def get_wait_interval(num_retries: int = 0) -> float:
-    """Returns next wait interval in seconds, using an exponential backoff algorithm."""
-    if 0 == num_retries:
-        return 0
-    return 2 ** num_retries
-
-
-class FirestoreManifest(Manifest):
-    """A Firestore Manifest.
-
-    This Manifest implementation stores DownloadStatuses in a Firebase document store.
-
-    The document hierarchy for the manifest is as follows:
-
-      [downloader-manifest  <or manifest name, configurable from CLI>]
-      ├── scheme (e.g. 'gs, 's3', etc.) {}
-      │   └── [bucket root name]
-      │       └── doc_id (a base64 encoding of the path) { 'selection': {...}, 'location': ..., 'user': ... }
-      └── etc...
-
-    Where `[<name>]` indicates a collection and `<name> {...}` indicates a document.
-    """
-
-    def _get_db(self) -> firestore.firestore.Client:
-        """Acquire a firestore client, initializing the firebase app if necessary.
-
-        Will attempt to get the db client five times. If it's still unsuccessful, a
-        `ManifestException` will be raised.
-        """
-        db = None
-        attempts = 0
-
-        while db is None:
-            try:
-                db = firestore.client()
-            except ValueError as e:
-                # The above call will fail with a value error when the firebase app is not initialized.
-                # Initialize the app here, and try again.
-                firebase_admin.initialize_app(options=self.get_firestore_config())
-                logger.info('Initialized Firebase App.')
-
-                if attempts > 4:
-                    raise ManifestException('Exceeded number of retries to get firestore client.') from e
-
-            time.sleep(get_wait_interval(attempts))
-
-            attempts += 1
-
-        return db
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        """Update or create a download status record."""
-        logger.debug('Updating Firestore Manifest.')
-
-        # Get info for the document path
-        parsed_location = urlparse(download_status.location)
-        scheme = parsed_location.scheme or 'local'
-        doc_id = parsed_location.path[1:].replace('/', '--')
-
-        # Update document with download status
-        download_doc_ref = (
-            self.root_document_for_store(scheme)
-                .collection(parsed_location.netloc)
-                .document(doc_id)
-        )
-        result: WriteResult = download_doc_ref.set(download_status._asdict())
-
-        logger.debug(f'Firestore manifest updated. '
-                     f'update_time={result.update_time}, '
-                     f'filename={download_status.location}.')
-
-    def root_document_for_store(self, store_scheme: str) -> DocumentReference:
-        """Get the root manifest document given the user's config and current document's storage location."""
-        # Get user-defined collection for manifest.
-        root_collection = self.get_firestore_config().get('collection', 'downloader-manifest')
-        return self._get_db().collection(root_collection).document(store_scheme)
-
-    def get_firestore_config(self) -> t.Dict:
-        """Parse firestore Location format: 'fs://<collection-name>?projectId=<project-id>'
-
-        Users must specify a 'projectId' query parameter in the firestore location. If this argument
-        isn't passed in, users must set the `GOOGLE_CLOUD_PROJECT` environment variable.
-
-        Users may specify options to `firebase_admin.initialize_app()` via query arguments in the URL.
-        For more information about what options are available, consult this documentation:
-        https://firebase.google.com/docs/reference/admin/python/firebase_admin#initialize_app
-
-            Note: each query key-value pair may only appear once. If there are duplicates, the last pair
-            will be used.
-
-        Optionally, users may configure these options via the `FIREBASE_CONFIG` environment variable,
-        which is typically a path/to/a/file.json.
-
-        Examples:
-            >>> location = Location("fs://my-collection?projectId=my-project-id&storageBucket=foo")
-            >>> FirestoreManifest(location).get_firestore_config()
-            {'collection': 'my-collection', 'projectId': 'my-project-id', 'storageBucket': 'foo'}
-
-        Raises:
-            ValueError: If query parameters are malformed.
-            AssertionError: If the 'projectId' query parameter is not set.
-        """
-        parsed = urlparse(self.location)
-        query_params = {}
-        if parsed.query:
-            query_params = dict(parse_qsl(parsed.query, strict_parsing=True))
-        return {'collection': parsed.netloc, **query_params}
-
-
 """Exposed manifest implementations.
 
 Users can choose their preferred manifest implementation by via the protocol of the Manifest Location.
@@ -374,7 +271,7 @@ If no protocol is specified, we assume the user wants to write to the local file
 If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse_manifest_location`.
 """
 MANIFESTS = collections.OrderedDict({
-    'fs': FirestoreManifest,
+    'cli': ConsoleManifest,
     'gs': GCSManifest,
     '': LocalManifest,
 })
@@ -382,4 +279,5 @@ MANIFESTS = collections.OrderedDict({
 if __name__ == '__main__':
     # Execute doc tests
     import doctest
+
     doctest.testmod()
