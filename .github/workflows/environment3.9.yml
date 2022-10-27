@@ -1,0 +1,35 @@
+name: weather-tools
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - cdsapi
+  - ecmwf-api-client
+  - apache-beam[gcp]==2.40.0
+  - numpy
+  - pandas
+  - xarray
+  - requests
+  - google-cloud-firestore
+  - dataclasses
+  - cfgrib
+  - netcdf4
+  - geojson
+  - simplejson
+  - rioxarray
+  - pyproj
+  - gdal
+  - pygrib
+  - flake8
+  - pytest
+  - pytest-subtests
+  - xarray-beam
+  - absl-py
+  - metview-batch
+  - pip
+  - pip:
+    - google-cloud-datastore
+    - google-cloud-bigquery
+    - urllib3==1.26.5
+    - earthengine-api>=0.1.263
+    - google-cloud-storage==2.2.1
