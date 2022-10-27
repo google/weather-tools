@@ -130,10 +130,12 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Run pipeline steps without _actually_ downloading or writing to cloud storage.')
     parser.add_argument('-l', '--local-run', action='store_true', default=False,
                         help="Run pipeline locally, downloads to local hard drive.")
-    parser.add_argument('-m', '--manifest-location', type=Location, default='fs://downloader-manifest',
-                        help="Location of the manifest. Either a Firestore collection URI "
-                             "('fs://<my-collection>?projectId=<my-project-id>'), a GCS bucket URI, or 'noop://<name>' "
-                             "for an in-memory location.")
+    parser.add_argument('-m', '--manifest-location', type=Location, default='cli://manifest',
+                        help="Location of the manifest. By default, it will use Cloud Logging (stdout for direct "
+                             "runner). You can set the name of the manifest as the hostname of a URL with the 'cli' "
+                             "protocol. For example, 'cli://manifest' will prefix all the manifest logs as "
+                             "'[manifest]'. In addition, users can specify a GCS bucket URI, or 'noop://<name>' for an "
+                             "in-memory location.")
     parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
