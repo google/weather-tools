@@ -40,16 +40,22 @@ jobs:
         access_token: ${{ github.token }}
       if: ${{github.ref != 'refs/head/main'}}
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+    - name: conda cache
+      uses: actions/cache@v2
+      env:
+        # Increase this value to reset cache if etc/example-environment.yml has not changed
+        CACHE_NUMBER: 0
       with:
-        python-version: ${{ matrix.python-version }}
+        path: ~/conda_pkgs_dir
+        key:
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
+          hashFiles('ci${{ matrix.python-version }}.yml') }}
     - name: Setup conda environment
       uses: conda-incubator/setup-miniconda@v2
       with:
         python-version: ${{ matrix.python-version }}
         environment-file: ci${{ matrix.python-version}}.yml
-        activate-environment: weather-tools
+        use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
     - name: Get pip cache dir
       id: pip-cache
       run: |
