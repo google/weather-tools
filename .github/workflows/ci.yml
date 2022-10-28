@@ -50,7 +50,7 @@ jobs:
         update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
-    - name: Install ecCodes and MetView
+    - name: Install conda environment.
       run: |
         conda env create -f ci${{ matrix.python-version }}.yml -y
         conda activate weather-tools
