@@ -21,7 +21,7 @@ dependencies:
   - ecmwf-api-client=1.6.3
   - flake8=5.0.4
   - fsspec=2022.10.0
-  - gdal=3.5.2=py39h07a3771_4
+  - gdal=3.5.2
   - pyproj=3.4.0
   - geojson=2.5.0=py_0
   - simplejson=3.17.6
