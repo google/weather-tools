@@ -56,6 +56,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
         environment-file: ci${{ matrix.python-version}}.yml
         use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+    - name: Activate conda env
+      run: conda activate weather-tools
     - name: Get pip cache dir
       id: pip-cache
       run: |
