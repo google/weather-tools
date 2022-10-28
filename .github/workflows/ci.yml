@@ -52,10 +52,8 @@ jobs:
         conda-channels: anaconda, conda-forge
     - name: Install ecCodes and MetView
       run: |
-        conda install -f ci${VERSION}.yml -y
+        conda install -f ci${{ matrix.python-version }}.yml -y
         conda activate weather-tools
-      with:
-        VERSION: ${{ matrix.python-version }}
     - name: Get pip cache dir
       id: pip-cache
       run: |
