@@ -229,6 +229,7 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
+    band_names: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -259,6 +260,8 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
+        subparser.add_argument('--band_names', type=str, default=None,
+                               help='A JSON file which contains the band names for the TIFF file')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -296,6 +299,9 @@ class ToEarthEngine(ToDataSink):
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
+        band_names_dict = {}
+        with open(self.band_names, 'r', encoding='utf-8') as f:
+            band_names_dict = json.load(f)
         if not self.dry_run:
             (
                 paths
@@ -314,7 +320,8 @@ class ToEarthEngine(ToDataSink):
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                         disable_in_memory_copy=self.disable_in_memory_copy,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization))
+                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
+                        band_names=band_names_dict))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_asset_type=self.ee_asset_type,
@@ -392,6 +399,7 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
+    band_names: t.Dict = None
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
@@ -400,7 +408,8 @@ class ConvertToAsset(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_in_memory_copy,
-                          self.disable_grib_schema_normalization) as ds:
+                          self.disable_grib_schema_normalization,
+                          band_names=self.band_names) as ds:
 
             attrs = ds.attrs
             data = list(ds.values())

@@ -24,6 +24,7 @@ import os
 from pyproj import Transformer
 import numpy as np
 import datetime
+import re
 
 import apache_beam as beam
 import rasterio
@@ -72,15 +73,20 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str) -> xr.Dataset:
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
     def _get_band_data(i):
-        band = ds.band_data[i]
-        band.name = ds.band_data.attrs['long_name'][i]
+        key = f'b{i}'
+        if(band_names):
+            band = ds.band_data
+            band.name = band_names.get(key)
+        else:
+            band = ds.band_data[i]
+            band.name = ds.band_data.attrs['long_name'][i]
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -100,20 +106,51 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = xr.merge(band_data_list)
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
+    file_time = ds.data_vars['precipitationCal'].attrs['TIFFTAG_DATETIME']
+    # end_time = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S')
+    # start_time = (end_time - datetime.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    # end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    safe_filename = get_ee_safe_name(uri)
+
+    time_obj = safe_filename.split('_')[4].split('-')
+    date_object = datetime.datetime.strptime(time_obj[0], '%Y%m%d').date()
+
+    start_time = datetime.datetime.strptime(time_obj[1], 'S%H%M%S').time()
+    start_time = (str(date_object) + str(start_time))
+    start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d%H:%M:%S')
+    start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    end_time = datetime.datetime.strptime(time_obj[2], 'E%H%M%S').time()
+    end_time = (str(date_object) + str(end_time))
+    end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d%H:%M:%S')
+    end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    ds.attrs['start_time'] = start_time
+    ds.attrs['end_time'] = end_time
+
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
-            datetime_value_ms = f.tags()[tif_metadata_for_datetime]
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
+            datetime_value_s = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S').timestamp()
+            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
             raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
-        ds = ds.expand_dims('time')
 
     return ds
 
+def get_ee_safe_name(uri: str) -> str:
+    """Extracts file name and converts it into an EE-safe name"""
+    basename = os.path.basename(uri)
+    # Strip the extension from the basename.
+    basename, _ = os.path.splitext(basename)
+    # An asset ID can only contain letters, numbers, hyphens, and underscores.
+    # Converting everything else to underscore.
+    asset_name = re.sub(r'[^a-zA-Z0-9-_]+', r'_', basename)
+    return asset_name
 
 def _to_utc_timestring(np_time: np.datetime64) -> str:
     """Turn a numpy datetime64 into UTC timestring."""
@@ -205,7 +242,7 @@ def __open_dataset_file(filename: str,
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
-    if uri_extension == '.tif':
+    if uri_extension in ['.tif', '.tiff']:
         return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
@@ -254,7 +291,8 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 tif_metadata_for_datetime: t.Optional[str] = None,
+                 band_names: t.Optional[t.Dict] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
@@ -265,8 +303,12 @@ def open_dataset(uri: str,
                                                          disable_grib_schema_normalization,
                                                          open_dataset_kwargs)
 
-            if uri_extension == '.tif':
-                xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
+            if uri_extension in ['.tif', '.tiff']:
+                xr_dataset = _preprocess_tif(xr_dataset, 
+                                local_path,
+                                tif_metadata_for_datetime,
+                                uri,
+                                band_names)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
