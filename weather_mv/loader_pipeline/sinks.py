@@ -72,8 +72,24 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
             data_ds[v].variable.values = grib_ds[v].variable.values
     return data_ds
 
+def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
+    char_to_replace = {
+        '%Y': '([0-9]{4})',
+        '%m': '([0-9]{2})',
+        '%d': '([0-9]{2})',
+        '%H': '([0-9]{2})',
+        '%M': '([0-9]{2})',
+        '%S': '([0-9]{2})',
+        '*': '.*'
+    }
+    for key, value in char_to_replace.items():
+        regex_str = regex_str.replace(key, value)
+    mtch = re.findall(regex_str, file_name)[0]
+    time_arr = list(map(int, mtch))
+    date_string =  datetime.datetime(time_arr[0], time_arr[1], time_arr[2], time_arr[3], time_arr[4], time_arr[5])
+    return date_string
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict) -> xr.Dataset:
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict, initialization_time: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -107,24 +123,9 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
     file_time = ds.data_vars['precipitationCal'].attrs['TIFFTAG_DATETIME']
-    # end_time = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S')
-    # start_time = (end_time - datetime.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    # end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    safe_filename = get_ee_safe_name(uri)
-
-    time_obj = safe_filename.split('_')[4].split('-')
-    date_object = datetime.datetime.strptime(time_obj[0], '%Y%m%d').date()
-
-    start_time = datetime.datetime.strptime(time_obj[1], 'S%H%M%S').time()
-    start_time = (str(date_object) + str(start_time))
-    start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d%H:%M:%S')
-    start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    end_time = datetime.datetime.strptime(time_obj[2], 'E%H%M%S').time()
-    end_time = (str(date_object) + str(end_time))
-    end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d%H:%M:%S')
-    end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_time = match_datetime(uri, initialization_time)
+    start_time = (end_time - datetime.timedelta(minutes=29, seconds=59))
 
     ds.attrs['start_time'] = start_time
     ds.attrs['end_time'] = end_time
@@ -141,16 +142,6 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
             raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
     return ds
-
-def get_ee_safe_name(uri: str) -> str:
-    """Extracts file name and converts it into an EE-safe name"""
-    basename = os.path.basename(uri)
-    # Strip the extension from the basename.
-    basename, _ = os.path.splitext(basename)
-    # An asset ID can only contain letters, numbers, hyphens, and underscores.
-    # Converting everything else to underscore.
-    asset_name = re.sub(r'[^a-zA-Z0-9-_]+', r'_', basename)
-    return asset_name
 
 def _to_utc_timestring(np_time: np.datetime64) -> str:
     """Turn a numpy datetime64 into UTC timestring."""
@@ -292,7 +283,8 @@ def open_dataset(uri: str,
                  disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
-                 band_names: t.Optional[t.Dict] = None) -> t.Iterator[xr.Dataset]:
+                 band_names: t.Optional[t.Dict] = None,
+                 initialization_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
@@ -308,7 +300,8 @@ def open_dataset(uri: str,
                                 local_path,
                                 tif_metadata_for_datetime,
                                 uri,
-                                band_names)
+                                band_names,
+                                initialization_time)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
