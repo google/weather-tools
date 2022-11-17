@@ -21,6 +21,7 @@ import shutil
 import tempfile
 import typing as t
 import os
+import re
 from pyproj import Transformer
 import numpy as np
 import datetime
@@ -35,6 +36,7 @@ from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+BAND_NAME = 'precipitationCal'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -72,15 +74,15 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str) -> xr.Dataset:
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
-    def _get_band_data(i):
-        band = ds.band_data[i]
-        band.name = ds.band_data.attrs['long_name'][i]
+    def _get_band_data():
+        band = ds.band_data
+        band.name = BAND_NAME
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -94,23 +96,30 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     band_length = len(ds.band)
     ds = ds.squeeze().drop_vars('band').drop_vars('spatial_ref')
 
-    band_data_list = [_get_band_data(i) for i in range(band_length)]
+    band_data_list = [_get_band_data() for i in range(band_length)]
 
     ds_is_normalized_attr = ds.attrs['is_normalized']
     ds = xr.merge(band_data_list)
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
+    y, m, d, sh, sm, ss, eh, em, es = (int(ele) for ele in re.compile(
+        r'gs://.*/.*.3IMERG.(\w{4})(\w{2})(\w{2})-S(\w{2})(\w{2})(\w{2})-E(\w{2})(\w{2})(\w{2}).*')
+        .search(uri).groups())
+    start_time = datetime.datetime(y, m, d, sh, sm, ss).strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_time = datetime.datetime(y, m, d, eh, em, es).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    ds.attrs['start_time'] = start_time
+    ds.attrs['end_time'] = end_time
+
     # TODO(#159): Explore ways to capture required metadata using xarray.
-    with rasterio.open(filename) as f:
-        datetime_value_ms = None
-        try:
-            datetime_value_ms = f.tags()[tif_metadata_for_datetime]
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
-        except KeyError:
-            raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
-        except ValueError:
-            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
-        ds = ds.expand_dims('time')
+    datetime_value_ms = None
+    try:
+        datetime_value_s = datetime.datetime.strptime(end_time, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+        ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
+    except KeyError:
+        raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
+    except ValueError:
+        raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
     return ds
 
@@ -205,7 +214,7 @@ def __open_dataset_file(filename: str,
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
-    if uri_extension == '.tif':
+    if uri_extension in ['.tif', '.tiff']:
         return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
@@ -265,8 +274,8 @@ def open_dataset(uri: str,
                                                          disable_grib_schema_normalization,
                                                          open_dataset_kwargs)
 
-            if uri_extension == '.tif':
-                xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
+            if uri_extension in ['.tif', '.tiff']:
+                xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime, uri)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
