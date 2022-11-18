@@ -73,6 +73,8 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
+    """Extracts the datetime object from a string
+    """
     char_to_replace = {
         '%Y': '([0-9]{4})',
         '%m': '([0-9]{2})',
@@ -89,7 +91,7 @@ def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
     date_string =  datetime.datetime(time_arr[0], time_arr[1], time_arr[2], time_arr[3], time_arr[4], time_arr[5])
     return date_string
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict, initialization_time: str) -> xr.Dataset:
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -124,8 +126,11 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
     file_time = ds.data_vars['precipitationCal'].attrs['TIFFTAG_DATETIME']
 
-    end_time = match_datetime(uri, initialization_time)
-    start_time = (end_time - datetime.timedelta(minutes=29, seconds=59))
+    start_time = match_datetime(uri, initialization_time)
+    end_time = match_datetime(uri, forecast_time)
+
+    print(f"start_time === {start_time}")
+    print(f"end_time === {end_time}")
 
     ds.attrs['start_time'] = start_time
     ds.attrs['end_time'] = end_time
@@ -284,7 +289,8 @@ def open_dataset(uri: str,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
                  band_names: t.Optional[t.Dict] = None,
-                 initialization_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 initialization_time: t.Optional[str] = None,
+                 forecast_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         # By copying the file locally, xarray can open it much faster via an in-memory copy.
@@ -301,7 +307,8 @@ def open_dataset(uri: str,
                                 tif_metadata_for_datetime,
                                 uri,
                                 band_names,
-                                initialization_time)
+                                initialization_time,
+                                forecast_time)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)

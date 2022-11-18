@@ -231,6 +231,7 @@ class ToEarthEngine(ToDataSink):
     ee_max_concurrent: int
     band_names: str
     initialization_time: str
+    forecast_time: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -265,6 +266,8 @@ class ToEarthEngine(ToDataSink):
                                help='A JSON file which contains the band names for the TIFF file')
         subparser.add_argument('--initialization_time', type=str, default=None,
                                help='A Regex string to get the initialization time from the filename')
+        subparser.add_argument('--forecast_time', type=str, default=None,
+                                help='A Regex string to get the forecast/end time from the filename')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -325,7 +328,8 @@ class ToEarthEngine(ToDataSink):
                         disable_in_memory_copy=self.disable_in_memory_copy,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                         band_names=band_names_dict,
-                        initialization_time=self.initialization_time))
+                        initialization_time=self.initialization_time,
+                        forecast_time=self.forecast_time))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_asset_type=self.ee_asset_type,
@@ -405,6 +409,7 @@ class ConvertToAsset(beam.DoFn):
     disable_grib_schema_normalization: bool = False
     band_names: t.Dict = None
     initialization_time: str = None
+    forecast_time: str = None
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
@@ -415,7 +420,8 @@ class ConvertToAsset(beam.DoFn):
                           self.disable_in_memory_copy,
                           self.disable_grib_schema_normalization,
                           band_names=self.band_names,
-                          initialization_time=self.initialization_time) as ds:
+                          initialization_time=self.initialization_time,
+                          forecast_time=self.forecast_time) as ds:
 
             attrs = ds.attrs
             data = list(ds.values())
