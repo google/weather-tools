@@ -267,7 +267,7 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--initialization_time', type=str, default=None,
                                help='A Regex string to get the initialization time from the filename')
         subparser.add_argument('--forecast_time', type=str, default=None,
-                                help='A Regex string to get the forecast/end time from the filename')
+                               help='A Regex string to get the forecast/end time from the filename')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -302,6 +302,21 @@ class ToEarthEngine(ToDataSink):
             validate_region(temp_location=pipeline_options_dict.get('temp_location'),
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
+
+        # Check for the band_names json file
+        if not os.path.exists(known_args.band_names):
+            raise RuntimeError("--band_names should contain a valid file that exists")
+        else:
+            if not known_args.band_names.split('.')[-1] == 'json':
+                raise RuntimeError("--band_names should contain a json file as input")
+
+        # Check the initialization_time and forecast_time strings
+        chars = ['%Y', '%m', '%d', '%H', '%M', '%S']
+        if not all([char in known_args.initialization_time for char in chars]):
+            raise RuntimeError("--initialization_time doesn't contain(s) [%Y, %m, %d, %H, %M, %S]")
+
+        if not all([char in known_args.forecast_time for char in chars]):
+            raise RuntimeError("--forecast_time doesn't contain(s) [%Y, %m, %d, %H, %M, %S]")
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
