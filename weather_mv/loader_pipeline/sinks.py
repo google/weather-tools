@@ -72,6 +72,7 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
             data_ds[v].variable.values = grib_ds[v].variable.values
     return data_ds
 
+
 def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
     """Extracts the datetime object from a string
     """
@@ -88,10 +89,12 @@ def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
         regex_str = regex_str.replace(key, value)
     mtch = re.findall(regex_str, file_name)[0]
     time_arr = list(map(int, mtch))
-    date_string =  datetime.datetime(time_arr[0], time_arr[1], time_arr[2], time_arr[3], time_arr[4], time_arr[5])
+    date_string = datetime.datetime(time_arr[0], time_arr[1], time_arr[2], time_arr[3], time_arr[4], time_arr[5])
     return date_string
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str, band_names: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
+
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
+                    band_names: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -99,7 +102,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
     def _get_band_data(i):
         key = f'b{i}'
-        if(band_names):
+        if band_names:
             band = ds.band_data
             band.name = band_names.get(key)
         else:
@@ -136,17 +139,17 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds.attrs['end_time'] = end_time
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
-    with rasterio.open(filename) as f:
-        datetime_value_ms = None
-        try:
-            datetime_value_s = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S').timestamp()
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
-        except KeyError:
-            raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
-        except ValueError:
-            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
+    datetime_value_ms = None
+    try:
+        datetime_value_s = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S').timestamp()
+        ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
+    except KeyError:
+        raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
+    except ValueError:
+        raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
     return ds
+
 
 def _to_utc_timestring(np_time: np.datetime64) -> str:
     """Turn a numpy datetime64 into UTC timestring."""
@@ -300,15 +303,14 @@ def open_dataset(uri: str,
                                                          uri_extension,
                                                          disable_grib_schema_normalization,
                                                          open_dataset_kwargs)
-
             if uri_extension in ['.tif', '.tiff']:
-                xr_dataset = _preprocess_tif(xr_dataset, 
-                                local_path,
-                                tif_metadata_for_datetime,
-                                uri,
-                                band_names,
-                                initialization_time,
-                                forecast_time)
+                xr_dataset = _preprocess_tif(xr_dataset,
+                                             local_path,
+                                             tif_metadata_for_datetime,
+                                             uri,
+                                             band_names,
+                                             initialization_time,
+                                             forecast_time)
 
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
