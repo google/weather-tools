@@ -15,7 +15,7 @@ import unittest
 from functools import wraps
 
 import weather_mv
-from .sinks import open_dataset
+from .sinks import match_datetime, open_dataset
 
 
 class TestDataBase(unittest.TestCase):
@@ -65,6 +65,18 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
+
+
+class DatetimeTest(unittest.TestCase):
+
+    def test_datetime_regex_string(self):
+        file_name = '3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff'
+        regex_str = '3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*.tiff'
+        expected = '2022-09-01 00:29:59'
+
+        actual = match_datetime(file_name, regex_str)
+
+        self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':
