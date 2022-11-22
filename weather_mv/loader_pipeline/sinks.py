@@ -252,7 +252,6 @@ def open_local(uri: str) -> t.Iterator[str]:
 @contextlib.contextmanager
 def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
@@ -267,9 +266,6 @@ def open_dataset(uri: str,
 
             if uri_extension == '.tif':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
-
-            if not disable_in_memory_copy:
-                xr_dataset = _make_grib_dataset_inmem(xr_dataset)
 
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
             with rasterio.open(local_path, 'r') as f:

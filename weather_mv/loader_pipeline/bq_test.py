@@ -16,8 +16,6 @@ import json
 import logging
 import typing as t
 import unittest
-from contextlib import contextmanager
-from time import perf_counter
 
 import geojson
 import numpy as np
@@ -379,15 +377,6 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
 
-@contextmanager
-def timing(description: str) -> t.Iterator[None]:
-    logging.info(f"{description}: Starting profiler")
-    start = perf_counter()
-    yield
-    elapsed_time = perf_counter() - start
-    logging.info(f"{description}: Elapsed time: {elapsed_time:0.4f} seconds")
-
-
 class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
@@ -599,23 +588,6 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
         }
         self.assertRowsEqual(actual, expected)
-
-    @_handle_missing_grib_be
-    def test_timing_profile(self):
-        self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        counter = 0
-        i = self.extract(self.test_data_path, disable_grib_schema_normalization=True)
-        # Read once to avoid counting dataset open times, etc.
-        _ = next(i)
-        with timing('Loop'):
-            for v in i:
-                # Don't do everything, 10K coordinates is enough for testing.
-                if counter >= 10000:
-                    break
-                if counter % 1000 == 0:
-                    logging.info(f'Processed {counter // 1000}k coordinates...')
-                counter += 1
-        logging.info(f'Finished {counter}')
 
 
 if __name__ == '__main__':
