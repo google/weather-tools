@@ -62,19 +62,6 @@ jobs:
       run: |
         conda info --envs
         conda activate weather-tools
-    - name: Get pip cache dir
-      id: pip-cache
-      run: |
-        python -m pip install --upgrade pip wheel
-        echo "::set-output name=dir::$(pip cache dir)"
-    - name: pip cache
-      uses: actions/cache@v2
-      with:
-        path: ${{ steps.pip-cache.outputs.dir }}
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
-    - name: Install weather-tools
-      run: |
-        pip install -e .[test] --use-deprecated=legacy-resolver
     - name: Check MetView's installation
       run: python -m metview selfcheck
     - name: Run unit tests
