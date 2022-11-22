@@ -34,4 +34,3 @@ dependencies:
     - google-cloud-datastore==2.9.0
     - google-cloud-bigquery==3.3.5
     - earthengine-api==0.1.329
-prefix: /opt/homebrew/Caskroom/miniconda/base/envs/weather-tools
