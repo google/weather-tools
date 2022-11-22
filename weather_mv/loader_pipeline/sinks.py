@@ -268,13 +268,13 @@ def open_dataset(uri: str,
             if uri_extension == '.tif':
                 xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
 
-                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
-                with rasterio.open(local_path, 'r') as f:
-                    dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
-                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
-
             if not disable_in_memory_copy:
                 xr_dataset = _make_grib_dataset_inmem(xr_dataset)
+
+            # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+            with rasterio.open(local_path, 'r') as f:
+                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
             logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
