@@ -61,6 +61,7 @@ jobs:
       shell: bash -l {0}
       run: python -m metview selfcheck
     - name: Run unit tests
+      shell: bash -l {0}
       run: pytest
   lint:
     runs-on: ubuntu-latest
