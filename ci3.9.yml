@@ -31,7 +31,5 @@ dependencies:
   - pip=22.3
   - pygrib=2.1.4
   - pip:
-    - google-cloud-datastore==2.9.0
-    - google-cloud-bigquery==3.3.5
     - earthengine-api==0.1.329
     - .[test]
