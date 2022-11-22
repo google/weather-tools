@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import typing as t
 import xarray as xr
 
@@ -45,6 +46,7 @@ COMPUTE_ENGINE_STR = 'Metadata-Flavor: Google'
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
 NUM_RETRIES = 10  # Number of tries with exponential backoff.
+TASK_QUEUE_WAIT_TIME = 120  # Task queue wait time in seconds.
 
 
 def is_compute_engine() -> bool:
@@ -497,6 +499,20 @@ class IngestIntoEETransform(SetupEarthEngine):
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
 
+    def ee_tasks_remaining(self) -> int:
+        """Returns the remaining number of tasks in the tassk queue of earth engine."""
+        return len([task for task in ee.data.getTaskList()
+                    if task['state'] in ['UNSUBMITTED', 'READY', 'RUNNING']])
+
+    def wait_for_task_queue(self) -> None:
+        """Waits until the task queue has space.
+
+        Ingestion of table in the earth engine creates a task and every project has a limited task queue size. This
+        function checks the task queue size and waits until the task queue has some space.
+        """
+        while self.ee_tasks_remaining() >= self._num_shards:
+            time.sleep(TASK_QUEUE_WAIT_TIME)
+
     @retry.with_exponential_backoff(
         num_retries=NUM_RETRIES,
         logger=logger.warning,
@@ -511,6 +527,7 @@ class IngestIntoEETransform(SetupEarthEngine):
             if self.ee_asset_type == 'IMAGE':
                 result = ee.data.createAsset(asset_request)
             elif self.ee_asset_type == 'TABLE':
+                self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
                 result = ee.data.startTableIngestion(task_id, asset_request)
         except ee.EEException as e:
