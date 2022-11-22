@@ -14,29 +14,31 @@
 import json
 import unittest
 
-from .pipeline import run
+from .pipeline import run, pipeline
+import weather_mv
 
 
 class TestCLI(unittest.TestCase):
 
     def setUp(self) -> None:
+        self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
         self.base_cli_args = (
             'weather-mv bq '
-            '-i weather_mv/test_data/test_data_2018*.nc '
+            f'-i {self.test_data_folder}/test_data_2018*.nc '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
         ).split()
         self.tif_base_cli_args = (
             'weather-mv bq '
-            '-i weather_mv/test_data/test_data_tif_start_time.tif '
+            f'-i {self.test_data_folder}/test_data_tif_start_time.tif '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
         ).split()
         self.base_cli_known_args = {
             'subcommand': 'bq',
-            'uris': 'weather_mv/test_data/test_data_2018*.nc',
+            'uris': f'{self.test_data_folder}/test_data_2018*.nc',
             'output_table': 'myproject.mydataset.mytable',
             'dry_run': False,
             'skip_region_validation': True,
@@ -90,6 +92,11 @@ class TestCLI(unittest.TestCase):
             self.base_cli_args + ["--xarray_open_dataset_kwargs", f"{json_kwargs}"]
         )
         self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
+
+
+class IntegrationTest(TestCLI):
+    def test_dry_runs_are_allowed(self):
+        pipeline(*run(self.base_cli_args + '--dry-run'.split()))
 
 
 if __name__ == '__main__':
