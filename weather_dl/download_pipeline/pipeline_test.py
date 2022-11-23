@@ -59,7 +59,7 @@ DEFAULT_ARGS = PipelineArgs(
     config=Config.from_dict(CONFIG),
     client_name='cds',
     store=None,
-    manifest=ConsoleManifest(Location('cli://localhost')),
+    manifest=ConsoleManifest(Location('cli://manifest')),
     num_requesters_per_key=5,
 )
 
