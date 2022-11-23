@@ -263,11 +263,11 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
         subparser.add_argument('--band_names', type=str, default=None,
-                               help='A JSON file which contains the band names for the TIFF file')
+                               help='A JSON file which contains the band names for the TIFF file.')
         subparser.add_argument('--initialization_time', type=str, default=None,
-                               help='A Regex string to get the initialization time from the filename')
+                               help='A Regex string to get the initialization time from the filename.')
         subparser.add_argument('--forecast_time', type=str, default=None,
-                               help='A Regex string to get the forecast/end time from the filename')
+                               help='A Regex string to get the forecast/end time from the filename.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -304,19 +304,22 @@ class ToEarthEngine(ToDataSink):
             logger.info('Region validation completed successfully.')
 
         # Check for the band_names json file
-        if not os.path.exists(known_args.band_names):
-            raise RuntimeError("--band_names should contain a valid file that exists")
+        if known_args.band_names and not os.path.exists(known_args.band_names):
+            raise RuntimeError("--band_names should contain a valid file that exists.")
         else:
-            if not known_args.band_names.split('.')[-1] == 'json':
-                raise RuntimeError("--band_names should contain a json file as input")
+            _, band_names_extension = os.path.splitext(known_args.band_names)
+            if not band_names_extension == '.json':
+                raise RuntimeError("--band_names should contain a json file as input.")
 
         # Check the initialization_time and forecast_time strings
-        chars = ['%Y', '%m', '%d', '%H', '%M', '%S']
-        if not all([char in known_args.initialization_time for char in chars]):
-            raise RuntimeError("--initialization_time doesn't contain(s) [%Y, %m, %d, %H, %M, %S]")
-
-        if not all([char in known_args.forecast_time for char in chars]):
-            raise RuntimeError("--forecast_time doesn't contain(s) [%Y, %m, %d, %H, %M, %S]")
+        if known_args.initialization_time and known_args.forecast_time:
+            chars = ['%Y', '%m', '%d', '%H', '%M', '%S']
+            if not all([char in known_args.initialization_time for char in chars]):
+                raise RuntimeError(f"--initialization_time doesn't contain(s) {chars!s}.")
+            if not all([char in known_args.forecast_time for char in chars]):
+                raise RuntimeError(f"--forecast_time doesn't contain(s) {chars!s}.")
+        elif known_args.initialization_time or known_args.forecast_time:
+            raise RuntimeError("Both --initialization_time & --forecast_time flags need to be present")
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
@@ -326,14 +329,14 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             (
                 paths
-                | 'FilterFiles' >> FilterFilesTransform(
-                    ee_asset=self.ee_asset,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                # | 'FilterFiles' >> FilterFilesTransform(
+                #     ee_asset=self.ee_asset,
+                #     ee_qps=self.ee_qps,
+                #     ee_latency=self.ee_latency,
+                #     ee_max_concurrent=self.ee_max_concurrent,
+                #     private_key=self.private_key,
+                #     service_account=self.service_account,
+                #     use_personal_account=self.use_personal_account)
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset(
@@ -345,15 +348,15 @@ class ToEarthEngine(ToDataSink):
                         band_names=band_names_dict,
                         initialization_time=self.initialization_time,
                         forecast_time=self.forecast_time))
-                | 'IngestIntoEE' >> IngestIntoEETransform(
-                    ee_asset=self.ee_asset,
-                    ee_asset_type=self.ee_asset_type,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                # | 'IngestIntoEE' >> IngestIntoEETransform(
+                #     ee_asset=self.ee_asset,
+                #     ee_asset_type=self.ee_asset_type,
+                #     ee_qps=self.ee_qps,
+                #     ee_latency=self.ee_latency,
+                #     ee_max_concurrent=self.ee_max_concurrent,
+                #     private_key=self.private_key,
+                #     service_account=self.service_account,
+                #     use_personal_account=self.use_personal_account)
             )
         else:
             (

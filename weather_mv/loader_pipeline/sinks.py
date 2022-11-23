@@ -73,8 +73,15 @@ def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
     return data_ds
 
 
-def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
-    """Extracts the datetime object from a string
+def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
+    """Matches the regex string given and extracts the datetime object.
+
+    Args:
+        file_name: File name from which you want to extract datetime.
+        regex_expression: Regex expression for extracting datetime from the filename.
+
+    Returns:
+        A datetime object after extracting from the filename.
     """
     char_to_replace = {
         '%Y': '([0-9]{4})',
@@ -86,11 +93,10 @@ def match_datetime(file_name: str, regex_str: str) -> datetime.datetime:
         '*': '.*'
     }
     for key, value in char_to_replace.items():
-        regex_str = regex_str.replace(key, value)
-    mtch = re.findall(regex_str, file_name)[0]
-    time_arr = list(map(int, mtch))
-    date_string = datetime.datetime(time_arr[0], time_arr[1], time_arr[2], time_arr[3], time_arr[4], time_arr[5])
-    return date_string
+        regex_expression = regex_expression.replace(key, value)
+    regex_matches = re.findall(regex_expression, file_name)[0]
+    time_list = list(map(int, regex_matches))
+    return datetime.datetime(*time_list)
 
 
 def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
@@ -101,13 +107,12 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     """
 
     def _get_band_data(i):
-        key = f'b{i}'
-        if band_names:
-            band = ds.band_data
-            band.name = band_names.get(key)
-        else:
+        if not band_names:
             band = ds.band_data[i]
             band.name = ds.band_data.attrs['long_name'][i]
+        else:
+            band = ds.band_data
+            band.name = band_names.get(band.name)
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -127,26 +132,33 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = xr.merge(band_data_list)
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
-    file_time = ds.data_vars['precipitationCal'].attrs['TIFFTAG_DATETIME']
-
-    start_time = match_datetime(uri, initialization_time)
-    end_time = match_datetime(uri, forecast_time)
-
-    print(f"start_time === {start_time}")
-    print(f"end_time === {end_time}")
-
-    ds.attrs['start_time'] = start_time
-    ds.attrs['end_time'] = end_time
+    end_time = None
+    if initialization_time and forecast_time:
+        try:
+            start_time = match_datetime(uri, initialization_time)
+        except Exception:
+            raise RuntimeError("Wrong regex passed in --initialization_time.")
+        try:
+            end_time = match_datetime(uri, forecast_time)
+        except Exception:
+            raise RuntimeError("Wrong regex passed in --forecast_time.")
+        ds.attrs['start_time'] = start_time
+        ds.attrs['end_time'] = end_time
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
-    datetime_value_ms = None
-    try:
-        datetime_value_s = datetime.datetime.strptime(file_time, '%Y:%m:%d %H:%M:%S').timestamp()
-        ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
-    except KeyError:
-        raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
-    except ValueError:
-        raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
+    with rasterio.open(filename) as f:
+        datetime_value_ms = None
+        try:
+            if end_time is not None:
+                datetime_value_s = end_time.timestamp()
+                ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
+            else:
+                datetime_value_ms = f.tags()[tif_metadata_for_datetime]
+                ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
+        except KeyError:
+            raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
+        except ValueError:
+            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
     return ds
 
