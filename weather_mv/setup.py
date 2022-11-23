@@ -99,15 +99,6 @@ class build(_build):  # pylint: disable=invalid-name
 # TODO(BEAM-3237): Output from the custom commands are missing from the logs.
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
-"""Install the ecCodes and MetView packages from ECMWF."""
-CUSTOM_COMMANDS = [
-    cmd.split() for cmd in [
-        'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev',
-        'conda install gdal -c conda-forge -y',
-        'conda install metview-batch -c conda-forge -y',
-    ]
-]
 
 
 class CustomCommands(Command):
@@ -135,8 +126,7 @@ class CustomCommands(Command):
                 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
     def run(self):
-        for command in CUSTOM_COMMANDS:
-            self.RunCustomCommand(command)
+        pass
 
 
 setup(
