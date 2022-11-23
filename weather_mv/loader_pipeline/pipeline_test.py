@@ -18,8 +18,7 @@ from .pipeline import run, pipeline
 import weather_mv
 
 
-class TestCLI(unittest.TestCase):
-
+class CLITests(unittest.TestCase):
     def setUp(self) -> None:
         self.test_data_folder = f'{next(iter(weather_mv.__path__))}/test_data'
         self.base_cli_args = (
@@ -54,6 +53,9 @@ class TestCLI(unittest.TestCase):
             'disable_grib_schema_normalization': False,
             'tif_metadata_for_datetime': None,
         }
+
+
+class TestCLI(CLITests):
 
     def test_dry_runs_are_allowed(self):
         known_args, _ = run(self.base_cli_args + '--dry-run'.split())
@@ -94,7 +96,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
 
 
-class IntegrationTest(TestCLI):
+class IntegrationTest(CLITests):
     def test_dry_runs_are_allowed(self):
         pipeline(*run(self.base_cli_args + '--dry-run'.split()))
 
