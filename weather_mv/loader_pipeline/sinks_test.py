@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from datetime import datetime
 import unittest
 from functools import wraps
 
@@ -72,7 +73,7 @@ class DatetimeTest(unittest.TestCase):
     def test_datetime_regex_string(self):
         file_name = '3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff'
         regex_str = '3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*.tiff'
-        expected = '2022-09-01 00:29:59'
+        expected = datetime.strptime('2022-09-01 00:00:00', '%Y-%m-%d %H:%M:%S')
 
         actual = match_datetime(file_name, regex_str)
 
