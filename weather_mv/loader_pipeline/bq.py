@@ -75,7 +75,6 @@ class ToBigQuery(ToDataSink):
         infer_schema: If true, this sink will attempt to read in an example data file
           read all its variables, and generate a BigQuery schema.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        disable_in_memory_copy: A flag to turn in-memory copy off; Default: in-memory copy enabled.
         tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
           this location for a timestamp.
         skip_region_validation: Turn off validation that checks if all Cloud resources
@@ -94,7 +93,6 @@ class ToBigQuery(ToDataSink):
     import_time: t.Optional[datetime.datetime]
     infer_schema: bool
     xarray_open_dataset_kwargs: t.Dict
-    disable_in_memory_copy: bool
     tif_metadata_for_datetime: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
@@ -118,8 +116,6 @@ class ToBigQuery(ToDataSink):
                                     'off')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
-        subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
-                               help="To disable in-memory copying of dataset. Default: False")
         subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
                                help='Metadata that contains tif file\'s timestamp. '
                                     'Applicable only for tif files.')
@@ -156,7 +152,7 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
-        with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs, True,
+        with open_dataset(self.example_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
@@ -193,7 +189,6 @@ class ToBigQuery(ToDataSink):
                     area=self.area,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     variables=self.variables,
-                    disable_in_memory_copy=self.disable_in_memory_copy,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                     tif_metadata_for_datetime=self.tif_metadata_for_datetime)
                 | beam.Reshuffle()
@@ -202,7 +197,6 @@ class ToBigQuery(ToDataSink):
                     variables=self.variables,
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                    disable_in_memory_copy=self.disable_in_memory_copy,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                     tif_metadata_for_datetime=self.tif_metadata_for_datetime)
         )
@@ -277,13 +271,12 @@ def prepare_coordinates(
         variables: t.Optional[t.List[str]] = None,
         area: t.Optional[t.List[int]] = None,
         open_dataset_kwargs: t.Optional[t.Dict] = None,
-        disable_in_memory_copy: bool = False,
         disable_grib_schema_normalization: bool = False,
         tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
     """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
-    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, disable_grib_schema_normalization,
+    with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
         if area:
@@ -300,7 +293,6 @@ def extract_rows(uri: str,
                  variables: t.Optional[t.List[str]] = None,
                  import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Dict]:
     """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
@@ -310,7 +302,7 @@ def extract_rows(uri: str,
     if not import_time:
         import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-    with open_dataset(uri, open_dataset_kwargs, disable_in_memory_copy, disable_grib_schema_normalization,
+    with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
