@@ -229,7 +229,7 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
-    band_names: str
+    band_names_mapping: str
     initialization_time: str
     forecast_time: str
 
@@ -262,7 +262,7 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
-        subparser.add_argument('--band_names', type=str, default=None,
+        subparser.add_argument('--band_names_mapping', type=str, default=None,
                                help='A JSON file which contains the band names for the TIFF file.')
         subparser.add_argument('--initialization_time', type=str, default=None,
                                help='A Regex string to get the initialization time from the filename.')
@@ -303,13 +303,13 @@ class ToEarthEngine(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
-        # Check for the band_names json file
-        if known_args.band_names and not os.path.exists(known_args.band_names):
-            raise RuntimeError("--band_names should contain a valid file that exists.")
+        # Check for the band_names_mapping json file
+        if known_args.band_names_mapping and not os.path.exists(known_args.band_names_mapping):
+            raise RuntimeError("--band_names_mapping should contain a valid file that exists.")
         else:
-            _, band_names_extension = os.path.splitext(known_args.band_names)
-            if not band_names_extension == '.json':
-                raise RuntimeError("--band_names should contain a json file as input.")
+            _, band_names_mapping_extension = os.path.splitext(known_args.band_names_mapping)
+            if not band_names_mapping_extension == '.json':
+                raise RuntimeError("--band_names_mapping should contain a json file as input.")
 
         # Check the initialization_time and forecast_time strings
         if known_args.initialization_time and known_args.forecast_time:
@@ -324,19 +324,19 @@ class ToEarthEngine(ToDataSink):
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
         band_names_dict = {}
-        with open(self.band_names, 'r', encoding='utf-8') as f:
+        with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
             band_names_dict = json.load(f)
         if not self.dry_run:
             (
                 paths
-                # | 'FilterFiles' >> FilterFilesTransform(
-                #     ee_asset=self.ee_asset,
-                #     ee_qps=self.ee_qps,
-                #     ee_latency=self.ee_latency,
-                #     ee_max_concurrent=self.ee_max_concurrent,
-                #     private_key=self.private_key,
-                #     service_account=self.service_account,
-                #     use_personal_account=self.use_personal_account)
+                | 'FilterFiles' >> FilterFilesTransform(
+                    ee_asset=self.ee_asset,
+                    ee_qps=self.ee_qps,
+                    ee_latency=self.ee_latency,
+                    ee_max_concurrent=self.ee_max_concurrent,
+                    private_key=self.private_key,
+                    service_account=self.service_account,
+                    use_personal_account=self.use_personal_account)
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset(
@@ -348,15 +348,15 @@ class ToEarthEngine(ToDataSink):
                         band_names=band_names_dict,
                         initialization_time=self.initialization_time,
                         forecast_time=self.forecast_time))
-                # | 'IngestIntoEE' >> IngestIntoEETransform(
-                #     ee_asset=self.ee_asset,
-                #     ee_asset_type=self.ee_asset_type,
-                #     ee_qps=self.ee_qps,
-                #     ee_latency=self.ee_latency,
-                #     ee_max_concurrent=self.ee_max_concurrent,
-                #     private_key=self.private_key,
-                #     service_account=self.service_account,
-                #     use_personal_account=self.use_personal_account)
+                | 'IngestIntoEE' >> IngestIntoEETransform(
+                    ee_asset=self.ee_asset,
+                    ee_asset_type=self.ee_asset_type,
+                    ee_qps=self.ee_qps,
+                    ee_latency=self.ee_latency,
+                    ee_max_concurrent=self.ee_max_concurrent,
+                    private_key=self.private_key,
+                    service_account=self.service_account,
+                    use_personal_account=self.use_personal_account)
             )
         else:
             (
