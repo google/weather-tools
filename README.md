@@ -33,15 +33,22 @@ their component variables.
 
 ## Installing
 
-It's recommended that you create a local python environment (with
-[Anaconda](https://www.anaconda.com/products/individual)). Otherwise, these tools can be installed with pip:
+It is currently recommended that you create a local python environment (with
+[Anaconda](https://www.anaconda.com/products/individual)) and install the 
+sources as follows:
 
   ```shell
-  pip install google-weather-tools
+conda env create --name weather-tools --file=environment.yml
+conda activate weather-tools
+pip install .
+pip install weather_dl/
+pip install weather_mv/
+pip install weather_sp/
   ```
 
-> Note: If the execution of `pip install` command takes a lot of time, try upgrading your pip version
-> (`pip install --upgrade pip`) or using the legacy resolver (add flag: `--use-deprecated=legacy-resolver`).
+> Note: Due to its use of 3rd-party binary dependencies such as GDAL and MetView, `weather-tools`
+> is transitioning from PyPi to Conda for its main release channel. The instructions above
+> are a temporary workaround before our Conda-forge release.
 
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
