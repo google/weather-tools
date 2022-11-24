@@ -56,7 +56,7 @@ Invoke with `-h` or `--help` to see the full range of options.
 usage: weather-mv bigquery [-h] -i URIS [--topic TOPIC] [--window_size WINDOW_SIZE] [--num_shards NUM_SHARDS] [-d]
                            -o OUTPUT_TABLE [-v variables [variables ...]] [-a area [area ...]]
                            [--import_time IMPORT_TIME] [--infer_schema]
-                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
+                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS]
                            [--tif_metadata_for_datetime TIF_METADATA_FOR_DATETIME] [-s]
                            [--coordinate_chunk_size COORDINATE_CHUNK_SIZE]
 ```
@@ -74,7 +74,6 @@ _Command options_:
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
 * `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
-* `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. Used to
   tune parallel uploads.
 * `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
@@ -114,16 +113,6 @@ weather-mv bq --uris "gs://your-bucket/*.nc" \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
            --dry-run
-```
-
-Restrict in-memory copying of dataset:
-
-```bash
-weather-mv bq --uris "gs://your-bucket/*.nc" \
-           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
-           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
-           --direct_num_workers 2 \
-           --disable_in_memory_copy
 ```
 
 Load COG's (.tif) files:
@@ -309,7 +298,7 @@ For a full list of how to configure the Dataflow pipeline, please review
 ```
 usage: weather-mv earthengine [-h] -i URIS --asset_location ASSET_LOCATION --ee_asset EE_ASSET
                            [--ee_asset_type ASSET_TYPE] [--disable_grib_schema_normalization] [--use_personal_account] [-s]
-                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS] [--disable_in_memory_copy]
+                           [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS]
                            [--service_account my-service-account@...gserviceaccount.com --private_key PRIVATE_KEY_LOCATION]
                            [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
 ```
@@ -332,7 +321,6 @@ _Command options_:
 * `--service_account`: Service account address when using a private key for earth engine authentication.
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
-* `--disable_in_memory_copy`: Restrict in-memory copying of dataset. Default: False.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
@@ -363,15 +351,6 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --dry-run
-```
-
-Restrict in-memory copying of dataset:
-
-```bash
-weather-mv ee --uris "gs://your-bucket/*.grib" \
-           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
-           --ee_asset "projects/$PROJECT/assets/test_dir" \
-           --disable_in_memory_copy
 ```
 
 Authenticate earth engine using personal account:

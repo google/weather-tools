@@ -18,7 +18,7 @@ dependencies:
   - simplejson
   - rioxarray
   - pyproj
-  - gdal
+  - gdal=3.5.1
   - pygrib
   - flake8
   - pytest
