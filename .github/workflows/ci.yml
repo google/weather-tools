@@ -40,38 +40,27 @@ jobs:
         access_token: ${{ github.token }}
       if: ${{github.ref != 'refs/head/main'}}
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Setup conda
-      uses: s-weigand/setup-conda@v1
-      with:
-        update-conda: true
-        python-version: ${{ matrix.python-version }}
-        conda-channels: anaconda, conda-forge
-    - name: Install ecCodes and MetView
-      run: |
-        conda install -y eccodes>=2.21.0 -c conda-forge
-        conda install -y metview-batch -c conda-forge
-        conda install -y pyproj -c conda-forge
-        conda install -y gdal -c conda-forge
-    - name: Get pip cache dir
-      id: pip-cache
-      run: |
-        python -m pip install --upgrade pip wheel
-        echo "::set-output name=dir::$(pip cache dir)"
-    - name: pip cache
+    - name: conda cache
       uses: actions/cache@v2
+      env:
+        # Increase this value to reset cache if etc/example-environment.yml has not changed
+        CACHE_NUMBER: 0
       with:
-        path: ${{ steps.pip-cache.outputs.dir }}
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
-    - name: Install weather-tools
-      run: |
-        pip install -e .[test] --use-deprecated=legacy-resolver
+        path: ~/conda_pkgs_dir
+        key:
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.8.yml') }}
+    - name: Setup conda environment
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+        environment-file: ci${{ matrix.python-version}}.yml
+        use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+        activate-environment: weather-tools
     - name: Check MetView's installation
+      shell: bash -l {0}
       run: python -m metview selfcheck
     - name: Run unit tests
+      shell: bash -l {0}
       run: pytest
   lint:
     runs-on: ubuntu-latest

@@ -52,14 +52,14 @@ DEFAULT_ARGS = PipelineArgs(
                                   force_download=False,
                                   dry_run=False,
                                   local_run=False,
-                                  manifest_location='fs://downloader-manifest',
+                                  manifest_location='cli://manifest',
                                   num_requests_per_key=-1,
                                   partition_chunks=None),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
     config=Config.from_dict(CONFIG),
     client_name='cds',
     store=None,
-    manifest=ConsoleManifest(Location('cli://localhost')),
+    manifest=ConsoleManifest(Location('cli://manifest')),
     num_requesters_per_key=5,
 )
 
