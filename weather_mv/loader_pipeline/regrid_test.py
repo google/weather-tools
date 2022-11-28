@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+import glob
 import os.path
 import tempfile
 import unittest
-import glob
 
-import apache_beam as beam
-from apache_beam.testing.test_pipeline import TestPipeline
-from apache_beam.testing.util import assert_that, equal_to
 import numpy as np
 import xarray as xr
+from apache_beam.testing.test_pipeline import TestPipeline
 from cfgrib.xarray_to_grib import to_grib
 
 from .regrid import Regrid
