@@ -304,9 +304,9 @@ class ToEarthEngine(ToDataSink):
             logger.info('Region validation completed successfully.')
 
         # Check for the band_names_mapping json file
-        if known_args.band_names_mapping and not os.path.exists(known_args.band_names_mapping):
-            raise RuntimeError("--band_names_mapping should contain a valid file that exists.")
-        else:
+        if known_args.band_names_mapping:
+            if not os.path.exists(known_args.band_names_mapping):
+                raise RuntimeError("--band_names_mapping should contain a valid file that exists.")
             _, band_names_mapping_extension = os.path.splitext(known_args.band_names_mapping)
             if not band_names_mapping_extension == '.json':
                 raise RuntimeError("--band_names_mapping should contain a json file as input.")
@@ -324,8 +324,9 @@ class ToEarthEngine(ToDataSink):
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
         band_names_dict = {}
-        with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
-            band_names_dict = json.load(f)
+        if self.band_names_mapping:
+            with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
+                band_names_dict = json.load(f)
         if not self.dry_run:
             (
                 paths
