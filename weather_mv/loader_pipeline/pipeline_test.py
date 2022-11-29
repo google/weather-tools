@@ -62,6 +62,8 @@ class CLITests(unittest.TestCase):
             'coordinate_chunk_size': 10_000,
             'disable_grib_schema_normalization': False,
             'tif_metadata_for_datetime': None,
+            'zarr': False,
+            'zarr_kwargs': {},
         }
 
 
