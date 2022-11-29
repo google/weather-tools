@@ -30,6 +30,7 @@ dependencies:
   - pandas=1.5.1
   - pip=22.3
   - pygrib=2.1.4
+  - gcsfs=2022.11.0
   - pip:
     - earthengine-api==0.1.329
     - .[test]

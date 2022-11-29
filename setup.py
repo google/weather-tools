@@ -57,6 +57,7 @@ weather_mv_requirements = [
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
     "xarray-beam==0.3.1",
+    "gcsfs==2022.11.0",
 ]
 
 weather_sp_requirements = [
