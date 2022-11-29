@@ -161,8 +161,11 @@ class Regrid(ToDataSink):
                 with FileSystems().create(self.target_from(uri)) as dst:
                     shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
-    def regrid_dataset(self, ds: xr.Dataset) -> xr.Dataset:
-        """Regrid an xarray.Dataset using MetView, returning another xr.Dataset.
+    def apply_metview(self, fieldset: mv.bindings.Fieldset) -> mv.bindings.Fieldset:
+        return fieldset
+
+    def regrid_dataset(self, key: xbeam.Key, ds: xr.Dataset) -> t.Tuple[xbeam.Key, xr.Dataset]:
+        """Regrid a xarray.Dataset using MetView.
 
         Warning: This cannot process large Datasets without a decent amount of disk space!
         """
@@ -179,14 +182,15 @@ class Regrid(ToDataSink):
             # a dimension. This has to do with ECMWF's cfgrib being in a alpha version.
             try:
                 fs = mv.dataset_to_fieldset(ds)
-                regridded = mv.regrid(data=fs, **self.regrid_kwargs)
             except ValueError as e:
                 raise ValueError(
                     'please change `zarr_input_chunk`s so that there are '
                     'no single element dimensions.'
                 ) from e
+            regridded = mv.regrid(data=fs, **self.regrid_kwargs)
+            applied = self.apply_metview(regridded)
 
-            return regridded.to_dataset().compute()
+            return key, applied.to_dataset().compute()
 
     def template(self, source_ds: xr.Dataset) -> xr.Dataset:
         """Calculate the output Zarr template by regridding a tiny slice of the input dataset."""
@@ -206,9 +210,10 @@ class Regrid(ToDataSink):
                 raise ValueError('cannot infer any dimension when creating a Zarr template. '
                                  'Please define at least one chunk in `--zarr_input_chunks`.')
 
+            _, ds = self.regrid_dataset(xbeam.Key(), t0)
             # Regrid the single time, then expand the Dataset to span all times.
             tmpl = (
-                self.regrid_dataset(t0)
+                ds
                 .chunk()
                 .expand_dims({dim: zeros[dim]}, 0)
             )
@@ -225,7 +230,7 @@ class Regrid(ToDataSink):
         regridded = (
                 paths
                 | xbeam.DatasetToChunks(source_ds, self.zarr_input_chunks)
-                | 'Regrid' >> beam.MapTuple(lambda k, ds: (k, self.regrid_dataset(ds)))
+                | 'Regrid' >> beam.MapTuple(self.regrid_dataset)
         )
 
         tmpl = paths | beam.Create([source_ds]) | 'ZarrTemplate' >> beam.Map(self.template)
