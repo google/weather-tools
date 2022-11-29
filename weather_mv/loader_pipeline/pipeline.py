@@ -38,7 +38,8 @@ def configure_logger(verbosity: int) -> None:
 
 def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str]:
     if is_zarr:
-        return [match_pattern]
+        yield match_pattern
+        return
 
     for match in FileSystems().match([match_pattern]):
         yield from [x.path for x in match.metadata_list]
@@ -69,7 +70,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
             paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
-            paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
+            paths | "Regrid" >> Regrid.from_kwargs(pipeline=p, **vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**vars(known_args))
         else:

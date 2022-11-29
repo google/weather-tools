@@ -82,6 +82,7 @@ class Regrid(ToDataSink):
     to_netcdf: bool = False
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
+    pipeline: t.Optional[beam.Pipeline] = None
 
     def __post_init__(self):
         if not self.zarr_input_chunks:
@@ -224,7 +225,7 @@ class Regrid(ToDataSink):
         source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs, chunks=None)
 
         regridded = (
-                paths
+                self.pipeline
                 | xbeam.DatasetToChunks(source_ds, self.zarr_input_chunks)
                 | 'Regrid' >> beam.MapTuple(lambda k, ds: (k, self.regrid_dataset(ds)))
         )
