@@ -33,12 +33,13 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
 
 def make_skin_temperature_dataset() -> xr.Dataset:
     ds = xr.DataArray(
-        np.zeros((5, 6)) + 300.,
+        np.zeros((4, 5, 6)) + 300.,
         coords=[
+            np.arange(0, 4),
             np.linspace(90., -90., 5),
             np.linspace(0., 360., 6, endpoint=False),
         ],
-        dims=['latitude', 'longitude'],
+        dims=['time', 'latitude', 'longitude'],
     ).to_dataset(name='skin_temperature')
     ds.skin_temperature.attrs['GRIB_shortName'] = 'skt'
     ds.skin_temperature.attrs['GRIB_gridType'] = 'regular_ll'
@@ -110,23 +111,22 @@ class RegridTest(TestDataBase):
         except:  # noqa
             self.fail('Cannot open netCDF with Xarray.')
 
-    def test_zarr__coursen(self):
+    def test_zarr__coarsen(self):
         input_zarr = os.path.join(self.input_dir, 'input.zarr')
         output_zarr = os.path.join(self.input_dir, 'output.zarr')
 
-        make_skin_temperature_dataset().to_zarr(input_zarr)
+        xr.open_dataset(os.path.join(self.test_data_folder, 'test_data_20180101.nc')).to_zarr(input_zarr)
         self.assertTrue(os.path.exists(input_zarr))
 
         Op = dataclasses.replace(
             self.Op,
             first_uri=input_zarr,
             output_path=output_zarr,
-            zarr_input_chunks={"latitude": 10},
+            zarr_input_chunks={"time": 5},
             zarr=True
         )
 
         with TestPipeline() as p:
-            # TODO: Need to figure out how to make this accept a beam.Create, or how to pass in the root to the pipeline
             p | Op
 
         self.assertTrue(os.path.exists(output_zarr))

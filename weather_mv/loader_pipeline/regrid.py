@@ -175,8 +175,18 @@ class Regrid(ToDataSink):
                     del ds[dv].attrs[to_del]
 
         with _metview_op():
-            fs = mv.dataset_to_fieldset(ds)
-            regridded = mv.regrid(data=fs, **self.regrid_kwargs)
+            # mv.dataset_to_fieldset will error on input where there is only 1 value in
+            # a dimension. This has to do with ECMWF's cfgrib being in a alpha version.
+            # Thus, we take an alternative route to writing an XArray dataset to grib...
+            try:
+                fs = mv.dataset_to_fieldset(ds)
+                regridded = mv.regrid(data=fs, **self.regrid_kwargs)
+            except ValueError as e:
+                raise ValueError(
+                    'please change `zarr_input_chunk`s so that there are '
+                    'no single element dimensions.'
+                ) from e
+
             return regridded.to_dataset().compute()
 
     def template(self, source_ds: xr.Dataset) -> xr.Dataset:
