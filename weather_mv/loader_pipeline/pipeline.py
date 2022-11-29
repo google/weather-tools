@@ -54,8 +54,9 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     known_args.first_uri = next(iter(all_uris))
 
     with beam.Pipeline(argv=pipeline_args) as p:
-        # TODO(alxr): Consider having a separate branch for Zarr files.
-        if known_args.topic:
+        if known_args.zarr:
+            paths = p
+        elif known_args.topic:
             paths = (
                     p
                     # Windowing is based on this code sample:
@@ -70,7 +71,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
             paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
-            paths | "Regrid" >> Regrid.from_kwargs(pipeline=p, **vars(known_args))
+            paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**vars(known_args))
         else:
