@@ -177,7 +177,6 @@ class Regrid(ToDataSink):
         with _metview_op():
             # mv.dataset_to_fieldset will error on input where there is only 1 value in
             # a dimension. This has to do with ECMWF's cfgrib being in a alpha version.
-            # Thus, we take an alternative route to writing an XArray dataset to grib...
             try:
                 fs = mv.dataset_to_fieldset(ds)
                 regridded = mv.regrid(data=fs, **self.regrid_kwargs)
