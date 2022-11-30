@@ -36,9 +36,11 @@ logger.setLevel(logging.INFO)
 
 try:
     import metview as mv
+    Fieldset = mv.bindings.Fieldset
 except (ModuleNotFoundError, ImportError, FileNotFoundError):
     logger.error('Metview could not be imported.')
     mv = None  # noqa
+    Fieldset = t.Any
 
 
 def _clear_metview():
@@ -59,6 +61,93 @@ def _metview_op() -> t.Iterator[None]:
                           '`conda install metview-batch -c conda-forge`') from e
     finally:
         _clear_metview()
+
+
+class MapChunkAsFieldset(beam.PTransform):
+    """Apply an operation with MetView on a xarray.Dataset as if it's a metview.Fieldset.
+
+    This transform will handle converting to and from xr.Datasets to mv.Fieldsets. This
+    allows the user to perform any MetView or Fieldset operation within the overridable
+    `apply()` method.
+
+    > Warning: This cannot process large Datasets without a decent amount of disk space!
+    """
+
+    def apply(self, key: xbeam.Key, fs: Fieldset) -> t.Tuple[xbeam.Key, Fieldset]:
+        return key, fs
+
+    def _apply(self, key: xbeam.Key, ds: xr.Dataset) -> t.Tuple[xbeam.Key, xr.Dataset]:
+        # Clear metadata so ecCodes doesn't mess up the conversion. Instead of default grib fields,
+        # ecCodes will use the parameter ID. Thus, the fields will appear in the final, regridded
+        # dataset.
+        for dv in ds.data_vars:
+            for to_del in ['GRIB_cfName', 'GRIB_shortName', 'GRIB_cfVarName']:
+                if to_del in ds[dv].attrs:
+                    del ds[dv].attrs[to_del]
+
+        with _metview_op():
+            # mv.dataset_to_fieldset() will error on input where there is only 1 value
+            # in a dimension. ECMWF's cfgrib is in its alpha version.
+            try:
+                fs = mv.dataset_to_fieldset(ds)
+            except ValueError as e:
+                raise ValueError(
+                    'please change `zarr_input_chunk`s so that there are no'
+                    'single element dimensions (e.g. {"time": 1} is not allowed).'
+                ) from e
+
+            # Apply any & all MetView or FieldSet operations.
+            kout, fs_out = self.apply(key, fs)
+
+            return kout, fs_out.to_dataset().compute()
+
+    def expand(self, pcoll):
+        return pcoll | beam.MapTuple(self._apply)
+
+
+@dataclasses.dataclass
+class RegridChunk(MapChunkAsFieldset):
+    """Regrid a xarray.Dataset with MetView.
+
+    Attributes:
+        regrid_kwargs: A dictionary of keyword-args to be passed into `mv.regrid()`
+            (excluding the dataset).
+        zarr_input_chunks: (Optional) When regridding Zarr data, how the input
+            dataset should be chunked upon open.
+    """
+    regrid_kwargs: t.Dict
+    zarr_input_chunks: t.Optional[t.Dict] = None
+
+    def template(self, source_ds: xr.Dataset) -> xr.Dataset:
+        """Calculate the output Zarr template by regridding a tiny slice of the input dataset."""
+        # Silence Dask warning...
+        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+            zeros = source_ds.chunk().pipe(xr.zeros_like)
+
+            # Get a single timeslice of the zeros Dataset (or equivalent chunkable dimension).
+            # We don't know for sure that 'time' is in the Zarr dataset, so here we make our
+            # best attempt to find a good slice.
+            t0 = None
+            for dim in ['time', *(self.zarr_input_chunks or {}).keys()]:
+                if dim in zeros:
+                    t0 = zeros.isel({dim: 0}, drop=True)
+                    break
+            if t0 is None:
+                raise ValueError('cannot infer any dimension when creating a Zarr template. '
+                                 'Please define at least one chunk in `--zarr_input_chunks`.')
+
+            _, ds = self._apply(xbeam.Key(), t0)
+            # Regrid the single time, then expand the Dataset to span all times.
+            tmpl = (
+                ds
+                .chunk()
+                .expand_dims({dim: zeros[dim]}, 0)
+            )
+
+            return tmpl
+
+    def apply(self, key: xbeam.Key, fs: Fieldset) -> t.Tuple[xbeam.Key, Fieldset]:
+        return key, mv.regrid(data=fs, **self.regrid_kwargs)
 
 
 @dataclasses.dataclass
@@ -161,65 +250,6 @@ class Regrid(ToDataSink):
                 with FileSystems().create(self.target_from(uri)) as dst:
                     shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
 
-    def apply_metview(self, fieldset: mv.bindings.Fieldset) -> mv.bindings.Fieldset:
-        return fieldset
-
-    def regrid_dataset(self, key: xbeam.Key, ds: xr.Dataset) -> t.Tuple[xbeam.Key, xr.Dataset]:
-        """Regrid a xarray.Dataset using MetView.
-
-        Warning: This cannot process large Datasets without a decent amount of disk space!
-        """
-        # Clear metadata so ecCodes doesn't mess up the conversion.
-        # Instead of these fields, ecCodes will use the parameter ID.
-        # Thus, the fields will appear in the final, regridded dataset.
-        for dv in ds.data_vars:
-            for to_del in ['GRIB_cfName', 'GRIB_shortName', 'GRIB_cfVarName']:
-                if to_del in ds[dv].attrs:
-                    del ds[dv].attrs[to_del]
-
-        with _metview_op():
-            # mv.dataset_to_fieldset will error on input where there is only 1 value in
-            # a dimension. This has to do with ECMWF's cfgrib being in a alpha version.
-            try:
-                fs = mv.dataset_to_fieldset(ds)
-            except ValueError as e:
-                raise ValueError(
-                    'please change `zarr_input_chunk`s so that there are '
-                    'no single element dimensions.'
-                ) from e
-            regridded = mv.regrid(data=fs, **self.regrid_kwargs)
-            applied = self.apply_metview(regridded)
-
-            return key, applied.to_dataset().compute()
-
-    def template(self, source_ds: xr.Dataset) -> xr.Dataset:
-        """Calculate the output Zarr template by regridding a tiny slice of the input dataset."""
-        # Silence Dask warning...
-        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-            zeros = source_ds.chunk().pipe(xr.zeros_like)
-
-            # Get a single timeslice of the zeros Dataset (or equivalent chunkable dimension).
-            # We don't know for sure that 'time' is in the Zarr dataset, so here we make our
-            # best attempt to find a good slice.
-            t0 = None
-            for dim in ['time', *(self.zarr_input_chunks or {}).keys()]:
-                if dim in zeros:
-                    t0 = zeros.isel({dim: 0}, drop=True)
-                    break
-            if t0 is None:
-                raise ValueError('cannot infer any dimension when creating a Zarr template. '
-                                 'Please define at least one chunk in `--zarr_input_chunks`.')
-
-            _, ds = self.regrid_dataset(xbeam.Key(), t0)
-            # Regrid the single time, then expand the Dataset to span all times.
-            tmpl = (
-                ds
-                .chunk()
-                .expand_dims({dim: zeros[dim]}, 0)
-            )
-
-            return tmpl
-
     def expand(self, paths):
         if not self.zarr:
             paths | beam.Map(self.apply)
@@ -227,13 +257,15 @@ class Regrid(ToDataSink):
 
         source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs, chunks=None)
 
+        regrid_op = RegridChunk(self.regrid_kwargs, self.zarr_input_chunks)
+
         regridded = (
                 paths
                 | xbeam.DatasetToChunks(source_ds, self.zarr_input_chunks)
-                | 'Regrid' >> beam.MapTuple(self.regrid_dataset)
+                | 'RegridChunk' >> regrid_op
         )
 
-        tmpl = paths | beam.Create([source_ds]) | 'ZarrTemplate' >> beam.Map(self.template)
+        tmpl = paths | beam.Create([source_ds]) | 'CalcZarrTemplate' >> beam.Map(regrid_op.template)
 
         to_write = regridded
         if self.zarr_output_chunks:
