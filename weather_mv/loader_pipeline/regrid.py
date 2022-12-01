@@ -21,6 +21,7 @@ import os.path
 import shutil
 import tempfile
 import typing as t
+import warnings
 
 import apache_beam as beam
 import dask
@@ -44,7 +45,12 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
 
 
 def _clear_metview():
-    """Clear the metview temporary directory."""
+    """Clear the metview temporary directory.
+
+    By default, caches are cleared when the MetView _process_ ends.
+    This method is necessary to free space sooner than that, namely
+    after invoking MetView functions.
+    """
     cache_dirs = glob.glob(f'{tempfile.gettempdir()}/mv.*')
     for cache_dir in cache_dirs:
         shutil.rmtree(cache_dir)
@@ -119,10 +125,18 @@ class RegridChunk(MapChunkAsFieldset):
     zarr_input_chunks: t.Optional[t.Dict] = None
 
     def template(self, source_ds: xr.Dataset) -> xr.Dataset:
-        """Calculate the output Zarr template by regridding a tiny slice of the input dataset."""
+        """Calculate the output Zarr template by regridding (a tiny slice of) the input dataset."""
         # Silence Dask warning...
         with dask.config.set(**{'array.slicing.split_large_chunks': False}):
             zeros = source_ds.chunk().pipe(xr.zeros_like)
+
+            # If the chunked source dataset is small (less than 10 MB), just regrid it!
+            if (zeros.nbytes / 1024 / 1024) < 10:
+                _, ds = self._apply(xbeam.Key(), zeros)
+                return ds.chunk()
+
+            # source_ds is probably very big! Let's shrink it by a non-spatial dimension
+            # so calculating the template will be tractable...
 
             # Get a single timeslice of the zeros Dataset (or equivalent chunkable dimension).
             # We don't know for sure that 'time' is in the Zarr dataset, so here we make our
@@ -172,13 +186,6 @@ class Regrid(ToDataSink):
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
 
-    def __post_init__(self):
-        if not self.zarr_input_chunks:
-            self.zarr_input_chunks = None
-
-        if not self.zarr_output_chunks:
-            self.zarr_output_chunks = None
-
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser) -> None:
         subparser.add_argument('-o', '--output_path', type=str, required=True,
@@ -188,9 +195,9 @@ class Regrid(ToDataSink):
                                     """Will default to '{"grid": [0.25, 0.25]}'.""")
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
-        subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default='{}',
+        subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
                                help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
-        subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default='{}',
+        subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default=None,
                                help='When writing a Zarr, write the data with chunks. Takes a JSON string.')
 
     @classmethod
@@ -200,6 +207,12 @@ class Regrid(ToDataSink):
 
         if not known_args.zarr and (known_args.zarr_input_chunks or known_args.zarr_output_chunks):
             raise ValueError('chunks can only be set when input URI is a Zarr.')
+
+        if known_args.zarr:
+            # Encourage use of correct output_path format.
+            _, out_ext = os.path.splitext(known_args.output_path)
+            if out_ext not in ['', '.zarr']:
+                warnings.warn('if input is a Zarr, the output_path must also be a Zarr.', RuntimeWarning)
 
     def target_from(self, uri: str) -> str:
         """Create the target path from the input URI.
@@ -255,6 +268,8 @@ class Regrid(ToDataSink):
             paths | beam.Map(self.apply)
             return
 
+        # Since `chunks=None` here, data will be opened lazily upon access.
+        # This is used to get the Zarr metadata without loading the data.
         source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs, chunks=None)
 
         regrid_op = RegridChunk(self.regrid_kwargs, self.zarr_input_chunks)

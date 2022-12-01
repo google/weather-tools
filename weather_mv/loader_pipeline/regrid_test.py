@@ -33,7 +33,7 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
 
 def make_skin_temperature_dataset() -> xr.Dataset:
     ds = xr.DataArray(
-        np.zeros((4, 5, 6)) + 300.,
+        np.full((4, 5, 6), 300.),
         coords=[
             np.arange(0, 4),
             np.linspace(90., -90., 5),

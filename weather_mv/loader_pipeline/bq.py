@@ -133,7 +133,8 @@ class ToBigQuery(ToDataSink):
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
-        assert not known_args.zarr, 'Reading Zarr is not (yet) supported.'
+        if known_args.zarr:
+            raise RuntimeError('Reading Zarr is not (yet) supported.')
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
