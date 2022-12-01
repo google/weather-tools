@@ -386,6 +386,17 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
 
+    @retry.with_exponential_backoff(
+        num_retries=NUM_RETRIES,
+        logger=logger.warning,
+        initial_delay_secs=INITIAL_DELAY,
+        max_delay_secs=MAX_DELAY
+    )
+    def upload(self, src_obj: t.Union[MemoryFile, tempfile._TemporaryFileWrapper], target_path: str) -> None:
+        """Upload blob to cloud storage, with retries."""
+        with FileSystems().create(target_path) as dst:
+            shutil.copyfileobj(src_obj, dst, WRITE_CHUNK_SIZE)
+
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
 
@@ -428,8 +439,7 @@ class ConvertToAsset(beam.DoFn):
 
                     # Copy in-memory tiff to gcs.
                     target_path = os.path.join(self.asset_location, file_name)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                    self.upload(memfile, target_path)
             # For feature collection ingestions.
             elif self.ee_asset_type == 'TABLE':
                 file_name = f'{asset_name}.csv'
@@ -443,8 +453,7 @@ class ConvertToAsset(beam.DoFn):
                     df.to_csv(tmp_df.name, index=False)
                     tmp_df.flush()
                     tmp_df.seek(0)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+                    self.upload(tmp_df, target_path)
 
             asset_data = AssetData(
                 name=asset_name,
