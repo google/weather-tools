@@ -21,10 +21,7 @@ Please see this documentation and example code:
 - https://github.com/apache/beam/blob/master/sdks/python/apache_beam/examples/complete/juliaset/setup.py
 """
 
-import subprocess
-from distutils.command.build import build as _build  # type: ignore
-
-from setuptools import setup, find_packages, Command
+from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
     "google-cloud-bigquery==2.34.4",
