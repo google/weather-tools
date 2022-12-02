@@ -40,6 +40,7 @@ weather_dl_requirements = [
     "requests>=2.24.0",
     "google-cloud-firestore",
     "urllib3==1.26.5",
+    "gsutil==5.6",
 ]
 
 weather_mv_requirements = [

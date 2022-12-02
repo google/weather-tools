@@ -13,6 +13,7 @@
 # limitations under the License.
 import itertools
 import socket
+import subprocess
 import sys
 import typing as t
 
@@ -58,3 +59,8 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
             yield itertools.chain([first], it)
     except StopIteration:
         pass
+
+
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gsutil cp`."""
+    subprocess.run(f'gsutil cp {src!r} {dst!r}', shell=True, check=True)
