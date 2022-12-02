@@ -64,8 +64,9 @@ class Client(abc.ABC):
         """Download from data source."""
         pass
 
+    @classmethod
     @abc.abstractmethod
-    def num_requests_per_key(self, dataset: str) -> int:
+    def num_requests_per_key(cls, dataset: str) -> int:
         """Specifies the number of workers to be used per api key for the dataset."""
         pass
 
@@ -117,7 +118,8 @@ class CdsClient(Client):
     def license_url(self):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
-    def num_requests_per_key(self, dataset: str) -> int:
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
         """Number of requests per key from the CDS API.
 
         CDS has dynamic, data-specific limits, defined here:
@@ -132,7 +134,7 @@ class CdsClient(Client):
         https://cds.climate.copernicus.eu/cdsapp#!/yourrequests
         """
         # TODO(#15): Parse live CDS limits API to set data-specific limits.
-        for internal_set in self.cds_hosted_datasets:
+        for internal_set in cls.cds_hosted_datasets:
             if dataset.startswith(internal_set):
                 return 5
         return 2
@@ -282,7 +284,8 @@ class MarsClient(Client):
     def license_url(self):
         return 'https://apps.ecmwf.int/datasets/licences/general/'
 
-    def num_requests_per_key(self, dataset: str) -> int:
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
         """Number of requests per key (or user) for the Mars API.
 
         Mars allows 2 active requests per user and 20 queued requests per user, as of Sept 27, 2021.
@@ -309,7 +312,8 @@ class FakeClient(Client):
     def license_url(self):
         return 'lorem ipsum'
 
-    def num_requests_per_key(self, dataset: str) -> int:
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
         return 1
 
 
