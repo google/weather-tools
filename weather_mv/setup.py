@@ -58,6 +58,8 @@ base_requirements = [
     "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
+    "xarray-beam==0.3.1",
+    "gcsfs==2022.11.0",
 ]
 
 
@@ -104,8 +106,7 @@ CUSTOM_COMMANDS = [
     cmd.split() for cmd in [
         'apt-get update',
         'apt-get --assume-yes install libeccodes-dev',
-        'conda install gdal -c conda-forge -y',
-        'conda install metview-batch -c conda-forge -y',
+        'conda install gdal=3.5.1 metview-batch=5.17.0 pyproj=3.4.0 -c conda-forge -y',
     ]
 ]
 
@@ -131,8 +132,7 @@ class CustomCommands(Command):
         stdout_data, _ = p.communicate()
         print('Command output: %s' % stdout_data)
         if p.returncode != 0:
-            raise print(
-                'Command %s failed: exit code: %s' % (command_list, p.returncode))
+            raise RuntimeError('Command %s failed: exit code: %s\n%s' % (command_list, p.returncode, stdout_data))
 
     def run(self):
         for command in CUSTOM_COMMANDS:
