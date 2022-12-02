@@ -14,8 +14,8 @@
 import json
 import unittest
 
-from .pipeline import run, pipeline
 import weather_mv
+from .pipeline import run, pipeline
 
 
 class CLITests(unittest.TestCase):
@@ -118,8 +118,9 @@ class TestCLI(CLITests):
     def test_rg_zarr_cant_output_netcdf(self):
         with self.assertRaisesRegex(ValueError, 'only Zarr-to-Zarr'):
             run(self.rg_cli_args + '--zarr --to_netcdf'.split())
+
     def test_rg_happy_path(self):
-            run(self.rg_cli_args + ['--zarr'])
+        run(self.rg_cli_args + ['--zarr'])
 
     def test_zarr_kwargs_must_come_with_zarr(self):
         with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
