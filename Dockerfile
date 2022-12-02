@@ -21,19 +21,16 @@ FROM continuumio/miniconda3:4.12.0
 RUN conda update conda -y
 
 # Create conda env using environment.yml
-COPY environment.yml /tmp/environment.yml
-RUN conda env create -f /tmp/environment.yml
+ARG weather_tools_git_rev=main
+RUN git clone https://github.com/google/weather-tools.git /weather
+WORKDIR /weather
+RUN git checkout "${weather_tools_git_rev}"
+RUN conda env create -f environment.yml
 
 # Activate the conda env and update the PATH
 ARG CONDA_ENV_NAME=weather-tools
 RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
-
-# Install SDK.
-RUN pip install --no-cache-dir apache-beam[gcp]==2.40.0
-
-# Verify that the image does not have conflicting dependencies.
-RUN pip check
 
 # Copy files from official SDK image, including script/dependencies.
 COPY --from=beam_sdk /opt/apache/beam /opt/apache/beam
