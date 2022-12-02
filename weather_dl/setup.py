@@ -40,7 +40,7 @@ base_requirements = [
     "requests>=2.24.0",
     "urllib3==1.26.5",
     "google-cloud-firestore==2.6.0",
-    "gsutil"
+    "gsutil==4.61"
 ]
 
 setup(
