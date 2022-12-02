@@ -42,7 +42,10 @@ logger.setLevel(logging.INFO)
 
 @dataclasses.dataclass
 class ToDataSink(abc.ABC, beam.PTransform):
+    first_uri: str
     dry_run: bool
+    zarr: bool
+    zarr_kwargs: t.Dict
 
     @classmethod
     def from_kwargs(cls, **kwargs):
