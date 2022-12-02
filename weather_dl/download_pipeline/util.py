@@ -62,5 +62,9 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
 
 
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil cp`."""
-    subprocess.run(f'gsutil cp {src!r} {dst!r}', shell=True, check=True)
+    """Copy data via `gcloud storage cp`.
+
+    Here, we take advantage of GCP's faster storage transfer:
+    https://cloud.google.com/blog/products/storage-data-transfer/new-gcloud-storage-enables-super-fast-data-transfers/
+    """
+    subprocess.run(f'gcloud alpha storage cp {src!r} {dst!r}', shell=True, check=True)
