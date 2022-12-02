@@ -40,10 +40,6 @@ sources as follows:
   ```shell
 conda env create --name weather-tools --file=environment.yml
 conda activate weather-tools
-pip install .
-pip install weather_dl/
-pip install weather_mv/
-pip install weather_sp/
   ```
 
 > Note: Due to its use of 3rd-party binary dependencies such as GDAL and MetView, `weather-tools`
