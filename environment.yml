@@ -30,6 +30,8 @@ dependencies:
   - pip=22.3
   - pygrib=2.1.4
   - google-cloud-sdk=410.0.0
+  - gcsfs=2022.11.0
+  - xarray-beam=0.3.1
   - pip:
     - earthengine-api==0.1.329
     - .[test]

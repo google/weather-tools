@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+import glob
 import os.path
 import tempfile
 import unittest
-import glob
 
 import numpy as np
 import xarray as xr
+from apache_beam.testing.test_pipeline import TestPipeline
 from cfgrib.xarray_to_grib import to_grib
 
 from .regrid import Regrid
@@ -32,20 +33,22 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError):
 
 def make_skin_temperature_dataset() -> xr.Dataset:
     ds = xr.DataArray(
-        np.zeros((5, 6)) + 300.,
+        np.full((4, 5, 6), 300.),
         coords=[
+            np.arange(0, 4),
             np.linspace(90., -90., 5),
             np.linspace(0., 360., 6, endpoint=False),
         ],
-        dims=['latitude', 'longitude'],
+        dims=['time', 'latitude', 'longitude'],
     ).to_dataset(name='skin_temperature')
     ds.skin_temperature.attrs['GRIB_shortName'] = 'skt'
+    ds.skin_temperature.attrs['GRIB_gridType'] = 'regular_ll'
     return ds
 
 
 def metview_cache_exists() -> bool:
-    caches = glob.glob(f'{tempfile.gettempdir()}/mv*/')
-    return len(caches) > 1
+    caches = glob.glob(f'{tempfile.gettempdir()}/mv.*/')
+    return any(os.path.isfile(p) for p in caches)
 
 
 class RegridTest(TestDataBase):
@@ -56,8 +59,16 @@ class RegridTest(TestDataBase):
         super().setUp()
         self.tmpdir = tempfile.TemporaryDirectory()
         self.input_dir = os.path.join(self.tmpdir.name, 'input')
+        self.input_grib = os.path.join(self.input_dir, 'test.gb')
         os.mkdir(self.input_dir)
-        self.Op = Regrid(output_path=self.tmpdir.name, regrid_kwargs={'grid': [0.25, 0.25]}, dry_run=False)
+        self.Op = Regrid(
+            output_path=self.tmpdir.name,
+            first_uri=self.input_grib,
+            regrid_kwargs={'grid': [0.25, 0.25]},
+            dry_run=False,
+            zarr=False,
+            zarr_kwargs={},
+        )
 
     def tearDown(self) -> None:
         self.tmpdir.cleanup()
@@ -72,12 +83,11 @@ class RegridTest(TestDataBase):
         self.assertEqual(actual, f'{self.tmpdir.name}/foobar.nc')
 
     def test_apply__creates_a_file(self):
-        path = os.path.join(self.input_dir, 'test.gb')
-        to_grib(make_skin_temperature_dataset(), path)
+        to_grib(make_skin_temperature_dataset(), self.input_grib)
 
-        self.assertTrue(os.path.exists(path))
+        self.assertTrue(os.path.exists(self.input_grib))
 
-        self.Op.apply(path)
+        self.Op.apply(self.input_grib)
 
         self.assertTrue(os.path.exists(f'{self.tmpdir.name}/test.gb'))
         self.assertFalse(metview_cache_exists())
@@ -87,12 +97,11 @@ class RegridTest(TestDataBase):
             self.test_apply__creates_a_file()
 
     def test_apply__to_netCDF__creates_a_netCDF_file(self):
-        path = os.path.join(self.input_dir, 'test.gb')
-        to_grib(make_skin_temperature_dataset(), path)
-        self.assertTrue(os.path.exists(path))
+        to_grib(make_skin_temperature_dataset(), self.input_grib)
+        self.assertTrue(os.path.exists(self.input_grib))
 
         Op = dataclasses.replace(self.Op, to_netcdf=True)
-        Op.apply(path)
+        Op.apply(self.input_grib)
 
         expected = f'{self.tmpdir.name}/test.nc'
         self.assertTrue(os.path.exists(expected))
@@ -101,6 +110,30 @@ class RegridTest(TestDataBase):
             xr.open_dataset(expected)
         except:  # noqa
             self.fail('Cannot open netCDF with Xarray.')
+
+    def test_zarr__coarsen(self):
+        input_zarr = os.path.join(self.input_dir, 'input.zarr')
+        output_zarr = os.path.join(self.input_dir, 'output.zarr')
+
+        xr.open_dataset(os.path.join(self.test_data_folder, 'test_data_20180101.nc')).to_zarr(input_zarr)
+        self.assertTrue(os.path.exists(input_zarr))
+
+        Op = dataclasses.replace(
+            self.Op,
+            first_uri=input_zarr,
+            output_path=output_zarr,
+            zarr_input_chunks={"time": 5},
+            zarr=True
+        )
+
+        with TestPipeline() as p:
+            p | Op
+
+        self.assertTrue(os.path.exists(output_zarr))
+        try:
+            xr.open_zarr(output_zarr)
+        except:  # noqa
+            self.fail('Cannot open Zarr with Xarray.')
 
 
 if __name__ == '__main__':
