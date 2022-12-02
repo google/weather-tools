@@ -15,7 +15,6 @@
 import unittest
 
 from .clients import FakeClient, CdsClient, MarsClient
-from .config import Config
 
 
 class MaxWorkersTest(unittest.TestCase):
