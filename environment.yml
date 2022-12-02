@@ -1,7 +1,6 @@
 name: weather-tools
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.8.13
   - apache-beam=2.40.0
@@ -30,7 +29,7 @@ dependencies:
   - pandas=1.5.1
   - pip=22.3
   - pygrib=2.1.4
-  - gsutil=4.61
+  - google-cloud-sdk=410.0.0
   - pip:
     - earthengine-api==0.1.329
     - .[test]
