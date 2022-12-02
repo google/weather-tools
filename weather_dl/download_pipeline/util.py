@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import logging
 import socket
 import subprocess
 import sys
 import typing as t
 
 from apache_beam.utils import retry
+
+logger = logging.getLogger(__name__)
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
