@@ -71,7 +71,7 @@ def copy(src: str, dst: str) -> None:
     https://cloud.google.com/blog/products/storage-data-transfer/new-gcloud-storage-enables-super-fast-data-transfers/
     """
     try:
-        subprocess.run(f'gcloud alpha storage cp {src!r} {dst!r}', shell=True, check=True, capture_output=True)
+        subprocess.run(['gcloud', 'alpha', 'storage', 'cp', src, dest], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
         raise
