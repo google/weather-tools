@@ -426,9 +426,9 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
-    band_names: t.Dict = None
-    initialization_time: str = None
-    forecast_time: str = None
+    band_names: t.Optional[t.Dict] = None
+    initialization_time: t.Optional[str] = None
+    forecast_time: t.Optional[str] = None
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
