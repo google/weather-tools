@@ -83,19 +83,44 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
     Returns:
         A datetime object after extracting from the filename.
     """
+    def get_time_order(time_string):
+        idx = [i for i in range(len(time_string)) if time_string.startswith('%', i)]
+        idx = [i+1 for i in idx]
+        order_list = ['%'+time_string[i] for i in idx]
+        return order_list
+
+    def rearrange_time_list(order_list, time_list):
+        order_reference_list = ['%Y', '%m', '%d', '%H', '%M', '%S']
+        if order_list == order_reference_list:
+            return time_list
+        new_time_list = []
+        print(order_list)
+        for i, j in zip(order_list, time_list):
+            dst = order_reference_list.index(i)
+            new_time_list.insert(dst, j)
+        return new_time_list
     char_to_replace = {
-        '%Y': '([0-9]{4})',
-        '%m': '([0-9]{2})',
-        '%d': '([0-9]{2})',
-        '%H': '([0-9]{2})',
-        '%M': '([0-9]{2})',
-        '%S': '([0-9]{2})',
-        '*': '.*'
+        '%Y': ['([0-9]{4})', [0, 1978]],
+        '%m': ['([0-9]{2})', [1, 1]],
+        '%d': ['([0-9]{2})', [2, 1]],
+        '%H': ['([0-9]{2})', [3, 0]],
+        '%M': ['([0-9]{2})', [4, 0]],
+        '%S': ['([0-9]{2})', [5, 0]],
+        '*': ['.*']
     }
+    missingIdxList = []
+    temp_expression = regex_expression
     for key, value in char_to_replace.items():
-        regex_expression = regex_expression.replace(key, value)
-    regex_matches = re.findall(regex_expression, file_name)[0]
+        if key != '*' and regex_expression.find(key) == -1:
+            missingIdxList.append(value[1])
+        else:
+            temp_expression = temp_expression.replace(key, value[0])
+    regex_matches = re.findall(temp_expression, file_name)[0]
     time_list = list(map(int, regex_matches))
+    time_list = rearrange_time_list(get_time_order(regex_expression), time_list)
+    if len(missingIdxList) != 0:
+        for [idx, val] in missingIdxList:
+            time_list.insert(idx, val)
     return datetime.datetime(*time_list)
 
 
@@ -249,6 +274,8 @@ def __open_dataset_file(filename: str,
                         disable_grib_schema_normalization: bool,
                         open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
     """Opens the dataset at 'uri' and returns a xarray.Dataset."""
+    # add a flag to use cfgrib
+
     if open_dataset_kwargs:
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
