@@ -65,13 +65,9 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
 
 
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gcloud storage cp`.
-
-    Here, we take advantage of GCP's faster storage transfer:
-    https://cloud.google.com/blog/products/storage-data-transfer/new-gcloud-storage-enables-super-fast-data-transfers/
-    """
+    """Copy data via `gsutil cp`."""
     try:
-        subprocess.run(['gcloud', 'alpha', 'storage', 'cp', src, dst], check=True, capture_output=True)
+        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
         raise
