@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import logging
 import socket
+import subprocess
 import sys
 import typing as t
 
 from apache_beam.utils import retry
+
+logger = logging.getLogger(__name__)
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -58,3 +62,12 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
             yield itertools.chain([first], it)
     except StopIteration:
         pass
+
+
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gsutil cp`."""
+    try:
+        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
+        raise

@@ -11,22 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import apache_beam as beam
 import dataclasses
-import io
 import logging
-import shutil
 import tempfile
 import typing as t
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
+
+import apache_beam as beam
 
 from .clients import CLIENTS, Client
+from .config import Config
 from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
-from .config import Config
 from .partition import skip_partition
 from .stores import Store, FSStore
-from .util import retry_with_exponential_backoff
+from .util import copy, retry_with_exponential_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +53,6 @@ class Fetcher(beam.DoFn):
             self.store = FSStore()
 
     @retry_with_exponential_backoff
-    def upload(self, src: io.FileIO, dest: str) -> None:
-        """Upload blob to cloud storage, with retries."""
-        with self.store.open(dest, 'wb') as dest_:
-            shutil.copyfileobj(src, dest_, WRITE_CHUNK_SIZE)
-
-    @retry_with_exponential_backoff
     def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
         """Retrieve from download client, with retries."""
         client.retrieve(dataset, selection, dest)
@@ -82,7 +74,7 @@ class Fetcher(beam.DoFn):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
-                self.upload(temp, target)
+                copy(temp.name, target)
 
                 logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
 
