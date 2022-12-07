@@ -227,6 +227,7 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
+    group_common_hypercubes: bool
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -255,6 +256,8 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
+        subparser.add_argument('--group_common_hypercubes', action='store_true', default=False,
+                               help='To group common hypercubes into image collections when loading grib2 data.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -312,7 +315,9 @@ class ToEarthEngine(ToDataSink):
                         asset_location=self.asset_location,
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization))
+                        # disable_in_memory_copy=self.disable_in_memory_copy,
+                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
+                        group_common_hypercubes=self.group_common_hypercubes))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_asset_type=self.ee_asset_type,
@@ -388,6 +393,7 @@ class ConvertToAsset(beam.DoFn):
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
+    group_common_hypercubes: t.Optional[bool] = False
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
@@ -395,70 +401,138 @@ class ConvertToAsset(beam.DoFn):
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
-                          self.disable_grib_schema_normalization) as ds:
+                          self.disable_grib_schema_normalization,
+                          group_common_hypercubes=self.group_common_hypercubes) as ds:
 
-            attrs = ds.attrs
-            data = list(ds.values())
-            asset_name = get_ee_safe_name(uri)
-            channel_names = [da.name for da in data]
-            start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                   ('start_time', 'end_time', 'is_normalized'))
-            dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
-            attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+            if self.group_common_hypercubes:
+                # In this case, `ds` returns a list of xarray dataset(s)
+                for idx, xr_dataset in enumerate(ds):
+                    attrs = xr_dataset.attrs
+                    data = list(xr_dataset.values())
+                    asset_name = get_ee_safe_name(uri)
+                    asset_name = f'{asset_name}_level_{idx}'
+                    channel_names = [da.name for da in data]
+                    start_time, end_time, is_normalized = (attrs.get(key) for key in
+                                                           ('start_time', 'end_time', 'is_normalized'))
+                    dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                    attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
 
-            # For tiff ingestions.
-            if self.ee_asset_type == 'IMAGE':
-                file_name = f'{asset_name}.tiff'
+                    # For tiff ingestions.
+                    if self.ee_asset_type == 'IMAGE':
+                        file_name = f'{asset_name}.tiff'
 
-                with MemoryFile() as memfile:
-                    with memfile.open(driver='COG',
-                                      dtype=dtype,
-                                      width=data[0].data.shape[1],
-                                      height=data[0].data.shape[0],
-                                      count=len(data),
-                                      nodata=np.nan,
-                                      crs=crs,
-                                      transform=transform,
-                                      compress='lzw') as f:
-                        for i, da in enumerate(data):
-                            f.write(da, i+1)
-                            # Making the channel name EE-safe before adding it as a band name.
-                            f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                            f.update_tags(i+1, band_name=channel_names[i])
+                        with MemoryFile() as memfile:
+                            with memfile.open(driver='COG',
+                                              dtype=dtype,
+                                              width=data[0].data.shape[1],
+                                              height=data[0].data.shape[0],
+                                              count=len(data),
+                                              nodata=np.nan,
+                                              crs=crs,
+                                              transform=transform,
+                                              compress='lzw') as f:
+                                for i, da in enumerate(data):
+                                    f.write(da, i+1)
+                                    # Making the channel name EE-safe before adding it as a band name.
+                                    f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                                    f.update_tags(i+1, band_name=channel_names[i])
 
-                        # Write attributes as tags in tiff.
-                        f.update_tags(**attrs)
+                                # Write attributes as tags in tiff.
+                                f.update_tags(**attrs)
 
-                    # Copy in-memory tiff to gcs.
+                            # Copy in-memory tiff to gcs.
+                            target_path = os.path.join(self.asset_location, file_name)
+                            with FileSystems().create(target_path) as dst:
+                                shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                    # For feature collection ingestions.
+                    elif self.ee_asset_type == 'TABLE':
+                        file_name = f'{asset_name}.csv'
+
+                        df = xr.Dataset.to_dataframe(xr_dataset)
+                        df = df.reset_index()
+
+                        # Copy in-memory dataframe to gcs.
+                        target_path = os.path.join(self.asset_location, file_name)
+                        with tempfile.NamedTemporaryFile() as tmp_df:
+                            df.to_csv(tmp_df.name, index=False)
+                            tmp_df.flush()
+                            tmp_df.seek(0)
+                            with FileSystems().create(target_path) as dst:
+                                shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+
+                    asset_data = AssetData(
+                        name=asset_name,
+                        target_path=target_path,
+                        channel_names=[],
+                        start_time=start_time,
+                        end_time=end_time,
+                        properties=attrs
+                    )
+
+                    yield asset_data
+            else:
+                attrs = ds.attrs
+                data = list(ds.values())
+                asset_name = get_ee_safe_name(uri)
+                channel_names = [da.name for da in data]
+                start_time, end_time, is_normalized = (attrs.get(key) for key in
+                                                       ('start_time', 'end_time', 'is_normalized'))
+                dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+
+                # For tiff ingestions.
+                if self.ee_asset_type == 'IMAGE':
+                    file_name = f'{asset_name}.tiff'
+
+                    with MemoryFile() as memfile:
+                        with memfile.open(driver='COG',
+                                          dtype=dtype,
+                                          width=data[0].data.shape[1],
+                                          height=data[0].data.shape[0],
+                                          count=len(data),
+                                          nodata=np.nan,
+                                          crs=crs,
+                                          transform=transform,
+                                          compress='lzw') as f:
+                            for i, da in enumerate(data):
+                                f.write(da, i+1)
+                                # Making the channel name EE-safe before adding it as a band name.
+                                f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                                f.update_tags(i+1, band_name=channel_names[i])
+
+                            # Write attributes as tags in tiff.
+                            f.update_tags(**attrs)
+
+                        # Copy in-memory tiff to gcs.
+                        target_path = os.path.join(self.asset_location, file_name)
+                        with FileSystems().create(target_path) as dst:
+                            shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                # For feature collection ingestions.
+                elif self.ee_asset_type == 'TABLE':
+                    file_name = f'{asset_name}.csv'
+
+                    df = xr.Dataset.to_dataframe(ds)
+                    df = df.reset_index()
+
+                    # Copy in-memory dataframe to gcs.
                     target_path = os.path.join(self.asset_location, file_name)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
-            # For feature collection ingestions.
-            elif self.ee_asset_type == 'TABLE':
-                file_name = f'{asset_name}.csv'
+                    with tempfile.NamedTemporaryFile() as tmp_df:
+                        df.to_csv(tmp_df.name, index=False)
+                        tmp_df.flush()
+                        tmp_df.seek(0)
+                        with FileSystems().create(target_path) as dst:
+                            shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
 
-                df = xr.Dataset.to_dataframe(ds)
-                df = df.reset_index()
+                asset_data = AssetData(
+                    name=asset_name,
+                    target_path=target_path,
+                    channel_names=[],
+                    start_time=start_time,
+                    end_time=end_time,
+                    properties=attrs
+                )
 
-                # Copy in-memory dataframe to gcs.
-                target_path = os.path.join(self.asset_location, file_name)
-                with tempfile.NamedTemporaryFile() as tmp_df:
-                    df.to_csv(tmp_df.name, index=False)
-                    tmp_df.flush()
-                    tmp_df.seek(0)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
-
-            asset_data = AssetData(
-                name=asset_name,
-                target_path=target_path,
-                channel_names=[],
-                start_time=start_time,
-                end_time=end_time,
-                properties=attrs
-            )
-
-            yield asset_data
+                yield asset_data
 
 
 class IngestIntoEETransform(SetupEarthEngine):
