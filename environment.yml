@@ -35,3 +35,7 @@ dependencies:
   - pip:
     - earthengine-api==0.1.329
     - .[test]
+    - .
+    - ./weather_dl
+    - ./weather_mv
+    - ./weather_sp
