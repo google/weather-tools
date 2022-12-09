@@ -42,7 +42,7 @@
 ### download_pipeline.store module
 
 ```{eval-rst}
-.. automodule:: weather_dl.download_pipeline.store
+.. automodule:: weather_dl.download_pipeline.stores
    :members:
    :undoc-members:
    :show-inheritance:
