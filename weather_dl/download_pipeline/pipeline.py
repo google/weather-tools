@@ -105,7 +105,12 @@ def pipeline(args: PipelineArgs) -> None:
 
     subsections_cycle = itertools.cycle(subsections)
 
-    partition = PartitionConfig(args.store, subsections_cycle, args.manifest, args.known_args.partition_chunks)
+    partition = PartitionConfig(args.store,
+                                subsections_cycle,
+                                args.manifest,
+                                args.known_args.schedule,
+                                len(args.configs),
+                                args.known_args.partition_chunks)
 
     with beam.Pipeline(options=args.pipeline_options) as p:
         (
@@ -146,6 +151,12 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help='Group shards into chunks of this size when computing the partitions. Specifically, '
                              'this affects how we chunk elements in a cartesian product, which affects '
                              'parallelization of that step. Default: chunks of 1000 elements.')
+    parser.add_argument('-s', '--schedule', choices=['in-order', 'fair'], default='in-order',
+                        help="When using multiple configs, decide how partitions are scheduled: 'in-order' implies "
+                             "that partitions will be processed in sequential order of each config; 'fair' means that "
+                             "partitions from each config will be interspersed evenly. "
+                             "Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a "
+                             "much smaller number.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
