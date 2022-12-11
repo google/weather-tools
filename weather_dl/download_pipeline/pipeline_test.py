@@ -48,7 +48,7 @@ CONFIG = {
                       'time': ['00:00', '06:00', '12:00', '18:00']}
     }
 DEFAULT_ARGS = PipelineArgs(
-    known_args=argparse.Namespace(config=PATH_TO_CONFIG,
+    known_args=argparse.Namespace(configs=[PATH_TO_CONFIG],
                                   force_download=False,
                                   dry_run=False,
                                   local_run=False,
@@ -56,7 +56,7 @@ DEFAULT_ARGS = PipelineArgs(
                                   num_requests_per_key=-1,
                                   partition_chunks=None),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
-    config=Config.from_dict(CONFIG),
+    configs=[Config.from_dict(CONFIG)],
     client_name='cds',
     store=None,
     manifest=ConsoleManifest(Location('cli://manifest')),
@@ -115,7 +115,7 @@ class ParsePipelineArgs(unittest.TestCase):
                     actual.pipeline_options.get_all_options(drop_default=True),
                     expected.pipeline_options.get_all_options(drop_default=True)
                 )
-                self.assertEqual(actual.config, expected.config)
+                self.assertEqual(actual.configs, expected.configs)
                 self.assertEqual(actual.client_name, expected.client_name)
                 self.assertEqual(type(actual.store), type(expected.store))
                 self.assertEqual(actual.manifest, expected.manifest)

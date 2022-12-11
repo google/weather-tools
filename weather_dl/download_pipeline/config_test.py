@@ -30,6 +30,8 @@ class ConfigTest(unittest.TestCase):
         for filename in os.listdir(self.data_dir):
             if filename.startswith('.'):
                 continue
+            if os.path.isdir(os.path.join(self.data_dir, filename)):
+                continue
             with self.subTest(filename=filename):
                 config = os.path.join(self.data_dir, filename)
                 try:
