@@ -163,13 +163,12 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     configs = []
-    for config in known_args.config:
-        with open(config, 'r', encoding='utf-8') as f:
+    for cfg in known_args.config:
+        with open(cfg, 'r', encoding='utf-8') as f:
             config = process_config(f)
 
         config.force_download = known_args.force_download
         config.user_id = getpass.getuser()
-
         configs.append(config)
 
     validate_all_configs(configs)
