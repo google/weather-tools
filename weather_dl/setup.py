@@ -40,12 +40,14 @@ base_requirements = [
     "requests>=2.24.0",
     "urllib3==1.26.5",
     "google-cloud-firestore==2.6.0",
+    # "gcloud" should already be installed in the host image.
+    # If we install it here, we'll hit auth issues.
 ]
 
 setup(
     name='download_pipeline',
     packages=find_packages(),
-    version='0.1.10',
+    version='0.1.11',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',

@@ -44,7 +44,10 @@ logger.setLevel(logging.INFO)
 
 @dataclasses.dataclass
 class ToDataSink(abc.ABC, beam.PTransform):
+    first_uri: str
     dry_run: bool
+    zarr: bool
+    zarr_kwargs: t.Dict
 
     @classmethod
     def from_kwargs(cls, **kwargs):
@@ -330,7 +333,6 @@ def open_local(uri: str) -> t.Iterator[str]:
 @contextlib.contextmanager
 def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_in_memory_copy: bool = False,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
                  band_names: t.Optional[t.Dict] = None,
@@ -338,7 +340,6 @@ def open_dataset(uri: str,
                  forecast_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
-        # By copying the file locally, xarray can open it much faster via an in-memory copy.
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
             xr_dataset: xr.Dataset = __open_dataset_file(local_path,
@@ -353,9 +354,6 @@ def open_dataset(uri: str,
                                              band_names,
                                              initialization_time,
                                              forecast_time)
-
-            if not disable_in_memory_copy:
-                xr_dataset = _make_grib_dataset_inmem(xr_dataset)
 
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
             with rasterio.open(local_path, 'r') as f:

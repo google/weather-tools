@@ -207,7 +207,6 @@ class ToEarthEngine(ToDataSink):
         ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
         ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
@@ -220,7 +219,6 @@ class ToEarthEngine(ToDataSink):
     ee_asset: str
     ee_asset_type: str
     xarray_open_dataset_kwargs: t.Dict
-    disable_in_memory_copy: bool
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
     use_personal_account: bool
@@ -244,8 +242,6 @@ class ToEarthEngine(ToDataSink):
                                help='The type of asset to ingest in the earth engine.')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
-        subparser.add_argument('--disable_in_memory_copy', action='store_true', default=False,
-                               help='To disable in-memory copying of dataset. Default: False')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help='To disable merge of grib datasets. Default: False')
         subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
@@ -273,6 +269,9 @@ class ToEarthEngine(ToDataSink):
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
+
+        if known_args.zarr:
+            raise RuntimeError('Reading Zarr is not (yet) supported.')
 
         # Check that ee_asset is in correct format.
         if not re.match("^projects/.+/assets.*", known_args.ee_asset):
@@ -417,14 +416,12 @@ class ConvertToAsset(beam.DoFn):
         ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         asset_location: The bucket location at which asset files will be pushed.
         open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        disable_in_memory_copy: A flag to turn in-memory copy off; Default: on.
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
     """
 
     asset_location: str
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
-    disable_in_memory_copy: bool = False
     disable_grib_schema_normalization: bool = False
     band_names: t.Optional[t.Dict] = None
     initialization_time: t.Optional[str] = None
