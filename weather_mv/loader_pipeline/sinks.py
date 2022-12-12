@@ -36,6 +36,7 @@ from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+DEFAULT_TIME_ORDER_LIST = ['%Y', '%m', '%d', '%H', '%M', '%S']
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -83,22 +84,16 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
     Returns:
         A datetime object after extracting from the filename.
     """
-    def get_time_order(time_string):
-        idx = [i for i in range(len(time_string)) if time_string.startswith('%', i)]
-        idx = [i+1 for i in idx]
-        order_list = ['%'+time_string[i] for i in idx]
-        return order_list
 
-    def rearrange_time_list(order_list, time_list):
-        order_reference_list = ['%Y', '%m', '%d', '%H', '%M', '%S']
-        if order_list == order_reference_list:
+    def rearrange_time_list(order_list: t.List, time_list: t.List) -> t.List:
+        if order_list == DEFAULT_TIME_ORDER_LIST:
             return time_list
         new_time_list = []
-        print(order_list)
         for i, j in zip(order_list, time_list):
-            dst = order_reference_list.index(i)
+            dst = DEFAULT_TIME_ORDER_LIST.index(i)
             new_time_list.insert(dst, j)
         return new_time_list
+
     char_to_replace = {
         '%Y': ['([0-9]{4})', [0, 1978]],
         '%m': ['([0-9]{2})', [1, 1]],
@@ -108,19 +103,27 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
         '%S': ['([0-9]{2})', [5, 0]],
         '*': ['.*']
     }
-    missingIdxList = []
+
+    missing_idx_list = []
     temp_expression = regex_expression
+
     for key, value in char_to_replace.items():
         if key != '*' and regex_expression.find(key) == -1:
-            missingIdxList.append(value[1])
+            missing_idx_list.append(value[1])
         else:
             temp_expression = temp_expression.replace(key, value[0])
+
     regex_matches = re.findall(temp_expression, file_name)[0]
+
+    order_list = [f'%{char}' for char in re.findall(r'%(\w{1})', regex_expression)]
+
     time_list = list(map(int, regex_matches))
-    time_list = rearrange_time_list(get_time_order(regex_expression), time_list)
-    if len(missingIdxList) != 0:
-        for [idx, val] in missingIdxList:
+    time_list = rearrange_time_list(order_list, time_list)
+
+    if missing_idx_list:
+        for [idx, val] in missing_idx_list:
             time_list.insert(idx, val)
+
     return datetime.datetime(*time_list)
 
 
