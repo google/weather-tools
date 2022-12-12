@@ -77,9 +77,9 @@ def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.
     temp_config = copy.deepcopy(CONFIG)
     temp_config['parameters'].update(parameters)
     temp_config['selection'].update(selection)
-    args.config = Config.from_dict(temp_config)
-    args.config.user_id = getpass.getuser()
-    args.config.force_download = parameters.get('force_download', False)
+    args.configs = [Config.from_dict(temp_config)]
+    args.configs[0].user_id = getpass.getuser()
+    args.configs[0].force_download = parameters.get('force_download', False)
     args.known_args = copy.deepcopy(args.known_args)
     for k, v in known_args.items():
         setattr(args.known_args, k, v)
