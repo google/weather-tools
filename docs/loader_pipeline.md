@@ -5,7 +5,7 @@
 ### loader_pipeline.netcdf_loader module
 
 ```{eval-rst}
-.. automodule:: weather_mv.loader_pipeline.netcdf_loader
+.. automodule:: weather_mv.loader_pipeline
    :members:
    :undoc-members:
    :show-inheritance:
