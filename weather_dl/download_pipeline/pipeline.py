@@ -156,7 +156,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "that partitions will be processed in sequential order of each config; 'fair' means that "
                              "partitions from each config will be interspersed evenly. "
                              "Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a "
-                             "much smaller number.")
+                             "much smaller number. Default: 'in-order'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

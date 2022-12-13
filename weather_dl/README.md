@@ -54,7 +54,7 @@ _Common options_:
 * `-s, --schedule {in-order,fair}`: When using multiple configs, decide how partitions are scheduled: 'in-order' implies 
   that partitions will be processed in sequential order of each config; 'fair' means that partitions from each config 
   will be interspersed evenly. Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a 
-  much smaller number.
+  much smaller number. Default: 'in-order'.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
