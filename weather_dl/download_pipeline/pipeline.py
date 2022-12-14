@@ -149,8 +149,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              'Please see the client documentation for more details.')
     parser.add_argument('-p', '--partition-chunks', type=int, default=None,
                         help='Group shards into chunks of this size when computing the partitions. Specifically, '
-                             'this affects how we chunk elements in a cartesian product, which affects '
-                             'parallelization of that step. Default: chunks of 1000 elements.')
+                             'this controls how we chunk elements in a cartesian product, which affects '
+                             "parallelization of that step. Default: chunks of 1000 elements for 'in-order' scheduling."
+                             " Chunks of 1 element for 'fair' scheduling.")
     parser.add_argument('-s', '--schedule', choices=['in-order', 'fair'], default='in-order',
                         help="When using multiple configs, decide how partitions are scheduled: 'in-order' implies "
                              "that partitions will be processed in sequential order of each config; 'fair' means that "

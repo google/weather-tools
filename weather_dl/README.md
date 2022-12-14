@@ -48,9 +48,9 @@ _Common options_:
   bucket URI, or 'noop://<name>' for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
-* `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this
-  affects how we chunk elements in a cartesian product, which affects parallelization of that step. Default: chunks of
-  1000 elements.
+* `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
+  controls how we chunk elements in a cartesian product, which affects parallelization of that step. Default: chunks of 
+  1000 elements for 'in-order' scheduling. Chunks of 1 element for 'fair' scheduling. 
 * `-s, --schedule {in-order,fair}`: When using multiple configs, decide how partitions are scheduled: 'in-order' implies 
   that partitions will be processed in sequential order of each config; 'fair' means that partitions from each config 
   will be interspersed evenly. Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a 

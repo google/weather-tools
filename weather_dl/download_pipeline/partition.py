@@ -247,5 +247,7 @@ def cycle_iters(iters: t.List[t.Iterator]) -> t.Iterator:
 
 def fair_schedule(configs: t.List[Config], chunk_size: t.Optional[int]) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
     """Given a list of all configs, evenly cycle through each partition chunked by the 'chunk_size'."""
+    if chunk_size is None:
+        chunk_size = 1
     iters = [prepare_partition_index(config, chunk_size) for config in configs]
     yield from cycle_iters(iters)
