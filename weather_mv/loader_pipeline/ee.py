@@ -406,15 +406,15 @@ class ConvertToAsset(beam.DoFn):
 
             if self.group_common_hypercubes:
                 # In this case, `ds` returns a list of xarray dataset(s)
-                for idx, xr_dataset in enumerate(ds):
+                for xr_dataset in ds:
                     attrs = xr_dataset.attrs
                     data = list(xr_dataset.values())
-                    asset_name = get_ee_safe_name(uri)
-                    asset_name = f'{asset_name}_level_{idx}'
                     channel_names = [da.name for da in data]
-                    start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                           ('start_time', 'end_time', 'is_normalized'))
-                    dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                    start_time, end_time, is_normalized, level, height = (attrs.get(key) for key in
+                                                           ('start_time', 'end_time', 'is_normalized', 'level', 'height'))
+                    asset_name = get_ee_safe_name(uri)
+                    asset_name = f'{asset_name}_level_{level}_{height}'
+                    dtype, crs, transform, level = (attrs.pop(key) for key in ['dtype', 'crs', 'transform', 'level'])
                     attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
 
                     # For tiff ingestions.

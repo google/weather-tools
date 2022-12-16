@@ -215,6 +215,7 @@ def make_levelwise_dataset_list(filename: str) -> t.List[xr.Dataset]:
             attrs['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
             attrs['start_time'] = start_time
             attrs['end_time'] = end_time
+            attrs['level'] = level # Add the level in the metadata, will remove in further steps
 
             no_of_levels = da.shape[0] if _is_3d_da(da) else 1
 
