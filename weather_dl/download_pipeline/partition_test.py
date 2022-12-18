@@ -44,13 +44,13 @@ class PreparePartitionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
-    def create_partition_configs(self, config, store: t.Optional[Store] = None) -> t.List[Config]:
-        subsections = get_subsections(config)
+    def create_partition_configs(self, configs, store: t.Optional[Store] = None, schedule='in-order') -> t.List[Config]:
+        subsections = get_subsections(configs[0])
         params_cycle = itertools.cycle(subsections)
 
         return (EagerPipeline()
-                | beam.Create([config])
-                | PartitionConfig(store, params_cycle, self.dummy_manifest, 'in-order', 1))
+                | beam.Create(configs)
+                | PartitionConfig(store, params_cycle, self.dummy_manifest, schedule, 1))
 
     def test_partition_single_key(self):
         config = {
@@ -66,7 +66,7 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = self.create_partition_configs(config_obj)
+        actual = self.create_partition_configs([config_obj])
 
         self.assertListEqual([d.selection for d in actual], [
             {**config['selection'], **{'year': [str(i)]}}
@@ -87,7 +87,7 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = self.create_partition_configs(config_obj)
+        actual = self.create_partition_configs([config_obj])
 
         self.assertListEqual([d.selection for d in actual], [
             {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
@@ -110,7 +110,7 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = self.create_partition_configs(config_obj)
+        actual = self.create_partition_configs([config_obj])
 
         self.assertListEqual([d.selection for d in actual], [
             {**config['selection'], **{'year': ['2015'], 'month': ['1']}},
@@ -142,21 +142,21 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = self.create_partition_configs(config_obj)
+        actual = self.create_partition_configs([config_obj])
 
         expected = [Config.from_dict(it) for it in [
-                {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
-                 'selection': {**config['selection'],
-                               **{'year': ['2015'], 'month': ['1']}}},
-                {'parameters': dict(config['parameters'], api_key='KKKK2', api_url='UUUU2', subsection_name='cloud'),
-                 'selection': {**config['selection'],
-                               **{'year': ['2015'], 'month': ['2']}}},
-                {'parameters': dict(config['parameters'], api_key='KKKK3', api_url='UUUU3', subsection_name='deepmind'),
-                 'selection': {**config['selection'],
-                               **{'year': ['2016'], 'month': ['1']}}},
-                {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
-                 'selection': {**config['selection'],
-                               **{'year': ['2016'], 'month': ['2']}}},
+            {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
+             'selection': {**config['selection'],
+                           **{'year': ['2015'], 'month': ['1']}}},
+            {'parameters': dict(config['parameters'], api_key='KKKK2', api_url='UUUU2', subsection_name='cloud'),
+             'selection': {**config['selection'],
+                           **{'year': ['2015'], 'month': ['2']}}},
+            {'parameters': dict(config['parameters'], api_key='KKKK3', api_url='UUUU3', subsection_name='deepmind'),
+             'selection': {**config['selection'],
+                           **{'year': ['2016'], 'month': ['1']}}},
+            {'parameters': dict(config['parameters'], api_key='KKKK1', api_url='UUUU1', subsection_name='research'),
+             'selection': {**config['selection'],
+                           **{'year': ['2016'], 'month': ['2']}}},
         ]]
 
         self.assertListEqual(actual, expected)
@@ -179,7 +179,7 @@ class PreparePartitionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             self.dummy_manifest = LocalManifest(Location(tmpdir))
 
-            self.create_partition_configs(config_obj)
+            self.create_partition_configs([config_obj])
 
             with open(self.dummy_manifest.location, 'r') as f:
                 actual = json.load(f)
@@ -217,11 +217,158 @@ class PreparePartitionTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = self.create_partition_configs(config_obj, store=skip_odd_files)
+        actual = self.create_partition_configs([config_obj], store=skip_odd_files)
         research_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('1')]
         cloud_configs = [cfg for cfg in actual if cfg and t.cast('str', cfg.kwargs.get('api_url', "")).endswith('2')]
 
         self.assertEqual(len(research_configs), len(cloud_configs))
+
+    def test_multi_config_partition_single_key(self):
+        configs = [
+            Config.from_dict({
+                'parameters': {
+                    'partition_keys': ['year'],
+                    'target_path': 'download-{}-%d.nc' % level,
+                },
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'month': [str(i) for i in range(1, 13)],
+                    'year': [str(i) for i in range(2015, 2021)],
+                    'level': [str(level)]
+                }
+            }) for level in range(500, 901, 100)
+        ]
+
+        actual = self.create_partition_configs(configs)
+
+        self.assertListEqual([d.selection for d in actual], [
+            {**configs[0].selection, **{'year': [str(i)], 'level': [str(level)]}}
+            for level in range(500, 901, 100)
+            for i in range(2015, 2021)
+        ])
+
+    def test_multi_config_partition_single_key_fair_schedule(self):
+        configs = [
+            Config.from_dict({
+                'parameters': {
+                    'partition_keys': ['year'],
+                    'target_path': 'download-{}-%d.nc' % level,
+                },
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'month': [str(i) for i in range(1, 13)],
+                    'year': [str(i) for i in range(2015, 2021)],
+                    'level': [str(level)]
+                }
+            }) for level in range(500, 901, 100)
+        ]
+
+        actual = self.create_partition_configs(configs, schedule='fair')
+
+        self.assertListEqual([d.selection for d in actual], [
+            {**configs[0].selection, **{'year': [str(i)], 'level': [str(level)]}}
+            for i in range(2015, 2021)
+            for level in range(500, 901, 100)
+        ])
+
+    def test_multi_config_partition_multi_params_multi_key(self):
+        config_dicts = [
+            {
+                'parameters': dict(
+                    partition_keys=['year', 'month'],
+                    target_path='download-{}-{}-%d.nc' % level,
+                    research={
+                        'api_key': 'KKKK1',
+                        'api_url': 'UUUU1'
+                    },
+                    cloud={
+                        'api_key': 'KKKK2',
+                        'api_url': 'UUUU2'
+                    },
+                    deepmind={
+                        'api_key': 'KKKK3',
+                        'api_url': 'UUUU3'
+                    }
+                ),
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'month': [str(i) for i in range(1, 3)],
+                    'year': [str(i) for i in range(2015, 2017)],
+                    'level': [str(level)]
+                }
+            } for level in range(500, 901, 100)
+        ]
+
+        actual = self.create_partition_configs([Config.from_dict(c) for c in config_dicts])
+
+        combinations = [
+            {
+                'parameters': config['parameters'],
+                'selection': {**config['selection'], **{'year': [str(year)], 'month': [str(month)]}}
+            }
+            for config in config_dicts
+            for year in range(2015, 2017)
+            for month in range(1, 3)
+        ]
+
+        subsections = get_subsections(Config.from_dict(config_dicts[0]))
+        expected = []
+        for config, (name, params) in zip(combinations, itertools.cycle(subsections)):
+            config['parameters'].update(params)
+            config['parameters']['subsection_name'] = name
+            expected.append(Config.from_dict(config))
+
+        self.assertListEqual(actual, expected)
+
+    def test_multi_config_partition_multi_params_multi_key_fair_schedule(self):
+        config_dicts = [
+            {
+                'parameters': dict(
+                    partition_keys=['year', 'month'],
+                    target_path='download-{}-{}-%d.nc' % level,
+                    research={
+                        'api_key': 'KKKK1',
+                        'api_url': 'UUUU1'
+                    },
+                    cloud={
+                        'api_key': 'KKKK2',
+                        'api_url': 'UUUU2'
+                    },
+                    deepmind={
+                        'api_key': 'KKKK3',
+                        'api_url': 'UUUU3'
+                    }
+                ),
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'month': [str(i) for i in range(1, 3)],
+                    'year': [str(i) for i in range(2015, 2017)],
+                    'level': [str(level)]
+                }
+            } for level in range(500, 901, 100)
+        ]
+
+        actual = self.create_partition_configs([Config.from_dict(c) for c in config_dicts],
+                                               schedule='fair')
+
+        combinations = [
+            {
+                'parameters': config['parameters'],
+                'selection': {**config['selection'], **{'year': [str(year)], 'month': [str(month)]}}
+            }
+            for year in range(2015, 2017)
+            for month in range(1, 3)
+            for config in config_dicts
+        ]
+
+        subsections = get_subsections(Config.from_dict(config_dicts[0]))
+        expected = []
+        for config, (name, params) in zip(combinations, itertools.cycle(subsections)):
+            config['parameters'].update(params)
+            config['parameters']['subsection_name'] = name
+            expected.append(Config.from_dict(config))
+
+        self.assertListEqual(actual, expected)
 
 
 class SkipPartitionsTest(unittest.TestCase):

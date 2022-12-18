@@ -109,8 +109,8 @@ def pipeline(args: PipelineArgs) -> None:
                                 subsections_cycle,
                                 args.manifest,
                                 args.known_args.schedule,
-                                len(args.configs),
-                                args.known_args.partition_chunks)
+                                args.known_args.partition_chunks,
+                                len(subsections))
 
     with beam.Pipeline(options=args.pipeline_options) as p:
         (

@@ -49,18 +49,18 @@ class PartitionConfig(beam.PTransform):
         scheduling: How to sort partitions from multiple configs: in order of each
            config (default), or in "fair" order, where partitions from each config
            are evenly rotated.
-        num_configs: Number of configs in use; for scheduling purposes.
         partition_chunks: The size of chunks of partition shards to use during the
             fan-out stage. By default, this operation will aim to divide all the
             partitions into groups of about 1000 sized-chunks.
+        num_subsections: The size of the number of config subsections. Default: 1.
     """
 
     store: Store
     subsections: itertools.cycle
     manifest: Manifest
     scheduling: str
-    num_configs: int
     partition_chunks: t.Optional[int] = None
+    num_subsections: int = 1
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -92,7 +92,9 @@ class PartitionConfig(beam.PTransform):
             config_idxs = (
                     configs
                     | beam.combiners.ToList()
-                    | 'Fair Fan-out' >> beam.FlatMap(fair_schedule, chunk_size=self.partition_chunks)
+                    | 'Fair Fan-out' >> beam.FlatMap(prepare_fair_partition_index,
+                                                     chunk_size=self.partition_chunks,
+                                                     num_subsections=self.num_subsections)
             )
         else:
             config_idxs = (
@@ -234,20 +236,33 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
     return out
 
 
-def cycle_iters(iters: t.List[t.Iterator]) -> t.Iterator:
-    """Evenly cycle through a list of iterators."""
+#
+def cycle_iters(iters: t.List[t.Iterator], take: int = 1) -> t.Iterator:
+    """Evenly cycle through a list of iterators.
+
+    Args:
+        iters: A list of Iterators to evely cycle through.
+        take: Yield N items at a time. When not set to 1, this will yield
+          multiple items from the same collection.
+
+    Returns:
+        An iteration across several iterators in a round-robin order.
+    """
     while iters:
         for i, it in enumerate(iters):
             try:
-                logger.debug(f'yielding from {i!r}')
-                yield next(it)
+                for j in range(take):
+                    logger.debug(f'yielding item {j!r} from iterable {i!r}.')
+                    yield next(it)
             except StopIteration:
                 iters.remove(it)
 
 
-def fair_schedule(configs: t.List[Config], chunk_size: t.Optional[int]) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
+def prepare_fair_partition_index(configs: t.List[Config],
+                                 chunk_size: t.Optional[int],
+                                 num_subsections: int) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
     """Given a list of all configs, evenly cycle through each partition chunked by the 'chunk_size'."""
     if chunk_size is None:
         chunk_size = 1
     iters = [prepare_partition_index(config, chunk_size) for config in configs]
-    yield from cycle_iters(iters)
+    yield from cycle_iters(iters, take=num_subsections)

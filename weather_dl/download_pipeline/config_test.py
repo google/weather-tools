@@ -30,6 +30,7 @@ class ConfigTest(unittest.TestCase):
         for filename in os.listdir(self.data_dir):
             if filename.startswith('.'):
                 continue
+            # only files, no directories
             if os.path.isdir(os.path.join(self.data_dir, filename)):
                 continue
             with self.subTest(filename=filename):
@@ -38,6 +39,21 @@ class ConfigTest(unittest.TestCase):
                     run(["weather-dl", config, "--dry-run"])
                 except:  # noqa: E722
                     self.fail(f'Config {filename!r} is incorrect.')
+
+    def test_process_multi_config_files(self):
+        for filename in os.listdir(self.data_dir):
+            if filename.startswith('.'):
+                continue
+            # only directories, no files
+            if not os.path.isdir(os.path.join(self.data_dir, filename)):
+                continue
+            with self.subTest(dirname=filename):
+                configs_dir = os.path.join(self.data_dir, filename)
+                configs = [os.path.join(configs_dir, c) for c in os.listdir(configs_dir)]
+                try:
+                    run(["weather-dl"] + configs + ["--dry-run"])
+                except:  # noqa: E722
+                    self.fail(f'Configs {filename!r} is incorrect.')
 
 
 if __name__ == '__main__':
