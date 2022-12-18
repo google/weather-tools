@@ -236,12 +236,11 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
     return out
 
 
-#
 def cycle_iters(iters: t.List[t.Iterator], take: int = 1) -> t.Iterator:
     """Evenly cycle through a list of iterators.
 
     Args:
-        iters: A list of Iterators to evely cycle through.
+        iters: A list of iterators to evely cycle through.
         take: Yield N items at a time. When not set to 1, this will yield
           multiple items from the same collection.
 
