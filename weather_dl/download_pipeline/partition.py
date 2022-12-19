@@ -52,7 +52,7 @@ class PartitionConfig(beam.PTransform):
         partition_chunks: The size of chunks of partition shards to use during the
             fan-out stage. By default, this operation will aim to divide all the
             partitions into groups of about 1000 sized-chunks.
-        num_subsections: The size of the number of config subsections. Default: 1.
+        num_groups: The the number of groups (for fair scheduling). Default: 1.
     """
 
     store: Store
@@ -60,7 +60,7 @@ class PartitionConfig(beam.PTransform):
     manifest: Manifest
     scheduling: str
     partition_chunks: t.Optional[int] = None
-    num_subsections: int = 1
+    num_groups: int = 1
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -94,7 +94,7 @@ class PartitionConfig(beam.PTransform):
                     | beam.combiners.ToList()
                     | 'Fair Fan-out' >> beam.FlatMap(prepare_fair_partition_index,
                                                      chunk_size=self.partition_chunks,
-                                                     num_subsections=self.num_subsections)
+                                                     groups=self.num_groups)
             )
         else:
             config_idxs = (
@@ -259,9 +259,9 @@ def cycle_iters(iters: t.List[t.Iterator], take: int = 1) -> t.Iterator:
 
 def prepare_fair_partition_index(configs: t.List[Config],
                                  chunk_size: t.Optional[int],
-                                 num_subsections: int) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
+                                 groups: int) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
     """Given a list of all configs, evenly cycle through each partition chunked by the 'chunk_size'."""
     if chunk_size is None:
         chunk_size = 1
     iters = [prepare_partition_index(config, chunk_size) for config in configs]
-    yield from cycle_iters(iters, take=num_subsections)
+    yield from cycle_iters(iters, take=groups)
