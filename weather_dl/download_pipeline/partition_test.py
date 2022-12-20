@@ -44,13 +44,17 @@ class PreparePartitionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
-    def create_partition_configs(self, configs, store: t.Optional[Store] = None, schedule='in-order') -> t.List[Config]:
+    def create_partition_configs(self, configs,
+                                 store: t.Optional[Store] = None,
+                                 schedule='in-order',
+                                 n_requests_per: int = 1) -> t.List[Config]:
         subsections = get_subsections(configs[0])
         params_cycle = itertools.cycle(subsections)
 
         return (EagerPipeline()
                 | beam.Create(configs)
-                | PartitionConfig(store, params_cycle, self.dummy_manifest, schedule, 1))
+                | PartitionConfig(store, params_cycle, self.dummy_manifest, schedule,
+                                  len(subsections) * n_requests_per))
 
     def test_partition_single_key(self):
         config = {
@@ -320,7 +324,58 @@ class PreparePartitionTest(unittest.TestCase):
 
         self.assertListEqual(actual, expected)
 
-    def test_multi_config_partition_multi_params_multi_key_fair_schedule(self):
+    def test_multi_config_partition_multi_params_fair_schedule(self):
+        config_dicts = [
+            {
+                'parameters': dict(
+                    partition_keys=['year'],
+                    target_path='download-{}-%d.nc' % level,
+                    research={
+                        'api_key': 'KKKK1',
+                        'api_url': 'UUUU1'
+                    },
+                    cloud={
+                        'api_key': 'KKKK2',
+                        'api_url': 'UUUU2'
+                    },
+                    deepmind={
+                        'api_key': 'KKKK3',
+                        'api_url': 'UUUU3'
+                    }
+                ),
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'month': [str(1)],
+                    'year': [str(i) for i in range(2015, 2017)],
+                    'level': [str(level)]
+                }
+            } for level in range(500, 901, 100)
+        ]
+
+        # Three licenses, with one request per license (see groups)
+        actual = self.create_partition_configs([Config.from_dict(c) for c in config_dicts],
+                                               schedule='fair', n_requests_per=3)
+
+        combinations = [
+            {
+                'parameters': config['parameters'],
+                'selection': {**config['selection'], **{'year': [str(year)]}}
+            }
+            for config in config_dicts
+            for year in range(2015, 2017)
+        ]
+
+        subsections = get_subsections(Config.from_dict(config_dicts[0]))
+        expected = []
+        for config, (name, params) in zip(combinations, itertools.cycle(subsections)):
+            config['parameters'].update(params)
+            config['parameters']['subsection_name'] = name
+            expected.append(Config.from_dict(config))
+
+        self.assertListEqual(actual, expected)
+
+    def test_multi_config_partition_multi_params_keys_and_requests_with_fair_schedule(self):
+        self.maxDiff = None
         config_dicts = [
             {
                 'parameters': dict(
@@ -348,17 +403,18 @@ class PreparePartitionTest(unittest.TestCase):
             } for level in range(500, 901, 100)
         ]
 
+        # Three licenses, with two requests per license (see groups)
         actual = self.create_partition_configs([Config.from_dict(c) for c in config_dicts],
-                                               schedule='fair')
+                                               schedule='fair', n_requests_per=3 * 2)
 
         combinations = [
             {
                 'parameters': config['parameters'],
                 'selection': {**config['selection'], **{'year': [str(year)], 'month': [str(month)]}}
             }
+            for config in config_dicts
             for year in range(2015, 2017)
             for month in range(1, 3)
-            for config in config_dicts
         ]
 
         subsections = get_subsections(Config.from_dict(config_dicts[0]))
