@@ -151,15 +151,15 @@ class GribSplitterV2(GribSplitter):
                              repr(self.input_path))
             return
 
+        cmd = shutil.which('grib_copy')
+        if not cmd:
+            raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
+
         output_template = self.output_info.unformatted_output_path().replace('{', '[').replace('}', ']')
         root, output_template = os.path.split(output_template)
         with self._copy_to_local_file() as local_file:
             with tempfile.TemporaryDirectory() as tmpdir:
                 dest = os.path.join(tmpdir, output_template)
-
-                cmd = shutil.which('grib_copy')
-                if not cmd:
-                    raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
 
                 subprocess.run([cmd, local_file.name, dest], check=True)
 
@@ -257,8 +257,7 @@ class DrySplitter(FileSplitter):
         return {name: name for name in self.output_info.split_dims()}
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, use_version: str = 'v1',
-                 force_split: bool = False) -> FileSplitter:
+def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
     if dry_run:
         return DrySplitter(file_path, output_info)
 
@@ -268,12 +267,14 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, use_ve
     if b'GRIB' in header:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
 
-        if '1' in use_version:
-            return GribSplitter(file_path, output_info, force_split)
-        elif '2' in use_version:
+        # Decide which version of the grib splitter to use depending on if ecCodes is installed.
+        # Prefer the v2 grib splitter, which should be more robust -- especially when splitting by
+        # multiple dimensions at once.
+        cmd = shutil.which('grib_copy')
+        if cmd:
             return GribSplitterV2(file_path, output_info, force_split)
         else:
-            raise ValueError(f'version {use_version} is not recognized!')
+            return GribSplitter(file_path, output_info, force_split)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses

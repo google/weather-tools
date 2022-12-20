@@ -61,13 +61,13 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --job_name $JOB_NAME
 ```
 
-Using ecCodes-powered grib splitting on Dataflow:
+Using ecCodes-powered grib splitting on Dataflow (this is often more robust, especially when splitting multiple 
+dimensions at once):
 
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits' \
            --formatting '.{typeOfLevel}' \
-           --use-version v2 \
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
