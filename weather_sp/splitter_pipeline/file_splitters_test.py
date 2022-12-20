@@ -16,6 +16,7 @@ import os
 import shutil
 from collections import defaultdict
 
+import h5py
 import numpy as np
 import pygrib
 import pytest
@@ -277,10 +278,10 @@ class TestNetCdfSplitter:
 
         splitter.split_data()
 
-    def test_split_data__is_netcdf4(self):
-        input_path = f'{self._data_dir}/era5_sample.nc'
-        self.assertFalse(h5py.is_hdf5(input_path))
-        output_base = f'{self._data_dir}/split_files/era5_sample'
+    def test_split_data__is_netcdf4(self, data_dir):
+        input_path = f'{data_dir}/era5_sample.nc'
+        assert not h5py.is_hdf5(input_path)
+        output_base = f'{data_dir}/split_files/era5_sample'
         splitter = NetCdfSplitter(
             input_path,
             OutFileInfo(output_base,
@@ -289,11 +290,11 @@ class TestNetCdfSplitter:
                         template_folders=[]))
 
         splitter.split_data()
-        self.assertTrue(os.path.exists(f'{self._data_dir}/split_files/'))
+        assert os.path.exists(f'{data_dir}/split_files/')
         for time in ['2015-01-15T00:00', '2015-01-15T06:00', '2015-01-15T12:00', '2015-01-15T18:00']:
             for sn in ['d', 'cc', 'z']:
-                split_file = f'{self._data_dir}/split_files/era5_sample_{time}_{sn}.nc'
-                self.assertTrue(h5py.is_hdf5(split_file))
+                split_file = f'{data_dir}/split_files/era5_sample_{time}_{sn}.nc'
+                assert h5py.is_hdf5(split_file)
 
 
 
