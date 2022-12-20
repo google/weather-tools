@@ -84,7 +84,8 @@ class Fetcher(beam.DoFn):
         (subsection, request_idx), partitions = element
         worker_name = f'{subsection}.{request_idx}'
 
-        logger.info(f"[{worker_name}] Starting requests...")
+        logger.info(f'[{worker_name}] Starting requests...')
+        logger.debug(f'[{worker_name}] Partitions: {partitions!r}.')
 
         for partition in partitions:
             beam.metrics.Metrics.counter('Fetcher', subsection).inc()
