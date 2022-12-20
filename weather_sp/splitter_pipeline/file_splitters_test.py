@@ -297,7 +297,6 @@ class TestNetCdfSplitter:
                 assert h5py.is_hdf5(split_file)
 
 
-
 class TestDrySplitter:
 
     def test_path_with_output_pattern(self):

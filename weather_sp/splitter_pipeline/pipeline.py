@@ -113,8 +113,8 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Test the input file matching and the output file scheme without splitting.')
     parser.add_argument('-f', '--force', action='store_true', default=False,
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
-    parser.add_argument('--use-version', type=str, default='v1',
-                        help='Choose splitting implementation version (which depends on the data type). Default: v1.')
+    parser.add_argument('--use-version', type=str, default='v2',
+                        help='Choose splitting implementation version (which depends on the data type). Default: v2.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug

@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import abc
-import os
 import itertools
 import logging
+import os
 import shutil
+import subprocess
 import tempfile
 import typing as t
 from contextlib import contextmanager
-import subprocess
 
 import apache_beam.metrics as metrics
 import numpy as np
@@ -138,14 +138,8 @@ class GribSplitter(FileSplitter):
 class GribSplitterV2(GribSplitter):
     """Splitter that makes use of `grib_copy` util for high performance splitting.
 
-
-    See https://confluence.ecmwf.int/display/ECC/grib_copy
+    See https://confluence.ecmwf.int/display/ECC/grib_copy.
     """
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -167,8 +161,7 @@ class GribSplitterV2(GribSplitter):
                 if not cmd:
                     raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
 
-                subprocess.run(f"{cmd} {local_file.name} {dest!r}",
-                               check=True, shell=True)
+                subprocess.run([cmd, local_file.name, dest], check=True)
 
                 for target in os.listdir(tmpdir):
                     with open(os.path.join(tmpdir, target), 'rb') as src_file:
