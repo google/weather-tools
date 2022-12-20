@@ -492,4 +492,4 @@ def validate_all_configs(configs: t.List[Config]) -> None:
     require(all_equal(clients), f'All configs must request data from the same client, {clients[0]!r}.')
 
     kwargs = [conf.kwargs for conf in configs]
-    require(all_equal(kwargs), 'Discrepancy in config parameters! Please check for consistency across all configs')
+    require(all_equal(kwargs), 'Discrepancy in config parameters! Please check for consistency across all configs.')
