@@ -73,7 +73,7 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
            --job_name $JOB_NAME
 ```
-_Consult [this documentation](../docs/Runtime-Container.md) for steps on how to create an sufficient image._
+_Consult [this documentation](../docs/Runtime-Container.md) for steps on how to create a sufficient image._
 _See the `weather-mv` documentation for more information about the container image._
 
 For a full list of how to configure the Dataflow pipeline, please review
