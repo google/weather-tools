@@ -343,7 +343,6 @@ class ToEarthEngine(ToDataSink):
                         asset_location=self.asset_location,
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        disable_in_memory_copy=self.disable_in_memory_copy,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                         band_names=band_names_dict,
                         initialization_time=self.initialization_time,
@@ -433,7 +432,6 @@ class ConvertToAsset(beam.DoFn):
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
-                          self.disable_in_memory_copy,
                           self.disable_grib_schema_normalization,
                           band_names=self.band_names,
                           initialization_time=self.initialization_time,
