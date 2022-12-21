@@ -311,13 +311,7 @@ class ToEarthEngine(ToDataSink):
                 raise RuntimeError("--band_names_mapping should contain a json file as input.")
 
         # Check the initialization_time and forecast_time strings
-        if known_args.initialization_time and known_args.forecast_time:
-            chars = ['%Y', '%m', '%d', '%H', '%M', '%S']
-            if not all([char in known_args.initialization_time for char in chars]):
-                raise RuntimeError(f"--initialization_time doesn't contain(s) {chars!s}.")
-            if not all([char in known_args.forecast_time for char in chars]):
-                raise RuntimeError(f"--forecast_time doesn't contain(s) {chars!s}.")
-        elif known_args.initialization_time or known_args.forecast_time:
+        if bool(known_args.initialization_time) ^ bool(known_args.forecast_time):
             raise RuntimeError("Both --initialization_time & --forecast_time flags need to be present")
 
     def expand(self, paths):
