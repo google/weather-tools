@@ -13,7 +13,7 @@ Splits NetCDF and Grib files into several files by variable or other dimension. 
 
 ```
 usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR)
-                  [--formatting FORMATTING] [-d] [-f] [--use-version USE_VERSION]
+                  [--formatting FORMATTING] [-d] [-f]
 ```
 
 _Common options_:
