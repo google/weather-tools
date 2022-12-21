@@ -25,10 +25,13 @@ import xarray as xr
 import weather_sp
 from .file_name_utils import OutFileInfo
 from .file_name_utils import get_output_file_info
-from .file_splitters import DrySplitter, GribSplitterV2
-from .file_splitters import GribSplitter
-from .file_splitters import NetCdfSplitter
-from .file_splitters import get_splitter
+from .file_splitters import (
+    DrySplitter,
+    GribSplitter,
+    GribSplitterV2,
+    NetCdfSplitter,
+    get_splitter,
+)
 
 
 @pytest.fixture()
