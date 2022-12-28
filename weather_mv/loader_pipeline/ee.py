@@ -338,7 +338,7 @@ class ToEarthEngine(ToDataSink):
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                        band_names=band_names_dict,
+                        band_names_dict=band_names_dict,
                         initialization_time=self.initialization_time,
                         forecast_time=self.forecast_time))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
@@ -416,7 +416,7 @@ class ConvertToAsset(beam.DoFn):
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
-    band_names: t.Optional[t.Dict] = None
+    band_names_dict: t.Optional[t.Dict] = None
     initialization_time: t.Optional[str] = None
     forecast_time: t.Optional[str] = None
 
@@ -427,7 +427,7 @@ class ConvertToAsset(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          band_names=self.band_names,
+                          band_names_dict=self.band_names_dict,
                           initialization_time=self.initialization_time,
                           forecast_time=self.forecast_time) as ds:
 

@@ -325,7 +325,7 @@ _Command options_:
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
-* `--band_names`: A JSON file which contains the band names for the TIFF file.
+* `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
 * `--initialization_time`: A Regex string to get the initialization time from the filename.
 * `--forecast_time`: A Regex string to get the forecast/end time from the filename.
 
@@ -420,7 +420,7 @@ Custom Band names:
 weather-mv ee --uris "gs://your-bucket/*.tif" \
            --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
            --ee_asset "projects/$PROJECT/assets/test_dir" \
-           --band_names "filename.json"
+           --band_names_mapping "filename.json"
 ```
 
 Getting initialization date-time from the filename:

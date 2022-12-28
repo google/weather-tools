@@ -131,19 +131,19 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
 
 
 def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
-                    band_names: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
+                    band_names_dict: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
     def _get_band_data(i):
-        if not band_names:
+        if not band_names_dict:
             band = ds.band_data[i]
             band.name = ds.band_data.attrs['long_name'][i]
         else:
             band = ds.band_data
-            band.name = band_names.get(band.name)
+            band.name = band_names_dict.get(band.name)
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -335,7 +335,7 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
-                 band_names: t.Optional[t.Dict] = None,
+                 band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time: t.Optional[str] = None,
                  forecast_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
@@ -351,7 +351,7 @@ def open_dataset(uri: str,
                                              local_path,
                                              tif_metadata_for_datetime,
                                              uri,
-                                             band_names,
+                                             band_names_dict,
                                              initialization_time,
                                              forecast_time)
 
