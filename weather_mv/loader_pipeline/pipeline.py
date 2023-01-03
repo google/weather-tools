@@ -14,6 +14,7 @@
 """Pipeline for loading weather data into analysis-ready mediums, like Google BigQuery."""
 
 import argparse
+import json
 import logging
 import typing as t
 
@@ -25,7 +26,6 @@ from .regrid import Regrid
 from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -36,18 +36,27 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
+def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str]:
+    if is_zarr:
+        yield match_pattern
+        return
+
     for match in FileSystems().match([match_pattern]):
         yield from [x.path for x in match.metadata_list]
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
-    all_uris = list(pattern_to_uris(known_args.uris))
+    all_uris = list(pattern_to_uris(known_args.uris, known_args.zarr))
     if not all_uris:
-        raise FileNotFoundError(f"File prefix '{known_args.uris}' matched no objects")
+        raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
+
+    # First URI is useful to get an example data shard. It also can be a Zarr path.
+    known_args.first_uri = next(iter(all_uris))
 
     with beam.Pipeline(argv=pipeline_args) as p:
-        if known_args.topic:
+        if known_args.zarr:
+            paths = p
+        elif known_args.topic:
             paths = (
                     p
                     # Windowing is based on this code sample:
@@ -60,7 +69,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
             paths = p | 'Create' >> beam.Create(all_uris)
 
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
-            paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(example_uri=next(iter(all_uris)), **vars(known_args))
+            paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
@@ -81,7 +90,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Common arguments to all commands
     base = argparse.ArgumentParser(add_help=False)
     base.add_argument('-i', '--uris', type=str, required=True,
-                      help="URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'.")
+                      help="URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'. Or, "
+                           "a path to a Zarr.")
     base.add_argument('--topic', type=str,
                       help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
                            "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
@@ -91,8 +101,14 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('--num_shards', type=int, default=5,
                       help='Number of shards to use when writing windowed elements to cloud storage. Only used with '
                            'the `topic` flag. Default: 5 shards.')
+    base.add_argument('--zarr', action='store_true', default=False,
+                      help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
+                           "Default: off")
+    base.add_argument('--zarr_kwargs', type=json.loads, default='{}',
+                      help='Keyword arguments to pass into `xarray.open_zarr()`, as a JSON string. '
+                           'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
-                      help='Preview the load into BigQuery. Default: off')
+                      help='Preview the weather-mv job. Default: off')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
@@ -115,14 +131,26 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
+    # Validate Zarr arguments
+    if known_args.uris.endswith('.zarr'):
+        known_args.zarr = True
+
+    if known_args.zarr_kwargs and not known_args.zarr:
+        raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
+
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
         ToBigQuery.validate_arguments(known_args, pipeline_args)
+    elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
+        Regrid.validate_arguments(known_args, pipeline_args)
     elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
         ToEarthEngine.validate_arguments(known_args, pipeline_args)
 
     # If a topic is used, then the pipeline must be a streaming pipeline.
     if known_args.topic:
+        if known_args.zarr:
+            raise ValueError('streaming updates to a Zarr file is not (yet) supported.')
+
         pipeline_args.extend('--streaming true'.split())
 
         # make sure we re-compute utcnow() every time rows are extracted from a file.

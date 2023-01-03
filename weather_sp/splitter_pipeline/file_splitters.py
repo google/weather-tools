@@ -15,7 +15,9 @@
 import abc
 import itertools
 import logging
+import os
 import shutil
+import subprocess
 import tempfile
 import typing as t
 from contextlib import contextmanager
@@ -133,6 +135,40 @@ class GribSplitter(FileSplitter):
                 yield gb
 
 
+class GribSplitterV2(GribSplitter):
+    """Splitter that makes use of `grib_copy` util for high performance splitting.
+
+    See https://confluence.ecmwf.int/display/ECC/grib_copy.
+    """
+
+    def split_data(self) -> None:
+        if not self.output_info.split_dims():
+            raise ValueError('No splitting specified in template.')
+
+        if self.should_skip():
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
+            self.logger.info('Skipping %s, file already split.',
+                             repr(self.input_path))
+            return
+
+        cmd = shutil.which('grib_copy')
+        if not cmd:
+            raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
+
+        output_template = self.output_info.unformatted_output_path().replace('{', '[').replace('}', ']')
+        root, output_template = os.path.split(output_template)
+        with self._copy_to_local_file() as local_file:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                dest = os.path.join(tmpdir, output_template)
+
+                subprocess.run([cmd, local_file.name, dest], check=True)
+
+                for target in os.listdir(tmpdir):
+                    with open(os.path.join(tmpdir, target), 'rb') as src_file:
+                        with FileSystems.create(os.path.join(root, target)) as dest_file:
+                            shutil.copyfileobj(src_file, dest_file)
+
+
 class NetCdfSplitter(FileSplitter):
 
     _UNSUPPORTED_DIMENSIONS = ('latitude', 'longitude', 'lat', 'lon')
@@ -230,7 +266,15 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
 
     if b'GRIB' in header:
         metrics.Metrics.counter('get_splitter', 'grib').inc()
-        return GribSplitter(file_path, output_info, force_split)
+
+        # Decide which version of the grib splitter to use depending on if ecCodes is installed.
+        # Prefer the v2 grib splitter, which should be more robust -- especially when splitting by
+        # multiple dimensions at once.
+        cmd = shutil.which('grib_copy')
+        if cmd:
+            return GribSplitterV2(file_path, output_info, force_split)
+        else:
+            return GribSplitter(file_path, output_info, force_split)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses

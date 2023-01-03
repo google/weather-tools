@@ -14,8 +14,8 @@
 import json
 import unittest
 
-from .pipeline import run, pipeline
 import weather_mv
+from .pipeline import run, pipeline
 
 
 class CLITests(unittest.TestCase):
@@ -35,6 +35,17 @@ class CLITests(unittest.TestCase):
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
         ).split()
+        self.ee_cli_args = (
+            'weather-mv ee '
+            '-i weather_mv/test_data/test_data_2018*.nc '
+            '--asset_location gs://bucket/my-assets/ '
+            '--ee_asset "projects/my-project/assets/asset_dir'
+        ).split()
+        self.rg_cli_args = (
+            'weather-mv rg '
+            '-i weather_mv/test_data/test_data_2018*.nc '
+            '-o weather_mv/test_data/output/ '
+        ).split()
         self.base_cli_known_args = {
             'subcommand': 'bq',
             'uris': f'{self.test_data_folder}/test_data_2018*.nc',
@@ -51,6 +62,8 @@ class CLITests(unittest.TestCase):
             'coordinate_chunk_size': 10_000,
             'disable_grib_schema_normalization': False,
             'tif_metadata_for_datetime': None,
+            'zarr': False,
+            'zarr_kwargs': {},
         }
 
 
@@ -93,6 +106,25 @@ class TestCLI(CLITests):
             self.base_cli_args + ["--xarray_open_dataset_kwargs", f"{json_kwargs}"]
         )
         self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
+
+    def test_bq_does_not_yet_support_zarr(self):
+        with self.assertRaisesRegex(RuntimeError, 'Reading Zarr'):
+            run(self.base_cli_args + '--zarr'.split())
+
+    def test_ee_does_not_yet_support_zarr(self):
+        with self.assertRaisesRegex(RuntimeError, 'Reading Zarr'):
+            run(self.ee_cli_args + '--zarr'.split())
+
+    def test_rg_zarr_cant_output_netcdf(self):
+        with self.assertRaisesRegex(ValueError, 'only Zarr-to-Zarr'):
+            run(self.rg_cli_args + '--zarr --to_netcdf'.split())
+
+    def test_rg_happy_path(self):
+        run(self.rg_cli_args + ['--zarr'])
+
+    def test_zarr_kwargs_must_come_with_zarr(self):
+        with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
+            run(self.base_cli_args + ['--zarr_kwargs', json.dumps({"time": 100})])
 
 
 class IntegrationTest(CLITests):

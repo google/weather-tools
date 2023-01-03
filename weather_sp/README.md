@@ -12,7 +12,8 @@ Splits NetCDF and Grib files into several files by variable or other dimension. 
 ## Usage
 
 ```
-usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR) [--formatting FORMATTING] [-d] [-f]
+usage: weather-sp [-h] -i INPUT_PATTERN (--output-template OUTPUT_TEMPLATE | --output-dir OUTPUT_DIR)
+                  [--formatting FORMATTING] [-d] [-f]
 ```
 
 _Common options_:
@@ -33,7 +34,7 @@ _Usage examples_:
 
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
-           --output-dir 'gs://test-tmp/era5/splits'
+           --output-dir 'gs://test-tmp/era5/splits' \
            --formatting '.{typeOfLevel}'
 ```
 
@@ -42,7 +43,7 @@ Preview splits with a dry run:
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --output-dir 'gs://test-tmp/era5/splits' \
-           --formatting '.{typeOfLevel}'
+           --formatting '.{typeOfLevel}' \
            --dry-run
 ```
 
@@ -51,12 +52,29 @@ Using DataflowRunner
 ```bash
 weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --output-dir 'gs://test-tmp/era5/splits'
-           --formatting '.{typeOfLevel}'
+           --formatting '.{typeOfLevel}' \
            --runner DataflowRunner \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME
 ```
+
+Using ecCodes-powered grib splitting on Dataflow (this is often more robust, especially when splitting multiple 
+dimensions at once):
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
+           --output-dir 'gs://test-tmp/era5/splits' \
+           --formatting '.{typeOfLevel}' \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --experiment=use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
+           --job_name $JOB_NAME
+```
+_Consult [this documentation](../docs/Runtime-Container.md) for steps on how to create a sufficient image._
+_See the `weather-mv` documentation for more information about the container image._
 
 For a full list of how to configure the Dataflow pipeline, please review
 [this table](https://cloud.google.com/dataflow/docs/reference/pipeline-options).

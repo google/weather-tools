@@ -533,7 +533,8 @@ install channels (they are only maintained via `conda-forge`).
 Thus, to include such dependencies, we've provided steps for you to build
 a [Beam container environment](https://beam.apache.org/documentation/runtime/environments/). In the near future, we'll
 arrange things so you don't have to worry about any of these extra
-steps ([#172](https://github.com/google/weather-tools/issues/172)).
+steps ([#172](https://github.com/google/weather-tools/issues/172)). See [these instructions](../Runtime-Container.md) 
+to learn how to build a custom image for this project.
 
 Currently, this image is necessary for the `weather-mv regrid` command, but no other commands. To deploy this tool,
 please do the following:
@@ -558,37 +559,3 @@ please do the following:
               --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"
               --job_name $JOB_NAME 
    ```
-
-### Building & Publishing the container in GCS.
-
-*Pre-requisites*: Install the gcloud CLI ([instructions are here](https://cloud.google.com/sdk/docs/install)).
-
-Then, log in to your cloud account:
-
-```shell
-gcloud auth login
-```
-
-> Please follow all the instructions from the CLI. This will involve running an
-> auth script on your local machine, which will open a browser window to log you
-> in.
-
-Last, make sure you have adequate permissions to use Google Cloud Build (see
-[IAM options here](https://cloud.google.com/build/docs/iam-roles-permissions)).
-[This documentation](https://g3doc.corp.google.com/company/gfw/support/cloud/products/cloud-build/index.md#permissions)
-lists the specific permissions that you'll need to have in your project.
-
-*Updating the image*: Please modify the `Dockerfile` in the tool directory. Then, build and upload the image with Google
-Cloud Build:
-
-```shell
-export PROJECT=<your-project-here>
-export REPO=miniconda3-beam
-export IMAGE_URI=gcr.io/$PROJECT/$REPO
-export TAG="0.0.2" # Please increment on every update.
-# dev release
-gcloud builds submit weather_mv/ --tag "$IMAGE_URI:dev"
-
-# release:
-gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG"  && gcloud builds submit weather_mv/ --tag "$IMAGE_URI:latest"
-```

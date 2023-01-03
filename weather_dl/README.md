@@ -23,12 +23,16 @@ as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
 ## Usage
 
 ```
-usage: weather-dl [-h] [-f] [-d] [-l] [-m MANIFEST_LOCATION] [-n NUM_REQUESTS_PER_KEY] [-p PARTITION_CHUNKS] config
+usage: weather-dl [-h] [-f] [-d] [-l] [-m MANIFEST_LOCATION] [-n NUM_REQUESTS_PER_KEY] [-p PARTITION_CHUNKS]
+                  [-s {in-order,fair}]
+                  config [config ...]
+
 
 Weather Downloader ingests weather data to cloud storage.
 
 positional arguments:
-  config                path/to/config.cfg, containing client and data information. Accepts *.cfg and *.json files.
+  config                path/to/configs.cfg, containing client and data information. Can take multiple configs.Accepts
+                        *.cfg and *.json files.
 ```
 
 _Common options_:
@@ -38,15 +42,19 @@ _Common options_:
 * `-l, --local-run`: Run locally and download to local hard drive. The data and manifest directory is set by default
   to '<$CWD>/local_run'. The runner will be set to `DirectRunner`. The only other relevant option is the config
   and `--direct_num_workers`
-* `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging 
-  (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol. 
-  For example, 'cli://manifest' will prefix all the manifest logs as '[manifest]'. In addition, users can specify a GCS 
+* `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging
+  (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol.
+  For example, 'cli://manifest' will prefix all the manifest logs as '[manifest]'. In addition, users can specify a GCS
   bucket URI, or 'noop://<name>' for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 * `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
-  affects how we chunk elements in a cartesian product, which affects parallelization of that step. Default: chunks of
-  1000 elements.
+  controls how we chunk elements in a cartesian product, which affects parallelization of that step. Default: chunks of 
+  1000 elements for 'in-order' scheduling. Chunks of 1 element for 'fair' scheduling. 
+* `-s, --schedule {in-order,fair}`: When using multiple configs, decide how partitions are scheduled: 'in-order' implies 
+  that partitions will be processed in sequential order of each config; 'fair' means that partitions from each config 
+  will be interspersed evenly. Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a 
+  much smaller number. Default: 'in-order'.
 
 Invoke with `-h` or `--help` to see the full range of options.
 

@@ -1,4 +1,6 @@
-# Private IP Configuration Guide for Dataflow Pipeline Execution
+# Private IP Configuration 
+
+_A Guide for Dataflow Pipeline Execution_
 
 ## Goals
 In this document, we’ll describe how to use Private IP for the execution of a dataflow pipeline.
@@ -6,7 +8,7 @@ In this document, we’ll describe how to use Private IP for the execution of a 
 ## Background
 When we are running the dataflow pipeline, GCP decides to spawn one or more new VM-instances. By default, each VM-instance will have an External IP address. 
 
-![VM Instance with External IP Address](_static/vm_instance_with_external_ip_address.png?raw=true "VM Instance with External IP Address")
+![VM Instance with External IP Address](_static/vm_instance_with_external_ip_address.png "VM Instance with External IP Address")
 
 Considering a billing account has a limited number of External IP addresses, we can skip this overhead by providing VPC-parameters as CLI-input of dataflow.
 
@@ -34,7 +36,7 @@ Following table<font color="red">*</font> summarizes the required input paramete
 5. Select “Private Google Access” as On.
 6. Complete VPC-Network creation by providing other required parameters. Refer to GCP’s [Create-VPC-Network](https://cloud.google.com/vpc/docs/create-modify-vpc-networks) documentation for more details.
 
-![VPC Network Details](_static/vpc_network_details.png?raw=true "VPC Network Details")
+![VPC Network Details](_static/vpc_network_details.png "VPC Network Details")
 
 ## Configure Firewall-Rule
 1. Open GCP’s Create a firewall rule page.
@@ -43,7 +45,7 @@ Following table<font color="red">*</font> summarizes the required input paramete
 4. Select “Direction of traffic” as Ingress & “Action on match” as Allow.
 5. Complete Firewall-Rule creation by providing other necessary information. Refer to GCP’s [Configuring-Firewall](https://cloud.google.com/filestore/docs/configuring-firewall) documentation for more details.
 
-![Firewall Rule Details](_static/firewall_rule_details.png?raw=true "Firewall Rule Details")
+![Firewall Rule Details](_static/firewall_rule_details.png "Firewall Rule Details")
 
 ## Configure NAT & Router
 1. Open GCP’s Create a NAT gateway page.
@@ -53,9 +55,9 @@ Following table<font color="red">*</font> summarizes the required input paramete
 <br> a. Complete router creation by providing name, description & region. Refer to GCP’s [Create-Router](https://cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-on-premises-network) documentation for more details.
 5. Complete NAT gateway creation by providing required details. Refer to GCP’s [Create-NAT-Gateway](https://cloud.google.com/nat/docs/set-up-manage-network-address-translation) documentation for more details.
 
-![Router Details](_static/router_details.png?raw=true "Router Details")
+![Router Details](_static/router_details.png "Router Details")
 
-![NAT Gateways](_static/nat_gateways.png?raw=true "NAT Gateways")
+![NAT Gateways](_static/nat_gateways.png "NAT Gateways")
 
 ## Sample commands to trigger dataflow pipeline execution using above options
 
