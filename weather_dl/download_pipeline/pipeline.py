@@ -197,7 +197,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         manifest = LocalManifest(Location(local_dir))
 
     num_requesters_per_key = known_args.num_requests_per_key
-    client = CLIENTS[client_name](configs[0])
+    client = CLIENTS[client_name](configs[0], initialize_connection=False)
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(config.dataset)
 

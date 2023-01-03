@@ -20,19 +20,13 @@ import io
 import json
 import logging
 import os
-import shutil
+import subprocess
 import typing as t
 import warnings
-from contextlib import closing
 from urllib.parse import urljoin
-from urllib.request import (
-    Request,
-    urlopen,
-)
 
 import cdsapi
 import urllib3
-from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 from ecmwfapi import ECMWFService, api
 
 from .config import Config, optimize_selection_partition
@@ -53,11 +47,12 @@ class Client(abc.ABC):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.config = config
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
+        self.initialize_connection = initialize_connection
 
     @abc.abstractmethod
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
@@ -99,7 +94,7 @@ class CdsClient(Client):
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
         super().__init__(config, level)
         self.c = cdsapi.Client(
             url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
@@ -169,23 +164,19 @@ class SplitMARSRequest(api.APIRequest):
     """Extended MARS APIRequest class that separates fetch and download stage."""
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
-        req = Request(url)
-
-        if os.path.exists(path):
-            mode = "ab"
-            existing_size = os.path.getsize(path)
-            req.add_header("Range", "bytes=%s-" % existing_size)
-        else:
-            mode = "wb"
-
         self.log(
             "Transferring %s into %s" % (self._bytename(size), path)
         )
         self.log("From %s" % (url,))
 
-        with open(path, mode) as f:
-            with closing(urlopen(req)) as http:
-                shutil.copyfileobj(http, f, DEFAULT_READ_BUFFER_SIZE)
+        dir_path, file_name = os.path.split(path)
+        try:
+            subprocess.run(
+                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
+                check=True,
+                capture_output=True)
+        except subprocess.CalledProcessError as e:
+            self.log(f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
 
     def fetch(self, request: t.Dict) -> t.Dict:
         status = None
@@ -225,16 +216,18 @@ class SplitMARSRequest(api.APIRequest):
 class MARSECMWFServiceExtended(ECMWFService):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
+        initialize_connection = kwargs.pop('initialize_connection')
         super().__init__(*args, **kwargs)
-        self.c = SplitMARSRequest(
-            self.url,
-            "services/%s" % (self.service,),
-            email=self.email,
-            key=self.key,
-            log=self.log,
-            verbose=self.verbose,
-            quiet=self.quiet,
-        )
+        if initialize_connection:
+            self.c = SplitMARSRequest(
+                self.url,
+                "services/%s" % (self.service,),
+                email=self.email,
+                key=self.key,
+                log=self.log,
+                verbose=self.verbose,
+                quiet=self.quiet,
+            )
 
     def fetch(self, req: t.Dict) -> t.Dict:
         return self.c.fetch(req)
@@ -263,15 +256,16 @@ class MarsClient(Client):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
-        super().__init__(config, level)
+    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
+        super().__init__(config, level, initialize_connection)
         self.c = MARSECMWFServiceExtended(
             "mars",
             key=config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             url=config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
             email=config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
             log=self.logger.debug,
-            verbose=True
+            verbose=True,
+            initialize_connection=initialize_connection
         )
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
