@@ -33,6 +33,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
+from multiprocessing import Process, Queue
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local
@@ -389,9 +390,8 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
 
-    def process(self, uri: str) -> t.Iterator[AssetData]:
-        """Opens grib files and yields AssetData."""
-
+    def convert_data(self, queue: Queue, uri: str):
+        """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
@@ -458,6 +458,17 @@ class ConvertToAsset(beam.DoFn):
                 properties=attrs
             )
 
+            queue.put_nowait(asset_data)
+
+    def process(self, uri: str) -> t.Iterator[AssetData]:
+        """Opens grib files and yields AssetData."""
+        queue = Queue(maxsize=2)
+        process = Process(target=self.convert_data, args=[queue, uri])
+        process.start()
+        process.join()
+
+        if not queue.empty():
+            asset_data = queue.get_nowait()
             yield asset_data
 
 
