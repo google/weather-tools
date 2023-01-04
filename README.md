@@ -3,6 +3,7 @@
 Apache Beam pipelines to make weather data accessible and useful.
 
 [![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
+[![Documentation Status](https://readthedocs.org/projects/weather-tools/badge/?version=latest)](https://weather-tools.readthedocs.io/en/latest/?badge=latest)
 
 ## Introduction
 
