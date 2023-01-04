@@ -47,12 +47,11 @@ class Client(abc.ABC):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.config = config
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
-        self.initialize_connection = initialize_connection
 
     @abc.abstractmethod
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
@@ -94,7 +93,7 @@ class CdsClient(Client):
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
         self.c = cdsapi.Client(
             url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
@@ -216,18 +215,16 @@ class SplitMARSRequest(api.APIRequest):
 class MARSECMWFServiceExtended(ECMWFService):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
-        initialize_connection = kwargs.pop('initialize_connection')
         super().__init__(*args, **kwargs)
-        if initialize_connection:
-            self.c = SplitMARSRequest(
-                self.url,
-                "services/%s" % (self.service,),
-                email=self.email,
-                key=self.key,
-                log=self.log,
-                verbose=self.verbose,
-                quiet=self.quiet,
-            )
+        self.c = SplitMARSRequest(
+            self.url,
+            "services/%s" % (self.service,),
+            email=self.email,
+            key=self.key,
+            log=self.log,
+            verbose=self.verbose,
+            quiet=self.quiet,
+        )
 
     def fetch(self, req: t.Dict) -> t.Dict:
         return self.c.fetch(req)
@@ -256,19 +253,18 @@ class MarsClient(Client):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, level: int = logging.INFO, initialize_connection: bool = True) -> None:
-        super().__init__(config, level, initialize_connection)
-        self.c = MARSECMWFServiceExtended(
-            "mars",
-            key=config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
-            url=config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
-            email=config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
-            log=self.logger.debug,
-            verbose=True,
-            initialize_connection=initialize_connection
-        )
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+        super().__init__(config, level)
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        self.c = MARSECMWFServiceExtended(
+            "mars",
+            key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
+            url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
+            email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            log=self.logger.debug,
+            verbose=True,
+        )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
             result = self.c.fetch(req=selection_)
