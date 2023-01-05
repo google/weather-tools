@@ -462,7 +462,7 @@ class ConvertToAsset(beam.DoFn):
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
-        queue = Queue(maxsize=2)
+        queue = Queue()
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
         process.join()
