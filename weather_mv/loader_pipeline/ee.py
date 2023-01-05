@@ -467,7 +467,7 @@ class ConvertToAsset(beam.DoFn):
         process.start()
         process.join()
 
-        if not queue.empty():
+        while not queue.empty():
             asset_data = queue.get_nowait()
             yield asset_data
 
