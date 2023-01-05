@@ -533,7 +533,7 @@ install channels (they are only maintained via `conda-forge`).
 Thus, to include such dependencies, we've provided steps for you to build
 a [Beam container environment](https://beam.apache.org/documentation/runtime/environments/). In the near future, we'll
 arrange things so you don't have to worry about any of these extra
-steps ([#172](https://github.com/google/weather-tools/issues/172)). See [these instructions](../../Runtime-Container.md) 
+steps ([#172](https://github.com/google/weather-tools/issues/172)). See [these instructions](../Runtime-Container.md) 
 to learn how to build a custom image for this project.
 
 Currently, this image is necessary for the `weather-mv regrid` command, but no other commands. To deploy this tool,
