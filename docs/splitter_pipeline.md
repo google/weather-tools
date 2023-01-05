@@ -2,7 +2,6 @@
 =========================
 
 ## Submodules
-----------
 
 ### splitter_pipeline.file_splitters module
 
