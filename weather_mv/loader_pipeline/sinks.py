@@ -131,7 +131,7 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
 
 
 def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
-                    band_names_dict: t.Dict, initialization_time: str, forecast_time: str) -> xr.Dataset:
+                    band_names_dict: t.Dict, initialization_time_regex: str, forecast_time_regex: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -164,15 +164,15 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
     end_time = None
-    if initialization_time and forecast_time:
+    if initialization_time_regex and forecast_time_regex:
         try:
-            start_time = match_datetime(uri, initialization_time)
+            start_time = match_datetime(uri, initialization_time_regex)
         except Exception:
-            raise RuntimeError("Wrong regex passed in --initialization_time.")
+            raise RuntimeError("Wrong regex passed in --initialization_time_regex.")
         try:
-            end_time = match_datetime(uri, forecast_time)
+            end_time = match_datetime(uri, forecast_time_regex)
         except Exception:
-            raise RuntimeError("Wrong regex passed in --forecast_time.")
+            raise RuntimeError("Wrong regex passed in --forecast_time_regex.")
         ds.attrs['start_time'] = start_time
         ds.attrs['end_time'] = end_time
 
@@ -336,8 +336,8 @@ def open_dataset(uri: str,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
                  band_names_dict: t.Optional[t.Dict] = None,
-                 initialization_time: t.Optional[str] = None,
-                 forecast_time: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 initialization_time_regex: t.Optional[str] = None,
+                 forecast_time_regex: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:
@@ -352,8 +352,8 @@ def open_dataset(uri: str,
                                              tif_metadata_for_datetime,
                                              uri,
                                              band_names_dict,
-                                             initialization_time,
-                                             forecast_time)
+                                             initialization_time_regex,
+                                             forecast_time_regex)
 
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
             with rasterio.open(local_path, 'r') as f:

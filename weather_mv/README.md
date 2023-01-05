@@ -326,8 +326,8 @@ _Command options_:
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
 * `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
-* `--initialization_time`: A Regex string to get the initialization time from the filename.
-* `--forecast_time`: A Regex string to get the forecast/end time from the filename.
+* `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
+* `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
@@ -423,22 +423,14 @@ weather-mv ee --uris "gs://your-bucket/*.tif" \
            --band_names_mapping "filename.json"
 ```
 
-Getting initialization date-time from the filename:
+Getting initialization and forecast/end date-time from the filename:
 
 ```bash
 weather-mv ee --uris "gs://your-bucket/*.tif" \
            --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
            --ee_asset "projects/$PROJECT/assets/test_dir" \
-           --initialization_time "$REGEX"
-```
-
-Getting forecast/end date-time from the filename:
-
-```bash
-weather-mv ee --uris "gs://your-bucket/*.tif" \
-           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
-           --ee_asset "projects/$PROJECT/assets/test_dir" \
-           --forecast_time "$REGEX"
+           --initialization_time_regex "$REGEX"
+           --forecast_time_regex "$REGEX"
 ```
 
 Using DataflowRunner:

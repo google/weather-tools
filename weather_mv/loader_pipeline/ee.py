@@ -228,8 +228,8 @@ class ToEarthEngine(ToDataSink):
     ee_latency: float
     ee_max_concurrent: int
     band_names_mapping: str
-    initialization_time: str
-    forecast_time: str
+    initialization_time_regex: str
+    forecast_time_regex: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -260,9 +260,9 @@ class ToEarthEngine(ToDataSink):
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
         subparser.add_argument('--band_names_mapping', type=str, default=None,
                                help='A JSON file which contains the band names for the TIFF file.')
-        subparser.add_argument('--initialization_time', type=str, default=None,
+        subparser.add_argument('--initialization_time_regex', type=str, default=None,
                                help='A Regex string to get the initialization time from the filename.')
-        subparser.add_argument('--forecast_time', type=str, default=None,
+        subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
 
     @classmethod
@@ -310,9 +310,9 @@ class ToEarthEngine(ToDataSink):
             if not band_names_mapping_extension == '.json':
                 raise RuntimeError("--band_names_mapping should contain a json file as input.")
 
-        # Check the initialization_time and forecast_time strings
-        if bool(known_args.initialization_time) ^ bool(known_args.forecast_time):
-            raise RuntimeError("Both --initialization_time & --forecast_time flags need to be present")
+        # Check the initialization_time_regex and forecast_time_regex strings
+        if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
+            raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
@@ -339,8 +339,8 @@ class ToEarthEngine(ToDataSink):
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                         band_names_dict=band_names_dict,
-                        initialization_time=self.initialization_time,
-                        forecast_time=self.forecast_time))
+                        initialization_time_regex=self.initialization_time_regex,
+                        forecast_time_regex=self.forecast_time_regex))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_asset_type=self.ee_asset_type,
@@ -417,8 +417,8 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
     band_names_dict: t.Optional[t.Dict] = None
-    initialization_time: t.Optional[str] = None
-    forecast_time: t.Optional[str] = None
+    initialization_time_regex: t.Optional[str] = None
+    forecast_time_regex: t.Optional[str] = None
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
@@ -428,8 +428,8 @@ class ConvertToAsset(beam.DoFn):
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
                           band_names_dict=self.band_names_dict,
-                          initialization_time=self.initialization_time,
-                          forecast_time=self.forecast_time) as ds:
+                          initialization_time_regex=self.initialization_time_regex,
+                          forecast_time_regex=self.forecast_time_regex) as ds:
 
             attrs = ds.attrs
             data = list(ds.values())
