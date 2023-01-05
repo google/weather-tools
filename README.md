@@ -49,7 +49,7 @@ conda activate weather-tools
 
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
-- [⛈ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
+- [⛈️ `weather-dl`](weather_dl/README.md) (_beta_) – Download weather data (namely, from ECMWF's API).
 - [⛅️ `weather-mv`](weather_mv/README.md) (_alpha_) – Load weather data into analytics engines, like BigQuery.
 - [🌪 `weather-sp`](weather_sp/README.md) (_alpha_) – Split weather data by arbitrary dimensions.
 

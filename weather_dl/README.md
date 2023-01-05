@@ -1,4 +1,4 @@
-# ⛈ `weather-dl` – Weather Downloader
+# ⛈️`weather-dl` – Weather Downloader
 
 Weather Downloader ingests weather data to cloud buckets, such
 as [Google Cloud Storage](https://cloud.google.com/storage) (_beta_).
