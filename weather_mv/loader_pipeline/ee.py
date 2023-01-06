@@ -302,15 +302,15 @@ class ToEarthEngine(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
-        # Check for the band_names_mapping json file
+        # Check for the band_names_mapping json file.
         if known_args.band_names_mapping:
             if not os.path.exists(known_args.band_names_mapping):
-                raise RuntimeError("--band_names_mapping should contain a valid file that exists.")
+                raise RuntimeError("--band_names_mapping file does not exist.")
             _, band_names_mapping_extension = os.path.splitext(known_args.band_names_mapping)
             if not band_names_mapping_extension == '.json':
                 raise RuntimeError("--band_names_mapping should contain a json file as input.")
 
-        # Check the initialization_time_regex and forecast_time_regex strings
+        # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 

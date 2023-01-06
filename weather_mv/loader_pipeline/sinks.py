@@ -180,12 +180,9 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
-            if end_time is not None:
-                datetime_value_s = end_time.timestamp()
-                ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
-            else:
-                datetime_value_ms = f.tags()[tif_metadata_for_datetime]
-                ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
+            datetime_value_s = (end_time.timestamp() if end_time is not None
+                                else f.tags()[tif_metadata_for_datetime] / 1000.0)
+            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
@@ -280,8 +277,6 @@ def __open_dataset_file(filename: str,
                         disable_grib_schema_normalization: bool,
                         open_dataset_kwargs: t.Optional[t.Dict] = None) -> xr.Dataset:
     """Opens the dataset at 'uri' and returns a xarray.Dataset."""
-    # add a flag to use cfgrib
-
     if open_dataset_kwargs:
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
