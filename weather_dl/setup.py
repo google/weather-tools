@@ -32,11 +32,11 @@ beam_gcp_requirements = [
 ]
 
 base_requirements = [
-    "cdsapi",
-    "ecmwf-api-client",
+    "cdsapi=0.5.1",
+    "ecmwf-api-client=1.6.3",
     "numpy>=1.19.1",
-    "pandas",
-    "xarray",
+    "pandas=1.5.1",
+    "xarray=2022.11.0",
     "requests>=2.24.0",
     "urllib3==1.26.5",
     "google-cloud-firestore==2.6.0",
