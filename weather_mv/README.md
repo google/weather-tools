@@ -429,8 +429,18 @@ Getting initialization and forecast/end date-time from the filename:
 weather-mv ee --uris "gs://your-bucket/*.tif" \
            --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
            --ee_asset "projects/$PROJECT/assets/test_dir" \
-           --initialization_time_regex "$REGEX"
+           --initialization_time_regex "$REGEX" \
            --forecast_time_regex "$REGEX"
+```
+
+Example:
+
+```bash
+weather-mv ee --uris "gs://tmp-gs-bucket/3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --initialization_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*tiff" \
+           --forecast_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S*-E%H%M%S*tiff"
 ```
 
 Using DataflowRunner:
