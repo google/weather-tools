@@ -15,7 +15,7 @@
 # ==============================================================================
 ARG py_version=3.8
 FROM apache/beam_python${py_version}_sdk:2.40.0 as beam_sdk
-FROM continuumio/miniconda3:4.12.0
+FROM continuumio/miniconda3:latest
 
 # Update miniconda
 RUN conda update conda -y
@@ -25,7 +25,7 @@ ARG weather_tools_git_rev=main
 RUN git clone https://github.com/google/weather-tools.git /weather
 WORKDIR /weather
 RUN git checkout "${weather_tools_git_rev}"
-RUN conda env create -f environment.yml
+RUN conda env create -f environment.yml --debug
 
 # Activate the conda env and update the PATH
 ARG CONDA_ENV_NAME=weather-tools
