@@ -20,6 +20,10 @@ FROM continuumio/miniconda3:latest
 # Update miniconda
 RUN conda update conda -y
 
+# Add the mamba solver for faster builds
+RUN conda install -n base conda-libmamba-solver
+RUN conda config --set solver libmamba
+
 # Create conda env using environment.yml
 ARG weather_tools_git_rev=main
 RUN git clone https://github.com/google/weather-tools.git /weather
