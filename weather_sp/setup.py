@@ -32,11 +32,11 @@ beam_gcp_requirements = [
 ]
 
 base_requirements = [
-    "pygrib",
-    "eccodes",
+    "pygrib=2.1.4",
+    "eccodes=2.27.0",
     "numpy>=1.20.3",
-    "xarray",
-    "scipy",
+    "xarray=2022.11.0",
+    "scipy=1.9.3",
 ]
 
 setup(
