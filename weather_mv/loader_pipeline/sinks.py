@@ -180,9 +180,9 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
-            datetime_value_s = (end_time.timestamp() if end_time is not None
-                                else f.tags()[tif_metadata_for_datetime] / 1000.0)
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_s))})
+            datetime_value_s = (int(end_time.timestamp()) if end_time is not None
+                                else int(f.tags()[tif_metadata_for_datetime]) / 1000.0)
+            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
