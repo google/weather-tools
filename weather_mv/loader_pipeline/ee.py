@@ -228,6 +228,9 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
+    band_names_mapping: str
+    initialization_time_regex: str
+    forecast_time_regex: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -256,6 +259,12 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
+        subparser.add_argument('--band_names_mapping', type=str, default=None,
+                               help='A JSON file which contains the band names for the TIFF file.')
+        subparser.add_argument('--initialization_time_regex', type=str, default=None,
+                               help='A Regex string to get the initialization time from the filename.')
+        subparser.add_argument('--forecast_time_regex', type=str, default=None,
+                               help='A Regex string to get the forecast/end time from the filename.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -294,8 +303,24 @@ class ToEarthEngine(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
+        # Check for the band_names_mapping json file.
+        if known_args.band_names_mapping:
+            if not os.path.exists(known_args.band_names_mapping):
+                raise RuntimeError("--band_names_mapping file does not exist.")
+            _, band_names_mapping_extension = os.path.splitext(known_args.band_names_mapping)
+            if not band_names_mapping_extension == '.json':
+                raise RuntimeError("--band_names_mapping should contain a json file as input.")
+
+        # Check the initialization_time_regex and forecast_time_regex strings.
+        if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
+            raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
+
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
+        band_names_dict = {}
+        if self.band_names_mapping:
+            with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
+                band_names_dict = json.load(f)
         if not self.dry_run:
             (
                 paths
@@ -313,7 +338,10 @@ class ToEarthEngine(ToDataSink):
                         asset_location=self.asset_location,
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization))
+                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
+                        band_names_dict=band_names_dict,
+                        initialization_time_regex=self.initialization_time_regex,
+                        forecast_time_regex=self.forecast_time_regex))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
                     ee_asset=self.ee_asset,
                     ee_asset_type=self.ee_asset_type,
@@ -389,13 +417,19 @@ class ConvertToAsset(beam.DoFn):
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
+    band_names_dict: t.Optional[t.Dict] = None
+    initialization_time_regex: t.Optional[str] = None
+    forecast_time_regex: t.Optional[str] = None
 
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
-                          self.disable_grib_schema_normalization) as ds:
+                          self.disable_grib_schema_normalization,
+                          band_names_dict=self.band_names_dict,
+                          initialization_time_regex=self.initialization_time_regex,
+                          forecast_time_regex=self.forecast_time_regex) as ds:
 
             attrs = ds.attrs
             data = list(ds.values())

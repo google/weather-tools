@@ -325,6 +325,9 @@ _Command options_:
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
+* `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
+* `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
+* `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
@@ -409,6 +412,35 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --ee_qps 10 \
            --ee_latency 0.5 \
            --ee_max_concurrent 10
+```
+
+Custom Band names:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.tif" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --band_names_mapping "filename.json"
+```
+
+Getting initialization and forecast/end date-time from the filename:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.tif" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --initialization_time_regex "$REGEX" \
+           --forecast_time_regex "$REGEX"
+```
+
+Example:
+
+```bash
+weather-mv ee --uris "gs://tmp-gs-bucket/3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --initialization_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*tiff" \
+           --forecast_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S*-E%H%M%S*tiff"
 ```
 
 Using DataflowRunner:
