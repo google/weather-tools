@@ -216,6 +216,8 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     """Reads a list of datasets and merge them into a single dataset."""
     _data_array_list = []
     list_ds = cfgrib.open_datasets(filename)
+    ds_attrs = list_ds[0].attrs
+    dv_units_dict = {}
 
     for ds in list_ds:
         coords_set = set(ds.coords.keys())
@@ -262,6 +264,10 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
 
                 # Add the height as a metadata field, that seems useful.
                 copied_da.attrs['height'] = height
+                # Add the units of each band as a metadata field.
+                dv_units_dict['unit_'+channel_name] = None
+                if 'units' in attrs:
+                    dv_units_dict['unit_'+channel_name] = attrs['units']
 
                 copied_da.name = channel_name
                 if _is_3d_da(da):
@@ -269,7 +275,17 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
                 copied_da = copied_da.drop_vars(level)
                 _data_array_list.append(copied_da)
 
-    return xr.merge(_data_array_list)
+    # Stick the forecast hour, start_time, end_time, data variables units
+    # in the ds attrs as well, that's useful.
+    ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
+    ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
+    ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
+    ds_attrs.update(**dv_units_dict)
+
+    merged_dataset = xr.merge(_data_array_list)
+    merged_dataset.attrs.clear()
+    merged_dataset.attrs.update(ds_attrs)
+    return merged_dataset
 
 
 def __open_dataset_file(filename: str,

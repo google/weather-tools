@@ -18,6 +18,7 @@ import itertools
 import json
 import logging
 import math
+import re
 import signal
 import sys
 import tempfile
@@ -47,6 +48,33 @@ CANARY_RECORD = {'foo': 'bar'}
 CANARY_RECORD_FILE_NAME = 'canary_record.json'
 CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
 CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
+
+
+def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
+    """Scans EEE asset attributes and makes them EE compatible.
+
+    EE asset attribute names must contain only the following characters: A..Z,
+    a..z, 0..9 or '_'. Maximum length is 110 characters. Attribute values must be
+    string or number.
+
+    If an attribute name is more than 110 characters, it will consider the first
+    110 characters as the attribute name.
+    """
+    new_attrs = {}
+
+    for k, v in attrs.items():
+        if len(k) > 110:  # Truncate attribute name with > 110 characters.
+            k = k[:110]
+        # Replace unaccepted characters with underscores.
+        k = re.sub(r'[^a-zA-Z0-9-_]+', r'_', k)
+
+        if type(v) in [bool, list, dict]:
+            v = str(v)
+
+        v = to_json_serializable_type(v)
+        new_attrs[k] = v
+
+    return new_attrs
 
 
 def to_json_serializable_type(value: t.Any) -> t.Any:

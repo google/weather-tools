@@ -37,7 +37,7 @@ from multiprocessing import Process, Queue
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local
-from .util import RateLimit, validate_region
+from .util import make_attrs_ee_compatible, RateLimit, validate_region
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -439,6 +439,8 @@ class ConvertToAsset(beam.DoFn):
                                                    ('start_time', 'end_time', 'is_normalized'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
             attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+            # Make attrs EE ingestable.
+            attrs = make_attrs_ee_compatible(attrs)
 
             # For tiff ingestions.
             if self.ee_asset_type == 'IMAGE':
@@ -459,7 +461,7 @@ class ConvertToAsset(beam.DoFn):
                             # Making the channel name EE-safe before adding it as a band name.
                             f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
                             f.update_tags(i+1, band_name=channel_names[i])
-
+                            f.update_tags(i+1, **da.attrs)
                         # Write attributes as tags in tiff.
                         f.update_tags(**attrs)
 
@@ -469,6 +471,7 @@ class ConvertToAsset(beam.DoFn):
                         shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
             # For feature collection ingestions.
             elif self.ee_asset_type == 'TABLE':
+                channel_names = []
                 file_name = f'{asset_name}.csv'
 
                 df = xr.Dataset.to_dataframe(ds)
@@ -486,7 +489,7 @@ class ConvertToAsset(beam.DoFn):
             asset_data = AssetData(
                 name=asset_name,
                 target_path=target_path,
-                channel_names=[],
+                channel_names=channel_names,
                 start_time=start_time,
                 end_time=end_time,
                 properties=attrs
