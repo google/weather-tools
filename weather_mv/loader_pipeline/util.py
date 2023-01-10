@@ -50,7 +50,7 @@ CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
 CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
 
 
-def comb_attributes(attrs: t.Dict) -> t.Dict:
+def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
     """Scans EEE asset attributes and makes them EE compatible.
 
     EE asset attribute names must contain only the following characters: A..Z,

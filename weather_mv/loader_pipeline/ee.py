@@ -36,7 +36,7 @@ from google.auth.transport import requests
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local
-from .util import comb_attributes, RateLimit, validate_region
+from .util import make_attrs_ee_compatible, RateLimit, validate_region
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -406,7 +406,7 @@ class ConvertToAsset(beam.DoFn):
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
             attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
             # Make attrs EE ingestable.
-            attrs = comb_attributes(attrs)
+            attrs = make_attrs_ee_compatible(attrs)
 
             # For tiff ingestions.
             if self.ee_asset_type == 'IMAGE':
