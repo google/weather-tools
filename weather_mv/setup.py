@@ -42,19 +42,19 @@ beam_gcp_requirements = [
 
 base_requirements = [
     "dataclasses",
-    "numpy=1.22.4",
-    "pandas=1.5.1",
-    "xarray=2022.11.0",
-    "cfgrib=0.9.10.2",
-    "netcdf4=1.6.1",
-    "geojson=2.5.0=py_0",
-    "simplejson=3.17.6",
-    "rioxarray=0.12.2",
-    "metview=1.13.1",
-    "rasterio= 1.3.1",
+    "numpy==1.22.4",
+    "pandas==1.5.1",
+    "xarray==2022.11.0",
+    "cfgrib==0.9.10.2",
+    "netcdf4==1.6.1",
+    "geojson==2.5.0=py_0",
+    "simplejson==3.17.6",
+    "rioxarray==0.12.2",
+    "metview==1.13.1",
+    "rasterio==1.3.1",
     "earthengine-api>=0.1.263",
-    "pyproj=3.4.0",  # requires separate binary installation!
-    "gdal=3.5.1",  # requires separate binary installation!
+    "pyproj==3.4.0",  # requires separate binary installation!
+    "gdal==3.5.1",  # requires separate binary installation!
 ]
 
 setup(
