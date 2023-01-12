@@ -33,7 +33,7 @@ beam_gcp_requirements = [
 
 base_requirements = [
     "pygrib==2.1.4",
-    "eccodes==2.27.0",
+    "eccodes",
     "numpy>=1.20.3",
     "xarray==2022.11.0",
     "scipy==1.9.3",
