@@ -47,7 +47,7 @@ base_requirements = [
     "xarray==2022.11.0",
     "cfgrib==0.9.10.2",
     "netcdf4==1.6.1",
-    "geojson==2.5.0=py_0",
+    "geojson==2.5.0",
     "simplejson==3.17.6",
     "rioxarray==0.12.2",
     "metview==1.13.1",
