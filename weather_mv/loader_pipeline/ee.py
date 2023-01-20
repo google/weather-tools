@@ -421,6 +421,15 @@ class ConvertToAsset(beam.DoFn):
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
 
+    def add_to_queue(self, queue: Queue, item: t.Any):
+        """Adds a new item to the queue.
+        
+        It will wait until the queue has a room to add a new item.
+        """
+        while queue.full():
+            pass
+        queue.put_nowait(item)
+
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
@@ -495,18 +504,26 @@ class ConvertToAsset(beam.DoFn):
                 properties=attrs
             )
 
-            queue.put_nowait(asset_data)
+            self.add_to_queue(queue, asset_data)
+            self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData."""
-        queue = Queue()
+        queue = Queue(maxsize=1)
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
-        process.join()
+        kill_subprocess = False
 
-        while not queue.empty():
-            asset_data = queue.get_nowait()
-            yield asset_data
+        while not kill_subprocess:
+            if not queue.empty():
+                asset_data = queue.get_nowait()
+
+                if asset_data is not None:
+                    yield asset_data
+                else:
+                    kill_subprocess = True
+
+        process.kill()
 
 
 class IngestIntoEETransform(SetupEarthEngine):
