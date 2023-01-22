@@ -112,12 +112,12 @@ For testing at development time, we make use of three tools:
    pytype weather_dl
    ```
 
-* `flake8` for linting:
+* `pylint` for linting:
    ```shell 
    # lint everything
-   flake8
+   pylint
    # lint a specific tool
-   flake8 weather_mv
+   pylint weather_mv
    ```
 
 * `pytest` for running tests:
