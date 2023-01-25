@@ -17,6 +17,7 @@ import itertools
 import logging
 import os
 import shutil
+import string
 import subprocess
 import tempfile
 import typing as t
@@ -66,12 +67,23 @@ class FileSplitter(abc.ABC):
         if self.force_split:
             return False
 
-        for match in FileSystems().match([
-            self.output_info.formatted_output_path(
-                {var: '*' for var in self.output_info.split_dims()}),
-        ]):
+        splits = {var: '*' for var in self.output_info.split_dims()}
+        self.logger.info(splits)
+        matches = FileSystems().match([self.output_info.formatted_output_path(splits)])
+        for match in matches:
             if len(match.metadata_list) > 0:
                 return True
+        return False
+
+    def should_skip_file(self, output_path: str) -> bool:
+        """Skip splitting if the data file was already split."""
+        if self.force_split:
+            return False
+
+        matches = FileSystems().match([output_path])
+        assert len(matches) == 1
+        if len(match[0].metadata_list) > 0:
+            return True
         return False
 
 
@@ -145,27 +157,63 @@ class GribSplitterV2(GribSplitter):
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
 
-        if self.should_skip():
-            metrics.Metrics.counter('file_splitters', 'skipped').inc()
-            self.logger.info('Skipping %s, file already split.',
-                             repr(self.input_path))
-            return
-
         cmd = shutil.which('grib_copy')
         if not cmd:
             raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
 
-        output_template = self.output_info.unformatted_output_path().replace('{', '[').replace('}', ']')
-        root, output_template = os.path.split(output_template)
-        with self._copy_to_local_file() as local_file:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                dest = os.path.join(tmpdir, output_template)
+        unformatted_output_path = self.output_info.unformatted_output_path()
+        root, subdir_prefix = os.path.split(next(string.Formatter().parse(unformatted_output_path))[0])
+        prefix = os.path.join(root, subdir_prefix)
+        _, tail = unformatted_output_path.split(prefix)
+        assert '[' not in tail
+        assert ']' not in tail
+        output_template = tail.replace('{', '[').replace('}', ']')
 
+        slash = '/'
+        delimiter = 'DELIMITER'
+        flat_output_template = output_template.replace('/', delimiter)
+
+        grib_get_cmd = shutil.which('grib_get')
+        uniq_cmd = shutil.which('uniq')
+        split_dims = self.output_info.split_dims()
+        split_dims_arg = ','.join(split_dims)
+        with self._copy_to_local_file() as local_file:
+            grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
+                                                stdout=subprocess.PIPE)
+            uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+            output_paths = []
+            skipped_paths = []
+            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+                splits = dict(zip(split_dims, line.split(' ')))
+                output_path = self.output_info.formatted_output_path(splits)
+                if self.should_skip_file(output_path):
+                    skipped_paths.append(output_path)
+                    continue
+                output_paths.append(output_path)
+            if not output_paths:
+                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                self.logger.info('Skipping %s, file already split into: %s',
+                                 repr(self.input_path), ', '.join(skipped_paths))
+                return
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                dest = os.path.join(tmpdir, flat_output_template)
                 subprocess.run([cmd, local_file.name, dest], check=True)
 
-                for target in os.listdir(tmpdir):
-                    with open(os.path.join(tmpdir, target), 'rb') as src_file:
-                        with FileSystems.create(os.path.join(root, target)) as dest_file:
+                for flat_target in os.listdir(tmpdir):
+                    with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
+                        target = flat_target.replace(delimiter, slash)
+                        dest_file_path = os.path.join(prefix, target)
+                        newdir, _ = os.path.split(dest_file_path)
+                        FileSystems.mkdirs(newdir)
+
+
+                        self.logger.info([newdir, dest_file_path, local_file.name,
+                                          self.output_info.unformatted_output_path()])
+                        # from pdb import set_trace as bp; bp()
+
+
+                        with FileSystems.create(dest_file_path) as dest_file:
                             shutil.copyfileobj(src_file, dest_file)
 
 
@@ -259,6 +307,7 @@ class DrySplitter(FileSplitter):
 
 def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
     if dry_run:
+        logger.info('Using splitter: DrySplitter')
         return DrySplitter(file_path, output_info)
 
     with FileSystems.open(file_path) as f:
@@ -272,14 +321,17 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
         # multiple dimensions at once.
         cmd = shutil.which('grib_copy')
         if cmd:
+            logger.info('Using splitter: GribSplitterV2')
             return GribSplitterV2(file_path, output_info, force_split)
         else:
+            logger.info('Using splitter: GribSplitter')
             return GribSplitter(file_path, output_info, force_split)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
     if b'CDF' in header or b'HDF' in header:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
+        logger.info('Using splitter: NetCdfSplitter')
         return NetCdfSplitter(file_path, output_info, force_split)
 
     raise ValueError(

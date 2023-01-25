@@ -42,14 +42,16 @@ def split_file(input_file: str,
                formatting: str,
                dry_run: bool,
                force_split: bool = False):
-    logger.info('Splitting file %s', input_file)
+    output_base_name = get_output_base_name(input_path=input_file,
+                                            input_base=input_base_dir,
+                                            output_template=output_template,
+                                            output_dir=output_dir,
+                                            formatting=formatting)
+    logger.info('Splitting file: %s. Output base name: %s',
+                input_file, output_base_name)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(input_file,
-                            get_output_base_name(input_path=input_file,
-                                                 input_base=input_base_dir,
-                                                 output_template=output_template,
-                                                 output_dir=output_dir,
-                                                 formatting=formatting),
+                            output_base_name,
                             dry_run,
                             force_split)
     splitter.split_data()
@@ -113,7 +115,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
