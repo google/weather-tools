@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: downloader-with-ttl
+spec:
+  ttlSecondsAfterFinished: 0
+  template:
+    spec:
+      containers:
+      - name: downloader
+        image: XXXXXX
+        imagePullPolicy: Always
+        command: []
+      # restartPolicy: Never
+      restartPolicy: OnFailure # corrent one

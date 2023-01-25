@@ -1,0 +1,14 @@
+name: weather-dl-v2-fetcher
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - google-cloud-pubsub
+  - pip=22.3
+  - pip:
+    - fastapi[all]
+    - python-multipart
+    - numpy
+    - apache-beam[gcp]
+    - aiohttp
+    - redis
