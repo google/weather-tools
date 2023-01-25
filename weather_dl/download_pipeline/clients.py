@@ -32,8 +32,7 @@ from ecmwfapi import ECMWFService, api
 from .config import Config, optimize_selection_partition
 from .util import retry_with_exponential_backoff
 
-warnings.simplefilter(
-    "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
+warnings.simplefilter("ignore", category=urllib3.connectionpool.InsecureRequestWarning)
 
 
 class Client(abc.ABC):
@@ -50,7 +49,7 @@ class Client(abc.ABC):
     def __init__(self, config: Config, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.config = config
-        self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
+        self.logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         self.logger.setLevel(level)
 
     @abc.abstractmethod
@@ -91,13 +90,13 @@ class CdsClient(Client):
     """
 
     """Name patterns of datasets that are hosted internally on CDS servers."""
-    cds_hosted_datasets = {'reanalysis-era'}
+    cds_hosted_datasets = {"reanalysis-era"}
 
     def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
         self.c = cdsapi.Client(
-            url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
-            key=config.kwargs.get('api_key', os.environ.get('CDSAPI_KEY')),
+            url=config.kwargs.get("api_url", os.environ.get("CDSAPI_URL")),
+            key=config.kwargs.get("api_key", os.environ.get("CDSAPI_KEY")),
             debug_callback=self.logger.debug,
             info_callback=self.logger.info,
             warning_callback=self.logger.warning,
@@ -110,7 +109,7 @@ class CdsClient(Client):
 
     @property
     def license_url(self):
-        return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
+        return "https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
@@ -161,21 +160,35 @@ class StdoutLogger(io.StringIO):
 
 class SplitMARSRequest(api.APIRequest):
     """Extended MARS APIRequest class that separates fetch and download stage."""
+
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
-        self.log(
-            "Transferring %s into %s" % (self._bytename(size), path)
-        )
+        self.log("Transferring %s into %s" % (self._bytename(size), path))
         self.log("From %s" % (url,))
 
         dir_path, file_name = os.path.split(path)
         try:
             subprocess.run(
-                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
+                [
+                    "aria2c",
+                    "-x",
+                    "16",
+                    "-s",
+                    "16",
+                    url,
+                    "-d",
+                    dir_path,
+                    "-o",
+                    file_name,
+                    "--allow-overwrite",
+                ],
                 check=True,
-                capture_output=True)
+                capture_output=True,
+            )
         except subprocess.CalledProcessError as e:
-            self.log(f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+            self.log(
+                f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}'
+            )
 
     def fetch(self, request: t.Dict) -> t.Dict:
         status = None
@@ -214,6 +227,7 @@ class SplitMARSRequest(api.APIRequest):
 
 class MARSECMWFServiceExtended(ECMWFService):
     """Extended MARS ECMFService class that separates fetch and download stage."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.c = SplitMARSRequest(
@@ -259,9 +273,9 @@ class MarsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         self.c = MARSECMWFServiceExtended(
             "mars",
-            key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
-            url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
-            email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            key=self.config.kwargs.get("api_key", os.environ.get("MARSAPI_KEY")),
+            url=self.config.kwargs.get("api_url", os.environ.get("MARSAPI_URL")),
+            email=self.config.kwargs.get("api_email", os.environ.get("MARSAPI_EMAIL")),
             log=self.logger.debug,
             verbose=True,
         )
@@ -272,7 +286,7 @@ class MarsClient(Client):
 
     @property
     def license_url(self):
-        return 'https://apps.ecmwf.int/datasets/licences/general/'
+        return "https://apps.ecmwf.int/datasets/licences/general/"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
@@ -294,13 +308,13 @@ class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        self.logger.debug(f'Downloading {dataset} to {output}')
-        with open(output, 'w') as f:
+        self.logger.debug(f"Downloading {dataset} to {output}")
+        with open(output, "w") as f:
             json.dump({dataset: selection}, f)
 
     @property
     def license_url(self):
-        return 'lorem ipsum'
+        return "lorem ipsum"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
