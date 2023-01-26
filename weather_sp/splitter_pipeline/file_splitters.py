@@ -82,7 +82,7 @@ class FileSplitter(abc.ABC):
 
         matches = FileSystems().match([output_path])
         assert len(matches) == 1
-        if len(match[0].metadata_list) > 0:
+        if len(matches[0].metadata_list) > 0:
             return True
         return False
 
@@ -203,15 +203,10 @@ class GribSplitterV2(GribSplitter):
                 for flat_target in os.listdir(tmpdir):
                     with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
                         target = flat_target.replace(delimiter, slash)
-                        dest_file_path = os.path.join(prefix, target)
-                        newdir, _ = os.path.split(dest_file_path)
-                        FileSystems.mkdirs(newdir)
+                        dest_file_path = f'{prefix}{target}'
 
-
-                        self.logger.info([newdir, dest_file_path, local_file.name,
+                        self.logger.info([prefix, dest_file_path, local_file.name,
                                           self.output_info.unformatted_output_path()])
-                        # from pdb import set_trace as bp; bp()
-
 
                         with FileSystems.create(dest_file_path) as dest_file:
                             shutil.copyfileobj(src_file, dest_file)
