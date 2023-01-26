@@ -79,7 +79,7 @@ class FileSplitter(abc.ABC):
     def should_skip_file(self, output_path: str) -> bool:
         """Skip splitting if the data file was already split.
 
-        TODO(alxr): Consider making this the default skipping implementation...
+        TODO(#287): Consider making this the default skipping implementation...
         """
         if self.force_split:
             return False
