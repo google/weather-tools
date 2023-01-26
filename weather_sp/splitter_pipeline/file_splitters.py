@@ -67,16 +67,19 @@ class FileSplitter(abc.ABC):
         if self.force_split:
             return False
 
-        splits = {var: '*' for var in self.output_info.split_dims()}
-        self.logger.info(splits)
-        matches = FileSystems().match([self.output_info.formatted_output_path(splits)])
-        for match in matches:
+        for match in FileSystems().match([
+            self.output_info.formatted_output_path(
+                {var: '*' for var in self.output_info.split_dims()}),
+        ]):
             if len(match.metadata_list) > 0:
                 return True
         return False
 
     def should_skip_file(self, output_path: str) -> bool:
-        """Skip splitting if the data file was already split."""
+        """Skip splitting if the data file was already split.
+
+        TODO(alxr): Consider making this the default skipping implementation...
+        """
         if self.force_split:
             return False
 
@@ -88,11 +91,6 @@ class FileSplitter(abc.ABC):
 
 
 class GribSplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -157,24 +155,22 @@ class GribSplitterV2(GribSplitter):
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
 
-        cmd = shutil.which('grib_copy')
-        if not cmd:
-            raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
+        grib_copy_cmd = shutil.which('grib_copy')
+        grib_get_cmd = shutil.which('grib_get')
+        uniq_cmd = shutil.which('uniq')
+        for cmd, name in [(grib_get_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
+            if not cmd:
+                raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
         unformatted_output_path = self.output_info.unformatted_output_path()
-        root, subdir_prefix = os.path.split(next(string.Formatter().parse(unformatted_output_path))[0])
-        prefix = os.path.join(root, subdir_prefix)
+        prefix, _ = os.path.split(next(iter(string.Formatter().parse(unformatted_output_path)))[0])
         _, tail = unformatted_output_path.split(prefix)
-        assert '[' not in tail
-        assert ']' not in tail
         output_template = tail.replace('{', '[').replace('}', ']')
 
         slash = '/'
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
 
-        grib_get_cmd = shutil.which('grib_get')
-        uniq_cmd = shutil.which('uniq')
         split_dims = self.output_info.split_dims()
         split_dims_arg = ','.join(split_dims)
         with self._copy_to_local_file() as local_file:
@@ -198,12 +194,11 @@ class GribSplitterV2(GribSplitter):
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 dest = os.path.join(tmpdir, flat_output_template)
-                subprocess.run([cmd, local_file.name, dest], check=True)
+                subprocess.run([grib_copy_cmd, local_file.name, dest], check=True)
 
                 for flat_target in os.listdir(tmpdir):
                     with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
-                        target = flat_target.replace(delimiter, slash)
-                        dest_file_path = f'{prefix}{target}'
+                        dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
 
                         self.logger.info([prefix, dest_file_path, local_file.name,
                                           self.output_info.unformatted_output_path()])

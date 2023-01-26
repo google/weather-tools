@@ -124,10 +124,14 @@ def run(argv: t.List[str], save_main_session: bool = True):
     output_template = known_args.output_template
     output_dir = known_args.output_dir
     formatting = known_args.formatting
+    dry_run = known_args.dry_run
 
     if not output_template and not output_dir:
         raise ValueError('No output specified')
-    dry_run = known_args.dry_run
+
+    output_file_tmpl = os.path.basename(output_template)
+    if '[' in output_file_tmpl or ']' in output_file_tmpl or '[' in formatting or ']' in formatting:
+        raise ValueError('Tokens `[]` are disallowed in the file output.')
 
     logger.debug('input_pattern: %s', input_pattern)
     logger.debug('input_base_dir: %s', input_base_dir)
