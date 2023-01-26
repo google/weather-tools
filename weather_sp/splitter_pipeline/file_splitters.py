@@ -56,6 +56,7 @@ class FileSplitter(abc.ABC):
 
     @contextmanager
     def _copy_to_local_file(self) -> t.Iterator[t.IO]:
+        self.logger.info(f'Copying {self.input_path!r} locally.')
         with FileSystems().open(self.input_path) as source_file:
             with tempfile.NamedTemporaryFile() as dest_file:
                 shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
@@ -108,6 +109,7 @@ class GribSplitter(FileSplitter):
         # minimal amount of data in memory at a time.
         outputs = dict()
         with self._open_grib_locally() as grbs:
+            self.logger.info('Splitting & uploading %r...', self.input_path)
             try:
                 for grb in grbs:
                     # Iterate through the split dimensions of the grib message in order to
@@ -135,7 +137,7 @@ class GribSplitter(FileSplitter):
             finally:
                 for out in outputs.values():
                     out.close()
-            self.logger.info('split %s into %d files',
+            self.logger.info('Split %s into %d files',
                              self.input_path, len(outputs))
 
     @contextmanager
@@ -174,6 +176,7 @@ class GribSplitterV2(GribSplitter):
         split_dims = self.output_info.split_dims()
         split_dims_arg = ','.join(split_dims)
         with self._copy_to_local_file() as local_file:
+            self.logger.info('Skipping as needed...')
             grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
                                                 stdout=subprocess.PIPE)
             uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
@@ -193,9 +196,11 @@ class GribSplitterV2(GribSplitter):
                 return
 
             with tempfile.TemporaryDirectory() as tmpdir:
+                self.logger.info('Performing split.')
                 dest = os.path.join(tmpdir, flat_output_template)
                 subprocess.run([grib_copy_cmd, local_file.name, dest], check=True)
 
+                self.logger.info('Uploading %r...', self.input_path)
                 for flat_target in os.listdir(tmpdir):
                     with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
                         dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
@@ -205,16 +210,12 @@ class GribSplitterV2(GribSplitter):
 
                         with FileSystems.create(dest_file_path) as dest_file:
                             shutil.copyfileobj(src_file, dest_file)
+                self.logger.info('Finished uploading %r', self.input_path)
 
 
 class NetCdfSplitter(FileSplitter):
 
     _UNSUPPORTED_DIMENSIONS = ('latitude', 'longitude', 'lat', 'lon')
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -242,13 +243,14 @@ class NetCdfSplitter(FileSplitter):
             for dim in filtered_split_dims:
                 iterlists.append(dataset[dim])
             combinations = itertools.product(*iterlists)
+            self.logger.info('Splitting & uploading %r...', self.input_path)
             for comb in combinations:
                 selected = comb[0]
                 for da in comb[1:]:
                     for dim in da.coords:
                         selected = selected.sel({dim: getattr(da, dim)})
                 self._write_dataset(selected, filtered_split_dims)
-            self.logger.info('Finished splitting %s', self.input_path)
+            self.logger.info('Finished splitting & uploading %r.', self.input_path)
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
@@ -279,11 +281,6 @@ class NetCdfSplitter(FileSplitter):
 
 
 class DrySplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
