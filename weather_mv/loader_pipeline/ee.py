@@ -423,7 +423,7 @@ class ConvertToAsset(beam.DoFn):
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
-        
+
         It will wait until the queue has a room to add a new item.
         """
         while queue.full():
