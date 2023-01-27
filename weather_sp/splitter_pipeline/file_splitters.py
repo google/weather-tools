@@ -17,6 +17,7 @@ import itertools
 import logging
 import os
 import shutil
+import string
 import subprocess
 import tempfile
 import typing as t
@@ -55,6 +56,7 @@ class FileSplitter(abc.ABC):
 
     @contextmanager
     def _copy_to_local_file(self) -> t.Iterator[t.IO]:
+        self.logger.info(f'Copying {self.input_path!r} locally.')
         with FileSystems().open(self.input_path) as source_file:
             with tempfile.NamedTemporaryFile() as dest_file:
                 shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
@@ -74,13 +76,22 @@ class FileSplitter(abc.ABC):
                 return True
         return False
 
+    def should_skip_file(self, output_path: str) -> bool:
+        """Skip splitting if the data file was already split.
+
+        TODO(#287): Consider making this the default skipping implementation...
+        """
+        if self.force_split:
+            return False
+
+        matches = FileSystems().match([output_path])
+        assert len(matches) == 1
+        if len(matches[0].metadata_list) > 0:
+            return True
+        return False
+
 
 class GribSplitter(FileSplitter):
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -98,6 +109,7 @@ class GribSplitter(FileSplitter):
         # minimal amount of data in memory at a time.
         outputs = dict()
         with self._open_grib_locally() as grbs:
+            self.logger.info('Splitting & uploading %r...', self.input_path)
             try:
                 for grb in grbs:
                     # Iterate through the split dimensions of the grib message in order to
@@ -125,7 +137,7 @@ class GribSplitter(FileSplitter):
             finally:
                 for out in outputs.values():
                     out.close()
-            self.logger.info('split %s into %d files',
+            self.logger.info('Split %s into %d files',
                              self.input_path, len(outputs))
 
     @contextmanager
@@ -145,38 +157,65 @@ class GribSplitterV2(GribSplitter):
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
 
-        if self.should_skip():
-            metrics.Metrics.counter('file_splitters', 'skipped').inc()
-            self.logger.info('Skipping %s, file already split.',
-                             repr(self.input_path))
-            return
+        grib_copy_cmd = shutil.which('grib_copy')
+        grib_get_cmd = shutil.which('grib_get')
+        uniq_cmd = shutil.which('uniq')
+        for cmd, name in [(grib_get_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
+            if not cmd:
+                raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
-        cmd = shutil.which('grib_copy')
-        if not cmd:
-            raise EnvironmentError('binary `grib_copy` is not available in the current environment!')
+        unformatted_output_path = self.output_info.unformatted_output_path()
+        prefix, _ = os.path.split(next(iter(string.Formatter().parse(unformatted_output_path)))[0])
+        _, tail = unformatted_output_path.split(prefix)
+        output_template = tail.replace('{', '[').replace('}', ']')
 
-        output_template = self.output_info.unformatted_output_path().replace('{', '[').replace('}', ']')
-        root, output_template = os.path.split(output_template)
+        slash = '/'
+        delimiter = 'DELIMITER'
+        flat_output_template = output_template.replace('/', delimiter)
+
+        split_dims = self.output_info.split_dims()
+        split_dims_arg = ','.join(split_dims)
         with self._copy_to_local_file() as local_file:
+            self.logger.info('Skipping as needed...')
+            grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
+                                                stdout=subprocess.PIPE)
+            uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+            output_paths = []
+            skipped_paths = []
+            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+                splits = dict(zip(split_dims, line.split(' ')))
+                output_path = self.output_info.formatted_output_path(splits)
+                if self.should_skip_file(output_path):
+                    skipped_paths.append(output_path)
+                    continue
+                output_paths.append(output_path)
+            if not output_paths:
+                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                self.logger.info('Skipping %s, file already split into: %s',
+                                 repr(self.input_path), ', '.join(skipped_paths))
+                return
+
             with tempfile.TemporaryDirectory() as tmpdir:
-                dest = os.path.join(tmpdir, output_template)
+                self.logger.info('Performing split.')
+                dest = os.path.join(tmpdir, flat_output_template)
+                subprocess.run([grib_copy_cmd, local_file.name, dest], check=True)
 
-                subprocess.run([cmd, local_file.name, dest], check=True)
+                self.logger.info('Uploading %r...', self.input_path)
+                for flat_target in os.listdir(tmpdir):
+                    with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
+                        dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
 
-                for target in os.listdir(tmpdir):
-                    with open(os.path.join(tmpdir, target), 'rb') as src_file:
-                        with FileSystems.create(os.path.join(root, target)) as dest_file:
+                        self.logger.info([prefix, dest_file_path, local_file.name,
+                                          self.output_info.unformatted_output_path()])
+
+                        with FileSystems.create(dest_file_path) as dest_file:
                             shutil.copyfileobj(src_file, dest_file)
+                self.logger.info('Finished uploading %r', self.input_path)
 
 
 class NetCdfSplitter(FileSplitter):
 
     _UNSUPPORTED_DIMENSIONS = ('latitude', 'longitude', 'lat', 'lon')
-
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
 
     def split_data(self) -> None:
         if not self.output_info.split_dims():
@@ -204,13 +243,14 @@ class NetCdfSplitter(FileSplitter):
             for dim in filtered_split_dims:
                 iterlists.append(dataset[dim])
             combinations = itertools.product(*iterlists)
+            self.logger.info('Splitting & uploading %r...', self.input_path)
             for comb in combinations:
                 selected = comb[0]
                 for da in comb[1:]:
                     for dim in da.coords:
                         selected = selected.sel({dim: getattr(da, dim)})
                 self._write_dataset(selected, filtered_split_dims)
-            self.logger.info('Finished splitting %s', self.input_path)
+            self.logger.info('Finished splitting & uploading %r.', self.input_path)
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
@@ -242,11 +282,6 @@ class NetCdfSplitter(FileSplitter):
 
 class DrySplitter(FileSplitter):
 
-    def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
-        super().__init__(input_path, output_info,
-                         force_split, logging_level)
-
     def split_data(self) -> None:
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
@@ -259,6 +294,7 @@ class DrySplitter(FileSplitter):
 
 def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
     if dry_run:
+        logger.info('Using splitter: DrySplitter')
         return DrySplitter(file_path, output_info)
 
     with FileSystems.open(file_path) as f:
@@ -272,14 +308,17 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
         # multiple dimensions at once.
         cmd = shutil.which('grib_copy')
         if cmd:
+            logger.info('Using splitter: GribSplitterV2')
             return GribSplitterV2(file_path, output_info, force_split)
         else:
+            logger.info('Using splitter: GribSplitter')
             return GribSplitter(file_path, output_info, force_split)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
     if b'CDF' in header or b'HDF' in header:
         metrics.Metrics.counter('get_splitter', 'netcdf').inc()
+        logger.info('Using splitter: NetCdfSplitter')
         return NetCdfSplitter(file_path, output_info, force_split)
 
     raise ValueError(
