@@ -271,7 +271,6 @@ class NetCdfSplitter(FileSplitter):
         # Storing data in HDF5 is advantageous since it allows opening NetCDF files with buffered readers.
         with tempfile.NamedTemporaryFile() as tmp:
             dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
-            tmp.seek(0)
             copy(tmp.name, self._get_output_for_dataset(dataset, split_dims))
 
     def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
