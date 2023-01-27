@@ -207,14 +207,11 @@ class GribSplitterV2(GribSplitter):
 
                 self.logger.info('Uploading %r...', self.input_path)
                 for flat_target in os.listdir(tmpdir):
-                    with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
-                        dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    self.logger.info([prefix, dest_file_path, local_file.name,
+                                      self.output_info.unformatted_output_path()])
 
-                        self.logger.info([prefix, dest_file_path, local_file.name,
-                                          self.output_info.unformatted_output_path()])
-
-                        with FileSystems.create(dest_file_path) as dest_file:
-                            copy(src_file, dest_file)
+                    copy(os.path.join(tmpdir, flat_target), dest_file_path)
                 self.logger.info('Finished uploading %r', self.input_path)
 
 
