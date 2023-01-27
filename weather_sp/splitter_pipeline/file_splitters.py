@@ -27,14 +27,21 @@ import apache_beam.metrics as metrics
 import numpy as np
 import pygrib
 import xarray as xr
-from apache_beam.io.filesystem import DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
-# TODO(#256): Find better + file-agnostic write chunk size.
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
 from .file_name_utils import OutFileInfo
 
 logger = logging.getLogger(__name__)
+
+
+# TODO(#245): Group with common utilities (duplicated)
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gsutil cp`."""
+    try:
+        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
+        raise
 
 
 class FileSplitter(abc.ABC):
@@ -57,11 +64,9 @@ class FileSplitter(abc.ABC):
     @contextmanager
     def _copy_to_local_file(self) -> t.Iterator[t.IO]:
         self.logger.info(f'Copying {self.input_path!r} locally.')
-        with FileSystems().open(self.input_path) as source_file:
-            with tempfile.NamedTemporaryFile() as dest_file:
-                shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
-                dest_file.flush()
-                yield dest_file
+        with tempfile.NamedTemporaryFile() as dest_file:
+            copy(self.input_path, dest_file.name)
+            yield dest_file
 
     def should_skip(self):
         """Skip splitting if the data was already split."""
@@ -202,14 +207,11 @@ class GribSplitterV2(GribSplitter):
 
                 self.logger.info('Uploading %r...', self.input_path)
                 for flat_target in os.listdir(tmpdir):
-                    with open(os.path.join(tmpdir, flat_target), 'rb') as src_file:
-                        dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    self.logger.info([prefix, dest_file_path, local_file.name,
+                                      self.output_info.unformatted_output_path()])
 
-                        self.logger.info([prefix, dest_file_path, local_file.name,
-                                          self.output_info.unformatted_output_path()])
-
-                        with FileSystems.create(dest_file_path) as dest_file:
-                            shutil.copyfileobj(src_file, dest_file)
+                    copy(os.path.join(tmpdir, flat_target), dest_file_path)
                 self.logger.info('Finished uploading %r', self.input_path)
 
 
@@ -265,10 +267,8 @@ class NetCdfSplitter(FileSplitter):
         # returning bytes. Further, the scipy engine does not support NETCDF4 (which is HDF5 compliant).
         # Storing data in HDF5 is advantageous since it allows opening NetCDF files with buffered readers.
         with tempfile.NamedTemporaryFile() as tmp:
-            with FileSystems().create(self._get_output_for_dataset(dataset, split_dims)) as dest_file:
-                dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
-                tmp.seek(0)
-                shutil.copyfileobj(tmp, dest_file, WRITE_CHUNK_SIZE)
+            dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
+            copy(tmp.name, self._get_output_for_dataset(dataset, split_dims))
 
     def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}

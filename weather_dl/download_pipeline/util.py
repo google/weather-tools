@@ -64,6 +64,7 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
         pass
 
 
+# TODO(#245): Group with common utilities (duplicated)
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil cp`."""
     try:
