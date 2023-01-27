@@ -115,7 +115,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
