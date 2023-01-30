@@ -1,11 +1,13 @@
 # Deployment Instructions & General Notes
 
-* **To run fastapi server:**
+* **Write the topic path**
 ```
-uvicorn main:app --reload
-```
+export PROJECT_ID=<your-project-here>
 
-* Open your browser at http://127.0.0.1:8000.
+Please write down the topic path in case of using pub-sub at Line 61 of fetch.py.
+```
+> Note: You can get the topic path using `gcloud pubsub topic list`.
+> eg: projects/$PROJECT_ID/topics/weather-dl-v2
 
 * **How to create environment:**
 ```
@@ -13,6 +15,13 @@ conda env create --name weather-dl-v2-fetcher --file=environment.yml
 
 conda activate weather-dl-v2-fetcher
 ```
+
+* **To run fastapi server:**
+```
+uvicorn main:app --reload
+```
+
+* Open your browser at http://127.0.0.1:8000.
 
 * **Create docker image for fetcher**:
 ```
@@ -31,3 +40,13 @@ Please write down the fetcher's docker image path at Line 42 of fetcher.yaml.
 ```
 kubectl apply -f fetcher.yaml --force
 ```
+
+## General Commands
+* **For viewing the current pods**:
+```
+kubectl get pods
+```
+
+* **For deleting existing deployment**:
+```
+kubectl delete -f ./fetcher.yaml --force

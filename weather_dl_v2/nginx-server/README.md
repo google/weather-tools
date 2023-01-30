@@ -56,3 +56,8 @@ gcloud compute instances create-with-container weather-dl-v2-nginx-server  \
 ```
 curl localhost:8080
 ```
+
+* **Upload config file to fastapi server from VM**:
+```
+curl -F file=@example.cfg localhost:8080/uploadfile/
+```
