@@ -421,6 +421,15 @@ class ConvertToAsset(beam.DoFn):
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
 
+    def add_to_queue(self, queue: Queue, item: t.Any):
+        """Adds a new item to the queue.
+
+        It will wait until the queue has a room to add a new item.
+        """
+        while queue.full():
+            pass
+        queue.put_nowait(item)
+
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
@@ -495,18 +504,35 @@ class ConvertToAsset(beam.DoFn):
                 properties=attrs
             )
 
-            queue.put_nowait(asset_data)
+            self.add_to_queue(queue, asset_data)
+            self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
-        """Opens grib files and yields AssetData."""
-        queue = Queue()
+        """Opens grib files and yields AssetData.
+
+        We observed that the convert-to-cog process increases memory usage over time because xarray (v2022.11.0) is not
+        releasing memory as expected while opening any dataset. So we will perform the convert-to-asset process in an
+        isolated process so that the memory consumed while processing will be cleared after the process is killed.
+
+        The process puts the asset data into the queue which the main process will consume. Queue buffer size is limited
+        so the process will be able to put another item in a queue only after the main process has consumed the queue
+        item, that way it makes sure that no queue item is dropped due to queue buffer size.
+        """
+        queue = Queue(maxsize=1)
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
-        process.join()
+        kill_subprocess = False
 
-        while not queue.empty():
-            asset_data = queue.get_nowait()
-            yield asset_data
+        while not kill_subprocess:
+            if not queue.empty():
+                asset_data = queue.get_nowait()
+
+                if asset_data is not None:
+                    yield asset_data
+                else:
+                    kill_subprocess = True
+
+        process.kill()
 
 
 class IngestIntoEETransform(SetupEarthEngine):
