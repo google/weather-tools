@@ -508,7 +508,16 @@ class ConvertToAsset(beam.DoFn):
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
-        """Opens grib files and yields AssetData."""
+        """Opens grib files and yields AssetData.
+
+        We observed that the convert-to-cog process increases memory usage over time because xarray (v2022.11.0) is not
+        releasing memory as expected while opening any dataset. So we will perform the convert-to-asset process in an
+        isolated process so that the memory consumed while processing will be cleared after the process is killed.
+
+        The process puts the asset data into the queue which the main process will consume. Queue buffer size is limited
+        so the process will be able to put another item in a queue only after the main process has consumed the queue
+        item, that way it makes sure that no queue item is dropped due to queue buffer size.
+        """
         queue = Queue(maxsize=1)
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
