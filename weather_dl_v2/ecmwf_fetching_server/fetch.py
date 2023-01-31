@@ -12,7 +12,7 @@ from parsers import prepare_target_name
 from google.cloud import pubsub_v1
 
 API_URL = "https://api.ecmwf.int/v1/services/mars/requests"
-USE_REDIS = False
+USE_REDIS = True
 
 sem = asyncio.Semaphore(2)
   
@@ -40,7 +40,7 @@ def build_header(config: Config) -> dict[str, str]:
 
 
 async def publish_on_redis(config, result):
-  r = redis.from_url("redis://localhost")
+  r = redis.from_url("redis://<redis-master-service-ip>")
   target = prepare_target_name(config)
   res = {
         'selection': config.selection,

@@ -15,7 +15,7 @@ from kubernetes import client, config
 import asyncio
 import redis.asyncio as redis
 
-USE_REDIS = False
+USE_REDIS = True
 
 async def reader(channel: redis.client.PubSub):
     print(f"Listening for messages ...\n")
@@ -28,7 +28,7 @@ async def reader(channel: redis.client.PubSub):
 
 async def redis_main():
     """Continuously pull messages from redis subsciption."""
-    r = redis.from_url("redis://localhost")
+    r = redis.from_url("redis://<redis-master-service-ip>")
 
     async with r.pubsub() as pubsub:
         await pubsub.subscribe("channel:1")
