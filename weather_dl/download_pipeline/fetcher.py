@@ -74,7 +74,10 @@ class Fetcher(beam.DoFn):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
-                copy(temp.name, target)
+
+                # In dry-run mode we actually aren't required to upload a file.
+                if not self.client_name == "fake":
+                    copy(temp.name, target)
 
                 logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
 

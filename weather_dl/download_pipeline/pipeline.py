@@ -158,6 +158,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "partitions from each config will be interspersed evenly. "
                              "Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a "
                              "much smaller number. Default: 'in-order'.")
+    parser.add_argument('--check-skip-in-dry-run', action='store_true', default=False,
+                        help="To enable file skipping logic in dry-run mode. Default: 'false'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -174,6 +176,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
 
     validate_all_configs(configs)
 
+    if known_args.check_skip_in_dry_run and not known_args.dry_run:
+        raise ValueError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
+
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
     save_main_session_args = ['--save_main_session'] + ['True' if save_main_session else 'False']
@@ -185,7 +190,11 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
 
     if known_args.dry_run:
         client_name = 'fake'
-        store = TempFileStore('dry_run')
+        if not known_args.check_skip_in_dry_run:
+            store = TempFileStore('dry_run')
+            logger.warning('File skipping logic is disabled by default in dry-run mode.'
+                           'To enable please pass the flag --check-skip-in-dry-run along with the'
+                           'dry run flag.')
         for config in configs:
             config.force_download = True
         manifest = NoOpManifest(Location('noop://dry-run'))
