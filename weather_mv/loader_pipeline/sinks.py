@@ -17,7 +17,7 @@ import argparse
 import contextlib
 import dataclasses
 import logging
-import shutil
+import subprocess
 import tempfile
 import typing as t
 import os
@@ -30,8 +30,6 @@ import apache_beam as beam
 import rasterio
 import xarray as xr
 import cfgrib
-from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
@@ -63,6 +61,15 @@ class ToDataSink(abc.ABC, beam.PTransform):
     @abc.abstractmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_options: t.List[str]) -> None:
         pass
+
+
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gcloud alpha storage cp`."""
+    try:
+        subprocess.run(['gcloud', 'alpha', 'storage', 'cp', src, dst], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
+        raise
 
 
 def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
@@ -333,12 +340,9 @@ def __open_dataset_file(filename: str,
 @contextlib.contextmanager
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
-    with FileSystems().open(uri) as source_file:
-        with tempfile.NamedTemporaryFile() as dest_file:
-            shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
-            dest_file.flush()
-            dest_file.seek(0)
-            yield dest_file.name
+    with tempfile.NamedTemporaryFile() as dest_file:
+        copy(uri, dest_file.name)
+        yield dest_file.name
 
 
 @contextlib.contextmanager
@@ -371,8 +375,7 @@ def open_dataset(uri: str,
                 dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
-            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
-
+            # logger.info(f'opened dataset size: {xr_dataset.nbytes}')
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_dataset
     except Exception as e:

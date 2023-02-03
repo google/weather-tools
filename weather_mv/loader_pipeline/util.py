@@ -148,7 +148,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
     # If there are no restrictions on data vars, include the whole dataset.
     if not data_vars:
-        logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
+        # logger.info(f'target data_vars empty; using whole dataset; size: {ds.nbytes}')
         return ds
 
     if not ds.attrs['is_normalized']:
@@ -173,7 +173,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
         dropped_ds = ds.drop_vars(drop_vars)
 
-    logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
+    # logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
 
     return dropped_ds
 

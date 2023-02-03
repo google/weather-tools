@@ -205,18 +205,27 @@ class ToBigQuery(ToDataSink):
         if not self.dry_run:
             (
                     extracted_rows
-                    | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
-                        write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
+                    | "BatchElements" >> beam.BatchElements(500, 500)
+                    | "WriteToBigquery" >> beam.Map(wrtite_to_big_query, table=self.table)
+                    # | 'WriteToBigQuery' >> WriteToBigQuery(
+                    #     project=self.table.project,
+                    #     dataset=self.table.dataset_id,
+                    #     table=self.table.table_id,
+                    #     write_disposition=BigQueryDisposition.WRITE_APPEND,
+                    #     create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
         else:
             (
                     extracted_rows
                     | 'Log Extracted Rows' >> beam.Map(logger.debug)
             )
+
+
+def wrtite_to_big_query(rows_to_insert, table):
+    with bigquery.Client() as client:    
+        res = client.insert_rows(table, rows_to_insert)
+        # Wait for the insert operation to complete.
+        res.result()
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
@@ -283,7 +292,7 @@ def prepare_coordinates(
         if area:
             n, w, s, e = area
             data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+            # logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
         for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
             yield uri, list(chunk)
