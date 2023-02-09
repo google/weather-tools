@@ -224,8 +224,8 @@ class ToBigQuery(ToDataSink):
 def wrtite_to_big_query(rows_to_insert, table):
     with bigquery.Client() as client:    
         res = client.insert_rows(table, rows_to_insert)
-        # Wait for the insert operation to complete.
-        res.result()
+        if res != []:
+           logger.error("Encountered errors while inserting rows into BQ: {}".format(res))
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
