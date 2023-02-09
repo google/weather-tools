@@ -195,8 +195,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
             logger.warning('File skipping logic is disabled by default in dry-run mode.'
                            'To enable please pass the flag --check-skip-in-dry-run along with the'
                            'dry run flag.')
-        for config in configs:
-            config.force_download = True
+            for config in configs:
+                config.force_download = True
         manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:
