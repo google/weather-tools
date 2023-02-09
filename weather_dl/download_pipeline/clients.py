@@ -66,7 +66,7 @@ class Client(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def license_url(self, dataset: t.Optional[str] = None):
+    def license_url(self):
         """Specifies the License URL."""
         pass
 
@@ -109,7 +109,7 @@ class CdsClient(Client):
         self.c.retrieve(dataset, selection_, target)
 
     @property
-    def license_url(self, dataset=None):
+    def license_url(self):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
     @classmethod
@@ -268,7 +268,7 @@ class MarsClient(Client):
             self.c.download(result, target=output)
 
     @property
-    def license_url(self, dataset: t.Optional[str] = None):
+    def license_url(self):
         return 'https://apps.ecmwf.int/datasets/licences/general/'
 
     @classmethod
@@ -307,10 +307,10 @@ class ECMWFPublicClient(Client):
         return 2
 
     @property
-    def license_url(self, dataset: t.Optional[str] = None):
-        if not dataset:
+    def license_url(self):
+        if not self.config.dataset:
             raise ValueError('must specify a dataset for this client!')
-        return f'https://apps.ecmwf.int/datasets/data/{dataset.lower()}/licence/'
+        return f'https://apps.ecmwf.int/datasets/data/{self.config.dataset.lower()}/licence/'
 
 
 class FakeClient(Client):
