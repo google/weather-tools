@@ -13,6 +13,7 @@
 # limitations under the License.
 import itertools
 import json
+import os
 import tempfile
 import typing as t
 import unittest
@@ -21,7 +22,7 @@ from unittest.mock import MagicMock
 import apache_beam as beam
 from xarray_beam._src.test_util import EagerPipeline
 
-from .manifest import MockManifest, Location, LocalManifest
+from .manifest import Location
 from .parsers import get_subsections
 from .partition import skip_partition, PartitionConfig
 from .stores import InMemoryStore, Store
@@ -42,7 +43,7 @@ class OddFilesDoNotExistStore(InMemoryStore):
 class PreparePartitionTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.dummy_manifest = MockManifest(Location('mock://dummy'))
+        self.dummy_manifest = {'type': 'mock', 'location': Location('mock://dummy')}
 
     def create_partition_configs(self, configs,
                                  store: t.Optional[Store] = None,
@@ -181,16 +182,16 @@ class PreparePartitionTest(unittest.TestCase):
         config_obj = Config.from_dict(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.dummy_manifest = LocalManifest(Location(tmpdir))
+            self.dummy_manifest = {'type': '', 'location': Location(tmpdir)}
 
             self.create_partition_configs([config_obj])
 
-            with open(self.dummy_manifest.location, 'r') as f:
+            with open(Location('{}{}manifest.json'.format(tmpdir, os.sep)), 'r') as f:
                 actual = json.load(f)
 
             self.assertListEqual(
                 [d['selection'] for d in actual.values()], [
-                    {**config['selection'], **{'year': [str(i)]}}
+                    json.dumps({**config['selection'], **{'year': [str(i)]}})
                     for i in range(2015, 2021)
                 ])
 

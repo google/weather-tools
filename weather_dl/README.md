@@ -44,8 +44,11 @@ _Common options_:
   and `--direct_num_workers`
 * `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging
   (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol.
-  For example, 'cli://manifest' will prefix all the manifest logs as '[manifest]'. In addition, users can specify a GCS
-  bucket URI, or 'noop://<name>' for an in-memory location.
+  For example, `cli://manifest` will prefix all the manifest logs as '[manifest]'. In addition, users can specify 
+  either a BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`) or GCS bucket URI, or `noop://<name>` 
+  for an in-memory location.
+> Note: Tool will create the BQ table itself, if not already present. 
+  Or it will use the existing table but can report errors in case of schema mismatch.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 * `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 

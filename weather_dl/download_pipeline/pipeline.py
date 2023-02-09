@@ -30,12 +30,7 @@ from apache_beam.options.pipeline_options import (
 from .clients import CLIENTS
 from .config import Config
 from .fetcher import Fetcher
-from .manifest import (
-    Location,
-    LocalManifest,
-    Manifest,
-    NoOpManifest,
-)
+from .manifest import Location
 from .parsers import (
     parse_manifest,
     process_config,
@@ -79,7 +74,7 @@ class PipelineArgs:
     configs: t.List[Config]
     client_name: str
     store: None
-    manifest: Manifest
+    manifest: t.Dict[str, Location]
     num_requesters_per_key: int
 
 
@@ -141,8 +136,11 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Location of the manifest. By default, it will use Cloud Logging (stdout for direct "
                              "runner). You can set the name of the manifest as the hostname of a URL with the 'cli' "
                              "protocol. For example, 'cli://manifest' will prefix all the manifest logs as "
-                             "'[manifest]'. In addition, users can specify a GCS bucket URI, or 'noop://<name>' for an "
-                             "in-memory location.")
+                             "'[manifest]'. In addition, users can specify either a BigQuery table "
+                             "('bq://<project-id>.<dataset-name>.<table-name>') [Note: Tool will create the BQ table "
+                             "itself, if not already present. Or it will use the existing table but can report errors "
+                             "in case of schema mismatch.] or GCS bucket URI, "
+                             "or 'noop://<name>' for an in-memory location.")
     parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
@@ -195,18 +193,18 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
             logger.warning('File skipping logic is disabled by default in dry-run mode.'
                            'To enable please pass the flag --check-skip-in-dry-run along with the'
                            'dry run flag.')
-        for config in configs:
-            config.force_download = True
-        manifest = NoOpManifest(Location('noop://dry-run'))
+            for config in configs:
+                config.force_download = True
+        manifest = {'type': 'noop', 'location': Location('noop://dry-run')}
 
     if known_args.local_run:
         local_dir = '{}/local_run'.format(os.getcwd())
         store = LocalFileStore(local_dir)
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
-        manifest = LocalManifest(Location(local_dir))
+        manifest = {'type': '', 'location': Location(local_dir)}
 
     num_requesters_per_key = known_args.num_requests_per_key
-    client = CLIENTS[client_name](configs[0])
+    client = CLIENTS[client_name](configs[0], manifest)
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(config.dataset)
 

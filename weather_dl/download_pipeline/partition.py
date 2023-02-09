@@ -21,7 +21,7 @@ import typing as t
 import apache_beam as beam
 
 from .config import Config
-from .manifest import Manifest
+from .manifest import MANIFESTS, Location, NoOpManifest
 from .parsers import prepare_target_name
 from .stores import Store, FSStore
 from .util import ichunked
@@ -57,7 +57,7 @@ class PartitionConfig(beam.PTransform):
 
     store: Store
     subsections: itertools.cycle
-    manifest: Manifest
+    manifest: t.Dict[str, Location]
     scheduling: str
     partition_chunks: t.Optional[int] = None
     num_groups: int = 1
@@ -203,7 +203,7 @@ def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bo
     return not should_skip
 
 
-def assemble_config(partition: Partition, manifest: Manifest) -> Config:
+def assemble_config(partition: Partition, manifest: t.Dict[str, Location]) -> Config:
     """Assemble the configuration for a single partition.
 
     For each cross product of the 'selection' sections, the output dictionary
@@ -222,13 +222,14 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
     Returns:
         An `Config` assembled out of subsection parameters and config shards.
     """
+    manifest_obj = MANIFESTS.get(manifest['type'], NoOpManifest)(manifest['location'])
     name, params, out = partition
     out.kwargs.update(params)
     out.subsection_name = name
 
     location = prepare_target_name(out)
     user = out.user_id
-    manifest.schedule(out.selection, location, user)
+    manifest_obj.schedule(out.selection, location, user)
 
     logger.info(f'[{name}] Created partition {location!r}.')
     beam.metrics.Metrics.counter('Subsection', name).inc()

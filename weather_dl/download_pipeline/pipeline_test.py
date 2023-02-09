@@ -23,7 +23,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 
 import weather_dl
 from .config import Config
-from .manifest import Location, NoOpManifest, LocalManifest, ConsoleManifest
+from .manifest import Location
 from .pipeline import run, PipelineArgs
 from .stores import TempFileStore, LocalFileStore
 
@@ -61,7 +61,7 @@ DEFAULT_ARGS = PipelineArgs(
     configs=[Config.from_dict(CONFIG)],
     client_name='cds',
     store=None,
-    manifest=ConsoleManifest(Location('cli://manifest')),
+    manifest={'type': 'cli', 'location': Location('cli://manifest')},
     num_requesters_per_key=5,
 )
 
@@ -118,7 +118,7 @@ class ParsePipelineArgs(unittest.TestCase):
             f'{self.DEFAULT_CMD} -d',
             default_args(
                 dict(force_download=True), known_args=dict(dry_run=True), client_name='fake',
-                store=TempFileStore('dry_run'), manifest=NoOpManifest(Location('noop://dry-run')),
+                store=TempFileStore('dry_run'), manifest={'type': 'noop', 'location': Location('noop://dry-run')},
                 num_requesters_per_key=1
             )
         )
@@ -128,7 +128,7 @@ class ParsePipelineArgs(unittest.TestCase):
             f'{self.DEFAULT_CMD} -l',
             default_args(
                 known_args=dict(local_run=True), store=LocalFileStore(f'{os.getcwd()}/local_run'),
-                manifest=LocalManifest(Location(f'{os.getcwd()}/local_run')),
+                manifest={'type': '', 'location': Location(f'{os.getcwd()}/local_run')},
                 pipeline_options=PipelineOptions('--runner DirectRunner --save_main_session True'.split())
             )
         )

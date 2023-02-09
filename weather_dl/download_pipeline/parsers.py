@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 from .clients import CLIENTS
 from .config import Config
-from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
+from .manifest import Location
 
 
 def date(candidate: str) -> datetime.date:
@@ -173,8 +173,8 @@ def parse_config(file: t.IO) -> t.Dict:
     return config_with_nesting
 
 
-def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
-    """Constructs a manifest object by parsing the location."""
+def parse_manifest(location: Location, pipeline_opts: t.Dict) -> t.Dict[str, str]:
+    """Constructs a dict required to create manifest object by parsing the location."""
     project_id__exists = 'project' in pipeline_opts
     project_id__not_set = 'projectId' not in location
 
@@ -187,7 +187,7 @@ def parse_manifest(location: Location, pipeline_opts: t.Dict) -> Manifest:
         location += f'{start_char}projectId={project}'
 
     parsed = urlparse(location)
-    return MANIFESTS.get(parsed.scheme, NoOpManifest)(location)
+    return {'type': parsed.scheme, 'location': location}
 
 
 def _splitlines(block: str) -> t.List[str]:
