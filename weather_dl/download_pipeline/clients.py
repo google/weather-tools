@@ -27,7 +27,7 @@ from urllib.parse import urljoin
 
 import cdsapi
 import urllib3
-from ecmwfapi import ECMWFService, api
+from ecmwfapi import ECMWFService, api, ECMWFDataServer
 
 from .config import Config, optimize_selection_partition
 from .util import retry_with_exponential_backoff
@@ -66,7 +66,7 @@ class Client(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def license_url(self):
+    def license_url(self, dataset: t.Optional[str] = None):
         """Specifies the License URL."""
         pass
 
@@ -109,7 +109,7 @@ class CdsClient(Client):
         self.c.retrieve(dataset, selection_, target)
 
     @property
-    def license_url(self):
+    def license_url(self, dataset=None):
         return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
 
     @classmethod
@@ -253,9 +253,6 @@ class MarsClient(Client):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
-        super().__init__(config, level)
-
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         self.c = MARSECMWFServiceExtended(
             "mars",
@@ -271,7 +268,7 @@ class MarsClient(Client):
             self.c.download(result, target=output)
 
     @property
-    def license_url(self):
+    def license_url(self, dataset: t.Optional[str] = None):
         return 'https://apps.ecmwf.int/datasets/licences/general/'
 
     @classmethod
@@ -288,6 +285,32 @@ class MarsClient(Client):
         http://apps.ecmwf.int/webmars/joblist/ and cancel queued jobs.
         """
         return 2
+
+
+class ECMWFPublicClient(Client):
+    """A client for ECMWF's pubic datasets, like TIGGE."""
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        c = ECMWFDataServer(
+            url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
+            key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
+            email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            log=self.logger.debug,
+            verbose=True,
+        )
+        selection_ = optimize_selection_partition(selection)
+        with StdoutLogger(self.logger, level=logging.DEBUG):
+            c.retrieve({'target': output, 'dataset': dataset, **selection_})
+
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
+        # TODO(srasp): Look up request limits...
+        return 2
+
+    @property
+    def license_url(self, dataset: t.Optional[str] = None):
+        if not dataset:
+            raise ValueError('must specify a dataset for this client!')
+        return f'https://apps.ecmwf.int/datasets/data/{dataset.lower()}/licence/'
 
 
 class FakeClient(Client):
@@ -310,5 +333,6 @@ class FakeClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient,
     mars=MarsClient,
+    ecpublic=ECMWFPublicClient,
     fake=FakeClient,
 )
