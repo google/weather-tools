@@ -233,6 +233,19 @@ class MARSECMWFServiceExtended(ECMWFService):
         self.c.download(res, target)
 
 
+class PublicECMWFServerExtended(MARSECMWFServiceExtended):
+    def __init__(self, *args, dataset='', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.c = SplitMARSRequest(
+            self.url,
+            "datasets/%s" % (dataset,),
+            email=self.email,
+            key=self.key,
+            log=self.log,
+            verbose=self.verbose,
+        )
+
+
 class MarsClient(Client):
     """A client to access data from the Meteorological Archival and Retrieval System (MARS).
 
@@ -254,7 +267,7 @@ class MarsClient(Client):
     """
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        self.c = MARSECMWFServiceExtended(
+        c = MARSECMWFServiceExtended(
             "mars",
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
@@ -264,8 +277,8 @@ class MarsClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            result = self.c.fetch(req=selection_)
-            self.c.download(result, target=output)
+            result = c.fetch(req=selection_)
+            c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -290,16 +303,18 @@ class MarsClient(Client):
 class ECMWFPublicClient(Client):
     """A client for ECMWF's public datasets, like TIGGE."""
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        c = ECMWFDataServer(
+        c = PublicECMWFServerExtended(
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
             log=self.logger.debug,
             verbose=True,
+            dataset=dataset,
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            c.retrieve({'target': output, 'dataset': dataset, **selection_})
+            result = c.fetch(req=selection_)
+            c.download(result, target=output)
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
