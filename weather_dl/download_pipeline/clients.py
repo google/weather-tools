@@ -27,7 +27,7 @@ from urllib.parse import urljoin
 
 import cdsapi
 import urllib3
-from ecmwfapi import ECMWFService, api, ECMWFDataServer
+from ecmwfapi import api
 
 from .config import Config, optimize_selection_partition
 from .util import retry_with_exponential_backoff
@@ -212,7 +212,7 @@ class SplitMARSRequest(api.APIRequest):
         self.connection.cleanup()
 
 
-class MARSECMWFServiceExtended(ECMWFService):
+class MARSECMWFServiceExtended(api.ECMWFService):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
