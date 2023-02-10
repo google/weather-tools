@@ -288,7 +288,7 @@ class MarsClient(Client):
 
 
 class ECMWFPublicClient(Client):
-    """A client for ECMWF's pubic datasets, like TIGGE."""
+    """A client for ECMWF's public datasets, like TIGGE."""
     def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
         c = ECMWFDataServer(
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
