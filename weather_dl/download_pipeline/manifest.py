@@ -94,7 +94,7 @@ class DownloadStatus():
     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
     status: t.Optional[Status] = None
 
-    """Cause of error"""
+    """Cause of error, if any."""
     error: t.Optional[str] = ""
 
     """Identifier for the user running the download."""
@@ -451,22 +451,39 @@ class BQManifest(Manifest):
     def __init__(self, location: Location) -> None:
         super().__init__(Location(location[5:]))
         TABLE_SCHEMA = [
-            bigquery.SchemaField('selection', 'JSON', mode='REQUIRED'),
-            bigquery.SchemaField('location', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('stage', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('status', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('error', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('user', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE'),
-            bigquery.SchemaField('scheduled_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('retrieve_start_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('retrieve_end_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('fetch_start_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('fetch_end_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('download_start_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('download_end_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('upload_start_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('upload_end_time', 'TIMESTAMP', mode='NULLABLE'),
+            bigquery.SchemaField('selection', 'JSON', mode='REQUIRED',
+                                 description="Copy of selection section of the configuration."),
+            bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
+                                 description="Location of the downloaded data."),
+            bigquery.SchemaField('stage', 'STRING', mode='NULLABLE',
+                                 description="Current stage of request : 'fetch', 'download', 'retrieve', 'upload' "
+                                 "or None."),
+            bigquery.SchemaField('status', 'STRING', mode='REQUIRED',
+                                 description="Download status: 'scheduled', 'in-progress', 'success', or 'failure'."),
+            bigquery.SchemaField('error', 'STRING', mode='NULLABLE',
+                                 description="Cause of error, if any."),
+            bigquery.SchemaField('user', 'STRING', mode='REQUIRED',
+                                 description="Identifier for the user running the download."),
+            bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE',
+                                 description="File size in GB."),
+            bigquery.SchemaField('scheduled_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when download was scheduled."),
+            bigquery.SchemaField('retrieve_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the retrieve stage starts."),
+            bigquery.SchemaField('retrieve_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the retrieve state ends."),
+            bigquery.SchemaField('fetch_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the fetch state starts."),
+            bigquery.SchemaField('fetch_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the fetch state ends."),
+            bigquery.SchemaField('download_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the download state starts."),
+            bigquery.SchemaField('download_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the download state ends."),
+            bigquery.SchemaField('upload_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the upload state starts."),
+            bigquery.SchemaField('upload_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the upload state ends."),
         ]
         table = bigquery.Table(self.location, schema=TABLE_SCHEMA)
         with bigquery.Client() as client:
