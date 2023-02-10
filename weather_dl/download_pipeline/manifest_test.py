@@ -19,7 +19,7 @@ import tempfile
 import typing as t
 import unittest
 
-from .manifest import LocalManifest, Location, DownloadStatus, RequestStatus, RequestStage
+from .manifest import LocalManifest, Location, DownloadStatus, Status, Stage
 
 
 def rand_str(max_len=32):
@@ -30,12 +30,12 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
     return DownloadStatus(
         selection={},
         location=rand_str() if location is None else location,
-        status=random.choice([RequestStatus.SCHEDULED, RequestStatus.IN_PROGRESS,
-                              RequestStatus.SUCCESS, RequestStatus.FAILURE]),
+        status=random.choice([Status.SCHEDULED, Status.IN_PROGRESS,
+                              Status.SUCCESS, Status.FAILURE]),
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
         user=random.choice(['user', 'alice', 'bob', 'root']),
-        stage=random.choice([RequestStage.FETCH, RequestStage.DOWNLOAD,
-                             RequestStage.UPLOAD, RequestStage.RETRIEVE, RequestStage.NONE]),
+        stage=random.choice([Stage.FETCH, Stage.DOWNLOAD,
+                             Stage.UPLOAD, Stage.RETRIEVE, Stage.NONE]),
         size=0.039322572,
         scheduled_time="2023-02-07T17:15:26+00:00",
         retrieve_start_time=None,

@@ -42,7 +42,7 @@ class ManifestException(Exception):
     pass
 
 
-class RequestStage(Enum):
+class Stage(Enum):
     """A request can be either in one of the following stages at a time:
 
     fetch : This represents request is currently in fetch stage i.e. request placed on the client's server
@@ -62,7 +62,7 @@ class RequestStage(Enum):
     NONE = None
 
 
-class RequestStatus(Enum):
+class Status(Enum):
     """Depicts the request's state status:
 
     scheduled : A request partition is created & scheduled for processing.
@@ -89,10 +89,10 @@ class DownloadStatus():
     location: str = ""
 
     """Current stage of request : 'fetch', 'download', 'retrieve', 'upload' or None."""
-    stage: t.Optional[RequestStage] = RequestStage.NONE
+    stage: t.Optional[Stage] = Stage.NONE
 
     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
-    status: RequestStatus = RequestStatus.SCHEDULED
+    status: t.Optional[Status] = None
 
     """Cause of error"""
     error: t.Optional[str] = ""
@@ -136,9 +136,9 @@ class DownloadStatus():
         download_status_instance = cls()
         for key, value in download_status.items():
             if key == 'status':
-                setattr(download_status_instance, key, RequestStatus(value))
+                setattr(download_status_instance, key, Status(value))
             elif key == 'stage':
-                setattr(download_status_instance, key, RequestStage(value))
+                setattr(download_status_instance, key, Stage(value))
             else:
                 setattr(download_status_instance, key, value)
         return download_status_instance
@@ -151,7 +151,7 @@ class DownloadStatus():
         for field in dataclasses.fields(instance):
             key = field.name
             value = getattr(instance, field.name)
-            if isinstance(value, RequestStatus) or isinstance(value, RequestStage):
+            if isinstance(value, Status) or isinstance(value, Stage):
                 download_status_dict[key] = value.value
             elif isinstance(value, pd.Timestamp):
                 download_status_dict[key] = value.isoformat()
@@ -200,9 +200,9 @@ class Manifest(abc.ABC):
     location: Location
     status: t.Optional[DownloadStatus] = None
 
-    def __post_init__(self):
-        """Initialize the manifest."""
-        pass
+    # def __post_init__(self):
+    #     """Initialize the manifest."""
+    #     pass
 
     def schedule(self, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
@@ -214,8 +214,8 @@ class Manifest(abc.ABC):
                 selection=selection,
                 location=location,
                 user=user,
-                stage=RequestStage.NONE,
-                status=RequestStatus.SCHEDULED,
+                stage=Stage.NONE,
+                status=Status.SCHEDULED,
                 error=None,
                 size=None,
                 scheduled_time=scheduled_time,
@@ -243,16 +243,17 @@ class Manifest(abc.ABC):
         download_end_time = prev_download_status.download_end_time
         upload_start_time = prev_download_status.upload_start_time
         upload_end_time = prev_download_status.upload_end_time
+        current_utc_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
 
-        current_utc_time = datetime.datetime.utcnow() \
-                                            .replace(tzinfo=datetime.timezone.utc) \
-                                            .isoformat(timespec='seconds')
-
-        if RequestStage[stage] == RequestStage.FETCH:
+        if Stage[stage] == Stage.FETCH:
             fetch_start_time = current_utc_time
-        elif RequestStage[stage] == RequestStage.RETRIEVE:
+        elif Stage[stage] == Stage.RETRIEVE:
             retrieve_start_time = current_utc_time
-        elif RequestStage[stage] == RequestStage.DOWNLOAD:
+        elif Stage[stage] == Stage.DOWNLOAD:
             download_start_time = current_utc_time
         else:
             upload_start_time = current_utc_time
@@ -261,8 +262,8 @@ class Manifest(abc.ABC):
             selection=selection,
             location=location,
             user=user,
-            stage=RequestStage[stage],
-            status=RequestStatus.IN_PROGRESS,
+            stage=Stage[stage],
+            status=Status.IN_PROGRESS,
             error=None,
             size=None,
             scheduled_time=scheduled_time,
@@ -290,20 +291,22 @@ class Manifest(abc.ABC):
             # For explanation, see https://docs.python.org/3/library/traceback.html#traceback.format_exception
             error = '\n'.join(traceback.format_exception(exc_type, exc_inst, exc_tb))
 
-        current_utc_time = datetime.datetime.utcnow() \
-                                            .replace(tzinfo=datetime.timezone.utc) \
-                                            .isoformat(timespec='seconds')
+        current_utc_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
         retrieve_end_time = self.status.retrieve_end_time
         fetch_end_time = self.status.fetch_end_time
         download_end_time = self.status.download_end_time
         upload_end_time = self.status.upload_end_time
         size = None
 
-        if self.status.stage == RequestStage.FETCH:
+        if self.status.stage == Stage.FETCH:
             fetch_end_time = current_utc_time
-        elif self.status.stage == RequestStage.RETRIEVE:
+        elif self.status.stage == Stage.RETRIEVE:
             retrieve_end_time = current_utc_time
-        elif self.status.stage == RequestStage.DOWNLOAD:
+        elif self.status.stage == Stage.DOWNLOAD:
             download_end_time = current_utc_time
         else:
             path = self.status.location
@@ -333,7 +336,7 @@ class Manifest(abc.ABC):
             location=self.status.location,
             user=self.status.user,
             stage=self.status.stage,
-            status=RequestStatus[status],
+            status=Status[status],
             error=error,
             size=size,
             scheduled_time=self.status.scheduled_time,
@@ -392,7 +395,7 @@ class GCSManifest(Manifest):
         """Writes the JSON data to a manifest."""
         with GCSManifest._lock:
             with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
-                json.dump(dataclasses.asdict(download_status), gcs_file)
+                json.dump(DownloadStatus.to_dict(download_status), gcs_file)
         logger.debug('Manifest written to.')
         logger.debug(download_status)
 
