@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import datetime
 import itertools
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -21,7 +23,9 @@ import typing as t
 
 import numpy as np
 import pandas as pd
+from google.cloud import storage
 from apache_beam.utils import retry
+from urllib.parse import ParseResult
 from xarray.core.utils import ensure_us_time_resolution
 
 logger = logging.getLogger(__name__)
@@ -120,3 +124,24 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return int(value)
 
     return value
+
+
+class FileSizeStrategy(abc.ABC):
+    @abc.abstractmethod
+    def get_file_size(self, path: t.Union[ParseResult, str]) -> float:
+        raise NotImplementedError
+
+
+class GCSBlobSizeStrategy(FileSizeStrategy):
+    def get_file_size(self, path: ParseResult) -> float:
+        bucket_name = path.netloc
+        object_name = path.path[1:]
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.get_blob(object_name)
+        return blob.size / (10**9) if blob else 0
+
+
+class LocalSystemFileSizeStrategy(FileSizeStrategy):
+    def get_file_size(self, path: str) -> float:
+        return os.stat(path).st_size / (1024 ** 3)

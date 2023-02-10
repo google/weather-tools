@@ -26,8 +26,8 @@ import threading
 import traceback
 import typing as t
 
-from .util import to_json_serializable_type
-from google.cloud import bigquery, storage
+from .util import to_json_serializable_type, GCSBlobSizeStrategy, LocalSystemFileSizeStrategy
+from google.cloud import bigquery
 from apache_beam.io.gcp import gcsio
 from urllib.parse import urlparse
 
@@ -200,9 +200,9 @@ class Manifest(abc.ABC):
     location: Location
     status: t.Optional[DownloadStatus] = None
 
-    # def __post_init__(self):
-    #     """Initialize the manifest."""
-    #     pass
+    def __post_init__(self):
+        """Initialize the manifest."""
+        pass
 
     def schedule(self, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
@@ -310,25 +310,11 @@ class Manifest(abc.ABC):
             download_end_time = current_utc_time
         else:
             path = self.status.location
-            # In case of GCS target path.
-            try:
-                parsed_gcs_path = urlparse(path)
-                if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
-                    raise ValueError(f'Invalid GCS location: {path!r}.')
-                bucket_name = parsed_gcs_path.netloc
-                object_name = parsed_gcs_path.path[1:]
-                client = storage.Client()
-                bucket = client.bucket(bucket_name)
-                blob = bucket.get_blob(object_name)
-
-                size = blob.size / (10**9) if blob else 0
-            # In case of local system (--local-run).
-            except ValueError as e:
-                e_str = str(e)
-                if not (f"Invalid GCS location: {path!r}." in e_str):
-                    raise
-                size = os.stat(path).st_size / (1024 ** 3)
-
+            parsed_gcs_path = urlparse(path)
+            if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
+                size = LocalSystemFileSizeStrategy().get_file_size(path)
+            else:
+                size = GCSBlobSizeStrategy().get_file_size(parsed_gcs_path)
             upload_end_time = current_utc_time
 
         self.status = DownloadStatus(
@@ -445,9 +431,6 @@ class BQManifest(Manifest):
     This is an append-only implementation, the latest value in the manifest
     represents the current state of a download.
     """
-
-    _lock = threading.Lock()
-
     def __init__(self, location: Location) -> None:
         super().__init__(Location(location[5:]))
         TABLE_SCHEMA = [
@@ -491,62 +474,61 @@ class BQManifest(Manifest):
 
     def _read(self, location: str) -> DownloadStatus:
         """Reads the JSON data from a manifest."""
-        with BQManifest._lock:
-            with bigquery.Client() as client:
-                query = f"SELECT * FROM {self.location} WHERE location = {location!r}"
-                query_job = client.query(query)
-                result = query_job.result().to_dataframe().to_dict('records')
-                row = {n: to_json_serializable_type(v) for n, v in result[0].items()}
-                return DownloadStatus.from_dict(row)
+        with bigquery.Client() as client:
+            query = f"SELECT * FROM {self.location} WHERE location = {location!r}"
+            query_job = client.query(query)
+            result = query_job.result().to_dataframe().to_dict('records')
+            row = {n: to_json_serializable_type(v) for n, v in result[0].items()}
+            return DownloadStatus.from_dict(row)
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
-        with BQManifest._lock:
-            with bigquery.Client() as client:
-                status = DownloadStatus.to_dict(download_status)
-                table = client.get_table(self.location)
-                columns = [field.name for field in table.schema]
-                update_dml = []
-                insert_dml = []
-                for col in columns:
-                    if status[col] is None:
-                        update_dml.append(f"{col} = null")
-                        insert_dml.append("null")
-                    elif col == 'selection':
-                        update_dml.append(f"{col} = JSON'{status[col]}'")
-                        insert_dml.append(f"JSON'{status[col]}'")
-                    elif col == 'size' or col == 'error':
-                        update_dml.append(f"{col} = {status[col]}")
-                        insert_dml.append(status[col])
-                    else:
-                        update_dml.append(f"{col} = '{status[col]}'")
-                        insert_dml.append(f"'{status[col]}'")
+        with bigquery.Client() as client:
+            status = DownloadStatus.to_dict(download_status)
+            table = client.get_table(self.location)
+            columns = [field.name for field in table.schema]
+            update_dml = []
+            insert_dml = []
+            for col in columns:
+                if status[col] is None:
+                    update_dml.append(f"{col} = null")
+                    insert_dml.append("null")
+                elif col == 'selection':
+                    update_dml.append(f"{col} = JSON'{status[col]}'")
+                    insert_dml.append(f"JSON'{status[col]}'")
+                elif col == 'size' or col == 'error':
+                    update_dml.append(f"{col} = {status[col]}")
+                    insert_dml.append(status[col])
+                else:
+                    update_dml.append(f"{col} = '{status[col]}'")
+                    insert_dml.append(f"'{status[col]}'")
 
-                # Build the merge statement as a string
-                merge_statement = f"""
-                    MERGE {self.location} T
-                    USING (
-                    SELECT
-                        '{status['location']}' as location
-                    ) S
-                    ON T.location = S.location
-                    WHEN MATCHED THEN
-                    UPDATE SET
-                        {', '.join(str(v) for v in update_dml)}
-                    WHEN NOT MATCHED THEN
-                    INSERT
-                        ({", ".join(columns)})
-                    VALUES
-                        ({', '.join(str(v) for v in insert_dml)})
-                """
+            # Build the merge statement as a string
+            merge_statement = f"""
+                MERGE {self.location} T
+                USING (
+                SELECT
+                    '{status['location']}' as location
+                ) S
+                ON T.location = S.location
+                WHEN MATCHED THEN
+                UPDATE SET
+                    {', '.join(str(v) for v in update_dml)}
+                WHEN NOT MATCHED THEN
+                INSERT
+                    ({", ".join(columns)})
+                VALUES
+                    ({', '.join(str(v) for v in insert_dml)})
+            """
 
-                logger.debug(merge_statement)
-                # Execute the merge statement
-                query_job = client.query(merge_statement)
-                query_job.result()
+            logger.debug(merge_statement)
+            # Execute the merge statement
+            query_job = client.query(merge_statement)
+            # Wait for the query to execute.
+            query_job.result()
 
-                logger.debug('Manifest written to.')
-                logger.debug(download_status)
+            logger.debug('Manifest written to.')
+            logger.debug(download_status)
 
 
 class MockManifest(Manifest):
