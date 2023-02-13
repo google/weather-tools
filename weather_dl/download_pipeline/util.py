@@ -144,4 +144,4 @@ class GCSBlobSizeStrategy(FileSizeStrategy):
 
 class LocalSystemFileSizeStrategy(FileSizeStrategy):
     def get_file_size(self, path: str) -> float:
-        return os.stat(path).st_size / (1024 ** 3)
+        return os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
