@@ -136,7 +136,8 @@ class DownloadStatus():
             if key == 'status':
                 setattr(download_status_instance, key, Status(value))
             elif key == 'stage':
-                setattr(download_status_instance, key, Stage(value))
+                if value is not None:
+                    setattr(download_status_instance, key, Stage(value))
             else:
                 setattr(download_status_instance, key, value)
         return download_status_instance
