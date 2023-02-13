@@ -213,6 +213,8 @@ class SplitMARSRequest(api.APIRequest):
 
 
 class SplitRequestMixin:
+    c = None
+
     def fetch(self, req: t.Dict) -> t.Dict:
         return self.c.fetch(req)
 
