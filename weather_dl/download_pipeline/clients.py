@@ -30,7 +30,7 @@ import urllib3
 from ecmwfapi import ECMWFService, api
 
 from .config import Config, optimize_selection_partition
-from .manifest import Manifest
+from .manifest import Manifest, Stage
 from .util import retry_with_exponential_backoff
 
 warnings.simplefilter(
@@ -55,7 +55,7 @@ class Client(abc.ABC):
         self.logger.setLevel(level)
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         """Download from data source."""
         pass
 
@@ -105,11 +105,10 @@ class CdsClient(Client):
             error_callback=self.logger.error,
         )
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         selection_ = optimize_selection_partition(selection)
-        with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
-                               target, self.config.user_id, 'RETRIEVE'):
-            self.c.retrieve(dataset, selection_, output)
+        manifest.set_stage(Stage.RETRIEVE)
+        self.c.retrieve(dataset, selection_, output)
 
     @property
     def license_url(self):
@@ -259,7 +258,7 @@ class MarsClient(Client):
     def __init__(self, config: Config, level: int = logging.INFO) -> None:
         super().__init__(config, level)
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         self.c = MARSECMWFServiceExtended(
             "mars",
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
@@ -270,12 +269,10 @@ class MarsClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
-                                   target, self.config.user_id, 'FETCH'):
-                result = self.c.fetch(req=selection_)
-            with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
-                                   target, self.config.user_id, 'DOWNLOAD'):
-                self.c.download(result, target=output)
+            manifest.set_stage(Stage.FETCH)
+            result = self.c.fetch(req=selection_)
+            manifest.set_stage(Stage.DOWNLOAD)
+            self.c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -300,12 +297,11 @@ class MarsClient(Client):
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
-        with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
-                               target, self.config.user_id, 'RETRIEVE'):
-            self.logger.debug(f'Downloading {dataset} to {output}')
-            with open(output, 'w') as f:
-                json.dump({dataset: selection}, f)
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+        manifest.set_stage(Stage.RETRIEVE)
+        self.logger.debug(f'Downloading {dataset} to {output}')
+        with open(output, 'w') as f:
+            json.dump({dataset: selection}, f)
 
     @property
     def license_url(self):

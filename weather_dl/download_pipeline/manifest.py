@@ -234,53 +234,14 @@ class Manifest(abc.ABC):
             )
         self._update(self.status)
 
-    def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str, stage: str) -> None:
+    def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
-        prev_download_status = self._read(location)
-
-        scheduled_time = prev_download_status.scheduled_time
-        retrieve_start_time = prev_download_status.retrieve_start_time
-        retrieve_end_time = prev_download_status.retrieve_end_time
-        fetch_start_time = prev_download_status.fetch_start_time
-        fetch_end_time = prev_download_status.fetch_end_time
-        download_start_time = prev_download_status.download_start_time
-        download_end_time = prev_download_status.download_end_time
-        upload_start_time = prev_download_status.upload_start_time
-        upload_end_time = prev_download_status.upload_end_time
-        current_utc_time = (
-            datetime.datetime.utcnow()
-            .replace(tzinfo=datetime.timezone.utc)
-            .isoformat(timespec='seconds')
-        )
-
-        if Stage[stage] == Stage.FETCH:
-            fetch_start_time = current_utc_time
-        elif Stage[stage] == Stage.RETRIEVE:
-            retrieve_start_time = current_utc_time
-        elif Stage[stage] == Stage.DOWNLOAD:
-            download_start_time = current_utc_time
-        else:
-            upload_start_time = current_utc_time
-
-        self.status = DownloadStatus(
-            config_name=config_name,
-            selection=selection,
-            location=location,
-            user=user,
-            stage=Stage[stage],
-            status=Status.IN_PROGRESS,
-            error=None,
-            size=None,
-            scheduled_time=scheduled_time,
-            retrieve_start_time=retrieve_start_time,
-            retrieve_end_time=retrieve_end_time,
-            fetch_start_time=fetch_start_time,
-            fetch_end_time=fetch_end_time,
-            download_start_time=download_start_time,
-            download_end_time=download_end_time,
-            upload_start_time=upload_start_time,
-            upload_end_time=upload_end_time,
-        )
+        self.status = dataclasses.replace(self._read(location))
+        self.status.config_name = config_name
+        self.status.selection = selection
+        self.status.location = location
+        self.status.user = user
+        self.status.status = Status.IN_PROGRESS
 
     def __enter__(self) -> None:
         """Record 'in-progress' status of a transaction."""
@@ -289,64 +250,74 @@ class Manifest(abc.ABC):
     def __exit__(self, exc_type, exc_inst, exc_tb) -> None:
         """Record end status of a transaction as either 'success' or 'failure'."""
         if exc_type is None:
-            status = 'SUCCESS'
+            status = Status.SUCCESS
             error = None
         else:
-            status = 'FAILURE'
+            status = Status.FAILURE
             # For explanation, see https://docs.python.org/3/library/traceback.html#traceback.format_exception
             error = '\n'.join(traceback.format_exception(exc_type, exc_inst, exc_tb))
 
+        new_status = dataclasses.replace(self.status)
+        new_status.error = error
+        new_status.status = status
         current_utc_time = (
             datetime.datetime.utcnow()
             .replace(tzinfo=datetime.timezone.utc)
             .isoformat(timespec='seconds')
         )
-        retrieve_end_time = self.status.retrieve_end_time
-        fetch_end_time = self.status.fetch_end_time
-        download_end_time = self.status.download_end_time
-        upload_end_time = self.status.upload_end_time
-        size = None
 
-        if self.status.stage == Stage.FETCH:
-            fetch_end_time = current_utc_time
-        elif self.status.stage == Stage.RETRIEVE:
-            retrieve_end_time = current_utc_time
-        elif self.status.stage == Stage.DOWNLOAD:
-            download_end_time = current_utc_time
+        # Required in case of Status.FAILURE.
+        if new_status.stage == Stage.FETCH:
+            new_status.fetch_end_time = current_utc_time
+        elif new_status.stage == Stage.RETRIEVE:
+            new_status.retrieve_end_time = current_utc_time
+        elif new_status.stage == Stage.DOWNLOAD:
+            new_status.download_end_time = current_utc_time
         else:
-            path = self.status.location
-            parsed_gcs_path = urlparse(path)
-            if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
-                size = LocalSystemFileSizeStrategy().get_file_size(path)
-            else:
-                size = GCSBlobSizeStrategy().get_file_size(parsed_gcs_path)
-            upload_end_time = current_utc_time
+            new_status.upload_end_time = current_utc_time
 
-        self.status = DownloadStatus(
-            config_name=self.status.config_name,
-            selection=self.status.selection,
-            location=self.status.location,
-            user=self.status.user,
-            stage=self.status.stage,
-            status=Status[status],
-            error=error,
-            size=size,
-            scheduled_time=self.status.scheduled_time,
-            retrieve_start_time=self.status.retrieve_start_time,
-            retrieve_end_time=retrieve_end_time,
-            fetch_start_time=self.status.fetch_start_time,
-            fetch_end_time=fetch_end_time,
-            download_start_time=self.status.download_start_time,
-            download_end_time=download_end_time,
-            upload_start_time=self.status.upload_start_time,
-            upload_end_time=upload_end_time,
-        )
+        path = new_status.location
+        parsed_gcs_path = urlparse(path)
+        if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
+            new_status.size = LocalSystemFileSizeStrategy().get_file_size(path)
+        else:
+            new_status.size = GCSBlobSizeStrategy().get_file_size(parsed_gcs_path)
+
+        self.status = new_status
+
         self._update(self.status)
 
-    def transact(self, config_name: str, selection: t.Dict, location: str, user: str, stage: str) -> 'Manifest':
+    def transact(self, config_name: str, selection: t.Dict, location: str, user: str) -> 'Manifest':
         """Create a download transaction."""
-        self._set_for_transaction(config_name, selection, location, user, stage)
+        self._set_for_transaction(config_name, selection, location, user)
         return self
+
+    def set_stage(self, stage: Stage) -> None:
+        prev_stage = self.status.stage
+        new_status = dataclasses.replace(self.status)
+        new_status.stage = stage
+        current_utc_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+
+        if stage == Stage.FETCH:
+            new_status.fetch_start_time = current_utc_time
+        elif stage == Stage.RETRIEVE:
+            new_status.retrieve_start_time = current_utc_time
+        elif stage == Stage.DOWNLOAD:
+            new_status.fetch_end_time = current_utc_time
+            new_status.download_start_time = current_utc_time
+        else:
+            if prev_stage == Stage.DOWNLOAD:
+                new_status.download_end_time = current_utc_time
+            else:
+                new_status.retrieve_end_time = current_utc_time
+            new_status.upload_start_time = current_utc_time
+
+        self.status = new_status
+        self._update(self.status)
 
     @abc.abstractmethod
     def _read(self, location: str) -> DownloadStatus:
