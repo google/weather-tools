@@ -16,6 +16,7 @@
 import abc
 import collections
 import contextlib
+import datetime
 import io
 import json
 import logging
@@ -108,6 +109,12 @@ class CdsClient(Client):
     def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         selection_ = optimize_selection_partition(selection)
         manifest.set_stage(Stage.RETRIEVE)
+        precise_retrieve_start_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+        manifest.prev_stage_precise_start_time = precise_retrieve_start_time
         self.c.retrieve(dataset, selection_, output)
 
     @property
@@ -270,8 +277,20 @@ class MarsClient(Client):
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
             manifest.set_stage(Stage.FETCH)
+            precise_fetch_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = self.c.fetch(req=selection_)
             manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
             self.c.download(result, target=output)
 
     @property
@@ -299,6 +318,12 @@ class FakeClient(Client):
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         manifest.set_stage(Stage.RETRIEVE)
+        precise_retrieve_start_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+        manifest.prev_stage_precise_start_time = precise_retrieve_start_time
         self.logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)

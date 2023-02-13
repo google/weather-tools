@@ -200,6 +200,9 @@ class Manifest(abc.ABC):
     """
 
     location: Location
+    # To reduce the impact of _read() and _update() calls
+    # on the start time of the stage.
+    prev_stage_precise_start_time: t.Optional[str] = None
     status: t.Optional[DownloadStatus] = None
 
     # This is overridden in subclass.
@@ -241,6 +244,7 @@ class Manifest(abc.ABC):
         self.status.selection = selection
         self.status.location = location
         self.status.user = user
+        self.status.stage = Stage.FETCH
         self.status.status = Status.IN_PROGRESS
 
     def __enter__(self) -> None:
@@ -268,12 +272,16 @@ class Manifest(abc.ABC):
 
         # Required in case of Status.FAILURE.
         if new_status.stage == Stage.FETCH:
+            new_status.fetch_start_time = self.prev_stage_precise_start_time
             new_status.fetch_end_time = current_utc_time
         elif new_status.stage == Stage.RETRIEVE:
+            new_status.retrieve_start_time = self.prev_stage_precise_start_time
             new_status.retrieve_end_time = current_utc_time
         elif new_status.stage == Stage.DOWNLOAD:
+            new_status.download_start_time = self.prev_stage_precise_start_time
             new_status.download_end_time = current_utc_time
         else:
+            new_status.upload_start_time = self.prev_stage_precise_start_time
             new_status.upload_end_time = current_utc_time
 
         path = new_status.location
@@ -307,12 +315,15 @@ class Manifest(abc.ABC):
         elif stage == Stage.RETRIEVE:
             new_status.retrieve_start_time = current_utc_time
         elif stage == Stage.DOWNLOAD:
+            new_status.fetch_start_time = self.prev_stage_precise_start_time
             new_status.fetch_end_time = current_utc_time
             new_status.download_start_time = current_utc_time
         else:
             if prev_stage == Stage.DOWNLOAD:
+                new_status.download_start_time = self.prev_stage_precise_start_time
                 new_status.download_end_time = current_utc_time
             else:
+                new_status.retrieve_start_time = self.prev_stage_precise_start_time
                 new_status.retrieve_end_time = current_utc_time
             new_status.upload_start_time = current_utc_time
 

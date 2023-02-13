@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+import datetime
 import logging
 import tempfile
 import typing as t
@@ -74,6 +75,12 @@ class Fetcher(beam.DoFn):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 self.manifest.set_stage(Stage.UPLOAD)
+                precise_upload_start_time = (
+                    datetime.datetime.utcnow()
+                    .replace(tzinfo=datetime.timezone.utc)
+                    .isoformat(timespec='seconds')
+                )
+                self.manifest.prev_stage_precise_start_time = precise_upload_start_time
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
 
                 # In dry-run mode we actually aren't required to upload a file.
