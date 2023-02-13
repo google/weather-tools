@@ -228,7 +228,7 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
 
     location = prepare_target_name(out)
     user = out.user_id
-    manifest.schedule(out.selection, location, user)
+    manifest.schedule(out.kwargs.get('config_name'), out.selection, location, user)
 
     logger.info(f'[{name}] Created partition {location!r}.')
     beam.metrics.Metrics.counter('Subsection', name).inc()

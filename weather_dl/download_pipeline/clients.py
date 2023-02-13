@@ -107,7 +107,8 @@ class CdsClient(Client):
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
         selection_ = optimize_selection_partition(selection)
-        with manifest.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
+        with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
+                               target, self.config.user_id, 'RETRIEVE'):
             self.c.retrieve(dataset, selection_, output)
 
     @property
@@ -269,9 +270,11 @@ class MarsClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            with manifest.transact(self.config.selection, target, self.config.user_id, 'FETCH'):
+            with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
+                                   target, self.config.user_id, 'FETCH'):
                 result = self.c.fetch(req=selection_)
-            with manifest.transact(self.config.selection, target, self.config.user_id, 'DOWNLOAD'):
+            with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
+                                   target, self.config.user_id, 'DOWNLOAD'):
                 self.c.download(result, target=output)
 
     @property
@@ -298,7 +301,8 @@ class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
     def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
-        with manifest.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
+        with manifest.transact(self.config.kwargs.get('config_name'), self.config.selection,
+                               target, self.config.user_id, 'RETRIEVE'):
             self.logger.debug(f'Downloading {dataset} to {output}')
             with open(output, 'w') as f:
                 json.dump({dataset: selection}, f)

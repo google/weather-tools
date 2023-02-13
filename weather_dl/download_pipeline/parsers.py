@@ -353,7 +353,7 @@ def require(condition: bool, message: str, error_type: t.Type[Exception] = Value
         raise error_type(textwrap.dedent(message))
 
 
-def process_config(file: t.IO) -> Config:
+def process_config(file: t.IO, config_name: str) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
 
@@ -436,6 +436,8 @@ def process_config(file: t.IO) -> Config:
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
+    # Add config file name.
+    config['parameters']['config_name'] = config_name
 
     # Ensure the cartesian-cross can be taken on singleton values for the partition.
     for key in partition_keys:
@@ -492,4 +494,7 @@ def validate_all_configs(configs: t.List[Config]) -> None:
     require(all_equal(clients), f'All configs must request data from the same client, {clients[0]!r}.')
 
     kwargs = [conf.kwargs for conf in configs]
+    # Since the config file names will vary between configs,
+    # there's no need to perform an equality check for this.
+    kwargs = [{k: v for k, v in k.items() if k != 'config_name'} for k in kwargs]
     require(all_equal(kwargs), 'Discrepancy in config parameters! Please check for consistency across all configs.')

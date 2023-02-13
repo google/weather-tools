@@ -80,6 +80,9 @@ class Status(Enum):
 class DownloadStatus():
     """Data recorded in `Manifest`s reflecting the status of a download."""
 
+    """The name of the config file associated with the request."""
+    config_name: str = ""
+
     """Copy of selection section of the configuration."""
     selection: t.Dict = dataclasses.field(default_factory=dict)
 
@@ -204,13 +207,14 @@ class Manifest(abc.ABC):
         """Initialize the manifest."""
         pass
 
-    def schedule(self, selection: t.Dict, location: str, user: str) -> None:
+    def schedule(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
 
         'scheduled' jobs occur before 'in-progress', 'success' or 'finished'.
         """
         scheduled_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat(timespec='seconds')
         self.status = DownloadStatus(
+                config_name=config_name,
                 selection=selection,
                 location=location,
                 user=user,
@@ -230,7 +234,7 @@ class Manifest(abc.ABC):
             )
         self._update(self.status)
 
-    def _set_for_transaction(self, selection: t.Dict, location: str, user: str, stage: str) -> None:
+    def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str, stage: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
         prev_download_status = self._read(location)
 
@@ -259,6 +263,7 @@ class Manifest(abc.ABC):
             upload_start_time = current_utc_time
 
         self.status = DownloadStatus(
+            config_name=config_name,
             selection=selection,
             location=location,
             user=user,
@@ -318,6 +323,7 @@ class Manifest(abc.ABC):
             upload_end_time = current_utc_time
 
         self.status = DownloadStatus(
+            config_name=self.status.config_name,
             selection=self.status.selection,
             location=self.status.location,
             user=self.status.user,
@@ -337,9 +343,9 @@ class Manifest(abc.ABC):
         )
         self._update(self.status)
 
-    def transact(self, selection: t.Dict, location: str, user: str, stage: str) -> 'Manifest':
+    def transact(self, config_name: str, selection: t.Dict, location: str, user: str, stage: str) -> 'Manifest':
         """Create a download transaction."""
-        self._set_for_transaction(selection, location, user, stage)
+        self._set_for_transaction(config_name, selection, location, user, stage)
         return self
 
     @abc.abstractmethod
@@ -434,6 +440,8 @@ class BQManifest(Manifest):
     def __init__(self, location: Location) -> None:
         super().__init__(Location(location[5:]))
         TABLE_SCHEMA = [
+            bigquery.SchemaField('config_name', 'STRING', mode='REQUIRED',
+                                 description="The name of the config file associated with the request."),
             bigquery.SchemaField('selection', 'JSON', mode='REQUIRED',
                                  description="Copy of selection section of the configuration."),
             bigquery.SchemaField('location', 'STRING', mode='REQUIRED',

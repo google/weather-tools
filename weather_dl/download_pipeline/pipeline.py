@@ -171,7 +171,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     configs = []
     for cfg in known_args.config:
         with open(cfg, 'r', encoding='utf-8') as f:
-            config = process_config(f)
+            # configs/example.cfg -> example.cfg
+            config_name = os.path.split(cfg)[1]
+            config = process_config(f, config_name)
 
         config.force_download = known_args.force_download
         config.user_id = getpass.getuser()

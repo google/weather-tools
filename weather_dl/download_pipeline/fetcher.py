@@ -73,7 +73,8 @@ class Fetcher(beam.DoFn):
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
             self.retrieve(client, config.dataset, config.selection, temp.name, self.manifest, target)
 
-            with self.manifest.transact(config.selection, target, config.user_id, 'UPLOAD'):
+            with self.manifest.transact(config.kwargs.get('config_name'), config.selection,
+                                        target, config.user_id, 'UPLOAD'):
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
 
                 # In dry-run mode we actually aren't required to upload a file.
