@@ -212,7 +212,15 @@ class SplitMARSRequest(api.APIRequest):
         self.connection.cleanup()
 
 
-class MARSECMWFServiceExtended(api.ECMWFService):
+class SplitRequestMixin:
+    def fetch(self, req: t.Dict) -> t.Dict:
+        return self.c.fetch(req)
+
+    def download(self, res: t.Dict, target: str) -> None:
+        self.c.download(res, target)
+
+
+class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -226,14 +234,8 @@ class MARSECMWFServiceExtended(api.ECMWFService):
             quiet=self.quiet,
         )
 
-    def fetch(self, req: t.Dict) -> t.Dict:
-        return self.c.fetch(req)
 
-    def download(self, res: t.Dict, target: str) -> None:
-        self.c.download(res, target)
-
-
-class PublicECMWFServerExtended(MARSECMWFServiceExtended):
+class PublicECMWFServerExtended(api.ECMWFDataServer, SplitRequestMixin):
     def __init__(self, *args, dataset='', **kwargs):
         super().__init__(*args, **kwargs)
         self.c = SplitMARSRequest(
