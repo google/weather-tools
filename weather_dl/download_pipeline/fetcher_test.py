@@ -21,19 +21,19 @@ from unittest.mock import patch, ANY
 
 from .config import Config
 from .fetcher import Fetcher
-from .manifest import Location
+from .manifest import MockManifest, Location
 from .stores import InMemoryStore
 
 
 class FetchDataTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.dummy_manifest = {'type': 'mock', 'location': Location('dummy-manifest')}
+        self.dummy_manifest = MockManifest(Location('dummy-manifest'))
 
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.dummy_manifest = {'type': '', 'location': Location(tmpdir)}
+            # self.dummy_manifest = LocalManifest(Location(tmpdir))
             config = Config.from_dict({
                 'parameters': {
                     'dataset': 'reanalysis-era5-pressure-levels',
@@ -62,7 +62,6 @@ class FetchDataTest(unittest.TestCase):
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__returns_success(self, mock_retrieve):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.dummy_manifest = {'type': '', 'location': Location(tmpdir)}
             config = Config.from_dict({
                 'parameters': {
                     'dataset': 'reanalysis-era5-pressure-levels',
@@ -81,9 +80,6 @@ class FetchDataTest(unittest.TestCase):
             fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
             fetcher.fetch_data(config)
 
-            with open(Location('{}{}manifest.json'.format(tmpdir, os.sep)), 'r') as f:
-                actual = json.load(f)[os.path.join(tmpdir, 'download-01-12.nc')]
-
             self.assertDictContainsSubset(dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
@@ -91,12 +87,11 @@ class FetchDataTest(unittest.TestCase):
                 status='success',
                 error=json.dumps(None),
                 user='unknown',
-            ), actual)
+            ), list(self.dummy_manifest.records.values())[0])
 
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.dummy_manifest = {'type': '', 'location': Location(tmpdir)}
             config = Config.from_dict({
                 'parameters': {
                     'dataset': 'reanalysis-era5-pressure-levels',
@@ -119,8 +114,7 @@ class FetchDataTest(unittest.TestCase):
                 fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
                 fetcher.fetch_data(config)
 
-            with open(Location('{}{}manifest.json'.format(tmpdir, os.sep)), 'r') as f:
-                actual = json.load(f)[os.path.join(tmpdir, 'download-01-12.nc')]
+            actual = list(self.dummy_manifest.records.values())[0]
 
             self.assertDictContainsSubset(dict(
                 selection=json.dumps(config.selection),
@@ -136,7 +130,6 @@ class FetchDataTest(unittest.TestCase):
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_gcs_failure(self, mock_retrieve):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.dummy_manifest = {'type': '', 'location': Location(tmpdir)}
             config = Config.from_dict({
                 'parameters': {
                     'dataset': 'reanalysis-era5-pressure-levels',
@@ -159,8 +152,7 @@ class FetchDataTest(unittest.TestCase):
                 fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
                 fetcher.fetch_data(config)
 
-            with open(Location('{}{}manifest.json'.format(tmpdir, os.sep)), 'r') as f:
-                actual = json.load(f)[os.path.join(tmpdir, 'download-01-12.nc')]
+            actual = list(self.dummy_manifest.records.values())[0]
 
             self.assertDictContainsSubset(dict(
                 selection=json.dumps(config.selection),

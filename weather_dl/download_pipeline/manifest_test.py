@@ -35,7 +35,7 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
         user=random.choice(['user', 'alice', 'bob', 'root']),
         stage=random.choice([Stage.FETCH, Stage.DOWNLOAD,
-                             Stage.UPLOAD, Stage.RETRIEVE, Stage.NONE]),
+                             Stage.UPLOAD, Stage.RETRIEVE, None]),
         size=0.039322572,
         scheduled_time="2023-02-07T17:15:26+00:00",
         retrieve_start_time=None,

@@ -53,13 +53,11 @@ class Stage(Enum):
         file system to target location (GCS path).
     retrieve : In case of clients where there is no proper separation of fetch & download stages (eg. CDS client),
         request will be in the retrieve stage i.e. fetch + download.
-    None :  This represents a request that is just 'scheduled' for processing.
     """
     RETRIEVE = 'retrieve'
     FETCH = 'fetch'
     DOWNLOAD = 'download'
     UPLOAD = 'upload'
-    NONE = None
 
 
 class Status(Enum):
@@ -89,7 +87,7 @@ class DownloadStatus():
     location: str = ""
 
     """Current stage of request : 'fetch', 'download', 'retrieve', 'upload' or None."""
-    stage: t.Optional[Stage] = Stage.NONE
+    stage: t.Optional[Stage] = None
 
     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
     status: t.Optional[Status] = None
@@ -200,6 +198,7 @@ class Manifest(abc.ABC):
     location: Location
     status: t.Optional[DownloadStatus] = None
 
+    # This is overridden in subclass.
     def __post_init__(self):
         """Initialize the manifest."""
         pass
@@ -214,7 +213,7 @@ class Manifest(abc.ABC):
                 selection=selection,
                 location=location,
                 user=user,
-                stage=Stage.NONE,
+                stage=None,
                 status=Status.SCHEDULED,
                 error=None,
                 size=None,
@@ -538,11 +537,13 @@ class MockManifest(Manifest):
         super().__init__(location)
         self.records = {}
 
-    def _read(self, location: str) -> None:
-        pass
+    def _read(self, location: str) -> DownloadStatus:
+        manifest = self.records
+        return DownloadStatus.from_dict(manifest.get(location, {}))
 
     def _update(self, download_status: DownloadStatus) -> None:
-        self.records.update({dataclasses.asdict(download_status).get('location'): dataclasses.asdict(download_status)})
+        status = DownloadStatus.to_dict(download_status)
+        self.records.update({status.get('location'): status})
         logger.debug('Manifest updated.')
         logger.debug(download_status)
 
@@ -550,8 +551,8 @@ class MockManifest(Manifest):
 class NoOpManifest(Manifest):
     """A manifest that performs no operations."""
 
-    def _read(self, location: str) -> None:
-        pass
+    def _read(self, location: str) -> DownloadStatus:
+        return DownloadStatus()
 
     def _update(self, download_status: DownloadStatus) -> None:
         pass
@@ -569,8 +570,6 @@ MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
     'gs': GCSManifest,
     'bq': BQManifest,
-    'noop': NoOpManifest,
-    'mock': MockManifest,
     '': LocalManifest,
 })
 

@@ -30,7 +30,12 @@ from apache_beam.options.pipeline_options import (
 from .clients import CLIENTS
 from .config import Config
 from .fetcher import Fetcher
-from .manifest import Location
+from .manifest import (
+    Location,
+    LocalManifest,
+    Manifest,
+    NoOpManifest,
+)
 from .parsers import (
     parse_manifest,
     process_config,
@@ -74,7 +79,7 @@ class PipelineArgs:
     configs: t.List[Config]
     client_name: str
     store: None
-    manifest: t.Dict[str, Location]
+    manifest: Manifest
     num_requesters_per_key: int
 
 
@@ -195,16 +200,16 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                            'dry run flag.')
             for config in configs:
                 config.force_download = True
-        manifest = {'type': 'noop', 'location': Location('noop://dry-run')}
+        manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:
         local_dir = '{}/local_run'.format(os.getcwd())
         store = LocalFileStore(local_dir)
         pipeline_options.view_as(StandardOptions).runner = 'DirectRunner'
-        manifest = {'type': '', 'location': Location(local_dir)}
+        manifest = LocalManifest(Location(local_dir))
 
     num_requesters_per_key = known_args.num_requests_per_key
-    client = CLIENTS[client_name](configs[0], manifest)
+    client = CLIENTS[client_name](configs[0])
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(config.dataset)
 

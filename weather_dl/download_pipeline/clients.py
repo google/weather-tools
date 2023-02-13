@@ -30,7 +30,7 @@ import urllib3
 from ecmwfapi import ECMWFService, api
 
 from .config import Config, optimize_selection_partition
-from .manifest import MANIFESTS, Manifest, Location, NoOpManifest
+from .manifest import Manifest
 from .util import retry_with_exponential_backoff
 
 warnings.simplefilter(
@@ -48,15 +48,14 @@ class Client(abc.ABC):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, manifest_obj: Manifest, level: int = logging.INFO) -> None:
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.config = config
-        self.manifest_obj = manifest_obj
         self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
         self.logger.setLevel(level)
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
         """Download from data source."""
         pass
 
@@ -95,8 +94,8 @@ class CdsClient(Client):
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: Config, manifest: t.Dict[str, Location], level: int = logging.INFO) -> None:
-        super().__init__(config, MANIFESTS.get(manifest['type'], NoOpManifest)(manifest['location']), level)
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+        super().__init__(config, level)
         self.c = cdsapi.Client(
             url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
             key=config.kwargs.get('api_key', os.environ.get('CDSAPI_KEY')),
@@ -106,9 +105,9 @@ class CdsClient(Client):
             error_callback=self.logger.error,
         )
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
         selection_ = optimize_selection_partition(selection)
-        with self.manifest_obj.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
+        with manifest.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
             self.c.retrieve(dataset, selection_, output)
 
     @property
@@ -256,10 +255,10 @@ class MarsClient(Client):
         level: Default log level for the client.
     """
 
-    def __init__(self, config: Config, manifest: t.Dict[str, Location], level: int = logging.INFO) -> None:
-        super().__init__(config, MANIFESTS.get(manifest['type'], NoOpManifest)(manifest['location']), level)
+    def __init__(self, config: Config, level: int = logging.INFO) -> None:
+        super().__init__(config, level)
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
         self.c = MARSECMWFServiceExtended(
             "mars",
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
@@ -270,9 +269,9 @@ class MarsClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            with self.manifest_obj.transact(self.config.selection, target, self.config.user_id, 'FETCH'):
+            with manifest.transact(self.config.selection, target, self.config.user_id, 'FETCH'):
                 result = self.c.fetch(req=selection_)
-            with self.manifest_obj.transact(self.config.selection, target, self.config.user_id, 'DOWNLOAD'):
+            with manifest.transact(self.config.selection, target, self.config.user_id, 'DOWNLOAD'):
                 self.c.download(result, target=output)
 
     @property
@@ -298,11 +297,8 @@ class MarsClient(Client):
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
-    def __init__(self, config: Config, manifest: t.Dict[str, Location], level: int = logging.INFO) -> None:
-        super().__init__(config, MANIFESTS.get(manifest['type'], NoOpManifest)(manifest['location']), level)
-
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, target: str) -> None:
-        with self.manifest_obj.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest, target: str) -> None:
+        with manifest.transact(self.config.selection, target, self.config.user_id, 'RETRIEVE'):
             self.logger.debug(f'Downloading {dataset} to {output}')
             with open(output, 'w') as f:
                 json.dump({dataset: selection}, f)

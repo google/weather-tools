@@ -20,7 +20,7 @@ import apache_beam as beam
 
 from .clients import CLIENTS, Client
 from .config import Config
-from .manifest import MANIFESTS, Location, NoOpManifest
+from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
 from .partition import skip_partition
 from .stores import Store, FSStore
@@ -45,7 +45,7 @@ class Fetcher(beam.DoFn):
     """
 
     client_name: str
-    manifest: t.Dict[str, Location]
+    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
     store: t.Optional[Store] = None
 
     def __post_init__(self):
@@ -53,9 +53,10 @@ class Fetcher(beam.DoFn):
             self.store = FSStore()
 
     @retry_with_exponential_backoff
-    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str, target: str) -> None:
+    def retrieve(self, client: Client, dataset: str, selection: t.Dict,
+                 dest: str, manifest: Manifest, target: str) -> None:
         """Retrieve from download client, with retries."""
-        client.retrieve(dataset, selection, dest, target)
+        client.retrieve(dataset, selection, dest, manifest, target)
 
     def fetch_data(self, config: Config, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
@@ -65,15 +66,14 @@ class Fetcher(beam.DoFn):
         if skip_partition(config, self.store):
             return
 
-        manifest_obj = MANIFESTS.get(self.manifest['type'], NoOpManifest)(self.manifest['location'])
-        client = CLIENTS[self.client_name](config, self.manifest)
+        client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
 
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
-            self.retrieve(client, config.dataset, config.selection, temp.name, target)
+            self.retrieve(client, config.dataset, config.selection, temp.name, self.manifest, target)
 
-            with manifest_obj.transact(config.selection, target, config.user_id, 'UPLOAD'):
+            with self.manifest.transact(config.selection, target, config.user_id, 'UPLOAD'):
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
 
                 # In dry-run mode we actually aren't required to upload a file.
