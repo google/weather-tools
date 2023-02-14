@@ -27,8 +27,7 @@ import traceback
 import typing as t
 
 from .util import to_json_serializable_type, GCSBlobSizeStrategy, LocalSystemFileSizeStrategy
-from google.cloud import bigquery
-from apache_beam.io.gcp import gcsio
+from google.cloud import bigquery, storage
 from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
@@ -352,24 +351,56 @@ class ConsoleManifest(Manifest):
 
 
 class GCSManifest(Manifest):
-    """Writes a JSON representation of the manifest to GCS.
+    """Writes a JSON representation of the manifest to GCS."""
 
-    This is an append-only implementation, the latest value in the manifest
-    represents the current state of a download.
-    """
+    def __init__(self, location: Location) -> None:
+        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
 
-    # Ensure no race conditions occurs on appends to objects in GCS
-    # (i.e. JSON manifests).
-    _lock = threading.Lock()
+    def get_json(self):
+        """This function will get the json object from GCS bucket."""
+        storage_client = storage.Client()
 
-    def _read(self, location: str) -> None:
-        pass
+        parsed_file_name = urlparse(self.location)
+        if parsed_file_name.scheme != 'gs' or parsed_file_name.netloc == '':
+            raise ValueError(f'Invalid GCS location: {self.location!r}.')
+        bucket_name = parsed_file_name.netloc
+        BUCKET = storage_client.get_bucket(bucket_name)
+
+        # Get the blob
+        blob = BUCKET.get_blob(parsed_file_name.path[1:])
+        return json.loads(blob.download_as_string()) if blob else {}
+
+    def create_json(self, json_object):
+        """This function will create json object in GCS."""
+        storage_client = storage.Client()
+
+        parsed_file_name = urlparse(self.location)
+        if parsed_file_name.scheme != 'gs' or parsed_file_name.netloc == '':
+            raise ValueError(f'Invalid GCS location: {self.location!r}.')
+        bucket_name = parsed_file_name.netloc
+
+        BUCKET = storage_client.get_bucket(bucket_name)
+
+        # Create a blob
+        blob = BUCKET.blob(parsed_file_name.path[1:])
+        # Upload the blob
+        blob.upload_from_string(
+            data=json.dumps(json_object),
+            content_type='application/json'
+        )
+
+    def _read(self, location: str) -> DownloadStatus:
+        manifest = self.get_json()
+        return DownloadStatus.from_dict(manifest.get(location, {}))
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
-        with GCSManifest._lock:
-            with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
-                json.dump(DownloadStatus.to_dict(download_status), gcs_file)
+        # TODO: Implement a write lock on the GCS blob object
+        # to ensure transaction consistency.
+        manifest = self.get_json()
+        status = DownloadStatus.to_dict(download_status)
+        manifest[status['location']] = status
+        self.create_json(manifest)
         logger.debug('Manifest written to.')
         logger.debug(download_status)
 
