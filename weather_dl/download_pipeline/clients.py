@@ -322,8 +322,8 @@ class ECMWFPublicClient(Client):
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
-        # TODO(srasp): Look up request limits...
-        return 2
+        # Experimentally validated request limit.
+        return 5
 
     @property
     def license_url(self):
