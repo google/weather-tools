@@ -244,12 +244,9 @@ class Manifest(abc.ABC):
         self.status.selection = selection
         self.status.location = location
         self.status.user = user
-        self.status.stage = Stage.FETCH
-        self.status.status = Status.IN_PROGRESS
 
     def __enter__(self) -> None:
-        """Record 'in-progress' status of a transaction."""
-        self._update(self.status)
+        pass
 
     def __exit__(self, exc_type, exc_inst, exc_tb) -> None:
         """Record end status of a transaction as either 'success' or 'failure'."""
@@ -270,7 +267,8 @@ class Manifest(abc.ABC):
             .isoformat(timespec='seconds')
         )
 
-        # Required in case of Status.FAILURE.
+        # This is necessary for setting the precise start time of the previous stage
+        # and end time of the final stage, as well as handling the case of Status.FAILURE.
         if new_status.stage == Stage.FETCH:
             new_status.fetch_start_time = self.prev_stage_precise_start_time
             new_status.fetch_end_time = current_utc_time
@@ -301,9 +299,11 @@ class Manifest(abc.ABC):
         return self
 
     def set_stage(self, stage: Stage) -> None:
+        """Sets the current stage in manifest."""
         prev_stage = self.status.stage
         new_status = dataclasses.replace(self.status)
         new_status.stage = stage
+        new_status.status = Status.IN_PROGRESS
         current_utc_time = (
             datetime.datetime.utcnow()
             .replace(tzinfo=datetime.timezone.utc)
