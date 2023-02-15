@@ -365,15 +365,17 @@ class GCSManifest(Manifest):
 
     def get_json(self, acquire_lock: bool = False) -> t.Dict:
         """This function will get the json object from GCS bucket."""
-        # Acquire the lock by creating the lock file, if required.
+        # The lock file exists, which means the file is currently locked.
+        # Wait until the lock file is deleted before proceeding.
+        # This is to ensure transaction consistency.
+        while gcsio.GcsIO().exists(self.lock_file_path):
+            time.sleep(1)
+
         if acquire_lock:
-            # The lock file exists, which means the file is currently locked.
-            # Wait until the lock file is deleted before proceeding.
-            # This is to ensure transaction consistency.
-            while not gcsio.GcsIO().exists(self.lock_file_path):
-                with gcsio.GcsIO().open(self.lock_file_path, 'w') as lock_file:
-                    lock_file.write('locked'.encode('utf-8'))
-                    time.sleep(1)
+            # Acquire the lock by creating the lock file.
+            with gcsio.GcsIO().open(self.lock_file_path, 'w') as lock_file:
+                lock_file.write('locked'.encode('utf-8'))
+                time.sleep(1)
 
         if gcsio.GcsIO().exists(self.location):
             with gcsio.GcsIO().open(self.location, 'r', mime_type='application/json') as gcs_file:
