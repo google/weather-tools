@@ -17,7 +17,7 @@ import abc
 import collections
 import dataclasses
 import datetime
-from enum import Enum
+import enum
 import json
 import logging
 import os
@@ -41,7 +41,7 @@ class ManifestException(Exception):
     pass
 
 
-class Stage(Enum):
+class Stage(enum.Enum):
     """A request can be either in one of the following stages at a time:
 
     fetch : This represents request is currently in fetch stage i.e. request placed on the client's server
@@ -59,7 +59,7 @@ class Stage(Enum):
     UPLOAD = 'upload'
 
 
-class Status(Enum):
+class Status(enum.Enum):
     """Depicts the request's state status:
 
     scheduled : A request partition is created & scheduled for processing.
@@ -354,7 +354,7 @@ class GCSManifest(Manifest):
     """Writes a JSON representation of the manifest to GCS."""
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
+        super().__init__(Location(os.path.join(location, 'manifest.json')))
 
     def get_json(self):
         """This function will get the json object from GCS bucket."""
@@ -411,7 +411,7 @@ class LocalManifest(Manifest):
     _lock = threading.Lock()
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
+        super().__init__(Location(os.path.join(location, 'manifest.json')))
         if location and not os.path.exists(location):
             os.makedirs(location)
 

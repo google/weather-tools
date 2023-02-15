@@ -33,7 +33,6 @@ class FetchDataTest(unittest.TestCase):
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data(self, mock_retrieve):
         with tempfile.TemporaryDirectory() as tmpdir:
-            # self.dummy_manifest = LocalManifest(Location(tmpdir))
             config = Config.from_dict({
                 'parameters': {
                     'dataset': 'reanalysis-era5-pressure-levels',

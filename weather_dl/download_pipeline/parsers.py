@@ -494,7 +494,4 @@ def validate_all_configs(configs: t.List[Config]) -> None:
     require(all_equal(clients), f'All configs must request data from the same client, {clients[0]!r}.')
 
     kwargs = [conf.kwargs for conf in configs]
-    # Since the config file names will vary between configs,
-    # there's no need to perform an equality check for this.
-    kwargs = [{k: v for k, v in k.items() if k != 'config_name'} for k in kwargs]
     require(all_equal(kwargs), 'Discrepancy in config parameters! Please check for consistency across all configs.')

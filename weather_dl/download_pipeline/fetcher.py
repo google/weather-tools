@@ -71,7 +71,7 @@ class Fetcher(beam.DoFn):
 
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
-            with self.manifest.transact(config.kwargs.get('config_name'), config.selection, target, config.user_id):
+            with self.manifest.transact(config.config_name, config.selection, target, config.user_id):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 self.manifest.set_stage(Stage.UPLOAD)
