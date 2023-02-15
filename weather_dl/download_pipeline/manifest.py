@@ -23,11 +23,13 @@ import logging
 import os
 import pandas as pd
 import threading
+import time
 import traceback
 import typing as t
 
 from .util import to_json_serializable_type, GCSBlobSizeStrategy, LocalSystemFileSizeStrategy
-from google.cloud import bigquery, storage
+from google.cloud import bigquery
+from apache_beam.io.gcp import gcsio
 from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
@@ -352,42 +354,43 @@ class ConsoleManifest(Manifest):
 
 class GCSManifest(Manifest):
     """Writes a JSON representation of the manifest to GCS."""
+    lock_file_path: str
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location(os.path.join(location, 'manifest.json')))
-
-    def get_json(self):
-        """This function will get the json object from GCS bucket."""
-        storage_client = storage.Client()
-
-        parsed_file_name = urlparse(self.location)
+        parsed_file_name = urlparse(location)
         if parsed_file_name.scheme != 'gs' or parsed_file_name.netloc == '':
             raise ValueError(f'Invalid GCS location: {self.location!r}.')
-        bucket_name = parsed_file_name.netloc
-        BUCKET = storage_client.get_bucket(bucket_name)
+        super().__init__(Location(os.path.join(location, 'manifest.json')))
+        self.lock_file_path = os.path.join(location, 'manifest.lock')
 
-        # Get the blob
-        blob = BUCKET.get_blob(parsed_file_name.path[1:])
-        return json.loads(blob.download_as_string()) if blob else {}
+    def get_json(self, acquire_lock: bool = False) -> t.Dict:
+        """This function will get the json object from GCS bucket."""
+        # Acquire the lock by creating the lock file, if required.
+        if acquire_lock:
+            # The lock file exists, which means the file is currently locked.
+            # Wait until the lock file is deleted before proceeding.
+            # This is to ensure transaction consistency.
+            while not gcsio.GcsIO().exists(self.lock_file_path):
+                with gcsio.GcsIO().open(self.lock_file_path, 'w') as lock_file:
+                    lock_file.write('locked'.encode('utf-8'))
+                    time.sleep(1)
+
+        if gcsio.GcsIO().exists(self.location):
+            with gcsio.GcsIO().open(self.location, 'r', mime_type='application/json') as gcs_file:
+                return json.load(gcs_file)
+        else:
+            # Create a new manifest file with default content.
+            default_content = {}
+            with gcsio.GcsIO().open(self.location, 'w', mime_type='application/json') as gcs_file:
+                gcs_file.write(json.dumps(default_content).encode('utf-8'))
+            return default_content
 
     def create_json(self, json_object):
         """This function will create json object in GCS."""
-        storage_client = storage.Client()
-
-        parsed_file_name = urlparse(self.location)
-        if parsed_file_name.scheme != 'gs' or parsed_file_name.netloc == '':
-            raise ValueError(f'Invalid GCS location: {self.location!r}.')
-        bucket_name = parsed_file_name.netloc
-
-        BUCKET = storage_client.get_bucket(bucket_name)
-
-        # Create a blob
-        blob = BUCKET.blob(parsed_file_name.path[1:])
-        # Upload the blob
-        blob.upload_from_string(
-            data=json.dumps(json_object),
-            content_type='application/json'
-        )
+        with gcsio.GcsIO().open(self.location, 'w', mime_type='application/json') as gcs_file:
+            gcs_file.write(json.dumps(json_object).encode('utf-8'))
+        # Release the lock after modifying the manifest.
+        gcsio.GcsIO().delete(self.lock_file_path)
 
     def _read(self, location: str) -> DownloadStatus:
         manifest = self.get_json()
@@ -395,9 +398,7 @@ class GCSManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
-        # TODO: Implement a write lock on the GCS blob object
-        # to ensure transaction consistency.
-        manifest = self.get_json()
+        manifest = self.get_json(acquire_lock=True)
         status = DownloadStatus.to_dict(download_status)
         manifest[status['location']] = status
         self.create_json(manifest)
