@@ -27,7 +27,7 @@ import time
 import traceback
 import typing as t
 
-from .util import to_json_serializable_type, GCSBlobSizeStrategy, LocalSystemFileSizeStrategy
+from .util import to_json_serializable_type
 from google.cloud import bigquery
 from apache_beam.io.gcp import gcsio
 from urllib.parse import urlparse
@@ -286,9 +286,9 @@ class Manifest(abc.ABC):
         path = new_status.location
         parsed_gcs_path = urlparse(path)
         if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
-            new_status.size = LocalSystemFileSizeStrategy().get_file_size(path)
+            new_status.size = os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
         else:
-            new_status.size = GCSBlobSizeStrategy().get_file_size(parsed_gcs_path)
+            new_status.size = gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0
 
         self.status = new_status
 
