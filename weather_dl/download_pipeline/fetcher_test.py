@@ -84,7 +84,7 @@ class FetchDataTest(unittest.TestCase):
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='upload',
                 status='success',
-                error=json.dumps(None),
+                error=None,
                 user='unknown',
             ), list(self.dummy_manifest.records.values())[0])
 

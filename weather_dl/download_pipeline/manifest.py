@@ -139,9 +139,8 @@ class DownloadStatus():
         for key, value in download_status.items():
             if key == 'status':
                 setattr(download_status_instance, key, Status(value))
-            elif key == 'stage':
-                if value is not None:
-                    setattr(download_status_instance, key, Stage(value))
+            elif key == 'stage' and value is not None:
+                setattr(download_status_instance, key, Stage(value))
             else:
                 setattr(download_status_instance, key, value)
         return download_status_instance
@@ -158,7 +157,7 @@ class DownloadStatus():
                 download_status_dict[key] = value.value
             elif isinstance(value, pd.Timestamp):
                 download_status_dict[key] = value.isoformat()
-            elif key == 'selection' or key == 'error':
+            elif key == 'selection' and value is not None:
                 download_status_dict[key] = json.dumps(value)
             else:
                 download_status_dict[key] = value
@@ -511,43 +510,40 @@ class BQManifest(Manifest):
             status = DownloadStatus.to_dict(download_status)
             table = client.get_table(self.location)
             columns = [field.name for field in table.schema]
-            update_dml = []
-            insert_dml = []
-            for col in columns:
-                if status[col] is None:
-                    update_dml.append(f"{col} = null")
-                    insert_dml.append("null")
-                elif col == 'selection':
-                    update_dml.append(f"{col} = JSON'{status[col]}'")
-                    insert_dml.append(f"JSON'{status[col]}'")
-                elif col == 'size' or col == 'error':
-                    update_dml.append(f"{col} = {status[col]}")
-                    insert_dml.append(status[col])
-                else:
-                    update_dml.append(f"{col} = '{status[col]}'")
-                    insert_dml.append(f"'{status[col]}'")
+            parameter_type_mapping = {field.name: field.field_type for field in table.schema}
 
-            # Build the merge statement as a string
+            update_dml = [f"{col} = @{col}" for col in columns]
+            insert_dml = [f"@{col}" for col in columns]
+            params = {col: status[col] for col in columns}
+
+            # Build the merge statement as a string with parameter placeholders.
             merge_statement = f"""
                 MERGE {self.location} T
                 USING (
                 SELECT
-                    '{status['location']}' as location
+                    @location as location
                 ) S
                 ON T.location = S.location
                 WHEN MATCHED THEN
                 UPDATE SET
-                    {', '.join(str(v) for v in update_dml)}
+                    {', '.join(update_dml)}
                 WHEN NOT MATCHED THEN
                 INSERT
                     ({", ".join(columns)})
                 VALUES
-                    ({', '.join(str(v) for v in insert_dml)})
+                    ({', '.join(insert_dml)})
             """
 
             logger.debug(merge_statement)
-            # Execute the merge statement
-            query_job = client.query(merge_statement)
+
+            # Build the QueryJobConfig object with the parameters.
+            job_config = bigquery.QueryJobConfig()
+            job_config.query_parameters = [bigquery.ScalarQueryParameter(col, parameter_type_mapping[col], value)
+                                           for col, value in params.items()]
+
+            # Execute the merge statement with the parameters.
+            query_job = client.query(merge_statement, job_config=job_config)
+
             # Wait for the query to execute.
             query_job.result()
 
