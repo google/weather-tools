@@ -163,8 +163,11 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = xr.merge(band_data_list)
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
-    end_time = None
-    if initialization_time_regex and forecast_time_regex:
+    start_time, end_time = None, None
+    time_attrs_present = 'start_time' in ds.attrs and 'end_time' in ds.attrs
+    if time_attrs_present:
+        start_time, end_time = ds.attrs['start_time'], ds.attrs['end_time']
+    elif initialization_time_regex and forecast_time_regex:
         try:
             start_time = match_datetime(uri, initialization_time_regex)
         except Exception:
@@ -178,15 +181,17 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
-        datetime_value_ms = None
+        datetime_value_s = None
         try:
-            datetime_value_s = (int(end_time.timestamp()) if end_time is not None
-                                else int(f.tags()[tif_metadata_for_datetime]) / 1000.0)
+            datetime_value_s = (
+                int(end_time.timestamp()) if end_time is not None
+                else int(f.tags()[tif_metadata_for_datetime]) / 1000.0
+            )
             ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
-            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
+            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_s}.")
 
     return ds
 
