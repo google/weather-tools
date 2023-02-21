@@ -27,7 +27,7 @@ import time
 import traceback
 import typing as t
 
-from .util import to_json_serializable_type
+from .util import to_json_serializable_type, fetch_geo_polygon
 from google.cloud import bigquery
 from apache_beam.io.gcp import gcsio
 from urllib.parse import urlparse
@@ -36,6 +36,8 @@ from urllib.parse import urlparse
 Location = t.NewType('Location', str)
 
 logger = logging.getLogger(__name__)
+
+GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 
 class ManifestException(Exception):
@@ -90,6 +92,9 @@ class DownloadStatus():
     """Location of the downloaded data."""
     location: str = ""
 
+    """Represents area covered by the shard."""
+    area: str = ""
+
     """Current stage of request : 'fetch', 'download', 'retrieve', 'upload' or None."""
     stage: t.Optional[Stage] = None
 
@@ -102,7 +107,7 @@ class DownloadStatus():
     """Identifier for the user running the download."""
     user: str = ""
 
-    """File size of the request in GB."""
+    """Shard size in GB."""
     size: t.Optional[float] = 0
 
     """A UTC datetime when download was scheduled."""
@@ -220,6 +225,7 @@ class Manifest(abc.ABC):
                 config_name=config_name,
                 selection=selection,
                 location=location,
+                area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
                 user=user,
                 stage=None,
                 status=Status.SCHEDULED,
@@ -344,8 +350,8 @@ class ConsoleManifest(Manifest):
     def __post_init__(self):
         self.name = urlparse(self.location).hostname
 
-    def _read(self, location: str) -> None:
-        pass
+    def _read(self, location: str) -> DownloadStatus:
+        return DownloadStatus()
 
     def _update(self, download_status: DownloadStatus) -> None:
         logger.info(f'[{self.name}] {dataclasses.asdict(download_status)!r}')
@@ -461,6 +467,13 @@ class BQManifest(Manifest):
                                  description="Copy of selection section of the configuration."),
             bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
                                  description="Location of the downloaded data."),
+            bigquery.SchemaField('area', 'JSON', mode='NULLABLE',
+                                 description="Represents area covered by the shard. "
+                                 "ST_GeogFromGeoJson(TO_JSON_STRING(area)) to convert json to GEOGRAPHY. "
+                                 "ST_BOUNDINGBOX(geography_expression) : Returns a STRUCT that represents the "
+                                 "bounding box for the specified geography. "
+                                 "ST_COVERS(geography_expression, ST_GEOGPOINT(longitude, latitude)): To check "
+                                 "if a point lies in the given area or not."),
             bigquery.SchemaField('stage', 'STRING', mode='NULLABLE',
                                  description="Current stage of request : 'fetch', 'download', 'retrieve', 'upload' "
                                  "or None."),
@@ -471,7 +484,7 @@ class BQManifest(Manifest):
             bigquery.SchemaField('user', 'STRING', mode='REQUIRED',
                                  description="Identifier for the user running the download."),
             bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE',
-                                 description="File size in GB."),
+                                 description="Shard size in GB."),
             bigquery.SchemaField('scheduled_time', 'TIMESTAMP', mode='NULLABLE',
                                  description="A UTC datetime when download was scheduled."),
             bigquery.SchemaField('retrieve_start_time', 'TIMESTAMP', mode='NULLABLE',

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import geojson
 import itertools
 import logging
 import socket
@@ -25,6 +26,9 @@ from apache_beam.utils import retry
 from xarray.core.utils import ensure_us_time_resolution
 
 logger = logging.getLogger(__name__)
+
+LATITUDE_RANGE = (-90, 90)
+LONGITUDE_RANGE = (-180, 180)
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -120,3 +124,23 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return int(value)
 
     return value
+
+
+def fetch_geo_polygon(area: list) -> str:
+    """Calculates a geography polygon from an input area."""
+    n, w, s, e = area
+    if s < LATITUDE_RANGE[0]:
+        raise ValueError(f"Invalid latitude value for s: '{s}'")
+    if n > LATITUDE_RANGE[1]:
+        raise ValueError(f"Invalid latitude value for n: '{n}'")
+    if w < LONGITUDE_RANGE[0]:
+        raise ValueError(f"Invalid longitude value for w: '{w}'")
+    if e > LONGITUDE_RANGE[1]:
+        raise ValueError(f"Invalid longitude value for e: '{e}'")
+
+    # Define the coordinates of the bounding box.
+    coords = [[w, n], [w, s], [e, s], [e, n], [w, n]]
+
+    # Create the GeoJSON polygon object.
+    polygon = geojson.dumps(geojson.Polygon([coords]))
+    return polygon
