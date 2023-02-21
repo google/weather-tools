@@ -28,7 +28,7 @@ from urllib.parse import urljoin
 
 import cdsapi
 import urllib3
-from ecmwfapi import ECMWFService, api
+from ecmwfapi import api
 
 from .config import Config, optimize_selection_partition
 from .manifest import Manifest, Stage
@@ -221,7 +221,17 @@ class SplitMARSRequest(api.APIRequest):
         self.connection.cleanup()
 
 
-class MARSECMWFServiceExtended(ECMWFService):
+class SplitRequestMixin:
+    c = None
+
+    def fetch(self, req: t.Dict) -> t.Dict:
+        return self.c.fetch(req)
+
+    def download(self, res: t.Dict, target: str) -> None:
+        self.c.download(res, target)
+
+
+class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -235,11 +245,18 @@ class MARSECMWFServiceExtended(ECMWFService):
             quiet=self.quiet,
         )
 
-    def fetch(self, req: t.Dict) -> t.Dict:
-        return self.c.fetch(req)
 
-    def download(self, res: t.Dict, target: str) -> None:
-        self.c.download(res, target)
+class PublicECMWFServerExtended(api.ECMWFDataServer, SplitRequestMixin):
+    def __init__(self, *args, dataset='', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.c = SplitMARSRequest(
+            self.url,
+            "datasets/%s" % (dataset,),
+            email=self.email,
+            key=self.key,
+            log=self.log,
+            verbose=self.verbose,
+        )
 
 
 class MarsClient(Client):
@@ -261,12 +278,8 @@ class MarsClient(Client):
         config: A config that contains pipeline parameters, such as API keys.
         level: Default log level for the client.
     """
-
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
-        super().__init__(config, level)
-
     def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
-        self.c = MARSECMWFServiceExtended(
+        c = MARSECMWFServiceExtended(
             "mars",
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
@@ -283,7 +296,7 @@ class MarsClient(Client):
                 .isoformat(timespec='seconds')
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
-            result = self.c.fetch(req=selection_)
+            result = c.fetch(req=selection_)
             manifest.set_stage(Stage.DOWNLOAD)
             precise_download_start_time = (
                 datetime.datetime.utcnow()
@@ -291,7 +304,7 @@ class MarsClient(Client):
                 .isoformat(timespec='seconds')
             )
             manifest.prev_stage_precise_start_time = precise_download_start_time
-            self.c.download(result, target=output)
+            c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -311,6 +324,34 @@ class MarsClient(Client):
         http://apps.ecmwf.int/webmars/joblist/ and cancel queued jobs.
         """
         return 2
+
+
+class ECMWFPublicClient(Client):
+    """A client for ECMWF's public datasets, like TIGGE."""
+    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+        c = PublicECMWFServerExtended(
+            url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
+            key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
+            email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            log=self.logger.debug,
+            verbose=True,
+            dataset=dataset,
+        )
+        selection_ = optimize_selection_partition(selection)
+        with StdoutLogger(self.logger, level=logging.DEBUG):
+            result = c.fetch(req=selection_)
+            c.download(result, target=output)
+
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
+        # Experimentally validated request limit.
+        return 5
+
+    @property
+    def license_url(self):
+        if not self.config.dataset:
+            raise ValueError('must specify a dataset for this client!')
+        return f'https://apps.ecmwf.int/datasets/data/{self.config.dataset.lower()}/licence/'
 
 
 class FakeClient(Client):
@@ -340,5 +381,6 @@ class FakeClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient,
     mars=MarsClient,
+    ecpublic=ECMWFPublicClient,
     fake=FakeClient,
 )
