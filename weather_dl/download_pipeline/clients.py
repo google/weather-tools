@@ -328,7 +328,7 @@ class MarsClient(Client):
 
 class ECMWFPublicClient(Client):
     """A client for ECMWF's public datasets, like TIGGE."""
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         c = PublicECMWFServerExtended(
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
@@ -339,7 +339,21 @@ class ECMWFPublicClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
+            manifest.set_stage(Stage.FETCH)
+            precise_fetch_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(req=selection_)
+            manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
             c.download(result, target=output)
 
     @classmethod
