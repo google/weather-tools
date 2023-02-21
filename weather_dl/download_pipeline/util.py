@@ -130,13 +130,13 @@ def fetch_geo_polygon(area: list) -> str:
     """Calculates a geography polygon from an input area."""
     n, w, s, e = area
     if s < LATITUDE_RANGE[0]:
-        raise ValueError(f"Invalid latitude value for s: '{s}'")
+        raise ValueError(f"Invalid latitude value for south: '{s}'")
     if n > LATITUDE_RANGE[1]:
-        raise ValueError(f"Invalid latitude value for n: '{n}'")
+        raise ValueError(f"Invalid latitude value for north: '{n}'")
     if w < LONGITUDE_RANGE[0]:
-        raise ValueError(f"Invalid longitude value for w: '{w}'")
+        raise ValueError(f"Invalid longitude value for west: '{w}'")
     if e > LONGITUDE_RANGE[1]:
-        raise ValueError(f"Invalid longitude value for e: '{e}'")
+        raise ValueError(f"Invalid longitude value for east: '{e}'")
 
     # Define the coordinates of the bounding box.
     coords = [[w, n], [w, s], [e, s], [e, n], [w, n]]

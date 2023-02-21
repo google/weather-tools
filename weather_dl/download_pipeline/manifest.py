@@ -467,11 +467,10 @@ class BQManifest(Manifest):
                                  description="Copy of selection section of the configuration."),
             bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
                                  description="Location of the downloaded data."),
-            bigquery.SchemaField('area', 'JSON', mode='NULLABLE',
+            bigquery.SchemaField('area', 'STRING', mode='NULLABLE',
                                  description="Represents area covered by the shard. "
-                                 "ST_GeogFromGeoJson(TO_JSON_STRING(area)) to convert json to GEOGRAPHY. "
-                                 "ST_BOUNDINGBOX(geography_expression) : Returns a STRUCT that represents the "
-                                 "bounding box for the specified geography. "
+                                 "ST_GeogFromGeoJson(area): To convert a GeoJSON geometry object into a "
+                                 "GEOGRAPHY value. "
                                  "ST_COVERS(geography_expression, ST_GEOGPOINT(longitude, latitude)): To check "
                                  "if a point lies in the given area or not."),
             bigquery.SchemaField('stage', 'STRING', mode='NULLABLE',
