@@ -144,8 +144,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "'[manifest]'. In addition, users can specify either a BigQuery table "
                              "('bq://<project-id>.<dataset-name>.<table-name>') [Note: Tool will create the BQ table "
                              "itself, if not already present. Or it will use the existing table but can report errors "
-                             "in case of schema mismatch.] or GCS bucket URI, "
-                             "or 'noop://<name>' for an in-memory location.")
+                             "in case of schema mismatch.], or 'noop://<name>' for an in-memory location.")
     parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '

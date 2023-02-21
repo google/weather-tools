@@ -23,7 +23,6 @@ import logging
 import os
 import pandas as pd
 import threading
-import time
 import traceback
 import typing as t
 
@@ -357,62 +356,6 @@ class ConsoleManifest(Manifest):
         logger.info(f'[{self.name}] {dataclasses.asdict(download_status)!r}')
 
 
-class GCSManifest(Manifest):
-    """Writes a JSON representation of the manifest to GCS."""
-    lock_file_path: str
-
-    def __init__(self, location: Location) -> None:
-        parsed_file_name = urlparse(location)
-        if parsed_file_name.scheme != 'gs' or parsed_file_name.netloc == '':
-            raise ValueError(f'Invalid GCS location: {self.location!r}.')
-        super().__init__(Location(os.path.join(location, 'manifest.json')))
-        self.lock_file_path = os.path.join(location, 'manifest.lock')
-
-    def get_json(self, acquire_lock: bool = False) -> t.Dict:
-        """This function will get the json object from GCS bucket."""
-        # The lock file exists, which means the file is currently locked.
-        # Wait until the lock file is deleted before proceeding.
-        # This is to ensure transaction consistency.
-        while gcsio.GcsIO().exists(self.lock_file_path):
-            time.sleep(1)
-
-        if acquire_lock:
-            # Acquire the lock by creating the lock file.
-            with gcsio.GcsIO().open(self.lock_file_path, 'w') as lock_file:
-                lock_file.write('locked'.encode('utf-8'))
-                time.sleep(1)
-
-        if gcsio.GcsIO().exists(self.location):
-            with gcsio.GcsIO().open(self.location, 'r', mime_type='application/json') as gcs_file:
-                return json.load(gcs_file)
-        else:
-            # Create a new manifest file with default content.
-            default_content = {}
-            with gcsio.GcsIO().open(self.location, 'w', mime_type='application/json') as gcs_file:
-                gcs_file.write(json.dumps(default_content).encode('utf-8'))
-            return default_content
-
-    def create_json(self, json_object):
-        """This function will create json object in GCS."""
-        with gcsio.GcsIO().open(self.location, 'w', mime_type='application/json') as gcs_file:
-            gcs_file.write(json.dumps(json_object).encode('utf-8'))
-        # Release the lock after modifying the manifest.
-        gcsio.GcsIO().delete(self.lock_file_path)
-
-    def _read(self, location: str) -> DownloadStatus:
-        manifest = self.get_json()
-        return DownloadStatus.from_dict(manifest.get(location, {}))
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        """Writes the JSON data to a manifest."""
-        manifest = self.get_json(acquire_lock=True)
-        status = DownloadStatus.to_dict(download_status)
-        manifest[status['location']] = status
-        self.create_json(manifest)
-        logger.debug('Manifest written to.')
-        logger.debug(download_status)
-
-
 class LocalManifest(Manifest):
     """Writes a JSON representation of the manifest to local file."""
 
@@ -601,7 +544,6 @@ If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse
 """
 MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
-    'gs': GCSManifest,
     'bq': BQManifest,
     '': LocalManifest,
 })

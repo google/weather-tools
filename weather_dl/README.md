@@ -45,7 +45,7 @@ _Common options_:
 * `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging
   (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol.
   For example, `cli://manifest` will prefix all the manifest logs as '[manifest]'. In addition, users can specify 
-  either a BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`) or GCS bucket URI, or `noop://<name>` 
+  either a BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`), or `noop://<name>` 
   for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
