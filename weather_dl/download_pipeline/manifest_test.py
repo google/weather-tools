@@ -42,9 +42,9 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
         retrieve_end_time=None,
         fetch_start_time="2023-02-07T17:15:29+00:00",
         fetch_end_time="2023-02-07T17:21:37+00:00",
-        download_start_time="2023-02-07T17:21:37+00:00",
+        download_start_time="2023-02-07T17:21:39+00:00",
         download_end_time="2023-02-07T17:21:56+00:00",
-        upload_start_time="2023-02-07T17:21:56+00:00",
+        upload_start_time="2023-02-07T17:21:59+00:00",
         upload_end_time="2023-02-07T17:22:03+00:00"
     )
 
