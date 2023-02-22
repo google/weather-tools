@@ -431,6 +431,7 @@ class SkipPartitionsTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.mock_store = InMemoryStore()
+        self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def test_skip_partition_missing_force_download(self):
         config = {
@@ -446,7 +447,7 @@ class SkipPartitionsTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, False)
 
@@ -465,7 +466,7 @@ class SkipPartitionsTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, False)
 
@@ -487,7 +488,7 @@ class SkipPartitionsTest(unittest.TestCase):
 
         self.mock_store.exists = MagicMock(return_value=True)
 
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, True)
 

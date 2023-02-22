@@ -15,6 +15,7 @@ import datetime
 import geojson
 import itertools
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -22,8 +23,10 @@ import typing as t
 
 import numpy as np
 import pandas as pd
+from apache_beam.io.gcp import gcsio
 from apache_beam.utils import retry
 from xarray.core.utils import ensure_us_time_resolution
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +147,11 @@ def fetch_geo_polygon(area: list) -> str:
     # Create the GeoJSON polygon object.
     polygon = geojson.dumps(geojson.Polygon([coords]))
     return polygon
+
+
+def get_file_size(path: str) -> float:
+    parsed_gcs_path = urlparse(path)
+    if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
+        return os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
+    else:
+        return gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0

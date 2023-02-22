@@ -110,6 +110,7 @@ def pipeline(args: PipelineArgs) -> None:
                                 args.manifest,
                                 args.known_args.schedule,
                                 args.known_args.partition_chunks,
+                                args.known_args.update_manifest,
                                 len(subsections) * args.num_requesters_per_key)
 
     with beam.Pipeline(options=args.pipeline_options) as p:
@@ -162,6 +163,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "much smaller number. Default: 'in-order'.")
     parser.add_argument('--check-skip-in-dry-run', action='store_true', default=False,
                         help="To enable file skipping logic in dry-run mode. Default: 'false'.")
+    parser.add_argument('-u', '--update-manifest', action='store_true', default=False,
+                        help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

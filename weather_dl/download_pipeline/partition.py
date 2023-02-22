@@ -21,7 +21,7 @@ import typing as t
 import apache_beam as beam
 
 from .config import Config
-from .manifest import Manifest
+from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
 from .stores import Store, FSStore
 from .util import ichunked
@@ -60,6 +60,7 @@ class PartitionConfig(beam.PTransform):
     manifest: Manifest
     scheduling: str
     partition_chunks: t.Optional[int] = None
+    update_manifest: bool = False
     num_groups: int = 1
 
     def expand(self, configs):
@@ -106,7 +107,10 @@ class PartitionConfig(beam.PTransform):
                 config_idxs
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
-                | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
+                | 'Skip existing' >> beam.Filter(new_downloads_only,
+                                                 store=self.store,
+                                                 manifest=self.manifest,
+                                                 update_manifest=self.update_manifest)
                 | 'Cycle subsections' >> beam.Map(loop_through_subsections)
                 | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
         )
@@ -139,7 +143,7 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     return out
 
 
-def skip_partition(config: Config, store: Store) -> bool:
+def skip_partition(config: Config, store: Store, manifest: Manifest) -> bool:
     """Return true if partition should be skipped."""
 
     if config.force_download:
@@ -148,6 +152,7 @@ def skip_partition(config: Config, store: Store) -> bool:
     target = prepare_target_name(config)
     if store.exists(target):
         logger.info(f'file {target} found, skipping.')
+        manifest.skip(config.config_name, config.selection, target, config.user_id)
         return True
 
     return False
@@ -193,13 +198,19 @@ def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.I
         yield _create_partition_config(option, config)
 
 
-def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
+def new_downloads_only(candidate: Config, store: t.Optional[Store] = None,
+                       manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
+                       update_manifest: bool = False) -> bool:
     """Predicate function to skip already downloaded partitions."""
     if store is None:
         store = FSStore()
-    should_skip = skip_partition(candidate, store)
+    should_skip = skip_partition(candidate, store, manifest)
     if should_skip:
         beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
+    # When the --update_manifest flag is passed, all partitions will be skipped.
+    # This is because the tool will only update the manifest for already downloaded shards and then exit.
+    if update_manifest:
+        return False
     return not should_skip
 
 
