@@ -190,7 +190,7 @@ class PreparePartitionTest(unittest.TestCase):
 
             self.assertListEqual(
                 [d['selection'] for d in actual.values()], [
-                    {**config['selection'], **{'year': [str(i)]}}
+                    json.dumps({**config['selection'], **{'year': [str(i)]}})
                     for i in range(2015, 2021)
                 ])
 

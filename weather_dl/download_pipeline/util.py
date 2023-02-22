@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
+import geojson
 import itertools
 import logging
 import socket
@@ -18,9 +20,15 @@ import subprocess
 import sys
 import typing as t
 
+import numpy as np
+import pandas as pd
 from apache_beam.utils import retry
+from xarray.core.utils import ensure_us_time_resolution
 
 logger = logging.getLogger(__name__)
+
+LATITUDE_RANGE = (-90, 90)
+LONGITUDE_RANGE = (-180, 180)
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -72,3 +80,67 @@ def copy(src: str, dst: str) -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
         raise
+
+
+# TODO(#245): Group with common utilities (duplicated)
+def to_json_serializable_type(value: t.Any) -> t.Any:
+    """Returns the value with a type serializable to JSON"""
+    # Note: The order of processing is significant.
+    logger.debug('Serializing to JSON')
+
+    if pd.isna(value) or value is None:
+        return None
+    elif np.issubdtype(type(value), np.floating):
+        return float(value)
+    elif type(value) == np.ndarray:
+        # Will return a scaler if array is of size 1, else will return a list.
+        return value.tolist()
+    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+        # Assume strings are ISO format timestamps...
+        try:
+            value = datetime.datetime.fromisoformat(value)
+        except ValueError:
+            # ... if they are not, assume serialization is already correct.
+            return value
+        except TypeError:
+            # ... maybe value is a numpy datetime ...
+            try:
+                value = ensure_us_time_resolution(value).astype(datetime.datetime)
+            except AttributeError:
+                # ... value is a datetime object, continue.
+                pass
+
+        # We use a string timestamp representation.
+        if value.tzname():
+            return value.isoformat()
+
+        # We assume here that naive timestamps are in UTC timezone.
+        return value.replace(tzinfo=datetime.timezone.utc).isoformat()
+    elif type(value) == np.timedelta64:
+        # Return time delta in seconds.
+        return float(value / np.timedelta64(1, 's'))
+    # This check must happen after processing np.timedelta64 and np.datetime64.
+    elif np.issubdtype(type(value), np.integer):
+        return int(value)
+
+    return value
+
+
+def fetch_geo_polygon(area: list) -> str:
+    """Calculates a geography polygon from an input area."""
+    n, w, s, e = area
+    if s < LATITUDE_RANGE[0]:
+        raise ValueError(f"Invalid latitude value for south: '{s}'")
+    if n > LATITUDE_RANGE[1]:
+        raise ValueError(f"Invalid latitude value for north: '{n}'")
+    if w < LONGITUDE_RANGE[0]:
+        raise ValueError(f"Invalid longitude value for west: '{w}'")
+    if e > LONGITUDE_RANGE[1]:
+        raise ValueError(f"Invalid longitude value for east: '{e}'")
+
+    # Define the coordinates of the bounding box.
+    coords = [[w, n], [w, s], [e, s], [e, n], [w, n]]
+
+    # Create the GeoJSON polygon object.
+    polygon = geojson.dumps(geojson.Polygon([coords]))
+    return polygon

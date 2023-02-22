@@ -79,6 +79,7 @@ def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.
     temp_config['parameters'].update(parameters)
     temp_config['selection'].update(selection)
     args.configs = [Config.from_dict(temp_config)]
+    args.configs[0].config_name = 'era5_example_config.cfg'
     args.configs[0].user_id = getpass.getuser()
     args.configs[0].force_download = parameters.get('force_download', False)
     args.known_args = copy.deepcopy(args.known_args)
@@ -105,7 +106,7 @@ class ParsePipelineArgs(unittest.TestCase):
         self.assertEqual(actual.num_requesters_per_key, expected.num_requesters_per_key)
 
     def test_happy_path(self):
-        self.assert_pipeline(self.DEFAULT_CMD, DEFAULT_ARGS)
+        self.assert_pipeline(self.DEFAULT_CMD, default_args())
 
     def test_force_download(self):
         self.assert_pipeline(

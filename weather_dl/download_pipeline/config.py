@@ -24,6 +24,8 @@ class Config:
     """Contains pipeline parameters.
 
     Attributes:
+        config_name:
+            Name of the config file.
         client:
             Name of the Weather-API-client. Supported clients are mentioned in the 'CLIENTS' variable.
         dataset (optional):
@@ -48,6 +50,7 @@ class Config:
             Contains parameters used to select desired data.
     """
 
+    config_name: str = ""
     client: str = ""
     dataset: t.Optional[str] = ""
     target_path: str = ""

@@ -141,8 +141,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Location of the manifest. By default, it will use Cloud Logging (stdout for direct "
                              "runner). You can set the name of the manifest as the hostname of a URL with the 'cli' "
                              "protocol. For example, 'cli://manifest' will prefix all the manifest logs as "
-                             "'[manifest]'. In addition, users can specify a GCS bucket URI, or 'noop://<name>' for an "
-                             "in-memory location.")
+                             "'[manifest]'. In addition, users can specify either a BigQuery table "
+                             "('bq://<project-id>.<dataset-name>.<table-name>') [Note: Tool will create the BQ table "
+                             "itself, if not already present. Or it will use the existing table but can report errors "
+                             "in case of schema mismatch.], or 'noop://<name>' for an in-memory location.")
     parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
@@ -168,7 +170,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     configs = []
     for cfg in known_args.config:
         with open(cfg, 'r', encoding='utf-8') as f:
-            config = process_config(f)
+            # configs/example.cfg -> example.cfg
+            config_name = os.path.split(cfg)[1]
+            config = process_config(f, config_name)
 
         config.force_download = known_args.force_download
         config.user_id = getpass.getuser()
