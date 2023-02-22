@@ -453,10 +453,21 @@ class BQManifest(Manifest):
     def _read(self, location: str) -> DownloadStatus:
         """Reads the JSON data from a manifest."""
         with bigquery.Client() as client:
-            query = f"SELECT * FROM {self.location} WHERE location = {location!r}"
-            query_job = client.query(query)
-            result = query_job.result().to_dataframe().to_dict('records')
-            row = {n: to_json_serializable_type(v) for n, v in result[0].items()}
+            select_statement = f"SELECT * FROM {self.location} WHERE location = @location"
+
+            # Build the QueryJobConfig object with the parameters.
+            job_config = bigquery.QueryJobConfig()
+            job_config.query_parameters = [bigquery.ScalarQueryParameter('location', 'STRING', location)]
+
+            # Execute the merge statement with the parameters.
+            query_job = client.query(select_statement, job_config=job_config)
+
+            # Wait for the query to execute.
+            result = query_job.result()
+            row = {}
+            if result.total_rows > 0:
+                records = result.to_dataframe().to_dict('records')
+                row = {n: to_json_serializable_type(v) for n, v in records[0].items()}
             return DownloadStatus.from_dict(row)
 
     def _update(self, download_status: DownloadStatus) -> None:

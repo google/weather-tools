@@ -77,6 +77,7 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
     return new_attrs
 
 
+# TODO(#245): Group with common utilities (duplicated)
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.
