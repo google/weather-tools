@@ -47,7 +47,7 @@ def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str
         yield from [x.path for x in match.metadata_list]
 
 
-def _arg_list_includes(args: t.List[str], key: str, val: str = None) -> bool:
+def _arg_list_includes(args: t.List[str], key: str, val: t.Optional[str] = None) -> bool:
     """check if a "--key [val]" or "--key=val" argument exists in args list"""
     # single valued check (looking for "--key")
     if val is None:
