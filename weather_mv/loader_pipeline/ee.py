@@ -606,6 +606,12 @@ class IngestIntoEETransform(SetupEarthEngine):
             # so this will act as a quick fix for this issue.
             if f"Cannot overwrite asset '{asset_request['name']}'" in repr(e):
                 ee.data.deleteAsset(asset_request['name'])
+            elif "The image at index 0 has an invalid tile (of size 0 bytes)" in repr(e) or \
+                 "The GeoTIFF is invalid or is not cloud optimized" in repr(e):
+                asset_location = asset_request['gcs_location']['uris'][0]
+                logger.error(f"Got unfinished COG: {asset_location}")
+                subprocess.run(f"gsutil rm {asset_location}".split())
+                return ""
             raise
 
         return result.get('id')
