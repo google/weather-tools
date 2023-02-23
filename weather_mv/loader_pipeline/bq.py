@@ -101,6 +101,8 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('-o', '--output_table', type=str, required=True,
                                help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
                                     "will be created if it doesn't exist.")
+        subparser.add_argument('--temp_location', type=str, required=True,
+                               help="GCS directory used for staging temporary files used in BigQuery table inserts")
         subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                                help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
                                     'all data variables as columns.')

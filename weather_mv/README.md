@@ -2,14 +2,12 @@
 
 Weather Mover provides an easy and scalable way for:
 
-1. Loading weather datasets 
-   from Cloud Storage into [BigQuery](https://cloud.google.com/bigquery) and
+1. Loading weather dataset from Cloud Storage into [BigQuery](https://cloud.google.com/bigquery) and 
    [Google Earth Engine](https://earthengine.google.com/)
 2. Fast [interpolation & grid conversions](https://metview.readthedocs.io/en/latest/gen_files/icon_functions/regrid.html)
-on large weather datasets
+   on large weather datasets
 
-It supports popular multi-dimensional data formats including NetCDF, GRIB, 
-GeoTIFF, and all other formats [supported by Xarray](https://docs.xarray.dev/en/stable/user-guide/io.html).
+It supports popular multi-dimensional data formats including NetCDF, GRIB, and GeoTIFF.
 
 ## Why do we need this?
 
@@ -95,6 +93,8 @@ _Command options_:
 
 * `-o, --output_table`: (required) Full name of destination BigQuery table. Ex:
   my_project.my_dataset.my_table
+* `--temp_location`: (required) GCS directory used for staging temporary files
+  used in BigQuery table inserts
 * `-v, --variables`:  Target variables (or coordinates) for the BigQuery schema.
   Default: will import all data variables
   as columns.

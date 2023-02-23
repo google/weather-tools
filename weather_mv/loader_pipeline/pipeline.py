@@ -28,6 +28,8 @@ from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CONTAINER_IMAGE = "gcr.io/weather-tools-prod/weather-tools:0.0.0"
+
 
 def configure_logger(verbosity: int) -> None:
     """Configures logging from verbosity. Default verbosity will show errors."""
@@ -43,6 +45,21 @@ def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str
 
     for match in FileSystems().match([match_pattern]):
         yield from [x.path for x in match.metadata_list]
+
+
+def _arg_list_includes(args: t.List[str], key: str, val: str = None) -> bool:
+    """check if a "--key [val]" or "--key=val" argument exists in args list"""
+    # single valued check (looking for "--key")
+    if val is None:
+        for arg in args:
+            if arg == f"--{key}" or arg.split("=")[0] == f"--{key}":
+                return True
+        return False
+    # double valued check (looking for "--key=value", "--key value")
+    for idx, arg in enumerate(args[:-1]):
+        if (arg == f"--{key}" and args[idx + 1] == val) or arg == f"--{key}={val}":
+            return True
+    return False
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -127,7 +144,18 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                                       help='Move data into Google EarthEngine')
     ToEarthEngine.add_parser_arguments(ee_parser)
 
+    # print top-level help if zero arguments are passed
+    if len(argv) == 1:
+        parser.print_help()
+        exit(0)
+
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
+
+    # temporary location is shown as a mandatory argument in help messages
+    # but also needs to be available in pipeline args
+    if hasattr(known_args, 'temp_location') and known_args.temp_location:
+        logger.debug("Using temporary location %s", known_args.temp_location)
+        pipeline_args.extend(['--temp_location', known_args.temp_location])
 
     configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
@@ -159,5 +187,11 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
     pipeline_args.extend('--save_main_session true'.split())
+
+    # add default image for Dataflow runner
+    if _arg_list_includes(pipeline_args, 'runner', 'DataflowRunner') \
+       and not _arg_list_includes(pipeline_args, 'sdk_container_image'):
+        logger.info('Using default Dataflow container image "%s"', DEFAULT_CONTAINER_IMAGE)
+        pipeline_args.extend(['--sdk_container_image', DEFAULT_CONTAINER_IMAGE])
 
     return known_args, pipeline_args
