@@ -102,18 +102,22 @@ class PartitionConfig(beam.PTransform):
                     configs
                     | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
             )
-
-        return (
+        partitions = (
                 config_idxs
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
                 | 'Skip existing' >> beam.Filter(new_downloads_only,
                                                  store=self.store,
-                                                 manifest=self.manifest,
-                                                 update_manifest=self.update_manifest)
-                | 'Cycle subsections' >> beam.Map(loop_through_subsections)
-                | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
+                                                 manifest=self.manifest)
         )
+        # When the --update_manifest flag is passed, the tool will only update the manifest
+        # for already downloaded shards and then exit.
+        if not self.update_manifest:
+            return (
+                    partitions
+                    | 'Cycle subsections' >> beam.Map(loop_through_subsections)
+                    | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
+            )
 
 
 def _create_partition_config(option: t.Tuple, config: Config) -> Config:
@@ -199,18 +203,13 @@ def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.I
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None,
-                       manifest: Manifest = NoOpManifest(Location('noop://in-memory')),
-                       update_manifest: bool = False) -> bool:
+                       manifest: Manifest = NoOpManifest(Location('noop://in-memory'))) -> bool:
     """Predicate function to skip already downloaded partitions."""
     if store is None:
         store = FSStore()
     should_skip = skip_partition(candidate, store, manifest)
     if should_skip:
         beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
-    # When the --update_manifest flag is passed, all partitions will be skipped.
-    # This is because the tool will only update the manifest for already downloaded shards and then exit.
-    if update_manifest:
-        return False
     return not should_skip
 
 

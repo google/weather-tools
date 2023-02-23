@@ -114,13 +114,19 @@ def pipeline(args: PipelineArgs) -> None:
                                 len(subsections) * args.num_requesters_per_key)
 
     with beam.Pipeline(options=args.pipeline_options) as p:
-        (
+        partitions = (
                 p
                 | 'Create Configs' >> beam.Create(args.configs)
                 | 'Prepare Partitions' >> partition
+        )
+        # When the --update_manifest flag is passed, the tool will only update the manifest
+        # for already downloaded shards and then exit.
+        if not args.known_args.update_manifest:
+            (
+                partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
                 | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
-        )
+            )
 
 
 def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
