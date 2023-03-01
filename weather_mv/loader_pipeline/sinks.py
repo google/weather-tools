@@ -127,9 +127,14 @@ def _is_3d_da(da):
     return len(da.shape) == 3
 
 
-def __normalize_grib_dataset(filename: str) -> xr.Dataset:
+def __normalize_grib_dataset(filename: str,
+                             group_common_hypercubes: t.Optional[bool] = False) -> t.Union[xr.Dataset,
+                                                                                           t.List[xr.Dataset]]:
     """Reads a list of datasets and merge them into a single dataset."""
     _data_array_list = []
+    if group_common_hypercubes:
+        _level_data_dict = {}
+
     list_ds = cfgrib.open_datasets(filename)
 
     for ds in list_ds:
@@ -155,67 +160,11 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
             attrs['start_time'] = start_time
             attrs['end_time'] = end_time
 
-            no_of_levels = da.shape[0] if _is_3d_da(da) else 1
-
-            # Deal with the randomness that is 3d data interspersed with 2d.
-            # For 3d data, we need to extract ds for each value of level.
-            for sub_c in range(no_of_levels):
-                copied_da = da.copy(deep=True)
-                height = copied_da.coords[level].data.flatten()[sub_c]
-
-                # Some heights are super small, but we can't have decimal points
-                # in channel names & schema fields for Earth Engine & BigQuery respectively , so mostly cut off the
-                # fractional part, unless we are forced to keep it. If so,
-                # replace the decimal point with yet another underscore.
-                if height >= 10:
-                    height_string = f'{height:.0f}'
-                else:
-                    height_string = f'{height:.2f}'.replace('.', '_')
-
-                channel_name = f'{level}_{height_string}_{attrs["GRIB_stepType"]}_{key}'
-                logger.debug('Found channel %s', channel_name)
-
-                # Add the height as a metadata field, that seems useful.
-                copied_da.attrs['height'] = height
-
-                copied_da.name = channel_name
-                if _is_3d_da(da):
-                    copied_da = copied_da.sel({level: height})
-                copied_da = copied_da.drop_vars(level)
-                _data_array_list.append(copied_da)
-
-    return xr.merge(_data_array_list)
-
-
-def make_levelwise_dataset_list(filename: str) -> t.List[xr.Dataset]:
-    """Reads a list of datasets and merge them into a single dataset."""
-    _data_array_list = []
-    list_ds = cfgrib.open_datasets(filename)
-
-    for ds in list_ds:
-        _level_data_list = []
-        coords_set = set(ds.coords.keys())
-        level_set = coords_set.difference(DEFAULT_COORD_KEYS)
-        level = level_set.pop()
-
-        # Now look at what data vars are in each level.
-        for key in ds.data_vars.keys():
-            da = ds[key]  # The data array
-            attrs = da.attrs  # The metadata for this dataset.
-
-            # Also figure out the forecast hour for this file.
-            forecast_hour = int(da.step.values / np.timedelta64(1, 'h'))
-
-            # We are going to treat the time field as start_time and the
-            # valid_time field as the end_time for EE purposes. Also, get the
-            # times into UTC timestrings.
-            start_time = _to_utc_timestring(da.time.values)
-            end_time = _to_utc_timestring(da.valid_time.values)
-
-            attrs['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
-            attrs['start_time'] = start_time
-            attrs['end_time'] = end_time
-            attrs['level'] = level # Add the level in the metadata, will remove in further steps
+            if group_common_hypercubes:
+                if not (level in _level_data_dict):
+                    _level_data_dict[level] = []
+                attrs['level'] = level  # Adding the level in the metadata, will remove in further steps.
+                attrs['is_normalized'] = True  # Adding the 'is_normalized' attribute in the metadata.
 
             no_of_levels = da.shape[0] if _is_3d_da(da) else 1
 
@@ -238,15 +187,27 @@ def make_levelwise_dataset_list(filename: str) -> t.List[xr.Dataset]:
                 logger.debug('Found channel %s', channel_name)
 
                 # Add the height as a metadata field, that seems useful.
-                copied_da.attrs['height'] = height
+                copied_da.attrs['height'] = height_string
 
                 copied_da.name = channel_name
                 if _is_3d_da(da):
                     copied_da = copied_da.sel({level: height})
                 copied_da = copied_da.drop_vars(level)
-                _level_data_list.append(copied_da)
 
-        _data_array_list.append(xr.merge(_level_data_list))
+                if group_common_hypercubes:
+                    _level_data_dict[level].append(copied_da)
+                else:
+                    _data_array_list.append(copied_da)
+
+    if group_common_hypercubes:
+        for level, ds in _level_data_dict.items():
+            if len(ds) == 1:
+                dataset = ds[0].to_dataset(promote_attrs=True)
+            else:
+                dataset = xr.merge(ds)
+            _data_array_list.append(dataset)
+    else:
+        _data_array_list = xr.merge(_data_array_list)
 
     return _data_array_list
 
@@ -255,11 +216,11 @@ def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
                         open_dataset_kwargs: t.Optional[t.Dict] = None,
-                        group_common_hypercubes: t.Optional[bool] = False) -> xr.Dataset:
+                        group_common_hypercubes: t.Optional[bool] = False) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
     """Opens the dataset at 'uri' and returns a xarray.Dataset."""
     # add a flag to group common hypercubes
     if group_common_hypercubes:
-        return make_levelwise_dataset_list(filename)
+        return __normalize_grib_dataset(filename, group_common_hypercubes)
 
     # add a flag to use cfgrib
     if open_dataset_kwargs:
@@ -315,49 +276,48 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
-                 group_common_hypercubes: t.Optional[bool] = False) -> t.Iterator[xr.Dataset]:
+                 group_common_hypercubes: t.Optional[bool] = False) -> t.List[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:
+            _, uri_extension = os.path.splitext(uri)
+            xr_datasets: xr.Dataset = __open_dataset_file(local_path,
+                                                          uri_extension,
+                                                          disable_grib_schema_normalization,
+                                                          open_dataset_kwargs,
+                                                          group_common_hypercubes)
             if group_common_hypercubes:
                 total_size_in_bytes = 0
-                xr_dataset_list = make_levelwise_dataset_list(local_path)
 
                 with rasterio.open(local_path, 'r') as f:
                     dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
-                    for xr_dataset in xr_dataset_list:
+
+                    for xr_dataset in xr_datasets:
                         xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                         total_size_in_bytes += xr_dataset.nbytes
 
+                yield xr_datasets
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
-
-                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-                yield xr_dataset_list
             else:
-                _, uri_extension = os.path.splitext(uri)
-                xr_dataset: xr.Dataset = __open_dataset_file(local_path,
-                                                             uri_extension,
-                                                             disable_grib_schema_normalization,
-                                                             open_dataset_kwargs,
-                                                             group_common_hypercubes)
-                if uri_extension in ['.tif', '.tiff']:
-                    xr_dataset = _preprocess_tif(xr_dataset,
-                                                 local_path,
-                                                 tif_metadata_for_datetime,
-                                                 uri)
-
                 if uri_extension == '.tif':
-                    xr_dataset = _preprocess_tif(xr_dataset, local_path, tif_metadata_for_datetime)
+                    xr_dataset = _preprocess_tif(xr_datasets, local_path, tif_metadata_for_datetime)
+                else:
+                    xr_dataset = xr_datasets
+
+                xr_datasets = []
 
                 # Extracting dtype, crs and transform from the dataset & storing them as attributes.
                 with rasterio.open(local_path, 'r') as f:
                     dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
                     xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
+                xr_datasets.append(xr_dataset)
+
+                yield xr_datasets
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
-                beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
-                yield xr_dataset
+            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')

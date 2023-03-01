@@ -135,6 +135,11 @@ class ToBigQuery(ToDataSink):
 
         if known_args.zarr:
             raise RuntimeError('Reading Zarr is not (yet) supported.')
+        
+        # Add a check for group_common_hypercubes.
+        if pipeline_options_dict.get('group_common_hypercubes'):
+            raise RuntimeError('--group_common_hypercubes can be specified only for earth engine ingestions.')
+
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
@@ -155,17 +160,18 @@ class ToBigQuery(ToDataSink):
         """Initializes Sink by creating a BigQuery table based on user input."""
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
-            # Define table from user input
-            if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
-                logger.info('Creating schema from input variables.')
-                table_schema = to_table_schema(
-                    [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
-                    [(var, 'FLOAT64') for var in self.variables]
-                )
-            else:
-                logger.info('Inferring schema from data.')
-                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
-                table_schema = dataset_to_table_schema(ds)
+            for dataset in open_ds:
+                # Define table from user input
+                if self.variables and not self.infer_schema and not dataset.attrs['is_normalized']:
+                    logger.info('Creating schema from input variables.')
+                    table_schema = to_table_schema(
+                        [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
+                        [(var, 'FLOAT64') for var in self.variables]
+                    )
+                else:
+                    logger.info('Inferring schema from data.')
+                    ds: xr.Dataset = _only_target_vars(dataset, self.variables)
+                    table_schema = dataset_to_table_schema(ds)
 
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
@@ -279,14 +285,15 @@ def prepare_coordinates(
 
     with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
-        if area:
-            n, w, s, e = area
-            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+        for dataset in ds:
+            data_ds: xr.Dataset = _only_target_vars(dataset, variables)
+            if area:
+                n, w, s, e = area
+                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
 
-        for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
-            yield uri, list(chunk)
+            for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
+                yield uri, list(chunk)
 
 
 def extract_rows(uri: str,
@@ -305,35 +312,36 @@ def extract_rows(uri: str,
 
     with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
+        for dataset in ds:
+            data_ds: xr.Dataset = _only_target_vars(dataset, variables)
 
-        first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
-        first_time_step = to_json_serializable_type(first_ts_raw)
+            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
+            first_time_step = to_json_serializable_type(first_ts_raw)
 
-        for it in coordinates:
-            # Use those index values to select a Dataset containing one row of data.
-            row_ds = data_ds.loc[it]
+            for it in coordinates:
+                # Use those index values to select a Dataset containing one row of data.
+                row_ds = data_ds.loc[it]
 
-            # Create a Name-Value map for data columns. Result looks like:
-            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                   for n, v in row_ds.data_vars.items()}
+                # Create a Name-Value map for data columns. Result looks like:
+                # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+                row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                    for n, v in row_ds.data_vars.items()}
 
-            # Add indexed coordinates.
-            row.update(it)
-            # Add un-indexed coordinates.
-            for c in row_ds.coords:
-                if c not in it and (not variables or c in variables):
-                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+                # Add indexed coordinates.
+                row.update(it)
+                # Add un-indexed coordinates.
+                for c in row_ds.coords:
+                    if c not in it and (not variables or c in variables):
+                        row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
 
-            # Add import metadata.
-            row[DATA_IMPORT_TIME_COLUMN] = import_time
-            row[DATA_URI_COLUMN] = uri
-            row[DATA_FIRST_STEP] = first_time_step
-            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
+                # Add import metadata.
+                row[DATA_IMPORT_TIME_COLUMN] = import_time
+                row[DATA_URI_COLUMN] = uri
+                row[DATA_FIRST_STEP] = first_time_step
+                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
 
-            # 'row' ends up looking like:
-            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-            yield row
+                # 'row' ends up looking like:
+                # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+                #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+                beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+                yield row

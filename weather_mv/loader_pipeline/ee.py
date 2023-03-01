@@ -315,7 +315,6 @@ class ToEarthEngine(ToDataSink):
                         asset_location=self.asset_location,
                         ee_asset_type=self.ee_asset_type,
                         open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        # disable_in_memory_copy=self.disable_in_memory_copy,
                         disable_grib_schema_normalization=self.disable_grib_schema_normalization,
                         group_common_hypercubes=self.group_common_hypercubes))
                 | 'IngestIntoEE' >> IngestIntoEETransform(
@@ -402,83 +401,22 @@ class ConvertToAsset(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          group_common_hypercubes=self.group_common_hypercubes) as ds:
+                          group_common_hypercubes=self.group_common_hypercubes) as xr_dataset_list:
 
-            if self.group_common_hypercubes:
-                # In this case, `ds` returns a list of xarray dataset(s)
-                for xr_dataset in ds:
-                    attrs = xr_dataset.attrs
-                    data = list(xr_dataset.values())
-                    channel_names = [da.name for da in data]
-                    start_time, end_time, is_normalized, level, height = (attrs.get(key) for key in
-                                                           ('start_time', 'end_time', 'is_normalized', 'level', 'height'))
-                    asset_name = get_ee_safe_name(uri)
-                    asset_name = f'{asset_name}_level_{level}_{height}'
-                    dtype, crs, transform, level = (attrs.pop(key) for key in ['dtype', 'crs', 'transform', 'level'])
-                    attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
-
-                    # For tiff ingestions.
-                    if self.ee_asset_type == 'IMAGE':
-                        file_name = f'{asset_name}.tiff'
-
-                        with MemoryFile() as memfile:
-                            with memfile.open(driver='COG',
-                                              dtype=dtype,
-                                              width=data[0].data.shape[1],
-                                              height=data[0].data.shape[0],
-                                              count=len(data),
-                                              nodata=np.nan,
-                                              crs=crs,
-                                              transform=transform,
-                                              compress='lzw') as f:
-                                for i, da in enumerate(data):
-                                    f.write(da, i+1)
-                                    # Making the channel name EE-safe before adding it as a band name.
-                                    f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                                    f.update_tags(i+1, band_name=channel_names[i])
-
-                                # Write attributes as tags in tiff.
-                                f.update_tags(**attrs)
-
-                            # Copy in-memory tiff to gcs.
-                            target_path = os.path.join(self.asset_location, file_name)
-                            with FileSystems().create(target_path) as dst:
-                                shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
-                    # For feature collection ingestions.
-                    elif self.ee_asset_type == 'TABLE':
-                        file_name = f'{asset_name}.csv'
-
-                        df = xr.Dataset.to_dataframe(xr_dataset)
-                        df = df.reset_index()
-
-                        # Copy in-memory dataframe to gcs.
-                        target_path = os.path.join(self.asset_location, file_name)
-                        with tempfile.NamedTemporaryFile() as tmp_df:
-                            df.to_csv(tmp_df.name, index=False)
-                            tmp_df.flush()
-                            tmp_df.seek(0)
-                            with FileSystems().create(target_path) as dst:
-                                shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
-
-                    asset_data = AssetData(
-                        name=asset_name,
-                        target_path=target_path,
-                        channel_names=[],
-                        start_time=start_time,
-                        end_time=end_time,
-                        properties=attrs
-                    )
-
-                    yield asset_data
-            else:
-                attrs = ds.attrs
-                data = list(ds.values())
+            for xr_dataset in xr_dataset_list:
+                attrs = xr_dataset.attrs
+                data = list(xr_dataset.values())
                 asset_name = get_ee_safe_name(uri)
                 channel_names = [da.name for da in data]
                 start_time, end_time, is_normalized = (attrs.get(key) for key in
                                                        ('start_time', 'end_time', 'is_normalized'))
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+
+                if self.group_common_hypercubes:
+                    level, height = (attrs.pop(key) for key in ['level', 'height'])
+                    safe_level_name = get_ee_safe_name(level)
+                    asset_name = f'{asset_name}_{safe_level_name}'
 
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
@@ -511,7 +449,7 @@ class ConvertToAsset(beam.DoFn):
                 elif self.ee_asset_type == 'TABLE':
                     file_name = f'{asset_name}.csv'
 
-                    df = xr.Dataset.to_dataframe(ds)
+                    df = xr.Dataset.to_dataframe(xr_dataset)
                     df = df.reset_index()
 
                     # Copy in-memory dataframe to gcs.
