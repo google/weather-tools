@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import os
 import unittest
 from functools import wraps
 
@@ -42,9 +43,10 @@ class OpenDatasetTest(TestDataBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
-        self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        self.test_tif_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+        self.test_data_path = os.path.join(self.test_data_folder, 'test_data_20180101.nc')
+        self.test_grib_path = os.path.join(self.test_data_folder, 'test_data_grib_single_timestep')
+        self.test_tif_path = os.path.join(self.test_data_folder, 'test_data_tif_start_time.tif')
+        self.test_zarr_path = os.path.join(self.test_data_folder, 'test_data.zarr')
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
@@ -66,6 +68,11 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
+
+    def test_opens_zarr(self):
+        with open_dataset(self.test_zarr_path, is_zarr=True) as ds:
+            self.assertIsNotNone(ds)
+            self.assertEqual(list(ds.data_vars), ['cape', 'd2m'])
 
 
 class DatetimeTest(unittest.TestCase):

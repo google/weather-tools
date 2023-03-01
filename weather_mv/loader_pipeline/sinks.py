@@ -348,9 +348,16 @@ def open_dataset(uri: str,
                  tif_metadata_for_datetime: t.Optional[str] = None,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
-                 forecast_time_regex: t.Optional[str] = None) -> t.Iterator[xr.Dataset]:
+                 forecast_time_regex: t.Optional[str] = None,
+                 is_zarr: bool = False) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
+        if is_zarr:
+            ds = xr.open_dataset(uri, engine='zarr', chunks=None)
+            beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+            yield ds
+            ds.close()
+            return
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
             xr_dataset: xr.Dataset = __open_dataset_file(local_path,
@@ -375,6 +382,7 @@ def open_dataset(uri: str,
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_dataset
+            xr_dataset.close()
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')
