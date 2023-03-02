@@ -102,21 +102,16 @@ class PartitionConfig(beam.PTransform):
                     configs
                     | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
             )
-        partitions = (
+
+        return (
                 config_idxs
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
                 | 'Skip existing' >> beam.Filter(new_downloads_only,
                                                  store=self.store,
                                                  manifest=self.manifest)
-        )
-        # When the --update_manifest flag is passed, the tool will only update the manifest
-        # for already downloaded shards and then exit.
-        if not self.update_manifest:
-            return (
-                    partitions
-                    | 'Cycle subsections' >> beam.Map(loop_through_subsections)
-                    | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
+                | 'Cycle subsections' >> beam.Map(loop_through_subsections)
+                | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
             )
 
 
