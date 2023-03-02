@@ -70,6 +70,10 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
 
         if type(v) in [bool, list, dict]:
             v = str(v)
+        elif type(v) == np.bytes_:
+            v = v.decode('utf-8')
+        elif type(v) in [np.uint64, np.float64]:
+            v = v.item()
 
         v = to_json_serializable_type(v)
         new_attrs[k] = v
