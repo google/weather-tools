@@ -135,6 +135,12 @@ class ParsePipelineArgs(unittest.TestCase):
             )
         )
 
+    def test_update_manifest(self):
+        self.assert_pipeline(
+            f'{self.DEFAULT_CMD} -u',
+            default_args(known_args=dict(update_manifest=True))
+        )
+
     def test_user_specified_num_requests_per_key(self):
         self.assert_pipeline(
             f'{self.DEFAULT_CMD} -n 7',
