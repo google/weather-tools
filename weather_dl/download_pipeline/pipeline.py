@@ -190,7 +190,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     validate_all_configs(configs)
 
     if known_args.check_skip_in_dry_run and not known_args.dry_run:
-        raise ValueError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
+        raise RuntimeError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).

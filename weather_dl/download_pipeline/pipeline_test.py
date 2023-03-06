@@ -149,6 +149,10 @@ class ParsePipelineArgs(unittest.TestCase):
             )
         )
 
+    def test_check_skip_in_dry_run_raise_error_if_dry_run_flag_is_absent(self):
+        with self.assertRaisesRegex(RuntimeError, 'can only be used along with --dry-run flag.'):
+            run(f'{self.DEFAULT_CMD} --check-skip-in-dry-run'.split())
+
 
 if __name__ == '__main__':
     unittest.main()
