@@ -26,7 +26,7 @@ import threading
 import traceback
 import typing as t
 
-from .util import to_json_serializable_type, fetch_geo_polygon, get_file_size
+from .util import to_json_serializable_type, fetch_geo_polygon, get_file_size, retry_with_exponential_backoff
 from google.cloud import bigquery
 from urllib.parse import urlparse
 
@@ -503,6 +503,10 @@ class BQManifest(Manifest):
                 row = {n: to_json_serializable_type(v) for n, v in records[0].items()}
             return DownloadStatus.from_dict(row)
 
+    # Added retry here to handle the concurrency issue in BigQuery.
+    # Eg: 400 Resources exceeded during query execution: Too many DML statements outstanding
+    # against table <table-name>, limit is 20
+    @retry_with_exponential_backoff
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         with bigquery.Client() as client:
