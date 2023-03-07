@@ -63,7 +63,7 @@ class Fetcher(beam.DoFn):
         if not config:
             return
 
-        if skip_partition(config, self.store):
+        if skip_partition(config, self.store, self.manifest):
             return
 
         client = CLIENTS[self.client_name](config)

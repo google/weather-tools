@@ -26,9 +26,8 @@ import threading
 import traceback
 import typing as t
 
-from .util import to_json_serializable_type, fetch_geo_polygon
+from .util import to_json_serializable_type, fetch_geo_polygon, get_file_size
 from google.cloud import bigquery
-from apache_beam.io.gcp import gcsio
 from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
@@ -242,6 +241,45 @@ class Manifest(abc.ABC):
             )
         self._update(self.status)
 
+    def skip(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
+        """Updates the manifest to mark the shards that were skipped in the current job
+        as 'upload' stage and 'success' status, indicating that they have already been downloaded.
+        """
+        old_status = self._read(location)
+        # The manifest needs to be updated for a skipped shard if its entry is not present, or
+        # if the stage is not 'upload', or if the stage is 'upload' but the status is not 'success'.
+        if old_status.location != location or old_status.stage != Stage.UPLOAD or old_status.status != Status.SUCCESS:
+            current_utc_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+
+            size = get_file_size(location)
+
+            status = DownloadStatus(
+                    config_name=config_name,
+                    selection=selection,
+                    location=location,
+                    area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
+                    user=user,
+                    stage=Stage.UPLOAD,
+                    status=Status.SUCCESS,
+                    error=None,
+                    size=size,
+                    scheduled_time=None,
+                    retrieve_start_time=None,
+                    retrieve_end_time=None,
+                    fetch_start_time=None,
+                    fetch_end_time=None,
+                    download_start_time=None,
+                    download_end_time=None,
+                    upload_start_time=current_utc_time,
+                    upload_end_time=current_utc_time,
+                )
+            self._update(status)
+            logger.info(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
+
     def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
         self.status = dataclasses.replace(self._read(location))
@@ -287,12 +325,7 @@ class Manifest(abc.ABC):
             new_status.upload_start_time = self.prev_stage_precise_start_time
             new_status.upload_end_time = current_utc_time
 
-        path = new_status.location
-        parsed_gcs_path = urlparse(path)
-        if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
-            new_status.size = os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
-        else:
-            new_status.size = gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0
+        new_status.size = get_file_size(new_status.location)
 
         self.status = new_status
 
@@ -353,7 +386,7 @@ class ConsoleManifest(Manifest):
         return DownloadStatus()
 
     def _update(self, download_status: DownloadStatus) -> None:
-        logger.info(f'[{self.name}] {dataclasses.asdict(download_status)!r}')
+        logger.info(f'[{self.name}] {DownloadStatus.to_dict(download_status)!r}')
 
 
 class LocalManifest(Manifest):

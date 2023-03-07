@@ -110,16 +110,23 @@ def pipeline(args: PipelineArgs) -> None:
                                 args.manifest,
                                 args.known_args.schedule,
                                 args.known_args.partition_chunks,
+                                args.known_args.update_manifest,
                                 len(subsections) * args.num_requesters_per_key)
 
     with beam.Pipeline(options=args.pipeline_options) as p:
-        (
+        partitions = (
                 p
                 | 'Create Configs' >> beam.Create(args.configs)
                 | 'Prepare Partitions' >> partition
+        )
+        # When the --update_manifest flag is passed, the tool will only update the manifest
+        # for already downloaded shards and then exit.
+        if not args.known_args.update_manifest:
+            (
+                partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
                 | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
-        )
+            )
 
 
 def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
@@ -162,6 +169,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "much smaller number. Default: 'in-order'.")
     parser.add_argument('--check-skip-in-dry-run', action='store_true', default=False,
                         help="To enable file skipping logic in dry-run mode. Default: 'false'.")
+    parser.add_argument('-u', '--update-manifest', action='store_true', default=False,
+                        help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -181,7 +190,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     validate_all_configs(configs)
 
     if known_args.check_skip_in_dry_run and not known_args.dry_run:
-        raise ValueError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
+        raise RuntimeError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
