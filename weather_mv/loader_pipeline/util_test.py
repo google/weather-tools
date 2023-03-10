@@ -19,7 +19,7 @@ import xarray
 import xarray as xr
 
 from .sinks_test import TestDataBase
-from .util import get_coordinates, ichunked
+from .util import get_coordinates, ichunked, make_attrs_ee_compatible
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -91,6 +91,90 @@ class IChunksTests(TestDataBase):
                 ]
             ]
         )
+
+
+class MakeAttrsEeCompatibleTests(TestDataBase):
+    def test_make_attrs_ee_compatible_a1(self):
+        attrs = {
+            'int_attr': 48,
+            'float_attr': 48.48,
+            'str_attr': '48.48',
+            'str_long_attr': 'Lorem ipsum dolor sit amet, consectetur '
+            'adipiscing elit. Fusce bibendum odio ac lorem tristique, sed '
+            'tincidunt orci ultricies. Vivamus eu rhoncus metus. Praesent '
+            'vitae imperdiet sapien. Donec vel ipsum sapien. Aliquam '
+            'suscipit suscipit turpis, a vehicula neque. Maecenas '
+            'hendrerit, mauris eu consequat aliquam, nunc elit lacinia '
+            'elit, vel accumsan ipsum ex a tellus. Pellentesque habitant '
+            'morbi tristique senectus et netus et malesuada fames ac '
+            'turpis egestas. Fusce a felis vel dolor lobortis vestibulum '
+            'ac ac velit. Etiam vitae nibh sed justo hendrerit feugiat. '
+            'Sed vulputate, turpis eget fringilla euismod, urna magna '
+            'consequat turpis, at aliquam metus dolor vel tortor. Sed sit '
+            'amet dolor quis libero venenatis porttitor a non odio. Morbi '
+            'interdum tellus non neque placerat, vel fermentum turpis '
+            'bibendum. In efficitur nunc ac leo eleifend commodo. Maecenas '
+            'in tincidunt diam. In consectetur eget sapien a suscipit. '
+            'Nulla porttitor ullamcorper tellus sit amet ornare. Aliquam '
+            'in nibh at mauris tincidunt bibendum a a elit.',
+            'bool_attr': True,
+            'none_attr': None,
+            'key_long_raesent_id_tincidunt_velit_Integer_eget_sapien_tincidunt_'
+            'iaculis_nulla_vitae_consectetur_metus_Vestibul': 'long_string'
+        }
+        expected = {
+            'int_attr': 48,
+            'float_attr': 48.48,
+            'str_attr': '48.48',
+            'str_long_attr': 'Lorem ipsum dolor sit amet, consectetur '
+            'adipiscing elit. Fusce bibendum odio ac lorem tristique, sed '
+            'tincidunt orci ultricies. Vivamus eu rhoncus metus. Praesent '
+            'vitae imperdiet sapien. Donec vel ipsum sapien. Aliquam '
+            'suscipit suscipit turpis, a vehicula neque. Maecenas '
+            'hendrerit, mauris eu consequat aliquam, nunc elit lacinia '
+            'elit, vel accumsan ipsum ex a tellus. Pellentesque habitant '
+            'morbi tristique senectus et netus et malesuada fames ac '
+            'turpis egestas. Fusce a felis vel dolor lobortis vestibulum '
+            'ac ac velit. Etiam vitae nibh sed justo hendrerit feugiat. '
+            'Sed vulputate, turpis eget fringilla euismod, urna magna '
+            'consequat turpis, at aliquam metus dolor vel tortor. Sed sit '
+            'amet dolor quis libero venenatis porttitor a non odio. Morbi '
+            'interdum tellus non neque placerat, vel fermentum turpis '
+            'bibendum. In efficitur nunc ac leo eleifend commodo. Maecenas '
+            'in tincidunt diam. In consectetur eget sapien a suscipit. '
+            'Nulla porttitor ullamcorper tellus sit amet ornare. Aliquam '
+            'in nibh at mauris tincidunt bibendum a a ...',
+            'bool_attr': 'True',
+            'none_attr': 'None',
+            'key_long_raesent_id_tincidunt_velit_Integer_eget_sapien_tincidunt_'
+            'iaculis_nulla_vitae_consectetur_metus_Vestib': 'long_string'
+        }
+
+        actual = make_attrs_ee_compatible(attrs)
+
+        self.assertDictEqual(actual, expected)
+
+    def test_make_attrs_ee_compatible_a2(self):
+        attrs = {
+            'list_attr': ['attr1', 'attr1'],
+            'tuple_attr': ('attr1', 'attr2'),
+            'dict_attr': {
+                'attr1': 1,
+                'attr2': 'two',
+                'attr3': 3.0,
+                'attr4': True
+            }
+        }
+        expected = {
+            'list_attr': "['attr1', 'attr1']",
+            'tuple_attr': "('attr1', 'attr2')",
+            'dict_attr': "{'attr1': 1, 'attr2': 'two', 'attr3': 3.0, "
+            "'attr4': True}"
+        }
+
+        actual = make_attrs_ee_compatible(attrs)
+
+        self.assertDictEqual(actual, expected)
 
 
 class ToJsonSerializableTypeTests(unittest.TestCase):

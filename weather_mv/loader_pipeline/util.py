@@ -68,8 +68,10 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
         # Replace unaccepted characters with underscores.
         k = re.sub(r'[^a-zA-Z0-9-_]+', r'_', k)
 
-        if type(v) in [bool, list, dict]:
+        if type(v) not in [int, float]:
             v = str(v)
+            if len(v) > 1024:
+                v = f'{v[:1021]}...'  # Since 1 char = 1 byte.
 
         v = to_json_serializable_type(v)
         new_attrs[k] = v
