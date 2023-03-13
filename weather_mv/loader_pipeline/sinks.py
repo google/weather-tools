@@ -164,10 +164,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
     start_time, end_time = None, None
-    time_attrs_present = 'start_time' in ds.attrs and 'end_time' in ds.attrs
-    if time_attrs_present:
-        start_time, end_time = ds.attrs['start_time'], ds.attrs['end_time']
-    elif initialization_time_regex and forecast_time_regex:
+    if initialization_time_regex and forecast_time_regex:
         try:
             start_time = match_datetime(uri, initialization_time_regex)
         except Exception:
@@ -178,6 +175,8 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
             raise RuntimeError("Wrong regex passed in --forecast_time_regex.")
         ds.attrs['start_time'] = start_time
         ds.attrs['end_time'] = end_time
+    elif 'start_time' in ds.attrs and 'end_time' in ds.attrs:
+        start_time, end_time = ds.attrs['start_time'], ds.attrs['end_time']
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
