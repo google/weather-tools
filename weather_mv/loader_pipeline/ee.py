@@ -13,10 +13,8 @@
 # limitations under the License.
 import argparse
 import dataclasses
-import ee
 import json
 import logging
-import numpy as np
 import os
 import re
 import shutil
@@ -24,19 +22,21 @@ import subprocess
 import tempfile
 import time
 import typing as t
-import xarray as xr
+from multiprocessing import Process, Queue
 
 import apache_beam as beam
+import ee
+import numpy as np
+import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
-from multiprocessing import Process, Queue
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
 from .util import make_attrs_ee_compatible, RateLimit, validate_region
 
 logger = logging.getLogger(__name__)
@@ -324,33 +324,10 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             (
                 paths
-                | 'FilterFiles' >> FilterFilesTransform(
-                    ee_asset=self.ee_asset,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
-                | 'ConvertToAsset' >> beam.ParDo(
-                    ConvertToAsset(
-                        asset_location=self.asset_location,
-                        ee_asset_type=self.ee_asset_type,
-                        open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                        band_names_dict=band_names_dict,
-                        initialization_time_regex=self.initialization_time_regex,
-                        forecast_time_regex=self.forecast_time_regex))
-                | 'IngestIntoEE' >> IngestIntoEETransform(
-                    ee_asset=self.ee_asset,
-                    ee_asset_type=self.ee_asset_type,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                | 'ConvertToAsset' >> ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
         else:
             (
@@ -359,7 +336,7 @@ class ToEarthEngine(ToDataSink):
             )
 
 
-class FilterFilesTransform(SetupEarthEngine):
+class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     """Filters out paths for which the assets that are already in the earth engine.
 
     Attributes:
@@ -403,7 +380,7 @@ class FilterFilesTransform(SetupEarthEngine):
 
 
 @dataclasses.dataclass
-class ConvertToAsset(beam.DoFn):
+class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     """Writes asset after extracting input data and uploads it to GCS.
 
     Attributes:
@@ -534,8 +511,11 @@ class ConvertToAsset(beam.DoFn):
 
         process.kill()
 
+    def expand(self, pcoll):
+        return pcoll | beam.FlatMap(self.process)
 
-class IngestIntoEETransform(SetupEarthEngine):
+
+class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     """Ingests asset into earth engine and yields asset id.
 
     Attributes:
