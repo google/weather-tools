@@ -19,7 +19,7 @@ dependencies:
   - xarray=2022.10.0
   - xarray-beam=0.3.1
   - ecmwf-api-client=1.6.3
-  - flake8=5.0.4
+  - ruff=0.0.255
   - fsspec=2022.10.0
   - gdal=3.5.1
   - pyproj=3.4.0

@@ -69,7 +69,7 @@ weather_sp_requirements = [
 
 test_requirements = [
     "pytype==2021.11.29",
-    "flake8",
+    "ruff",
     "pytest",
     "pytest-subtests",
     "netcdf4",
