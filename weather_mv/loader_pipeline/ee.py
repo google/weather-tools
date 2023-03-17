@@ -257,7 +257,7 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
         subparser.add_argument('--group_common_hypercubes', action='store_true', default=False,
-                               help='To group common hypercubes into image collections when loading grib2 data.')
+                               help='To group common hypercubes into image collections when loading grib data.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -401,11 +401,11 @@ class ConvertToAsset(beam.DoFn):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          group_common_hypercubes=self.group_common_hypercubes) as xr_dataset_list:
+                          group_common_hypercubes=self.group_common_hypercubes) as ds_list:
 
-            for xr_dataset in xr_dataset_list:
-                attrs = xr_dataset.attrs
-                data = list(xr_dataset.values())
+            for ds in ds_list:
+                attrs = ds.attrs
+                data = list(ds.values())
                 asset_name = get_ee_safe_name(uri)
                 channel_names = [da.name for da in data]
                 start_time, end_time, is_normalized = (attrs.get(key) for key in
@@ -449,7 +449,7 @@ class ConvertToAsset(beam.DoFn):
                 elif self.ee_asset_type == 'TABLE':
                     file_name = f'{asset_name}.csv'
 
-                    df = xr.Dataset.to_dataframe(xr_dataset)
+                    df = xr.Dataset.to_dataframe(ds)
                     df = df.reset_index()
 
                     # Copy in-memory dataframe to gcs.

@@ -159,8 +159,8 @@ class ToBigQuery(ToDataSink):
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
-            for dataset in open_ds:
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds_list:
+            for dataset in open_ds_list:
                 # Define table from user input
                 if self.variables and not self.infer_schema and not dataset.attrs['is_normalized']:
                     logger.info('Creating schema from input variables.')
@@ -284,8 +284,8 @@ def prepare_coordinates(
     logger.info(f'Preparing coordinates for: {uri!r}.')
 
     with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
-                      tif_metadata_for_datetime) as ds:
-        for dataset in ds:
+                      tif_metadata_for_datetime) as ds_list:
+        for dataset in ds_list:
             data_ds: xr.Dataset = _only_target_vars(dataset, variables)
             if area:
                 n, w, s, e = area

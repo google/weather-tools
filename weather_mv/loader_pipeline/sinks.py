@@ -131,9 +131,7 @@ def __normalize_grib_dataset(filename: str,
                              group_common_hypercubes: t.Optional[bool] = False) -> t.Union[xr.Dataset,
                                                                                            t.List[xr.Dataset]]:
     """Reads a list of datasets and merge them into a single dataset."""
-    _data_array_list = []
-    if group_common_hypercubes:
-        _level_data_dict = {}
+    _level_data_dict = {}
 
     list_ds = cfgrib.open_datasets(filename)
 
@@ -161,10 +159,11 @@ def __normalize_grib_dataset(filename: str,
             attrs['end_time'] = end_time
 
             if group_common_hypercubes:
-                if not (level in _level_data_dict):
-                    _level_data_dict[level] = []
                 attrs['level'] = level  # Adding the level in the metadata, will remove in further steps.
                 attrs['is_normalized'] = True  # Adding the 'is_normalized' attribute in the metadata.
+
+            if not (level in _level_data_dict):
+                _level_data_dict[level] = []
 
             no_of_levels = da.shape[0] if _is_3d_da(da) else 1
 
@@ -194,20 +193,18 @@ def __normalize_grib_dataset(filename: str,
                     copied_da = copied_da.sel({level: height})
                 copied_da = copied_da.drop_vars(level)
 
-                if group_common_hypercubes:
-                    _level_data_dict[level].append(copied_da)
-                else:
-                    _data_array_list.append(copied_da)
+                _level_data_dict[level].append(copied_da)
 
-    if group_common_hypercubes:
-        for level, ds in _level_data_dict.items():
-            if len(ds) == 1:
-                dataset = ds[0].to_dataset(promote_attrs=True)
-            else:
-                dataset = xr.merge(ds)
-            _data_array_list.append(dataset)
-    else:
-        _data_array_list = xr.merge(_data_array_list)
+    _data_array_list = []
+    for level, ds in _level_data_dict.items():
+        if len(ds) == 1:
+            dataset = ds[0].to_dataset(promote_attrs=True)
+        else:
+            dataset = xr.merge(ds)
+        _data_array_list.append(dataset)
+
+    if not group_common_hypercubes:
+        return xr.merge(_data_array_list)
 
     return _data_array_list
 
@@ -276,7 +273,7 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
-                 group_common_hypercubes: t.Optional[bool] = False) -> t.List[xr.Dataset]:
+                 group_common_hypercubes: t.Optional[bool] = False) -> t.Iterator[t.List[xr.Dataset]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:
@@ -286,17 +283,17 @@ def open_dataset(uri: str,
                                                           disable_grib_schema_normalization,
                                                           open_dataset_kwargs,
                                                           group_common_hypercubes)
+            # Extracting dtype, crs and transform from the dataset.
+            with rasterio.open(local_path, 'r') as f:
+                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+
             if group_common_hypercubes:
                 total_size_in_bytes = 0
 
-                with rasterio.open(local_path, 'r') as f:
-                    dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+                for xr_dataset in xr_datasets:
+                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                    total_size_in_bytes += xr_dataset.nbytes
 
-                    for xr_dataset in xr_datasets:
-                        xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
-                        total_size_in_bytes += xr_dataset.nbytes
-
-                yield xr_datasets
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
             else:
                 if uri_extension == '.tif':
@@ -305,17 +302,12 @@ def open_dataset(uri: str,
                     xr_dataset = xr_datasets
 
                 xr_datasets = []
-
-                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
-                with rasterio.open(local_path, 'r') as f:
-                    dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
-                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
-
+                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 xr_datasets.append(xr_dataset)
 
-                yield xr_datasets
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
+            yield xr_datasets
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
 
     except Exception as e:
