@@ -135,11 +135,10 @@ class ToBigQuery(ToDataSink):
 
         if known_args.zarr:
             raise RuntimeError('Reading Zarr is not (yet) supported.')
-        
+
         # Add a check for group_common_hypercubes.
         if pipeline_options_dict.get('group_common_hypercubes'):
             raise RuntimeError('--group_common_hypercubes can be specified only for earth engine ingestions.')
-
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
@@ -315,7 +314,8 @@ def extract_rows(uri: str,
         for dataset in ds:
             data_ds: xr.Dataset = _only_target_vars(dataset, variables)
 
-            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
+            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) \
+                else data_ds.time.values
             first_time_step = to_json_serializable_type(first_ts_raw)
 
             for it in coordinates:
@@ -325,7 +325,7 @@ def extract_rows(uri: str,
                 # Create a Name-Value map for data columns. Result looks like:
                 # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
                 row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                    for n, v in row_ds.data_vars.items()}
+                       for n, v in row_ds.data_vars.items()}
 
                 # Add indexed coordinates.
                 row.update(it)
