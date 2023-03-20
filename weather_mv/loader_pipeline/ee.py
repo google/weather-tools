@@ -13,10 +13,8 @@
 # limitations under the License.
 import argparse
 import dataclasses
-import ee
 import json
 import logging
-import numpy as np
 import os
 import re
 import shutil
@@ -24,9 +22,12 @@ import subprocess
 import tempfile
 import time
 import typing as t
-import xarray as xr
+from multiprocessing import Process, Queue
 
 import apache_beam as beam
+import ee
+import numpy as np
+import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -35,8 +36,8 @@ from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local
-from .util import RateLimit, validate_region
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
+from .util import make_attrs_ee_compatible, RateLimit, validate_region
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -228,6 +229,9 @@ class ToEarthEngine(ToDataSink):
     ee_latency: float
     ee_max_concurrent: int
     group_common_hypercubes: bool
+    band_names_mapping: str
+    initialization_time_regex: str
+    forecast_time_regex: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -258,6 +262,12 @@ class ToEarthEngine(ToDataSink):
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
         subparser.add_argument('--group_common_hypercubes', action='store_true', default=False,
                                help='To group common hypercubes into image collections when loading grib data.')
+        subparser.add_argument('--band_names_mapping', type=str, default=None,
+                               help='A JSON file which contains the band names for the TIFF file.')
+        subparser.add_argument('--initialization_time_regex', type=str, default=None,
+                               help='A Regex string to get the initialization time from the filename.')
+        subparser.add_argument('--forecast_time_regex', type=str, default=None,
+                               help='A Regex string to get the forecast/end time from the filename.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -296,36 +306,31 @@ class ToEarthEngine(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
+        # Check for the band_names_mapping json file.
+        if known_args.band_names_mapping:
+            if not os.path.exists(known_args.band_names_mapping):
+                raise RuntimeError("--band_names_mapping file does not exist.")
+            _, band_names_mapping_extension = os.path.splitext(known_args.band_names_mapping)
+            if not band_names_mapping_extension == '.json':
+                raise RuntimeError("--band_names_mapping should contain a json file as input.")
+
+        # Check the initialization_time_regex and forecast_time_regex strings.
+        if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
+            raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
+
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
+        band_names_dict = {}
+        if self.band_names_mapping:
+            with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
+                band_names_dict = json.load(f)
         if not self.dry_run:
             (
                 paths
-                | 'FilterFiles' >> FilterFilesTransform(
-                    ee_asset=self.ee_asset,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
-                | 'ConvertToAsset' >> beam.ParDo(
-                    ConvertToAsset(
-                        asset_location=self.asset_location,
-                        ee_asset_type=self.ee_asset_type,
-                        open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                        disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                        group_common_hypercubes=self.group_common_hypercubes))
-                | 'IngestIntoEE' >> IngestIntoEETransform(
-                    ee_asset=self.ee_asset,
-                    ee_asset_type=self.ee_asset_type,
-                    ee_qps=self.ee_qps,
-                    ee_latency=self.ee_latency,
-                    ee_max_concurrent=self.ee_max_concurrent,
-                    private_key=self.private_key,
-                    service_account=self.service_account,
-                    use_personal_account=self.use_personal_account)
+                | 'ConvertToAsset' >> ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
         else:
             (
@@ -334,7 +339,7 @@ class ToEarthEngine(ToDataSink):
             )
 
 
-class FilterFilesTransform(SetupEarthEngine):
+class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     """Filters out paths for which the assets that are already in the earth engine.
 
     Attributes:
@@ -378,7 +383,7 @@ class FilterFilesTransform(SetupEarthEngine):
 
 
 @dataclasses.dataclass
-class ConvertToAsset(beam.DoFn):
+class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     """Writes asset after extracting input data and uploads it to GCS.
 
     Attributes:
@@ -393,15 +398,29 @@ class ConvertToAsset(beam.DoFn):
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
     group_common_hypercubes: t.Optional[bool] = False
+    band_names_dict: t.Optional[t.Dict] = None
+    initialization_time_regex: t.Optional[str] = None
+    forecast_time_regex: t.Optional[str] = None
 
-    def process(self, uri: str) -> t.Iterator[AssetData]:
-        """Opens grib files and yields AssetData."""
+    def add_to_queue(self, queue: Queue, item: t.Any):
+        """Adds a new item to the queue.
 
+        It will wait until the queue has a room to add a new item.
+        """
+        while queue.full():
+            pass
+        queue.put_nowait(item)
+
+    def convert_to_asset(self, queue: Queue, uri: str):
+        """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          group_common_hypercubes=self.group_common_hypercubes) as ds_list:
+                          group_common_hypercubes=self.group_common_hypercubes,
+                          band_names_dict=self.band_names_dict,
+                          initialization_time_regex=self.initialization_time_regex,
+                          forecast_time_regex=self.forecast_time_regex) as ds_list:
 
             for ds in ds_list:
                 attrs = ds.attrs
@@ -412,6 +431,8 @@ class ConvertToAsset(beam.DoFn):
                                                        ('start_time', 'end_time', 'is_normalized'))
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+                # Make attrs EE ingestable.
+                attrs = make_attrs_ee_compatible(attrs)
 
                 if self.group_common_hypercubes:
                     level, height = (attrs.pop(key) for key in ['level', 'height'])
@@ -437,6 +458,7 @@ class ConvertToAsset(beam.DoFn):
                                 # Making the channel name EE-safe before adding it as a band name.
                                 f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
                                 f.update_tags(i+1, band_name=channel_names[i])
+                                f.update_tags(i+1, **da.attrs)
 
                             # Write attributes as tags in tiff.
                             f.update_tags(**attrs)
@@ -447,6 +469,7 @@ class ConvertToAsset(beam.DoFn):
                             shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
                 # For feature collection ingestions.
                 elif self.ee_asset_type == 'TABLE':
+                    channel_names = []
                     file_name = f'{asset_name}.csv'
 
                     df = xr.Dataset.to_dataframe(ds)
@@ -464,16 +487,47 @@ class ConvertToAsset(beam.DoFn):
                 asset_data = AssetData(
                     name=asset_name,
                     target_path=target_path,
-                    channel_names=[],
+                    channel_names=channel_names,
                     start_time=start_time,
                     end_time=end_time,
                     properties=attrs
                 )
 
-                yield asset_data
+                self.add_to_queue(queue, asset_data)
+            self.add_to_queue(queue, None)  # Indicates end of the subprocess.
+
+    def process(self, uri: str) -> t.Iterator[AssetData]:
+        """Opens grib files and yields AssetData.
+
+        We observed that the convert-to-cog process increases memory usage over time because xarray (v2022.11.0) is not
+        releasing memory as expected while opening any dataset. So we will perform the convert-to-asset process in an
+        isolated process so that the memory consumed while processing will be cleared after the process is killed.
+
+        The process puts the asset data into the queue which the main process will consume. Queue buffer size is limited
+        so the process will be able to put another item in a queue only after the main process has consumed the queue
+        item, that way it makes sure that no queue item is dropped due to queue buffer size.
+        """
+        queue = Queue(maxsize=1)
+        process = Process(target=self.convert_to_asset, args=(queue, uri))
+        process.start()
+        kill_subprocess = False
+
+        while not kill_subprocess:
+            if not queue.empty():
+                asset_data = queue.get_nowait()
+
+                if asset_data is not None:
+                    yield asset_data
+                else:
+                    kill_subprocess = True
+
+        process.kill()
+
+    def expand(self, pcoll):
+        return pcoll | beam.FlatMap(self.process)
 
 
-class IngestIntoEETransform(SetupEarthEngine):
+class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     """Ingests asset into earth engine and yields asset id.
 
     Attributes:

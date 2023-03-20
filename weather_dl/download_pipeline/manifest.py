@@ -16,15 +16,18 @@
 import abc
 import collections
 import dataclasses
+import datetime
+import enum
 import json
 import logging
 import os
+import pandas as pd
 import threading
-import time
 import traceback
 import typing as t
 
-from apache_beam.io.gcp import gcsio
+from .util import to_json_serializable_type, fetch_geo_polygon, get_file_size
+from google.cloud import bigquery
 from urllib.parse import urlparse
 
 """An implementation-dependent Manifest URI."""
@@ -32,38 +35,136 @@ Location = t.NewType('Location', str)
 
 logger = logging.getLogger(__name__)
 
+GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
+
 
 class ManifestException(Exception):
     """Errors that occur in Manifest Clients."""
     pass
 
 
-class DownloadStatus(t.NamedTuple):
+class Stage(enum.Enum):
+    """A request can be either in one of the following stages at a time:
+
+    fetch : This represents request is currently in fetch stage i.e. request placed on the client's server
+        & waiting for some result before starting download (eg. MARS client).
+    download : This represents request is currently in download stage i.e. data is being downloading from client's
+        server to the worker's local file system.
+    upload : This represents request is currently in upload stage i.e. data is getting uploaded from worker's local
+        file system to target location (GCS path).
+    retrieve : In case of clients where there is no proper separation of fetch & download stages (eg. CDS client),
+        request will be in the retrieve stage i.e. fetch + download.
+    """
+    RETRIEVE = 'retrieve'
+    FETCH = 'fetch'
+    DOWNLOAD = 'download'
+    UPLOAD = 'upload'
+
+
+class Status(enum.Enum):
+    """Depicts the request's state status:
+
+    scheduled : A request partition is created & scheduled for processing.
+        Note: Its corresponding state can be None only.
+    in-progress : This represents the request state is currently in-progress (i.e. running).
+        The next status would be "success" or "failure".
+    success : This represents the request state execution completed successfully without any error.
+    failure : This represents the request state execution failed.
+    """
+    SCHEDULED = 'scheduled'
+    IN_PROGRESS = 'in-progress'
+    SUCCESS = 'success'
+    FAILURE = 'failure'
+
+
+@dataclasses.dataclass
+class DownloadStatus():
     """Data recorded in `Manifest`s reflecting the status of a download."""
 
+    """The name of the config file associated with the request."""
+    config_name: str = ""
+
     """Copy of selection section of the configuration."""
-    selection: t.Dict
+    selection: t.Dict = dataclasses.field(default_factory=dict)
 
     """Location of the downloaded data."""
-    location: str
+    location: str = ""
+
+    """Represents area covered by the shard."""
+    area: str = ""
+
+    """Current stage of request : 'fetch', 'download', 'retrieve', 'upload' or None."""
+    stage: t.Optional[Stage] = None
 
     """Download status: 'scheduled', 'in-progress', 'success', or 'failure'."""
-    status: str
+    status: t.Optional[Status] = None
 
-    """Cause of error"""
-    error: t.Optional[str]
+    """Cause of error, if any."""
+    error: t.Optional[str] = ""
 
     """Identifier for the user running the download."""
-    user: str
+    user: str = ""
 
-    """Time in milliseconds since epoch of when download was scheduled."""
-    download_scheduled_time: t.Optional[int]
+    """Shard size in GB."""
+    size: t.Optional[float] = 0
 
-    """Time in milliseconds since epoch."""
-    download_finished_time: t.Optional[int]
+    """A UTC datetime when download was scheduled."""
+    scheduled_time: t.Optional[str] = ""
 
-    """Duration in milliseconds."""
-    download_duration: t.Optional[int]
+    """A UTC datetime when the retrieve stage starts."""
+    retrieve_start_time: t.Optional[str] = ""
+
+    """A UTC datetime when the retrieve state ends."""
+    retrieve_end_time: t.Optional[str] = ""
+
+    """A UTC datetime when the fetch state starts."""
+    fetch_start_time: t.Optional[str] = ""
+
+    """A UTC datetime when the fetch state ends."""
+    fetch_end_time: t.Optional[str] = ""
+
+    """A UTC datetime when the download state starts."""
+    download_start_time: t.Optional[str] = ""
+
+    """A UTC datetime when the download state ends."""
+    download_end_time: t.Optional[str] = ""
+
+    """A UTC datetime when the upload state starts."""
+    upload_start_time: t.Optional[str] = ""
+
+    """A UTC datetime when the upload state ends."""
+    upload_end_time: t.Optional[str] = ""
+
+    @classmethod
+    def from_dict(cls, download_status: t.Dict) -> 'DownloadStatus':
+        """Instantiate DownloadStatus dataclass from dict."""
+        download_status_instance = cls()
+        for key, value in download_status.items():
+            if key == 'status':
+                setattr(download_status_instance, key, Status(value))
+            elif key == 'stage' and value is not None:
+                setattr(download_status_instance, key, Stage(value))
+            else:
+                setattr(download_status_instance, key, value)
+        return download_status_instance
+
+    @classmethod
+    def to_dict(cls, instance) -> t.Dict:
+        """Return the fields of a dataclass instance as a manifest ingestible
+        dictionary mapping of field names to field values."""
+        download_status_dict = {}
+        for field in dataclasses.fields(instance):
+            key = field.name
+            value = getattr(instance, field.name)
+            if isinstance(value, Status) or isinstance(value, Stage):
+                download_status_dict[key] = value.value
+            elif isinstance(value, pd.Timestamp):
+                download_status_dict[key] = value.isoformat()
+            elif key == 'selection' and value is not None:
+                download_status_dict[key] = json.dumps(value)
+            else:
+                download_status_dict[key] = value
+        return download_status_dict
 
 
 @dataclasses.dataclass
@@ -102,79 +203,174 @@ class Manifest(abc.ABC):
     """
 
     location: Location
+    # To reduce the impact of _read() and _update() calls
+    # on the start time of the stage.
+    prev_stage_precise_start_time: t.Optional[str] = None
     status: t.Optional[DownloadStatus] = None
 
+    # This is overridden in subclass.
     def __post_init__(self):
         """Initialize the manifest."""
-        self.start = 0
-        self.scheduled_times = {}
+        pass
 
-    def schedule(self, selection: t.Dict, location: str, user: str) -> None:
+    def schedule(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
 
         'scheduled' jobs occur before 'in-progress', 'success' or 'finished'.
         """
-        scheduled_time = int(time.time())
-        self.scheduled_times[location] = scheduled_time
-        self._update(
-            DownloadStatus(
+        scheduled_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat(timespec='seconds')
+        self.status = DownloadStatus(
+                config_name=config_name,
                 selection=selection,
                 location=location,
+                area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
                 user=user,
-                status='scheduled',
+                stage=None,
+                status=Status.SCHEDULED,
                 error=None,
-                download_scheduled_time=scheduled_time,
-                download_finished_time=None,
-                download_duration=None
+                size=None,
+                scheduled_time=scheduled_time,
+                retrieve_start_time=None,
+                retrieve_end_time=None,
+                fetch_start_time=None,
+                fetch_end_time=None,
+                download_start_time=None,
+                download_end_time=None,
+                upload_start_time=None,
+                upload_end_time=None,
             )
-        )
+        self._update(self.status)
 
-    def _set_for_transaction(self, selection: t.Dict, location: str, user: str) -> None:
+    def skip(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
+        """Updates the manifest to mark the shards that were skipped in the current job
+        as 'upload' stage and 'success' status, indicating that they have already been downloaded.
+        """
+        old_status = self._read(location)
+        # The manifest needs to be updated for a skipped shard if its entry is not present, or
+        # if the stage is not 'upload', or if the stage is 'upload' but the status is not 'success'.
+        if old_status.location != location or old_status.stage != Stage.UPLOAD or old_status.status != Status.SUCCESS:
+            current_utc_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+
+            size = get_file_size(location)
+
+            status = DownloadStatus(
+                    config_name=config_name,
+                    selection=selection,
+                    location=location,
+                    area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
+                    user=user,
+                    stage=Stage.UPLOAD,
+                    status=Status.SUCCESS,
+                    error=None,
+                    size=size,
+                    scheduled_time=None,
+                    retrieve_start_time=None,
+                    retrieve_end_time=None,
+                    fetch_start_time=None,
+                    fetch_end_time=None,
+                    download_start_time=None,
+                    download_end_time=None,
+                    upload_start_time=current_utc_time,
+                    upload_end_time=current_utc_time,
+                )
+            self._update(status)
+            logger.info(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
+
+    def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
-        self.start = 0
-        self.status = DownloadStatus(
-            selection=selection,
-            location=location,
-            user=user,
-            status='in-progress',
-            error=None,
-            download_scheduled_time=self.scheduled_times.pop(location, None),
-            download_finished_time=None,
-            download_duration=None
-        )
+        self.status = dataclasses.replace(self._read(location))
+        self.status.config_name = config_name
+        self.status.selection = selection
+        self.status.location = location
+        self.status.user = user
 
     def __enter__(self) -> None:
-        """Record 'in-progress' status of a transaction."""
-        self.start = time.time()
-        self._update(self.status)
+        pass
 
     def __exit__(self, exc_type, exc_inst, exc_tb) -> None:
         """Record end status of a transaction as either 'success' or 'failure'."""
-        end = time.time()
         if exc_type is None:
-            status = 'success'
+            status = Status.SUCCESS
             error = None
         else:
-            status = 'failure'
+            status = Status.FAILURE
             # For explanation, see https://docs.python.org/3/library/traceback.html#traceback.format_exception
             error = '\n'.join(traceback.format_exception(exc_type, exc_inst, exc_tb))
 
-        self.status = DownloadStatus(
-            selection=self.status.selection,
-            location=self.status.location,
-            user=self.status.user,
-            status=status,
-            error=error,
-            download_scheduled_time=self.status.download_scheduled_time,
-            download_finished_time=int(end),
-            download_duration=int(end - self.start)
+        new_status = dataclasses.replace(self.status)
+        new_status.error = error
+        new_status.status = status
+        current_utc_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
         )
+
+        # This is necessary for setting the precise start time of the previous stage
+        # and end time of the final stage, as well as handling the case of Status.FAILURE.
+        if new_status.stage == Stage.FETCH:
+            new_status.fetch_start_time = self.prev_stage_precise_start_time
+            new_status.fetch_end_time = current_utc_time
+        elif new_status.stage == Stage.RETRIEVE:
+            new_status.retrieve_start_time = self.prev_stage_precise_start_time
+            new_status.retrieve_end_time = current_utc_time
+        elif new_status.stage == Stage.DOWNLOAD:
+            new_status.download_start_time = self.prev_stage_precise_start_time
+            new_status.download_end_time = current_utc_time
+        else:
+            new_status.upload_start_time = self.prev_stage_precise_start_time
+            new_status.upload_end_time = current_utc_time
+
+        new_status.size = get_file_size(new_status.location)
+
+        self.status = new_status
+
         self._update(self.status)
 
-    def transact(self, selection: t.Dict, location: str, user: str) -> 'Manifest':
+    def transact(self, config_name: str, selection: t.Dict, location: str, user: str) -> 'Manifest':
         """Create a download transaction."""
-        self._set_for_transaction(selection, location, user)
+        self._set_for_transaction(config_name, selection, location, user)
         return self
+
+    def set_stage(self, stage: Stage) -> None:
+        """Sets the current stage in manifest."""
+        prev_stage = self.status.stage
+        new_status = dataclasses.replace(self.status)
+        new_status.stage = stage
+        new_status.status = Status.IN_PROGRESS
+        current_utc_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+
+        if stage == Stage.FETCH:
+            new_status.fetch_start_time = current_utc_time
+        elif stage == Stage.RETRIEVE:
+            new_status.retrieve_start_time = current_utc_time
+        elif stage == Stage.DOWNLOAD:
+            new_status.fetch_start_time = self.prev_stage_precise_start_time
+            new_status.fetch_end_time = current_utc_time
+            new_status.download_start_time = current_utc_time
+        else:
+            if prev_stage == Stage.DOWNLOAD:
+                new_status.download_start_time = self.prev_stage_precise_start_time
+                new_status.download_end_time = current_utc_time
+            else:
+                new_status.retrieve_start_time = self.prev_stage_precise_start_time
+                new_status.retrieve_end_time = current_utc_time
+            new_status.upload_start_time = current_utc_time
+
+        self.status = new_status
+        self._update(self.status)
+
+    @abc.abstractmethod
+    def _read(self, location: str) -> DownloadStatus:
+        pass
 
     @abc.abstractmethod
     def _update(self, download_status: DownloadStatus) -> None:
@@ -184,31 +380,13 @@ class Manifest(abc.ABC):
 class ConsoleManifest(Manifest):
 
     def __post_init__(self):
-        super().__post_init__()
         self.name = urlparse(self.location).hostname
 
-    def _update(self, download_status: DownloadStatus) -> None:
-        logger.info(f'[{self.name}] {download_status._asdict()!r}')
-
-
-class GCSManifest(Manifest):
-    """Writes a JSON representation of the manifest to GCS.
-
-    This is an append-only implementation, the latest value in the manifest
-    represents the current state of a download.
-    """
-
-    # Ensure no race conditions occurs on appends to objects in GCS
-    # (i.e. JSON manifests).
-    _lock = threading.Lock()
+    def _read(self, location: str) -> DownloadStatus:
+        return DownloadStatus()
 
     def _update(self, download_status: DownloadStatus) -> None:
-        """Writes the JSON data to a manifest."""
-        with GCSManifest._lock:
-            with gcsio.GcsIO().open(self.location, 'a') as gcs_file:
-                json.dump(download_status._asdict(), gcs_file)
-        logger.debug('Manifest written to.')
-        logger.debug(download_status)
+        logger.info(f'[{self.name}] {DownloadStatus.to_dict(download_status)!r}')
 
 
 class LocalManifest(Manifest):
@@ -217,7 +395,7 @@ class LocalManifest(Manifest):
     _lock = threading.Lock()
 
     def __init__(self, location: Location) -> None:
-        super().__init__(Location('{}{}manifest.json'.format(location, os.sep)))
+        super().__init__(Location(os.path.join(location, 'manifest.json')))
         if location and not os.path.exists(location):
             os.makedirs(location)
 
@@ -226,6 +404,14 @@ class LocalManifest(Manifest):
             with open(self.location, 'w') as file:
                 json.dump({}, file)
 
+    def _read(self, location: str) -> DownloadStatus:
+        """Reads the JSON data from a manifest."""
+        assert os.path.exists(self.location), f'{self.location} must exist!'
+        with LocalManifest._lock:
+            with open(self.location, 'r') as file:
+                manifest = json.load(file)
+                return DownloadStatus.from_dict(manifest.get(location, {}))
+
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         assert os.path.exists(self.location), f'{self.location} must exist!'
@@ -233,13 +419,135 @@ class LocalManifest(Manifest):
             with open(self.location, 'r') as file:
                 manifest = json.load(file)
 
-            status = download_status._asdict()
+            status = DownloadStatus.to_dict(download_status)
             manifest[status['location']] = status
 
             with open(self.location, 'w') as file:
                 json.dump(manifest, file)
                 logger.debug('Manifest written to.')
                 logger.debug(download_status)
+
+
+class BQManifest(Manifest):
+    """Writes a JSON representation of the manifest to BQ file.
+
+    This is an append-only implementation, the latest value in the manifest
+    represents the current state of a download.
+    """
+    def __init__(self, location: Location) -> None:
+        super().__init__(Location(location[5:]))
+        TABLE_SCHEMA = [
+            bigquery.SchemaField('config_name', 'STRING', mode='REQUIRED',
+                                 description="The name of the config file associated with the request."),
+            bigquery.SchemaField('selection', 'JSON', mode='REQUIRED',
+                                 description="Copy of selection section of the configuration."),
+            bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
+                                 description="Location of the downloaded data."),
+            bigquery.SchemaField('area', 'STRING', mode='NULLABLE',
+                                 description="Represents area covered by the shard. "
+                                 "ST_GeogFromGeoJson(area): To convert a GeoJSON geometry object into a "
+                                 "GEOGRAPHY value. "
+                                 "ST_COVERS(geography_expression, ST_GEOGPOINT(longitude, latitude)): To check "
+                                 "if a point lies in the given area or not."),
+            bigquery.SchemaField('stage', 'STRING', mode='NULLABLE',
+                                 description="Current stage of request : 'fetch', 'download', 'retrieve', 'upload' "
+                                 "or None."),
+            bigquery.SchemaField('status', 'STRING', mode='REQUIRED',
+                                 description="Download status: 'scheduled', 'in-progress', 'success', or 'failure'."),
+            bigquery.SchemaField('error', 'STRING', mode='NULLABLE',
+                                 description="Cause of error, if any."),
+            bigquery.SchemaField('user', 'STRING', mode='REQUIRED',
+                                 description="Identifier for the user running the download."),
+            bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE',
+                                 description="Shard size in GB."),
+            bigquery.SchemaField('scheduled_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when download was scheduled."),
+            bigquery.SchemaField('retrieve_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the retrieve stage starts."),
+            bigquery.SchemaField('retrieve_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the retrieve state ends."),
+            bigquery.SchemaField('fetch_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the fetch state starts."),
+            bigquery.SchemaField('fetch_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the fetch state ends."),
+            bigquery.SchemaField('download_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the download state starts."),
+            bigquery.SchemaField('download_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the download state ends."),
+            bigquery.SchemaField('upload_start_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the upload state starts."),
+            bigquery.SchemaField('upload_end_time', 'TIMESTAMP', mode='NULLABLE',
+                                 description="A UTC datetime when the upload state ends."),
+        ]
+        table = bigquery.Table(self.location, schema=TABLE_SCHEMA)
+        with bigquery.Client() as client:
+            client.create_table(table, exists_ok=True)
+
+    def _read(self, location: str) -> DownloadStatus:
+        """Reads the JSON data from a manifest."""
+        with bigquery.Client() as client:
+            select_statement = f"SELECT * FROM {self.location} WHERE location = @location"
+
+            # Build the QueryJobConfig object with the parameters.
+            job_config = bigquery.QueryJobConfig()
+            job_config.query_parameters = [bigquery.ScalarQueryParameter('location', 'STRING', location)]
+
+            # Execute the merge statement with the parameters.
+            query_job = client.query(select_statement, job_config=job_config)
+
+            # Wait for the query to execute.
+            result = query_job.result()
+            row = {}
+            if result.total_rows > 0:
+                records = result.to_dataframe().to_dict('records')
+                row = {n: to_json_serializable_type(v) for n, v in records[0].items()}
+            return DownloadStatus.from_dict(row)
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        """Writes the JSON data to a manifest."""
+        with bigquery.Client() as client:
+            status = DownloadStatus.to_dict(download_status)
+            table = client.get_table(self.location)
+            columns = [field.name for field in table.schema]
+            parameter_type_mapping = {field.name: field.field_type for field in table.schema}
+
+            update_dml = [f"{col} = @{col}" for col in columns]
+            insert_dml = [f"@{col}" for col in columns]
+            params = {col: status[col] for col in columns}
+
+            # Build the merge statement as a string with parameter placeholders.
+            merge_statement = f"""
+                MERGE {self.location} T
+                USING (
+                SELECT
+                    @location as location
+                ) S
+                ON T.location = S.location
+                WHEN MATCHED THEN
+                UPDATE SET
+                    {', '.join(update_dml)}
+                WHEN NOT MATCHED THEN
+                INSERT
+                    ({", ".join(columns)})
+                VALUES
+                    ({', '.join(insert_dml)})
+            """
+
+            logger.debug(merge_statement)
+
+            # Build the QueryJobConfig object with the parameters.
+            job_config = bigquery.QueryJobConfig()
+            job_config.query_parameters = [bigquery.ScalarQueryParameter(col, parameter_type_mapping[col], value)
+                                           for col, value in params.items()]
+
+            # Execute the merge statement with the parameters.
+            query_job = client.query(merge_statement, job_config=job_config)
+
+            # Wait for the query to execute.
+            query_job.result()
+
+            logger.debug('Manifest written to.')
+            logger.debug(download_status)
 
 
 class MockManifest(Manifest):
@@ -249,14 +557,22 @@ class MockManifest(Manifest):
         super().__init__(location)
         self.records = {}
 
+    def _read(self, location: str) -> DownloadStatus:
+        manifest = self.records
+        return DownloadStatus.from_dict(manifest.get(location, {}))
+
     def _update(self, download_status: DownloadStatus) -> None:
-        self.records.update({download_status.location: download_status})
+        status = DownloadStatus.to_dict(download_status)
+        self.records.update({status.get('location'): status})
         logger.debug('Manifest updated.')
         logger.debug(download_status)
 
 
 class NoOpManifest(Manifest):
     """A manifest that performs no operations."""
+
+    def _read(self, location: str) -> DownloadStatus:
+        return DownloadStatus()
 
     def _update(self, download_status: DownloadStatus) -> None:
         pass
@@ -272,7 +588,7 @@ If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse
 """
 MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
-    'gs': GCSManifest,
+    'bq': BQManifest,
     '': LocalManifest,
 })
 

@@ -592,7 +592,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertEqual("Unable to parse configuration file.", ctx.exception.args[0])
 
@@ -604,7 +604,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "'parameters' section required in configuration file.",
@@ -618,7 +618,7 @@ class ProcessConfigTest(unittest.TestCase):
                     key=value
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertNotIn(
             "'parameters' section required in configuration file.",
@@ -634,7 +634,7 @@ class ProcessConfigTest(unittest.TestCase):
                     target=bar
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "'parameters' section requires a 'target_path' key.",
@@ -650,7 +650,7 @@ class ProcessConfigTest(unittest.TestCase):
                     target_template=bar
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "'target_template' is deprecated, use 'target_path' instead.",
@@ -666,7 +666,7 @@ class ProcessConfigTest(unittest.TestCase):
                     target_path
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertNotIn(
             "'parameters' section requires a 'target_path' key.",
@@ -699,7 +699,7 @@ class ProcessConfigTest(unittest.TestCase):
                         2020
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "All 'partition_keys' must appear in the 'selection' section.",
@@ -731,7 +731,7 @@ class ProcessConfigTest(unittest.TestCase):
                     2020
                 """
         ) as f:
-            config = process_config(f)
+            config = process_config(f, 'test.cfg')
             self.assertTrue(bool(config))
 
     def test_accepts_partition_keys_not_present(self):
@@ -757,7 +757,7 @@ class ProcessConfigTest(unittest.TestCase):
                     2020
                 """
         ) as f:
-            config = process_config(f)
+            config = process_config(f, 'test.cfg')
             self.assertTrue(bool(config))
 
     def test_treats_partition_keys_as_list(self):
@@ -775,7 +775,7 @@ class ProcessConfigTest(unittest.TestCase):
                     03
                 """
         ) as f:
-            config = process_config(f)
+            config = process_config(f, 'test.cfg')
             self.assertIsInstance(config.partition_keys, list)
 
     def test_mismatched_template_partition_keys(self):
@@ -805,7 +805,7 @@ class ProcessConfigTest(unittest.TestCase):
                         2020
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "'target_path' has 1 replacements. Expected 2",
@@ -826,7 +826,7 @@ class ProcessConfigTest(unittest.TestCase):
                     date=2017-01-01/to/2017-01-01
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!"
@@ -850,7 +850,7 @@ class ProcessConfigTest(unittest.TestCase):
                     date=2017-01-01/to/2017-01-01
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "The current version of 'google-weather-tools' no longer supports 'target_filename'!"
@@ -872,7 +872,7 @@ class ProcessConfigTest(unittest.TestCase):
                         1969
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "'parameters' section requires a 'client' key.",
@@ -893,7 +893,7 @@ class ProcessConfigTest(unittest.TestCase):
                         1969
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
         self.assertIn(
             "Invalid 'client' parameter.",
@@ -919,7 +919,7 @@ class ProcessConfigTest(unittest.TestCase):
                     day=all
                     """
             ) as f:
-                process_config(f)
+                process_config(f, 'test.cfg')
 
     def test_singleton_partitions_are_converted_to_lists(self):
         with io.StringIO(
@@ -936,7 +936,7 @@ class ProcessConfigTest(unittest.TestCase):
                 year=2018
                 """
         ) as f:
-            config = process_config(f)
+            config = process_config(f, 'test.cfg')
             self.assertEqual(config.selection['month'], ['01'])
             self.assertEqual(config.selection['year'], ['2018'])
 

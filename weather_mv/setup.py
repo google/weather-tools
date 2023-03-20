@@ -21,10 +21,7 @@ Please see this documentation and example code:
 - https://github.com/apache/beam/blob/master/sdks/python/apache_beam/examples/complete/juliaset/setup.py
 """
 
-import subprocess
-from distutils.command.build import build as _build  # type: ignore
-
-from setuptools import setup, find_packages, Command
+from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
     "google-cloud-bigquery==2.34.4",
@@ -45,112 +42,28 @@ beam_gcp_requirements = [
 
 base_requirements = [
     "dataclasses",
-    "numpy",
-    "pandas",
-    "xarray",
-    "cfgrib",
-    "netcdf4",
-    "geojson",
-    "simplejson",
-    "rioxarray",
-    "metview",
-    "rasterio",
+    "numpy==1.22.4",
+    "pandas==1.5.1",
+    "xarray==2022.11.0",
+    "cfgrib==0.9.10.2",
+    "netcdf4==1.6.1",
+    "geojson==2.5.0",
+    "simplejson==3.17.6",
+    "rioxarray==0.12.2",
+    "metview==1.13.1",
+    "rasterio==1.3.1",
     "earthengine-api>=0.1.263",
-    "pyproj",  # requires separate binary installation!
-    "gdal",  # requires separate binary installation!
-    "xarray-beam==0.3.1",
-    "gcsfs==2022.11.0",
+    "pyproj==3.4.0",  # requires separate binary installation!
+    "gdal==3.5.1",  # requires separate binary installation!
 ]
-
-
-# This class handles the pip install mechanism.
-class build(_build):  # pylint: disable=invalid-name
-    """A build command class that will be invoked during package install.
-    The package built using the current setup.py will be staged and later
-    installed in the worker using `pip install package'. This class will be
-    instantiated during install for this specific scenario and will trigger
-    running the custom commands specified.
-    """
-    sub_commands = _build.sub_commands + [('CustomCommands', None)]
-
-
-# Some custom command to run during setup. The command is not essential for this
-# workflow. It is used here as an example. Each command will spawn a child
-# process. Typically, these commands will include steps to install non-Python
-# packages. For instance, to install a C++-based library libjpeg62 the following
-# two commands will have to be added:
-#
-#     ['apt-get', 'update'],
-#     ['apt-get', '--assume-yes', 'install', 'libjpeg62'],
-#
-# First, note that there is no need to use the sudo command because the setup
-# script runs with appropriate access.
-# Second, if apt-get tool is used then the first command needs to be 'apt-get
-# update' so the tool refreshes itself and initializes links to download
-# repositories.  Without this initial step the other apt-get install commands
-# will fail with package not found errors. Note also --assume-yes option which
-# shortcuts the interactive confirmation.
-#
-# Note that in this example custom commands will run after installing required
-# packages. If you have a PyPI package that depends on one of the custom
-# commands, move installation of the dependent package to the list of custom
-# commands, e.g.:
-#
-#     ['pip', 'install', 'my_package'],
-#
-# TODO(BEAM-3237): Output from the custom commands are missing from the logs.
-# The output of custom commands (including failures) will be logged in the
-# worker-startup log.
-"""Install the ecCodes and MetView packages from ECMWF."""
-CUSTOM_COMMANDS = [
-    cmd.split() for cmd in [
-        'apt-get update',
-        'apt-get --assume-yes install libeccodes-dev',
-        'conda install gdal=3.5.1 metview-batch=5.17.0 pyproj=3.4.0 -c conda-forge -y',
-    ]
-]
-
-
-class CustomCommands(Command):
-    """A setuptools Command class able to run arbitrary commands."""
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def RunCustomCommand(self, command_list):
-        print('Running command: %s' % command_list)
-        p = subprocess.Popen(
-            command_list,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
-        # Can use communicate(input='y\n'.encode()) if the command run requires
-        # some confirmation.
-        stdout_data, _ = p.communicate()
-        print('Command output: %s' % stdout_data)
-        if p.returncode != 0:
-            raise RuntimeError('Command %s failed: exit code: %s\n%s' % (command_list, p.returncode, stdout_data))
-
-    def run(self):
-        for command in CUSTOM_COMMANDS:
-            self.RunCustomCommand(command)
-
 
 setup(
     name='loader_pipeline',
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.9',
+    version='0.2.11',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=beam_gcp_requirements + base_requirements,
-    cmdclass={
-        # Command class instantiated and run during pip install scenarios.
-        'build': build,
-        'CustomCommands': CustomCommands,
-    }
 )

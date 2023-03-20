@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import unittest
 from functools import wraps
 
 import weather_mv
-from .sinks import open_dataset
+from .sinks import match_datetime, open_dataset
 
 
 class TestDataBase(unittest.TestCase):
@@ -65,6 +66,39 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_tif_path, tif_metadata_for_datetime='start_time') as ds:
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
+
+
+class DatetimeTest(unittest.TestCase):
+
+    def test_datetime_regex_string(self):
+        file_name = '3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff'
+
+        regex_str = '3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*.tiff'
+
+        expected = datetime.datetime.strptime('2022-09-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+        actual = match_datetime(file_name, regex_str)
+
+        self.assertEqual(actual, expected)
+
+    def test_datetime_regex_string_with_missing_parameters(self):
+        file_name = '3B-HHR-E_MS_MRG_3IMERG_0901-S000000-E002959_0000_V06C_30min.tiff'
+
+        regex_str = '3B-HHR-E_MS_MRG_3IMERG_%m%d-S%H%M%S-*.tiff'
+
+        expected = datetime.datetime.strptime('1978-09-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+        actual = match_datetime(file_name, regex_str)
+
+        self.assertEqual(actual, expected)
+
+    def test_datetime_regex_string_with_different_order(self):
+        file_name = '3B-HHR-E_MS_MRG_3IMERG_09012022-S000000-E002959_0000_V06C_30min.tiff'
+
+        regex_str = '3B-HHR-E_MS_MRG_3IMERG_%m%d%Y-S%H%M%S-*.tiff'
+
+        expected = datetime.datetime.strptime('2022-09-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+        actual = match_datetime(file_name, regex_str)
+
+        self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':

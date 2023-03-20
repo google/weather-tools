@@ -21,12 +21,13 @@ import typing as t
 import apache_beam as beam
 
 from .config import Config
-from .manifest import Manifest
+from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
 from .stores import Store, FSStore
 from .util import ichunked
 
 Partition = t.Tuple[str, t.Dict, Config]
+Index = t.Tuple[int]
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +46,22 @@ class PartitionConfig(beam.PTransform):
         store: A cloud storage system, used for checking the existence of downloads.
         subsections: A cycle of (name, parameter) tuples.
         manifest: A download manifest to register preparation state.
+        scheduling: How to sort partitions from multiple configs: in order of each
+           config (default), or in "fair" order, where partitions from each config
+           are evenly rotated.
         partition_chunks: The size of chunks of partition shards to use during the
             fan-out stage. By default, this operation will aim to divide all the
             partitions into groups of about 1000 sized-chunks.
+        num_groups: The the number of groups (for fair scheduling). Default: 1.
     """
 
     store: Store
     subsections: itertools.cycle
     manifest: Manifest
+    scheduling: str
     partition_chunks: t.Optional[int] = None
+    update_manifest: bool = False
+    num_groups: int = 1
 
     def expand(self, configs):
         def loop_through_subsections(it: Config) -> Partition:
@@ -81,15 +89,30 @@ class PartitionConfig(beam.PTransform):
             name, params = next(self.subsections)
             return name, params, it
 
+        if self.scheduling == 'fair':
+            config_idxs = (
+                    configs
+                    | beam.combiners.ToList()
+                    | 'Fair Fan-out' >> beam.FlatMap(prepare_fair_partition_index,
+                                                     chunk_size=self.partition_chunks,
+                                                     groups=self.num_groups)
+            )
+        else:
+            config_idxs = (
+                    configs
+                    | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
+            )
+
         return (
-                configs
-                | 'Fan-out' >> beam.FlatMap(prepare_partition_index, chunk_size=self.partition_chunks)
+                config_idxs
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
-                | 'Skip existing' >> beam.Filter(new_downloads_only, store=self.store)
+                | 'Skip existing' >> beam.Filter(new_downloads_only,
+                                                 store=self.store,
+                                                 manifest=self.manifest)
                 | 'Cycle subsections' >> beam.Map(loop_through_subsections)
                 | 'Assemble' >> beam.Map(assemble_config, manifest=self.manifest)
-        )
+            )
 
 
 def _create_partition_config(option: t.Tuple, config: Config) -> Config:
@@ -119,7 +142,7 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     return out
 
 
-def skip_partition(config: Config, store: Store) -> bool:
+def skip_partition(config: Config, store: Store, manifest: Manifest) -> bool:
     """Return true if partition should be skipped."""
 
     if config.force_download:
@@ -128,13 +151,14 @@ def skip_partition(config: Config, store: Store) -> bool:
     target = prepare_target_name(config)
     if store.exists(target):
         logger.info(f'file {target} found, skipping.')
+        manifest.skip(config.config_name, config.selection, target, config.user_id)
         return True
 
     return False
 
 
 def prepare_partition_index(config: Config,
-                            chunk_size: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[t.Tuple[int]]]]:
+                            chunk_size: t.Optional[int] = None) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
     """Produce indexes over client parameters, partitioning over `partition_keys`
 
     This produces a Cartesian-Cross over the range of keys.
@@ -160,7 +184,7 @@ def prepare_partition_index(config: Config,
         yield config, list(option_idx)
 
 
-def prepare_partitions_from_index(config: Config, indexes: t.List[t.Tuple[int]]) -> t.Iterator[Config]:
+def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.Iterator[Config]:
     """Convert a partition index into a config.
 
     Returns: from an option index.
@@ -173,11 +197,12 @@ def prepare_partitions_from_index(config: Config, indexes: t.List[t.Tuple[int]])
         yield _create_partition_config(option, config)
 
 
-def new_downloads_only(candidate: Config, store: t.Optional[Store] = None) -> bool:
+def new_downloads_only(candidate: Config, store: t.Optional[Store] = None,
+                       manifest: Manifest = NoOpManifest(Location('noop://in-memory'))) -> bool:
     """Predicate function to skip already downloaded partitions."""
     if store is None:
         store = FSStore()
-    should_skip = skip_partition(candidate, store)
+    should_skip = skip_partition(candidate, store, manifest)
     if should_skip:
         beam.metrics.Metrics.counter('Prepare', 'skipped').inc()
     return not should_skip
@@ -208,9 +233,40 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
 
     location = prepare_target_name(out)
     user = out.user_id
-    manifest.schedule(out.selection, location, user)
+    manifest.schedule(out.config_name, out.selection, location, user)
 
     logger.info(f'[{name}] Created partition {location!r}.')
     beam.metrics.Metrics.counter('Subsection', name).inc()
 
     return out
+
+
+def cycle_iters(iters: t.List[t.Iterator], take: int = 1) -> t.Iterator:
+    """Evenly cycle through a list of iterators.
+
+    Args:
+        iters: A list of iterators to evely cycle through.
+        take: Yield N items at a time. When not set to 1, this will yield
+          multiple items from the same collection.
+
+    Returns:
+        An iteration across several iterators in a round-robin order.
+    """
+    while iters:
+        for i, it in enumerate(iters):
+            try:
+                for j in range(take):
+                    logger.debug(f'yielding item {j!r} from iterable {i!r}.')
+                    yield next(it)
+            except StopIteration:
+                iters.remove(it)
+
+
+def prepare_fair_partition_index(configs: t.List[Config],
+                                 chunk_size: t.Optional[int],
+                                 groups: int) -> t.Iterator[t.Tuple[Config, t.List[Index]]]:
+    """Given a list of all configs, evenly cycle through each partition chunked by the 'chunk_size'."""
+    if chunk_size is None:
+        chunk_size = 1
+    iters = [prepare_partition_index(config, chunk_size) for config in configs]
+    yield from cycle_iters(iters, take=groups)

@@ -325,6 +325,9 @@ _Command options_:
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
+* `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
+* `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
+* `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
@@ -409,6 +412,35 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --ee_qps 10 \
            --ee_latency 0.5 \
            --ee_max_concurrent 10
+```
+
+Custom Band names:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.tif" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --band_names_mapping "filename.json"
+```
+
+Getting initialization and forecast/end date-time from the filename:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.tif" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --initialization_time_regex "$REGEX" \
+           --forecast_time_regex "$REGEX"
+```
+
+Example:
+
+```bash
+weather-mv ee --uris "gs://tmp-gs-bucket/3B-HHR-E_MS_MRG_3IMERG_20220901-S000000-E002959_0000_V06C_30min.tiff" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --initialization_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*tiff" \
+           --forecast_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S*-E%H%M%S*tiff"
 ```
 
 Using DataflowRunner:
@@ -533,7 +565,8 @@ install channels (they are only maintained via `conda-forge`).
 Thus, to include such dependencies, we've provided steps for you to build
 a [Beam container environment](https://beam.apache.org/documentation/runtime/environments/). In the near future, we'll
 arrange things so you don't have to worry about any of these extra
-steps ([#172](https://github.com/google/weather-tools/issues/172)).
+steps ([#172](https://github.com/google/weather-tools/issues/172)). See [these instructions](../Runtime-Container.md) 
+to learn how to build a custom image for this project.
 
 Currently, this image is necessary for the `weather-mv regrid` command, but no other commands. To deploy this tool,
 please do the following:
@@ -558,37 +591,3 @@ please do the following:
               --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"
               --job_name $JOB_NAME 
    ```
-
-### Building & Publishing the container in GCS.
-
-*Pre-requisites*: Install the gcloud CLI ([instructions are here](https://cloud.google.com/sdk/docs/install)).
-
-Then, log in to your cloud account:
-
-```shell
-gcloud auth login
-```
-
-> Please follow all the instructions from the CLI. This will involve running an
-> auth script on your local machine, which will open a browser window to log you
-> in.
-
-Last, make sure you have adequate permissions to use Google Cloud Build (see
-[IAM options here](https://cloud.google.com/build/docs/iam-roles-permissions)).
-[This documentation](https://g3doc.corp.google.com/company/gfw/support/cloud/products/cloud-build/index.md#permissions)
-lists the specific permissions that you'll need to have in your project.
-
-*Updating the image*: Please modify the `Dockerfile` in the tool directory. Then, build and upload the image with Google
-Cloud Build:
-
-```shell
-export PROJECT=<your-project-here>
-export REPO=miniconda3-beam
-export IMAGE_URI=gcr.io/$PROJECT/$REPO
-export TAG="0.0.2" # Please increment on every update.
-# dev release
-gcloud builds submit weather_mv/ --tag "$IMAGE_URI:dev"
-
-# release:
-gcloud builds submit weather_mv/ --tag "$IMAGE_URI:$TAG"  && gcloud builds submit weather_mv/ --tag "$IMAGE_URI:latest"
-```

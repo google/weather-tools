@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+import datetime
 import logging
 import tempfile
 import typing as t
@@ -20,7 +21,7 @@ import apache_beam as beam
 
 from .clients import CLIENTS, Client
 from .config import Config
-from .manifest import Manifest, NoOpManifest, Location
+from .manifest import Manifest, NoOpManifest, Location, Stage
 from .parsers import prepare_target_name
 from .partition import skip_partition
 from .stores import Store, FSStore
@@ -55,26 +56,36 @@ class Fetcher(beam.DoFn):
     @retry_with_exponential_backoff
     def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
         """Retrieve from download client, with retries."""
-        client.retrieve(dataset, selection, dest)
+        client.retrieve(dataset, selection, dest, self.manifest)
 
     def fetch_data(self, config: Config, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
         if not config:
             return
 
-        if skip_partition(config, self.store):
+        if skip_partition(config, self.store, self.manifest):
             return
 
         client = CLIENTS[self.client_name](config)
         target = prepare_target_name(config)
 
-        with self.manifest.transact(config.selection, target, config.user_id):
-            with tempfile.NamedTemporaryFile() as temp:
-                logger.info(f'[{worker_name}] Fetching data for {target!r}.')
+        with tempfile.NamedTemporaryFile() as temp:
+            logger.info(f'[{worker_name}] Fetching data for {target!r}.')
+            with self.manifest.transact(config.config_name, config.selection, target, config.user_id):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
+                self.manifest.set_stage(Stage.UPLOAD)
+                precise_upload_start_time = (
+                    datetime.datetime.utcnow()
+                    .replace(tzinfo=datetime.timezone.utc)
+                    .isoformat(timespec='seconds')
+                )
+                self.manifest.prev_stage_precise_start_time = precise_upload_start_time
                 logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
-                copy(temp.name, target)
+
+                # In dry-run mode we actually aren't required to upload a file.
+                if not self.client_name == "fake":
+                    copy(temp.name, target)
 
                 logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
 
@@ -84,7 +95,8 @@ class Fetcher(beam.DoFn):
         (subsection, request_idx), partitions = element
         worker_name = f'{subsection}.{request_idx}'
 
-        logger.info(f"[{worker_name}] Starting requests...")
+        logger.info(f'[{worker_name}] Starting requests...')
+        logger.debug(f'[{worker_name}] Partitions: {partitions!r}.')
 
         for partition in partitions:
             beam.metrics.Metrics.counter('Fetcher', subsection).inc()

@@ -4,34 +4,30 @@ channels:
 dependencies:
   - python=3.8.13
   - apache-beam=2.40.0
-  - cdsapi=0.5.1
-  - pytest=7.2.0
-  - pytest-subtests=0.8.0
-  - cfgrib=0.9.10.2
-  - dask=2022.10.0
-  - dataclasses=0.8
-  - distributed=2022.10.0
-  - eccodes=2.27.0
-  - requests=2.28.1
-  - netcdf4=1.6.1
-  - rioxarray=0.12.2
-  - xarray=2022.10.0
   - xarray-beam=0.3.1
-  - ecmwf-api-client=1.6.3
-  - flake8=5.0.4
-  - fsspec=2022.10.0
+  - xarray=2022.11.0
+  - fsspec=2022.11.0
+  - gcsfs=2022.11.0
+  - rioxarray=0.12.2
   - gdal=3.5.1
   - pyproj=3.4.0
+  - cdsapi=0.5.1
+  - ecmwf-api-client=1.6.3
+  - eccodes=2.27.0
+  - cfgrib=0.9.10.2
+  - pygrib=2.1.4
+  - metview-batch=5.17.0
+  - netcdf4=1.6.1
   - geojson=2.5.0=py_0
   - simplejson=3.17.6
-  - metview-batch=5.17.0
   - numpy=1.22.4
   - pandas=1.5.1
-  - pip=22.3
-  - pygrib=2.1.4
   - google-cloud-sdk=410.0.0
-  - gcsfs=2022.11.0
-  - xarray-beam=0.3.1
+  - aria2=1.36.0
+  - pip=22.3
   - pip:
     - earthengine-api==0.1.329
-    - .[test]
+    - .
+    - ./weather_dl
+    - ./weather_mv
+    - ./weather_sp

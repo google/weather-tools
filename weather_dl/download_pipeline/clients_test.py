@@ -15,29 +15,20 @@
 import unittest
 
 from .clients import FakeClient, CdsClient, MarsClient
-from .config import Config
 
 
 class MaxWorkersTest(unittest.TestCase):
     def test_cdsclient_internal(self):
-        client = CdsClient(Config.from_dict({'parameters': {'api_url': 'url', 'api_key': 'key'}}))
-        self.assertEqual(
-            client.num_requests_per_key("reanalysis-era5-some-data"), 5)
+        self.assertEqual(CdsClient.num_requests_per_key("reanalysis-era5-some-data"), 5)
 
     def test_cdsclient_mars_hosted(self):
-        client = CdsClient(Config.from_dict({'parameters': {'api_url': 'url', 'api_key': 'key'}}))
-        self.assertEqual(
-            client.num_requests_per_key("reanalysis-carra-height-levels"), 2)
+        self.assertEqual(CdsClient.num_requests_per_key("reanalysis-carra-height-levels"), 2)
 
     def test_marsclient(self):
-        client = MarsClient(Config.from_dict({'parameters': {}}))
-        self.assertEqual(
-            client.num_requests_per_key("reanalysis-era5-some-data"), 2)
+        self.assertEqual(MarsClient.num_requests_per_key("reanalysis-era5-some-data"), 2)
 
     def test_fakeclient(self):
-        client = FakeClient(Config.from_dict({'parameters': {}}))
-        self.assertEqual(
-            client.num_requests_per_key("reanalysis-era5-some-data"), 1)
+        self.assertEqual(FakeClient.num_requests_per_key("reanalysis-era5-some-data"), 1)
 
 
 if __name__ == '__main__':

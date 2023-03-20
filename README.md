@@ -3,6 +3,7 @@
 Apache Beam pipelines to make weather data accessible and useful.
 
 [![CI](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/googlestaging/weather-tools/actions/workflows/ci.yml)
+[![Documentation Status](https://readthedocs.org/projects/weather-tools/badge/?version=latest)](https://weather-tools.readthedocs.io/en/latest/?badge=latest)
 
 ## Introduction
 
@@ -33,15 +34,18 @@ their component variables.
 
 ## Installing
 
-It's recommended that you create a local python environment (with
-[Anaconda](https://www.anaconda.com/products/individual)). Otherwise, these tools can be installed with pip:
+It is currently recommended that you create a local python environment (with
+[Anaconda](https://www.anaconda.com/products/individual)) and install the
+sources as follows:
 
   ```shell
-  pip install google-weather-tools
+conda env create --name weather-tools --file=environment.yml
+conda activate weather-tools
   ```
 
-> Note: If the execution of `pip install` command takes a lot of time, try upgrading your pip version
-> (`pip install --upgrade pip`) or using the legacy resolver (add flag: `--use-deprecated=legacy-resolver`).
+> Note: Due to its use of 3rd-party binary dependencies such as GDAL and MetView, `weather-tools`
+> is transitioning from PyPi to Conda for its main release channel. The instructions above
+> are a temporary workaround before our Conda-forge release.
 
 From here, you can use the `weather-*` tools from your python environment. Currently, the following tools are available:
 
@@ -51,60 +55,77 @@ From here, you can use the `weather-*` tools from your python environment. Curre
 
 ## Quickstart
 
-Together, let's
-download [Era 5 pressure level data](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=overview)
-and ingest it into Google BigQuery.
+In this tutorial, we will
+download the [Era 5 pressure level dataset](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=overview)
+and ingest it into Google BigQuery using `weather-dl` and `weather-mv`, respectively.
 
-_Pre-requisites_:
+### Prerequisites
 
-1. Acquire and install a license from
-   ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key).
-2. Create an empty BigQuery Dataset. This can be done in
-   the [console](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-cloud-console#create_a_dataset)
-   or via the [`bq` CLI](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-command-line). For example:
+1. [Register](https://cds.climate.copernicus.eu/user/register) for a license from
+   ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to).
+2. Install your license by copying your API url & key from [this page](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key) to a new file `$HOME/.cdsapirc`.[^1] The file should look like this:
+   ```
+   url: https://cds.climate.copernicus.eu/api/v2
+   key: <YOUR_USER_ID>:<YOUR_API_KEY>
+   ```
+3. If you do not already have a Google Cloud project, create one by following
+   [these steps](https://cloud.google.com/docs/get-started). If you are working on
+   an existing project, make sure your user has the [BigQuery Admin role](https://cloud.google.com/bigquery/docs/access-control#bigquery.admin).
+   To learn more about granting IAM roles to users in Google Cloud, visit the
+   [official docs](https://cloud.google.com/iam/docs/granting-changing-revoking-access#grant-single-role).
+4. Create an empty BigQuery Dataset. This can be done using
+   the [Google Cloud Console](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-cloud-console#create_a_dataset)
+   or via the [`bq` CLI tool](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-command-line). 
+   For example:
    ```shell
-   bq mk --project_id=$PROJECT $DATASET_ID
+   bq mk --project_id=$PROJECT_ID $DATASET_ID
+   ```
+6. Follow [these steps](https://cloud.google.com/storage/docs/creating-buckets) 
+   to create a bucket for staging temporary files in [Google Cloud Storage](https://cloud.google.com/storage).
+
+### Steps
+
+For the purpose of this tutorial, we will use your local machine to run the
+data pipelines. Note that all `weather-tools` can also be run in [Cloud Dataflow](https://cloud.google.com/dataflow)
+which is easier to scale and fully managed.
+
+1. Use `weather-dl` to download the *Era 5 pressure level* dataset.
+   ```bash
+   weather-dl configs/era5_example_config_local_run.cfg \
+      --local-run # Use the local machine
    ```
 
-_Steps_:
+   > Recommendation: Pass the `-d, --dry-run` flag to any of these commands to preview the effects.
 
-1. Use `weather-dl` to acquire the Era 5 pressure level data.
+   **NOTE:** By default, local downloads are saved to the `./local_run` directory unless another file system is specified.
+   The recommended output location for `weather-dl` is [Cloud Storage](https://cloud.google.com/storage).
+   The source and destination of the download are configured using the `.cfg` configuration file which is passed to the command.
+   To learn more about this configuration file's format and features,
+   see [this reference](Configuration.md). To learn more about the `weather-dl` command, visit [here](weather_dl/README.md).
 
-   For simplicity, let's run everything on your local machine. For the downloader, this means we'll use
-   the `--local-run` option:
+2. *(optional)* Split your downloaded dataset up with `weather-sp`:
 
    ```shell
-   weather-dl configs/era5_example_config_local_run.cfg --local-run
+    weather-sp --input-pattern "./local_run/era5-*.nc" \
+       --output-dir "split_data" 
    ```
 
-   > Recommendation: Pass the `-d, --dry-run` flag to any of these commands to preview effects.
+   Visit the `weather-sp` [docs](weather_sp/README.md) for more information.
 
-   Generally, `weather-dl` is designed to ingest weather data to cloud storage. To learn how to configure downloads,
-   please see [this documentation](Configuration.md). See [detailed usage of `weather-dl` here](weather_dl/README.md).
+3. Use `weather-mv` to ingest the downloaded data into BigQuery, in a structured format.
 
-2. (optional) Split your downloaded dataset up by variable with `weather-sp`:
-
-   ```shell
-    weather-sp --input-pattern "./local_run/era5-*.nc" --output-dir "split_data" 
-   ```
-
-   Consult the [`weather-sp` docs](weather_sp/README.md) for more.
-
-3. Use `weather-mv` to upload this data to Google BigQuery.
-
-   ```shell
-   weather-mv bigquery --uris "./local_run/**.nc" \ # or  --uris "./split_data/**.nc" \
-      --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \
-      --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
+   ```bash
+   weather-mv bigquery --uris "./local_run/**.nc" \ # or "./split_data/**.nc" if weather-sp is used
+      --output_table "$PROJECT.$DATASET_ID.$TABLE_ID" \ # The path to the destination BigQuery table
+      --temp_location "gs://$BUCKET/tmp" \  # Needed for stage temporary files before writing to BigQuery
       --direct_num_workers 2
    ```
 
-   See [these docs](weather_mv/README.md) for more about this tool.
+   See [these docs](weather_mv/README.md) for more about the `weather-mv` command.
 
-That's it! Soon, you'll have your weather data ready for analysis in BigQuery.
-
-> Note: The exact interfaces for these CLIs are subject to change. For example, we plan to make the CLIs have more
-> uniform arguments ([#21](https://github.com/googlestaging/weather-tools/issues/21)).
+That's it! After the pipeline is completed, you should be able to query the ingested 
+dataset in [BigQuery SQL workspace](https://cloud.google.com/bigquery/docs/bigquery-web-ui)
+and analyze it using [BigQuery ML](https://cloud.google.com/bigquery-ml/docs/introduction).
 
 ## Contributing
 
@@ -130,3 +151,5 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+[^1]: Note that you need to be logged in for the [CDS API page](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key) to actually show your user ID and API key. Otherwise, it will display a placeholder, which is confusing to some users.

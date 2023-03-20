@@ -1,6 +1,6 @@
 import unittest
 
-from .util import ichunked
+from .util import fetch_geo_polygon, ichunked
 
 
 # TODO(#245): Duplicate tests; remove.
@@ -31,3 +31,38 @@ class IChunksTests(unittest.TestCase):
             [7, 8, 9, 10, 11, 12, 13],
             [14, 15, 16, 17, 18, 19]
         ])
+
+
+class TestFetchGeoPolygon(unittest.TestCase):
+    def test_valid_area(self):
+        # Test with valid area values.
+        area = [40, -75, 39, -74]
+        expected_result = (
+            '{"type": "Polygon", "coordinates": '
+            '[[[-75, 40], [-75, 39], [-74, 39], [-74, 40], [-75, 40]]]}'
+        )
+        self.assertEqual(fetch_geo_polygon(area), expected_result)
+
+    def test_invalid_latitude_south(self):
+        # Test with invalid south latitude value
+        area = [40, -75, -91, -74]
+        with self.assertRaises(ValueError):
+            fetch_geo_polygon(area)
+
+    def test_invalid_latitude_north(self):
+        # Test with invalid north latitude value
+        area = [91, -75, 39, -74]
+        with self.assertRaises(ValueError):
+            fetch_geo_polygon(area)
+
+    def test_invalid_longitude_west(self):
+        # Test with invalid west longitude value
+        area = [40, -181, 39, -74]
+        with self.assertRaises(ValueError):
+            fetch_geo_polygon(area)
+
+    def test_invalid_longitude_east(self):
+        # Test with invalid east longitude value
+        area = [40, -75, 39, 181]
+        with self.assertRaises(ValueError):
+            fetch_geo_polygon(area)

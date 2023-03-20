@@ -16,41 +16,51 @@ import abc
 import argparse
 import contextlib
 import dataclasses
+import datetime
+import inspect
 import logging
+import os
+import re
 import shutil
 import tempfile
 import typing as t
-import os
-from pyproj import Transformer
-import numpy as np
-import datetime
 
 import apache_beam as beam
+import cfgrib
+import numpy as np
 import rasterio
 import xarray as xr
-import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
+from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+DEFAULT_TIME_ORDER_LIST = ['%Y', '%m', '%d', '%H', '%M', '%S']
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+class KwargsFactoryMixin:
+    """Adds a factory method to classes or dataclasses for key-word args."""
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        if dataclasses.is_dataclass(cls):
+            fields = [f.name for f in dataclasses.fields(cls)]
+        else:
+            fields = inspect.signature(cls.__init__).parameters.keys()
+
+        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
+
+
 @dataclasses.dataclass
-class ToDataSink(abc.ABC, beam.PTransform):
+class ToDataSink(abc.ABC, beam.PTransform, KwargsFactoryMixin):
     first_uri: str
     dry_run: bool
     zarr: bool
     zarr_kwargs: t.Dict
-
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        fields = [f.name for f in dataclasses.fields(cls)]
-        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
 
     @classmethod
     @abc.abstractmethod
@@ -63,15 +73,85 @@ class ToDataSink(abc.ABC, beam.PTransform):
         pass
 
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str) -> xr.Dataset:
+def _make_grib_dataset_inmem(grib_ds: xr.Dataset) -> xr.Dataset:
+    """Copies all the vars in-memory to reduce disk seeks every time a single row is processed.
+
+    This also removes the need to keep the backing temp source file around.
+    """
+    data_ds = grib_ds.copy(deep=True)
+    for v in grib_ds.variables:
+        if v not in data_ds.coords:
+            data_ds[v].variable.values = grib_ds[v].variable.values
+    return data_ds
+
+
+def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
+    """Matches the regex string given and extracts the datetime object.
+
+    Args:
+        file_name: File name from which you want to extract datetime.
+        regex_expression: Regex expression for extracting datetime from the filename.
+
+    Returns:
+        A datetime object after extracting from the filename.
+    """
+
+    def rearrange_time_list(order_list: t.List, time_list: t.List) -> t.List:
+        if order_list == DEFAULT_TIME_ORDER_LIST:
+            return time_list
+        new_time_list = []
+        for i, j in zip(order_list, time_list):
+            dst = DEFAULT_TIME_ORDER_LIST.index(i)
+            new_time_list.insert(dst, j)
+        return new_time_list
+
+    char_to_replace = {
+        '%Y': ['([0-9]{4})', [0, 1978]],
+        '%m': ['([0-9]{2})', [1, 1]],
+        '%d': ['([0-9]{2})', [2, 1]],
+        '%H': ['([0-9]{2})', [3, 0]],
+        '%M': ['([0-9]{2})', [4, 0]],
+        '%S': ['([0-9]{2})', [5, 0]],
+        '*': ['.*']
+    }
+
+    missing_idx_list = []
+    temp_expression = regex_expression
+
+    for key, value in char_to_replace.items():
+        if key != '*' and regex_expression.find(key) == -1:
+            missing_idx_list.append(value[1])
+        else:
+            temp_expression = temp_expression.replace(key, value[0])
+
+    regex_matches = re.findall(temp_expression, file_name)[0]
+
+    order_list = [f'%{char}' for char in re.findall(r'%(\w{1})', regex_expression)]
+
+    time_list = list(map(int, regex_matches))
+    time_list = rearrange_time_list(order_list, time_list)
+
+    if missing_idx_list:
+        for [idx, val] in missing_idx_list:
+            time_list.insert(idx, val)
+
+    return datetime.datetime(*time_list)
+
+
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
+                    band_names_dict: t.Dict, initialization_time_regex: str, forecast_time_regex: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
     def _get_band_data(i):
-        band = ds.band_data[i]
-        band.name = ds.band_data.attrs['long_name'][i]
+        if not band_names_dict:
+            band = ds.band_data[i]
+            band.name = ds.band_data.attrs['long_name'][i]
+        else:
+            band = ds.band_data
+            band.name = band_names_dict.get(band.name)
         return band
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -91,17 +171,30 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = xr.merge(band_data_list)
     ds.attrs['is_normalized'] = ds_is_normalized_attr
 
+    end_time = None
+    if initialization_time_regex and forecast_time_regex:
+        try:
+            start_time = match_datetime(uri, initialization_time_regex)
+        except Exception:
+            raise RuntimeError("Wrong regex passed in --initialization_time_regex.")
+        try:
+            end_time = match_datetime(uri, forecast_time_regex)
+        except Exception:
+            raise RuntimeError("Wrong regex passed in --forecast_time_regex.")
+        ds.attrs['start_time'] = start_time
+        ds.attrs['end_time'] = end_time
+
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
-            datetime_value_ms = f.tags()[tif_metadata_for_datetime]
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(int(datetime_value_ms) / 1000.0)})
+            datetime_value_s = (int(end_time.timestamp()) if end_time is not None
+                                else int(f.tags()[tif_metadata_for_datetime]) / 1000.0)
+            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
         except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
         except ValueError:
             raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
-        ds = ds.expand_dims('time')
 
     return ds
 
@@ -134,6 +227,8 @@ def __normalize_grib_dataset(filename: str,
     _level_data_dict = {}
 
     list_ds = cfgrib.open_datasets(filename)
+    ds_attrs = list_ds[0].attrs
+    dv_units_dict = {}
 
     for ds in list_ds:
         coords_set = set(ds.coords.keys())
@@ -188,6 +283,11 @@ def __normalize_grib_dataset(filename: str,
                 # Add the height as a metadata field, that seems useful.
                 copied_da.attrs['height'] = height_string
 
+                # Add the units of each band as a metadata field.
+                dv_units_dict['unit_'+channel_name] = None
+                if 'units' in attrs:
+                    dv_units_dict['unit_'+channel_name] = attrs['units']
+
                 copied_da.name = channel_name
                 if _is_3d_da(da):
                     copied_da = copied_da.sel({level: height})
@@ -204,7 +304,17 @@ def __normalize_grib_dataset(filename: str,
         _data_array_list.append(dataset)
 
     if not group_common_hypercubes:
-        return xr.merge(_data_array_list)
+        # Stick the forecast hour, start_time, end_time, data variables units
+        # in the ds attrs as well, that's useful.
+        ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
+        ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
+        ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
+        ds_attrs.update(**dv_units_dict)
+
+        merged_dataset = xr.merge(_data_array_list)
+        merged_dataset.attrs.clear()
+        merged_dataset.attrs.update(ds_attrs)
+        return merged_dataset
 
     return _data_array_list
 
@@ -224,7 +334,7 @@ def __open_dataset_file(filename: str,
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
-    if uri_extension == '.tif':
+    if uri_extension in ['.tif', '.tiff']:
         return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
@@ -273,7 +383,10 @@ def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_datetime: t.Optional[str] = None,
-                 group_common_hypercubes: t.Optional[bool] = False) -> t.Iterator[t.List[xr.Dataset]]:
+                 group_common_hypercubes: t.Optional[bool] = False,
+                 band_names_dict: t.Optional[t.Dict] = None,
+                 initialization_time_regex: t.Optional[str] = None,
+                 forecast_time_regex: t.Optional[str] = None) -> t.Iterator[t.List[xr.Dataset]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:
@@ -296,8 +409,14 @@ def open_dataset(uri: str,
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
             else:
-                if uri_extension == '.tif':
-                    xr_dataset = _preprocess_tif(xr_datasets, local_path, tif_metadata_for_datetime)
+                if uri_extension in ['.tif', '.tiff']:
+                    xr_dataset = _preprocess_tif(xr_datasets,
+                                                 local_path,
+                                                 tif_metadata_for_datetime,
+                                                 uri,
+                                                 band_names_dict,
+                                                 initialization_time_regex,
+                                                 forecast_time_regex)
                 else:
                     xr_dataset = xr_datasets
 

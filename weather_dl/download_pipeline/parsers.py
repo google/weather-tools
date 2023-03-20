@@ -347,14 +347,15 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     return copy
 
 
-def process_config(file: t.IO) -> Config:
+def require(condition: bool, message: str, error_type: t.Type[Exception] = ValueError) -> None:
+    """A assert-like helper that wraps text and throws an error."""
+    if not condition:
+        raise error_type(textwrap.dedent(message))
+
+
+def process_config(file: t.IO, config_name: str) -> Config:
     """Read the config file and prompt the user if it is improperly structured."""
     config = parse_config(file)
-
-    def require(condition: bool, message: str, error_type: t.Type[Exception] = ValueError) -> None:
-        """A assert-like helper that wraps text and throws an error."""
-        if not condition:
-            raise error_type(textwrap.dedent(message))
 
     require(bool(config), "Unable to parse configuration file.")
     require('parameters' in config,
@@ -435,6 +436,8 @@ def process_config(file: t.IO) -> Config:
 
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
+    # Add config file name.
+    config['parameters']['config_name'] = config_name
 
     # Ensure the cartesian-cross can be taken on singleton values for the partition.
     for key in partition_keys:
@@ -475,3 +478,20 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
     """
     return [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]
+
+
+def all_equal(iterator):
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == x for x in iterator)
+
+
+def validate_all_configs(configs: t.List[Config]) -> None:
+    clients = [conf.client for conf in configs]
+    require(all_equal(clients), f'All configs must request data from the same client, {clients[0]!r}.')
+
+    kwargs = [conf.kwargs for conf in configs]
+    require(all_equal(kwargs), 'Discrepancy in config parameters! Please check for consistency across all configs.')

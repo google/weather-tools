@@ -78,6 +78,8 @@ test_requirements = [
     "xarray-beam",
     "absl-py",
     "metview",
+    "memray",
+    "pytest-memray",
     "h5py",
 ]
 
@@ -118,8 +120,9 @@ setup(
     scripts=['weather_dl/weather-dl', 'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'dev': ['tox', 'sphinx>=2.1', 'myst-parser'] + all_test_requirements,
+        'docs': ['tox', 'sphinx>=2.1', 'myst-parser', 'Jinja2<3.1'],
         'test': all_test_requirements,
+        'dev': ['google-weather-tools[docs,test]'],
         'regrid': ['metview']
     },
     project_urls={
