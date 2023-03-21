@@ -27,9 +27,9 @@ import traceback
 import typing as t
 
 from .util import (
-    to_json_serializable_type, 
-    fetch_geo_polygon, 
-    get_file_size, 
+    to_json_serializable_type,
+    fetch_geo_polygon,
+    get_file_size,
     retry_with_exponential_backoff
 )
 from google.cloud import bigquery
