@@ -85,7 +85,7 @@ class FetchDataTest(unittest.TestCase):
                 stage='upload',
                 status='success',
                 error=None,
-                user='unknown',
+                username='unknown',
             ), list(self.dummy_manifest.records.values())[0])
 
     @patch('cdsapi.Client.retrieve')
@@ -120,7 +120,7 @@ class FetchDataTest(unittest.TestCase):
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='retrieve',
                 status='failure',
-                user='unknown',
+                username='unknown',
             ), actual)
 
             self.assertIn(error.args[0], actual['error'])
@@ -158,7 +158,7 @@ class FetchDataTest(unittest.TestCase):
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='retrieve',
                 status='failure',
-                user='unknown',
+                username='unknown',
             ), actual)
 
             self.assertIn(error.args[0], actual['error'])
