@@ -27,6 +27,7 @@ from apache_beam.io.gcp import gcsio
 from apache_beam.utils import retry
 from xarray.core.utils import ensure_us_time_resolution
 from urllib.parse import urlparse
+from google.api_core.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exceptio
     if isinstance(exception, socket.timeout):
         return True
     if isinstance(exception, TimeoutError):
+        return True
+    # To handle the concurrency issue in BigQuery.
+    if isinstance(exception, BadRequest):
         return True
     return retry.retry_if_valid_input_but_server_error_and_timeout_filter(exception)
 
