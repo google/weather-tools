@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import geojson
+import hashlib
 import itertools
 import logging
 import os
@@ -159,3 +160,15 @@ def get_file_size(path: str) -> float:
         return os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
     else:
         return gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0
+
+
+def get_wait_interval(num_retries: int = 0) -> float:
+    """Returns next wait interval in seconds, using an exponential backoff algorithm."""
+    if 0 == num_retries:
+        return 0
+    return 2 ** num_retries
+
+
+def generate_md5_hash(input: str) -> str:
+    """Generates md5 hash for the input string."""
+    return hashlib.md5(input.encode('utf-8')).hexdigest()

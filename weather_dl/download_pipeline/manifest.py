@@ -18,7 +18,6 @@ import collections
 import dataclasses
 import datetime
 import enum
-import hashlib
 import json
 import logging
 import os
@@ -33,6 +32,8 @@ from .util import (
     to_json_serializable_type,
     fetch_geo_polygon,
     get_file_size,
+    get_wait_interval,
+    generate_md5_hash,
     retry_with_exponential_backoff
 )
 
@@ -566,13 +567,6 @@ class BQManifest(Manifest):
             logger.debug(download_status)
 
 
-def get_wait_interval(num_retries: int = 0) -> float:
-    """Returns next wait interval in seconds, using an exponential backoff algorithm."""
-    if 0 == num_retries:
-        return 0
-    return 2 ** num_retries
-
-
 class FirestoreManifest(Manifest):
     """A Firestore Manifest.
     This Manifest implementation stores DownloadStatuses in a Firebase document store.
@@ -612,7 +606,7 @@ class FirestoreManifest(Manifest):
     def _read(self, location: str) -> DownloadStatus:
         """Reads the JSON data from a manifest."""
 
-        doc_id = hashlib.md5(location.encode('utf-8')).hexdigest()
+        doc_id = generate_md5_hash(location)
 
         # Update document with download status
         download_doc_ref = (
@@ -631,7 +625,7 @@ class FirestoreManifest(Manifest):
         logger.debug('Updating Firestore Manifest.')
 
         status = DownloadStatus.to_dict(download_status)
-        doc_id = hashlib.md5(status['location'].encode('utf-8')).hexdigest()
+        doc_id = generate_md5_hash(status['location'])
 
         # Update document with download status
         download_doc_ref = (
