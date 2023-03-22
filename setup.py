@@ -39,6 +39,7 @@ weather_dl_requirements = [
     "xarray",
     "requests>=2.24.0",
     "google-cloud-firestore",
+    "firebase-admin",
     "urllib3==1.26.5",
 ]
 

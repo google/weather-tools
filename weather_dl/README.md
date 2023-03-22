@@ -45,7 +45,8 @@ _Common options_:
 * `-m, --manifest-location MANIFEST_LOCATION`: Location of the manifest. By default, it will use Cloud Logging
   (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol.
   For example, `cli://manifest` will prefix all the manifest logs as '[manifest]'. In addition, users can specify 
-  either a BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`), or `noop://<name>` 
+  either a Firestore collection URI (`fs://<my-collection>?projectId=<my-project-id>`), or 
+  BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`), or `noop://<name>` 
   for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
@@ -57,8 +58,14 @@ _Common options_:
   will be interspersed evenly. Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a 
   much smaller number. Default: 'in-order'.
 
-> Note: In case of BigQuery manifest tool will create the BQ table itself, if not already present. 
-  Or it will use the existing table but can report errors in case of schema mismatch.
+> Note: 
+>  * In case of BigQuery manifest tool will create the BQ table itself, if not already present. 
+>    Or it will use the existing table but can report errors in case of schema mismatch.
+>  * To run complex queries on the Firestore manifest, users may find it helpful to replicate Firestore to BigQuery 
+>    using the automated process described in 
+>    [this article](https://medium.com/@ammppp/automated-firestore-replication-to-bigquery-15915d518e38). 
+>    By following the step-by-step instructions, users can easily set up the automated replication and then use BigQuery 
+>    to perform advanced analysis on the data.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
