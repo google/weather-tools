@@ -303,8 +303,9 @@ usage: weather-mv earthengine [-h] -i URIS --asset_location ASSET_LOCATION --ee_
                            [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
 ```
 
-The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
-users may specify command-specific options:
+The `earthengine` subcommand ingests weather data into Earth Engine. It includes a caching function that allows it to
+skip ingestion for assets that have already been created in Earth Engine or for which the asset file already exists in
+the GCS bucket. In addition to the common options above, users may specify command-specific options:
 
 _Command options_:
 
@@ -322,6 +323,7 @@ _Command options_:
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `-f, --force`: A flag that allows overwriting of existing asset files in the GCS bucket. Default: off.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
