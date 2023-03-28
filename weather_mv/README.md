@@ -323,7 +323,8 @@ _Command options_:
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
-* `-f, --force`: A flag that allows overwriting of existing asset files in the GCS bucket. Default: off.
+* `-f, --force`: A flag that allows overwriting of existing asset files in the GCS bucket. Default: off, which means
+  that the ingestion of URIs for which assets files (GeoTiff/CSV) already exist in the GCS bucket will be skipped.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
