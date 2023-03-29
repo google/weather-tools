@@ -255,7 +255,8 @@ class ToEarthEngine(ToDataSink):
                                help='To use personal account for earth engine authentication.')
         subparser.add_argument('-f', '--force', action='store_true', default=False,
                                help='A flag that allows overwriting of existing asset files in the GCS bucket.'
-                                    'Default: off')
+                                    ' Default: off, which means that the ingestion of URIs for which assets files'
+                                    ' (GeoTiff/CSV) already exist in the GCS bucket will be skipped.')
         subparser.add_argument('--service_account', type=str, default=None,
                                help='Service account address when using a private key for earth engine authentication.')
         subparser.add_argument('--private_key', type=str, default=None,
