@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import geojson
+import hashlib
 import itertools
 import logging
 import os
@@ -27,6 +28,7 @@ from apache_beam.io.gcp import gcsio
 from apache_beam.utils import retry
 from xarray.core.utils import ensure_us_time_resolution
 from urllib.parse import urlparse
+from google.api_core.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,9 @@ def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exceptio
     if isinstance(exception, socket.timeout):
         return True
     if isinstance(exception, TimeoutError):
+        return True
+    # To handle the concurrency issue in BigQuery.
+    if isinstance(exception, BadRequest):
         return True
     return retry.retry_if_valid_input_but_server_error_and_timeout_filter(exception)
 
@@ -155,3 +160,15 @@ def get_file_size(path: str) -> float:
         return os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
     else:
         return gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0
+
+
+def get_wait_interval(num_retries: int = 0) -> float:
+    """Returns next wait interval in seconds, using an exponential backoff algorithm."""
+    if 0 == num_retries:
+        return 0
+    return 2 ** num_retries
+
+
+def generate_md5_hash(input: str) -> str:
+    """Generates md5 hash for the input string."""
+    return hashlib.md5(input.encode('utf-8')).hexdigest()

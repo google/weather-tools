@@ -23,12 +23,25 @@ import logging
 import os
 import pandas as pd
 import threading
+import time
 import traceback
 import typing as t
+from urllib.parse import urlparse, parse_qsl
 
-from .util import to_json_serializable_type, fetch_geo_polygon, get_file_size
+from .util import (
+    to_json_serializable_type,
+    fetch_geo_polygon,
+    get_file_size,
+    get_wait_interval,
+    generate_md5_hash,
+    retry_with_exponential_backoff
+)
+
+import firebase_admin
+from firebase_admin import firestore
 from google.cloud import bigquery
-from urllib.parse import urlparse
+from google.cloud.firestore_v1 import DocumentReference
+from google.cloud.firestore_v1.types import WriteResult
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
@@ -103,7 +116,7 @@ class DownloadStatus():
     error: t.Optional[str] = ""
 
     """Identifier for the user running the download."""
-    user: str = ""
+    username: str = ""
 
     """Shard size in GB."""
     size: t.Optional[float] = 0
@@ -224,7 +237,7 @@ class Manifest(abc.ABC):
                 selection=selection,
                 location=location,
                 area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
-                user=user,
+                username=user,
                 stage=None,
                 status=Status.SCHEDULED,
                 error=None,
@@ -262,7 +275,7 @@ class Manifest(abc.ABC):
                     selection=selection,
                     location=location,
                     area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
-                    user=user,
+                    username=user,
                     stage=Stage.UPLOAD,
                     status=Status.SUCCESS,
                     error=None,
@@ -286,7 +299,7 @@ class Manifest(abc.ABC):
         self.status.config_name = config_name
         self.status.selection = selection
         self.status.location = location
-        self.status.user = user
+        self.status.username = user
 
     def __enter__(self) -> None:
         pass
@@ -456,7 +469,7 @@ class BQManifest(Manifest):
                                  description="Download status: 'scheduled', 'in-progress', 'success', or 'failure'."),
             bigquery.SchemaField('error', 'STRING', mode='NULLABLE',
                                  description="Cause of error, if any."),
-            bigquery.SchemaField('user', 'STRING', mode='REQUIRED',
+            bigquery.SchemaField('username', 'STRING', mode='REQUIRED',
                                  description="Identifier for the user running the download."),
             bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE',
                                  description="Shard size in GB."),
@@ -503,6 +516,10 @@ class BQManifest(Manifest):
                 row = {n: to_json_serializable_type(v) for n, v in records[0].items()}
             return DownloadStatus.from_dict(row)
 
+    # Added retry here to handle the concurrency issue in BigQuery.
+    # Eg: 400 Resources exceeded during query execution: Too many DML statements outstanding
+    # against table <table-name>, limit is 20
+    @retry_with_exponential_backoff
     def _update(self, download_status: DownloadStatus) -> None:
         """Writes the JSON data to a manifest."""
         with bigquery.Client() as client:
@@ -550,6 +567,109 @@ class BQManifest(Manifest):
             logger.debug(download_status)
 
 
+class FirestoreManifest(Manifest):
+    """A Firestore Manifest.
+    This Manifest implementation stores DownloadStatuses in a Firebase document store.
+    The document hierarchy for the manifest is as follows:
+      [manifest  <or manifest name, configurable from CLI>]
+      ├── doc_id (md5 hash of the path) { 'selection': {...}, 'location': ..., 'username': ... }
+      └── etc...
+    Where `[<name>]` indicates a collection and `<name> {...}` indicates a document.
+    """
+
+    def _get_db(self) -> firestore.firestore.Client:
+        """Acquire a firestore client, initializing the firebase app if necessary.
+        Will attempt to get the db client five times. If it's still unsuccessful, a
+        `ManifestException` will be raised.
+        """
+        db = None
+        attempts = 0
+
+        while db is None:
+            try:
+                db = firestore.client()
+            except ValueError as e:
+                # The above call will fail with a value error when the firebase app is not initialized.
+                # Initialize the app here, and try again.
+                firebase_admin.initialize_app(options=self.get_firestore_config())
+                logger.info('Initialized Firebase App.')
+
+                if attempts > 4:
+                    raise ManifestException('Exceeded number of retries to get firestore client.') from e
+
+            time.sleep(get_wait_interval(attempts))
+
+            attempts += 1
+
+        return db
+
+    def _read(self, location: str) -> DownloadStatus:
+        """Reads the JSON data from a manifest."""
+
+        doc_id = generate_md5_hash(location)
+
+        # Update document with download status
+        download_doc_ref = (
+            self.root_document_for_store(doc_id)
+        )
+
+        result = download_doc_ref.get()
+        row = {}
+        if result.exists:
+            records = result.to_dict()
+            row = {n: to_json_serializable_type(v) for n, v in records.items()}
+        return DownloadStatus.from_dict(row)
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        """Update or create a download status record."""
+        logger.debug('Updating Firestore Manifest.')
+
+        status = DownloadStatus.to_dict(download_status)
+        doc_id = generate_md5_hash(status['location'])
+
+        # Update document with download status
+        download_doc_ref = (
+            self.root_document_for_store(doc_id)
+        )
+
+        result: WriteResult = download_doc_ref.set(status)
+
+        logger.debug(f'Firestore manifest updated. '
+                     f'update_time={result.update_time}, '
+                     f'filename={download_status.location}.')
+
+    def root_document_for_store(self, store_scheme: str) -> DocumentReference:
+        """Get the root manifest document given the user's config and current document's storage location."""
+        # Get user-defined collection for manifest.
+        root_collection = self.get_firestore_config().get('collection', 'manifest')
+        return self._get_db().collection(root_collection).document(store_scheme)
+
+    def get_firestore_config(self) -> t.Dict:
+        """Parse firestore Location format: 'fs://<collection-name>?projectId=<project-id>'
+        Users must specify a 'projectId' query parameter in the firestore location. If this argument
+        isn't passed in, users must set the `GOOGLE_CLOUD_PROJECT` environment variable.
+        Users may specify options to `firebase_admin.initialize_app()` via query arguments in the URL.
+        For more information about what options are available, consult this documentation:
+        https://firebase.google.com/docs/reference/admin/python/firebase_admin#initialize_app
+            Note: each query key-value pair may only appear once. If there are duplicates, the last pair
+            will be used.
+        Optionally, users may configure these options via the `FIREBASE_CONFIG` environment variable,
+        which is typically a path/to/a/file.json.
+        Examples:
+            >>> location = Location("fs://my-collection?projectId=my-project-id&storageBucket=foo")
+            >>> FirestoreManifest(location).get_firestore_config()
+            {'collection': 'my-collection', 'projectId': 'my-project-id', 'storageBucket': 'foo'}
+        Raises:
+            ValueError: If query parameters are malformed.
+            AssertionError: If the 'projectId' query parameter is not set.
+        """
+        parsed = urlparse(self.location)
+        query_params = {}
+        if parsed.query:
+            query_params = dict(parse_qsl(parsed.query, strict_parsing=True))
+        return {'collection': parsed.netloc, **query_params}
+
+
 class MockManifest(Manifest):
     """In-memory mock manifest."""
 
@@ -588,6 +708,7 @@ If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse
 """
 MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
+    'fs': FirestoreManifest,
     'bq': BQManifest,
     '': LocalManifest,
 })
