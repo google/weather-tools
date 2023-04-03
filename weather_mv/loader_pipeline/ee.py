@@ -530,7 +530,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 if asset_data is None:
                     break
                 yield asset_data
-            
+
             # When convert-to-asset process terminates unexpectedly...
             if not process.is_alive():
                 logger.warning(f'Failed to convert {uri!r} to asset!')
