@@ -227,6 +227,7 @@ class ToEarthEngine(ToDataSink):
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
     use_personal_account: bool
+    force: bool
     service_account: str
     private_key: str
     ee_qps: int
@@ -520,18 +521,22 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
         queue = Queue(maxsize=1)
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
-        kill_subprocess = False
 
-        while not kill_subprocess:
+        while True:
             if not queue.empty():
                 asset_data = queue.get_nowait()
 
-                if asset_data is not None:
-                    yield asset_data
-                else:
-                    kill_subprocess = True
+                # Not needed now but keeping this check for backwards compatibility.
+                if asset_data is None:
+                    break
+                yield asset_data
 
-        process.kill()
+            # When the convert-to-asset process terminates unexpectedly...
+            if not process.is_alive():
+                logger.warning(f'Failed to convert {uri!r} to asset!')
+                break
+
+        process.terminate()
 
     def expand(self, pcoll):
         return pcoll | beam.FlatMap(self.process)
