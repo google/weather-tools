@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 LATITUDE_RANGE = (-90, 90)
 LONGITUDE_RANGE = (-180, 180)
+GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -134,9 +135,18 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
-def fetch_geo_polygon(area: list) -> str:
+def fetch_geo_polygon(area: t.Union[list, str]) -> str:
     """Calculates a geography polygon from an input area."""
-    n, w, s, e = area
+    # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=151520973
+    if isinstance(area, str):
+        if area == 'E':
+            area = [73.5, -27, 33, 45]
+        elif area == 'G':
+            area = GLOBAL_COVERAGE_AREA
+        else:
+            raise RuntimeError(f'Not a valid value for area in config: {area}.')
+
+    n, w, s, e = [int(x) for x in area]
     if s < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value for south: '{s}'")
     if n > LATITUDE_RANGE[1]:
