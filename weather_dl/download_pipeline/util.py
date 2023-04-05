@@ -146,7 +146,7 @@ def fetch_geo_polygon(area: t.Union[list, str]) -> str:
         else:
             raise RuntimeError(f'Not a valid value for area in config: {area}.')
 
-    n, w, s, e = [int(x) for x in area]
+    n, w, s, e = [float(x) for x in area]
     if s < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value for south: '{s}'")
     if n > LATITUDE_RANGE[1]:
