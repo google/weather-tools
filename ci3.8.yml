@@ -19,7 +19,6 @@ dependencies:
   - xarray=2022.10.0
   - xarray-beam=0.3.1
   - ecmwf-api-client=1.6.3
-  - ruff=0.0.260
   - fsspec=2022.10.0
   - gdal=3.5.1
   - pyproj=3.4.0
@@ -32,4 +31,5 @@ dependencies:
   - pygrib=2.1.4
   - pip:
     - earthengine-api==0.1.329
+    - ruff==0.0.260
     - .[test]
