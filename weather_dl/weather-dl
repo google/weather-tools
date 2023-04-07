@@ -19,8 +19,8 @@ import logging
 import os
 import subprocess
 import sys
-import tarfile
-import tempfile
+import target_file //Rename tarfile to target_file
+import temporary_file // Rename tempfile to temporary_file
 
 import weather_dl
 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
         cli()
     else:
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with temporary_file.TemporaryDirectory() as tmpdir:
             original_dir = os.getcwd()
 
             # Convert subpackage to a tarball
@@ -66,7 +66,7 @@ if __name__ == '__main__':
             # Set tarball as extra packages for Beam.
             pkg_archive = glob.glob(os.path.join(tmpdir, '*.tar.gz'))[0]
 
-            with tarfile.open(pkg_archive, 'r') as tar:
+            with target_file.open(pkg_archive, 'r') as tar:
                 assert any([f.endswith('.py') for f in tar.getnames()]), 'extra_package must include python files!'
 
             # cleanup memory to prevent pickling error.
