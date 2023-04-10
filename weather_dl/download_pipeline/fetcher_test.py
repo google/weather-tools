@@ -118,7 +118,7 @@ class FetchDataTest(unittest.TestCase):
             self.assertDictContainsSubset(dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
-                stage='retrieve',
+                stage='fetch',
                 status='failure',
                 username='unknown',
             ), actual)
@@ -156,7 +156,7 @@ class FetchDataTest(unittest.TestCase):
             self.assertDictContainsSubset(dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
-                stage='retrieve',
+                stage='fetch',
                 status='failure',
                 username='unknown',
             ), actual)

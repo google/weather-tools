@@ -22,11 +22,12 @@ import json
 import logging
 import os
 import subprocess
+import time
 import typing as t
 import warnings
 from urllib.parse import urljoin
 
-import cdsapi
+from cdsapi import api as cds_api
 import urllib3
 from ecmwfapi import api
 
@@ -73,6 +74,44 @@ class Client(abc.ABC):
         pass
 
 
+class CDSClientExtended(cds_api.Client):
+    """Extended CDS class that separates fetch and download stage."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @retry_with_exponential_backoff
+    def _download(self, url, path: str, size: int) -> None:
+        self.info("Downloading %s to %s (%s)", url, path, cds_api.bytes_to_string(size))
+        start = time.time()
+
+        dir_path, file_name = os.path.split(path)
+        try:
+            subprocess.run(
+                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
+                check=True,
+                capture_output=True)
+        except subprocess.CalledProcessError as e:
+            self.log(f'Failed download from CDS server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+
+        elapsed = time.time() - start
+        if elapsed:
+            self.info("Download rate %s/s", cds_api.bytes_to_string(size / elapsed))
+
+    def fetch(self, dataset, request: t.Dict) -> t.Dict:
+        result = self._api("%s/resources/%s" % (self.url, dataset), request, "POST")
+        return {'href': result.location, 'size': result.content_length}
+
+    def download(self, result: cds_api.Result, target: t.Optional[str] = None) -> None:
+        if target:
+            if os.path.exists(target):
+                # Empty the target file, if it already exists, otherwise the
+                # transfer below might be fooled into thinking we're resuming
+                # an interrupted download.
+                open(target, "w").close()
+
+            self._download(result["href"], target, result["size"])
+
+
 class CdsClient(Client):
     """A client to access weather data from the Cloud Data Store (CDS).
 
@@ -95,27 +134,33 @@ class CdsClient(Client):
     """Name patterns of datasets that are hosted internally on CDS servers."""
     cds_hosted_datasets = {'reanalysis-era'}
 
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
-        super().__init__(config, level)
-        self.c = cdsapi.Client(
-            url=config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
-            key=config.kwargs.get('api_key', os.environ.get('CDSAPI_KEY')),
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+        c = CDSClientExtended(
+            url=self.config.kwargs.get('api_url', os.environ.get('CDSAPI_URL')),
+            key=self.config.kwargs.get('api_key', os.environ.get('CDSAPI_KEY')),
             debug_callback=self.logger.debug,
             info_callback=self.logger.info,
             warning_callback=self.logger.warning,
             error_callback=self.logger.error,
         )
-
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         selection_ = optimize_selection_partition(selection)
-        manifest.set_stage(Stage.RETRIEVE)
-        precise_retrieve_start_time = (
-            datetime.datetime.utcnow()
-            .replace(tzinfo=datetime.timezone.utc)
-            .isoformat(timespec='seconds')
-        )
-        manifest.prev_stage_precise_start_time = precise_retrieve_start_time
-        self.c.retrieve(dataset, selection_, output)
+        with StdoutLogger(self.logger, level=logging.DEBUG):
+            manifest.set_stage(Stage.FETCH)
+            precise_fetch_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_fetch_start_time
+            result = c.fetch(dataset, selection_)
+            manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
+            c.download(result, target=output)
 
     @property
     def license_url(self):
