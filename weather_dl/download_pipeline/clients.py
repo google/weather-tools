@@ -91,14 +91,14 @@ class CDSClientExtended(cds_api.Client):
                 check=True,
                 capture_output=True)
         except subprocess.CalledProcessError as e:
-            self.log(f'Failed download from CDS server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+            self.info(f'Failed download from CDS server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
 
         elapsed = time.time() - start
         if elapsed:
             self.info("Download rate %s/s", cds_api.bytes_to_string(size / elapsed))
 
     def fetch(self, dataset, request: t.Dict) -> t.Dict:
-        result = self._api("%s/resources/%s" % (self.url, dataset), request, "POST")
+        result = self.retrieve(dataset, request)
         return {'href': result.location, 'size': result.content_length}
 
     def download(self, result: cds_api.Result, target: t.Optional[str] = None) -> None:
