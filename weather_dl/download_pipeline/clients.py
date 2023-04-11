@@ -269,7 +269,7 @@ class SplitMARSRequest(api.APIRequest):
 class SplitRequestMixin:
     c = None
 
-    def fetch(self, req: t.Dict, dataset: str = None) -> t.Dict:
+    def fetch(self, req: t.Dict, dataset: t.Optional[str] = None) -> t.Dict:
         return self.c.fetch(req, dataset)
 
     def download(self, res: t.Dict, target: str) -> None:
