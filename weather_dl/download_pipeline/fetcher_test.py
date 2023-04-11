@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -79,12 +80,13 @@ class FetchDataTest(unittest.TestCase):
             fetcher.fetch_data(config)
 
             self.assertDictContainsSubset(dict(
-                selection=config.selection,
+                selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
+                stage='upload',
                 status='success',
                 error=None,
-                user='unknown',
-            ), list(self.dummy_manifest.records.values())[0]._asdict())
+                username='unknown',
+            ), list(self.dummy_manifest.records.values())[0])
 
     @patch('cdsapi.Client.retrieve')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_retrieve):
@@ -111,13 +113,14 @@ class FetchDataTest(unittest.TestCase):
                 fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
                 fetcher.fetch_data(config)
 
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
+            actual = list(self.dummy_manifest.records.values())[0]
 
             self.assertDictContainsSubset(dict(
-                selection=config.selection,
+                selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
+                stage='retrieve',
                 status='failure',
-                user='unknown',
+                username='unknown',
             ), actual)
 
             self.assertIn(error.args[0], actual['error'])
@@ -148,12 +151,14 @@ class FetchDataTest(unittest.TestCase):
                 fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
                 fetcher.fetch_data(config)
 
-            actual = list(self.dummy_manifest.records.values())[0]._asdict()
+            actual = list(self.dummy_manifest.records.values())[0]
+
             self.assertDictContainsSubset(dict(
-                selection=config.selection,
+                selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
+                stage='retrieve',
                 status='failure',
-                user='unknown',
+                username='unknown',
             ), actual)
 
             self.assertIn(error.args[0], actual['error'])

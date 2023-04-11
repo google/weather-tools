@@ -42,14 +42,16 @@ def split_file(input_file: str,
                formatting: str,
                dry_run: bool,
                force_split: bool = False):
-    logger.info('Splitting file %s', input_file)
+    output_base_name = get_output_base_name(input_path=input_file,
+                                            input_base=input_base_dir,
+                                            output_template=output_template,
+                                            output_dir=output_dir,
+                                            formatting=formatting)
+    logger.info('Splitting file: %s. Output base name: %s',
+                input_file, output_base_name)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
     splitter = get_splitter(input_file,
-                            get_output_base_name(input_path=input_file,
-                                                 input_base=input_base_dir,
-                                                 output_template=output_template,
-                                                 output_dir=output_dir,
-                                                 formatting=formatting),
+                            output_base_name,
                             dry_run,
                             force_split)
     splitter.split_data()
@@ -122,10 +124,14 @@ def run(argv: t.List[str], save_main_session: bool = True):
     output_template = known_args.output_template
     output_dir = known_args.output_dir
     formatting = known_args.formatting
+    dry_run = known_args.dry_run
 
     if not output_template and not output_dir:
         raise ValueError('No output specified')
-    dry_run = known_args.dry_run
+
+    output_file_tmpl = os.path.basename(output_template)
+    if '[' in output_file_tmpl or ']' in output_file_tmpl or '[' in formatting or ']' in formatting:
+        raise ValueError('Tokens `[]` are disallowed in the file output.')
 
     logger.debug('input_pattern: %s', input_pattern)
     logger.debug('input_base_dir: %s', input_base_dir)

@@ -110,16 +110,23 @@ def pipeline(args: PipelineArgs) -> None:
                                 args.manifest,
                                 args.known_args.schedule,
                                 args.known_args.partition_chunks,
+                                args.known_args.update_manifest,
                                 len(subsections) * args.num_requesters_per_key)
 
     with beam.Pipeline(options=args.pipeline_options) as p:
-        (
+        partitions = (
                 p
                 | 'Create Configs' >> beam.Create(args.configs)
                 | 'Prepare Partitions' >> partition
+        )
+        # When the --update_manifest flag is passed, the tool will only update the manifest
+        # for already downloaded shards and then exit.
+        if not args.known_args.update_manifest:
+            (
+                partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
                 | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
-        )
+            )
 
 
 def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
@@ -141,8 +148,11 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Location of the manifest. By default, it will use Cloud Logging (stdout for direct "
                              "runner). You can set the name of the manifest as the hostname of a URL with the 'cli' "
                              "protocol. For example, 'cli://manifest' will prefix all the manifest logs as "
-                             "'[manifest]'. In addition, users can specify a GCS bucket URI, or 'noop://<name>' for an "
-                             "in-memory location.")
+                             "'[manifest]'. In addition, users can specify either a Firestore collection URI "
+                             "('fs://<my-collection>?projectId=<my-project-id>'), or BigQuery table "
+                             "('bq://<project-id>.<dataset-name>.<table-name>') [Note: Tool will create the BQ table "
+                             "itself, if not already present. Or it will use the existing table but can report errors "
+                             "in case of schema mismatch.], or 'noop://<name>' for an in-memory location.")
     parser.add_argument('-n', '--num-requests-per-key', type=int, default=-1,
                         help='Number of concurrent requests to make per API key. '
                              'Default: make an educated guess per client & config. '
@@ -158,6 +168,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                              "partitions from each config will be interspersed evenly. "
                              "Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a "
                              "much smaller number. Default: 'in-order'.")
+    parser.add_argument('--check-skip-in-dry-run', action='store_true', default=False,
+                        help="To enable file skipping logic in dry-run mode. Default: 'false'.")
+    parser.add_argument('-u', '--update-manifest', action='store_true', default=False,
+                        help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
@@ -166,13 +180,18 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     configs = []
     for cfg in known_args.config:
         with open(cfg, 'r', encoding='utf-8') as f:
-            config = process_config(f)
+            # configs/example.cfg -> example.cfg
+            config_name = os.path.split(cfg)[1]
+            config = process_config(f, config_name)
 
         config.force_download = known_args.force_download
         config.user_id = getpass.getuser()
         configs.append(config)
 
     validate_all_configs(configs)
+
+    if known_args.check_skip_in_dry_run and not known_args.dry_run:
+        raise RuntimeError('--check-skip-in-dry-run can only be used along with --dry-run flag.')
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
@@ -185,9 +204,13 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
 
     if known_args.dry_run:
         client_name = 'fake'
-        store = TempFileStore('dry_run')
-        for config in configs:
-            config.force_download = True
+        if not known_args.check_skip_in_dry_run:
+            store = TempFileStore('dry_run')
+            logger.warning('File skipping logic is disabled by default in dry-run mode.'
+                           'To enable please pass the flag --check-skip-in-dry-run along with the'
+                           'dry run flag.')
+            for config in configs:
+                config.force_download = True
         manifest = NoOpManifest(Location('noop://dry-run'))
 
     if known_args.local_run:

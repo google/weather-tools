@@ -16,11 +16,10 @@ import json
 import random
 import string
 import tempfile
-import time
 import typing as t
 import unittest
 
-from .manifest import LocalManifest, Location, DownloadStatus
+from .manifest import LocalManifest, Location, DownloadStatus, Status, Stage
 
 
 def rand_str(max_len=32):
@@ -31,12 +30,22 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
     return DownloadStatus(
         selection={},
         location=rand_str() if location is None else location,
-        status=random.choice(['scheduled', 'in-progress', 'success', 'failure']),
+        status=random.choice([Status.SCHEDULED, Status.IN_PROGRESS,
+                              Status.SUCCESS, Status.FAILURE]),
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
-        user=random.choice(['user', 'alice', 'bob', 'root']),
-        download_finished_time=random.choice([None] + [int(time.time())]),
-        download_scheduled_time=random.choice([None] + [int(time.time())]),
-        download_duration=random.choice([None] + [random.randint(2, 137 ** 4)])
+        username=random.choice(['user', 'alice', 'bob', 'root']),
+        stage=random.choice([Stage.FETCH, Stage.DOWNLOAD,
+                             Stage.UPLOAD, Stage.RETRIEVE, None]),
+        size=0.039322572,
+        scheduled_time="2023-02-07T17:15:26+00:00",
+        retrieve_start_time=None,
+        retrieve_end_time=None,
+        fetch_start_time="2023-02-07T17:15:29+00:00",
+        fetch_end_time="2023-02-07T17:21:37+00:00",
+        download_start_time="2023-02-07T17:21:39+00:00",
+        download_end_time="2023-02-07T17:21:56+00:00",
+        upload_start_time="2023-02-07T17:21:59+00:00",
+        upload_end_time="2023-02-07T17:22:03+00:00"
     )
 
 

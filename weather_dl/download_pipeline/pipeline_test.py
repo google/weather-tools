@@ -55,7 +55,9 @@ DEFAULT_ARGS = PipelineArgs(
                                   manifest_location='cli://manifest',
                                   num_requests_per_key=-1,
                                   partition_chunks=None,
-                                  schedule='in-order'),
+                                  schedule='in-order',
+                                  check_skip_in_dry_run=False,
+                                  update_manifest=False),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
     configs=[Config.from_dict(CONFIG)],
     client_name='cds',
@@ -78,6 +80,7 @@ def default_args(parameters: t.Optional[t.Dict] = None, selection: t.Optional[t.
     temp_config['parameters'].update(parameters)
     temp_config['selection'].update(selection)
     args.configs = [Config.from_dict(temp_config)]
+    args.configs[0].config_name = 'era5_example_config.cfg'
     args.configs[0].user_id = getpass.getuser()
     args.configs[0].force_download = parameters.get('force_download', False)
     args.known_args = copy.deepcopy(args.known_args)
@@ -104,7 +107,7 @@ class ParsePipelineArgs(unittest.TestCase):
         self.assertEqual(actual.num_requesters_per_key, expected.num_requesters_per_key)
 
     def test_happy_path(self):
-        self.assert_pipeline(self.DEFAULT_CMD, DEFAULT_ARGS)
+        self.assert_pipeline(self.DEFAULT_CMD, default_args())
 
     def test_force_download(self):
         self.assert_pipeline(
@@ -132,6 +135,12 @@ class ParsePipelineArgs(unittest.TestCase):
             )
         )
 
+    def test_update_manifest(self):
+        self.assert_pipeline(
+            f'{self.DEFAULT_CMD} -u',
+            default_args(known_args=dict(update_manifest=True))
+        )
+
     def test_user_specified_num_requests_per_key(self):
         self.assert_pipeline(
             f'{self.DEFAULT_CMD} -n 7',
@@ -139,6 +148,10 @@ class ParsePipelineArgs(unittest.TestCase):
                 known_args=dict(num_requests_per_key=7), num_requesters_per_key=7
             )
         )
+
+    def test_check_skip_in_dry_run_raise_error_if_dry_run_flag_is_absent(self):
+        with self.assertRaisesRegex(RuntimeError, 'can only be used along with --dry-run flag.'):
+            run(f'{self.DEFAULT_CMD} --check-skip-in-dry-run'.split())
 
 
 if __name__ == '__main__':

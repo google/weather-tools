@@ -16,6 +16,7 @@
 import abc
 import collections
 import contextlib
+import datetime
 import io
 import json
 import logging
@@ -27,9 +28,10 @@ from urllib.parse import urljoin
 
 import cdsapi
 import urllib3
-from ecmwfapi import ECMWFService, api
+from ecmwfapi import api
 
 from .config import Config, optimize_selection_partition
+from .manifest import Manifest, Stage
 from .util import retry_with_exponential_backoff
 
 warnings.simplefilter(
@@ -54,7 +56,7 @@ class Client(abc.ABC):
         self.logger.setLevel(level)
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         """Download from data source."""
         pass
 
@@ -104,9 +106,16 @@ class CdsClient(Client):
             error_callback=self.logger.error,
         )
 
-    def retrieve(self, dataset: str, selection: t.Dict, target: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
         selection_ = optimize_selection_partition(selection)
-        self.c.retrieve(dataset, selection_, target)
+        manifest.set_stage(Stage.RETRIEVE)
+        precise_retrieve_start_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+        manifest.prev_stage_precise_start_time = precise_retrieve_start_time
+        self.c.retrieve(dataset, selection_, output)
 
     @property
     def license_url(self):
@@ -212,7 +221,17 @@ class SplitMARSRequest(api.APIRequest):
         self.connection.cleanup()
 
 
-class MARSECMWFServiceExtended(ECMWFService):
+class SplitRequestMixin:
+    c = None
+
+    def fetch(self, req: t.Dict) -> t.Dict:
+        return self.c.fetch(req)
+
+    def download(self, res: t.Dict, target: str) -> None:
+        self.c.download(res, target)
+
+
+class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
     """Extended MARS ECMFService class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -226,11 +245,18 @@ class MARSECMWFServiceExtended(ECMWFService):
             quiet=self.quiet,
         )
 
-    def fetch(self, req: t.Dict) -> t.Dict:
-        return self.c.fetch(req)
 
-    def download(self, res: t.Dict, target: str) -> None:
-        self.c.download(res, target)
+class PublicECMWFServerExtended(api.ECMWFDataServer, SplitRequestMixin):
+    def __init__(self, *args, dataset='', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.c = SplitMARSRequest(
+            self.url,
+            "datasets/%s" % (dataset,),
+            email=self.email,
+            key=self.key,
+            log=self.log,
+            verbose=self.verbose,
+        )
 
 
 class MarsClient(Client):
@@ -252,12 +278,8 @@ class MarsClient(Client):
         config: A config that contains pipeline parameters, such as API keys.
         level: Default log level for the client.
     """
-
-    def __init__(self, config: Config, level: int = logging.INFO) -> None:
-        super().__init__(config, level)
-
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
-        self.c = MARSECMWFServiceExtended(
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+        c = MARSECMWFServiceExtended(
             "mars",
             key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
             url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
@@ -267,8 +289,22 @@ class MarsClient(Client):
         )
         selection_ = optimize_selection_partition(selection)
         with StdoutLogger(self.logger, level=logging.DEBUG):
-            result = self.c.fetch(req=selection_)
-            self.c.download(result, target=output)
+            manifest.set_stage(Stage.FETCH)
+            precise_fetch_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_fetch_start_time
+            result = c.fetch(req=selection_)
+            manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
+            c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -290,10 +326,59 @@ class MarsClient(Client):
         return 2
 
 
+class ECMWFPublicClient(Client):
+    """A client for ECMWF's public datasets, like TIGGE."""
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+        c = PublicECMWFServerExtended(
+            url=self.config.kwargs.get('api_url', os.environ.get("MARSAPI_URL")),
+            key=self.config.kwargs.get('api_key', os.environ.get("MARSAPI_KEY")),
+            email=self.config.kwargs.get('api_email', os.environ.get("MARSAPI_EMAIL")),
+            log=self.logger.debug,
+            verbose=True,
+            dataset=dataset,
+        )
+        selection_ = optimize_selection_partition(selection)
+        with StdoutLogger(self.logger, level=logging.DEBUG):
+            manifest.set_stage(Stage.FETCH)
+            precise_fetch_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_fetch_start_time
+            result = c.fetch(req=selection_)
+            manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
+            c.download(result, target=output)
+
+    @classmethod
+    def num_requests_per_key(cls, dataset: str) -> int:
+        # Experimentally validated request limit.
+        return 5
+
+    @property
+    def license_url(self):
+        if not self.config.dataset:
+            raise ValueError('must specify a dataset for this client!')
+        return f'https://apps.ecmwf.int/datasets/data/{self.config.dataset.lower()}/licence/'
+
+
 class FakeClient(Client):
     """A client that writes the selection arguments to the output file."""
 
-    def retrieve(self, dataset: str, selection: t.Dict, output: str) -> None:
+    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+        manifest.set_stage(Stage.RETRIEVE)
+        precise_retrieve_start_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec='seconds')
+        )
+        manifest.prev_stage_precise_start_time = precise_retrieve_start_time
         self.logger.debug(f'Downloading {dataset} to {output}')
         with open(output, 'w') as f:
             json.dump({dataset: selection}, f)
@@ -310,5 +395,6 @@ class FakeClient(Client):
 CLIENTS = collections.OrderedDict(
     cds=CdsClient,
     mars=MarsClient,
+    ecpublic=ECMWFPublicClient,
     fake=FakeClient,
 )

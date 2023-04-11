@@ -68,8 +68,10 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
         # Replace unaccepted characters with underscores.
         k = re.sub(r'[^a-zA-Z0-9-_]+', r'_', k)
 
-        if type(v) in [bool, list, dict]:
+        if type(v) not in [int, float]:
             v = str(v)
+            if len(v) > 1024:
+                v = f'{v[:1021]}...'  # Since 1 char = 1 byte.
 
         v = to_json_serializable_type(v)
         new_attrs[k] = v
@@ -77,6 +79,7 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
     return new_attrs
 
 
+# TODO(#245): Group with common utilities (duplicated)
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.

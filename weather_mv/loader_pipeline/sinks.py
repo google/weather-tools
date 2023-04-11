@@ -16,22 +16,23 @@ import abc
 import argparse
 import contextlib
 import dataclasses
+import datetime
+import inspect
 import logging
+import os
+import re
 import shutil
 import tempfile
 import typing as t
-import os
-from pyproj import Transformer
-import numpy as np
-import datetime
-import re
 
 import apache_beam as beam
+import cfgrib
+import numpy as np
 import rasterio
 import xarray as xr
-import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
+from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
@@ -42,17 +43,24 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+class KwargsFactoryMixin:
+    """Adds a factory method to classes or dataclasses for key-word args."""
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        if dataclasses.is_dataclass(cls):
+            fields = [f.name for f in dataclasses.fields(cls)]
+        else:
+            fields = inspect.signature(cls.__init__).parameters.keys()
+
+        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
+
+
 @dataclasses.dataclass
-class ToDataSink(abc.ABC, beam.PTransform):
+class ToDataSink(abc.ABC, beam.PTransform, KwargsFactoryMixin):
     first_uri: str
     dry_run: bool
     zarr: bool
     zarr_kwargs: t.Dict
-
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        fields = [f.name for f in dataclasses.fields(cls)]
-        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
 
     @classmethod
     @abc.abstractmethod
