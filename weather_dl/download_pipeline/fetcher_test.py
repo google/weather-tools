@@ -55,8 +55,8 @@ class FetchDataTest(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(tmpdir, 'download-01-12.nc')))
 
             mock_fetch.assert_called_with(
-                'reanalysis-era5-pressure-levels',
                 config.selection,
+                'reanalysis-era5-pressure-levels',
                 )
 
     @patch('weather_dl.download_pipeline.clients.CDSClientExtended.download')

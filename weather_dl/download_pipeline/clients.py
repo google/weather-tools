@@ -74,7 +74,7 @@ class Client(abc.ABC):
         pass
 
 
-class CDSClientExtended(cds_api.Client):
+class SplitCDSRequest(cds_api.Client):
     """Extended CDS class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,7 +97,7 @@ class CDSClientExtended(cds_api.Client):
         if elapsed:
             self.info("Download rate %s/s", cds_api.bytes_to_string(size / elapsed))
 
-    def fetch(self, dataset, request: t.Dict) -> t.Dict:
+    def fetch(self, request: t.Dict, dataset: str) -> t.Dict:
         result = self.retrieve(dataset, request)
         return {'href': result.location, 'size': result.content_length}
 
@@ -152,7 +152,7 @@ class CdsClient(Client):
                 .isoformat(timespec='seconds')
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
-            result = c.fetch(dataset, selection_)
+            result = c.fetch(selection_, dataset)
             manifest.set_stage(Stage.DOWNLOAD)
             precise_download_start_time = (
                 datetime.datetime.utcnow()
@@ -231,7 +231,7 @@ class SplitMARSRequest(api.APIRequest):
         except subprocess.CalledProcessError as e:
             self.log(f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
 
-    def fetch(self, request: t.Dict) -> t.Dict:
+    def fetch(self, request: t.Dict, dataset: str) -> t.Dict:
         status = None
 
         self.connection.submit("%s/%s/requests" % (self.url, self.service), request)
@@ -269,11 +269,17 @@ class SplitMARSRequest(api.APIRequest):
 class SplitRequestMixin:
     c = None
 
-    def fetch(self, req: t.Dict) -> t.Dict:
-        return self.c.fetch(req)
+    def fetch(self, req: t.Dict, dataset: str = None) -> t.Dict:
+        return self.c.fetch(req, dataset)
 
     def download(self, res: t.Dict, target: str) -> None:
         self.c.download(res, target)
+
+
+class CDSClientExtended(SplitRequestMixin):
+    """Extended CDS ECMFService class that separates fetch and download stage."""
+    def __init__(self, *args, **kwargs):
+        self.c = SplitCDSRequest(*args, **kwargs)
 
 
 class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
