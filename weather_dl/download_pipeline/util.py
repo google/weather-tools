@@ -139,8 +139,10 @@ def fetch_geo_polygon(area: t.Union[list, str]) -> str:
     """Calculates a geography polygon from an input area."""
     # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=151520973
     if isinstance(area, str):
+        # European area
         if area == 'E':
             area = [73.5, -27, 33, 45]
+        # Global area
         elif area == 'G':
             area = GLOBAL_COVERAGE_AREA
         else:
