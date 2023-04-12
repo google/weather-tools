@@ -21,7 +21,6 @@ import io
 import json
 import logging
 import os
-import subprocess
 import time
 import typing as t
 import warnings
@@ -33,7 +32,7 @@ from ecmwfapi import api
 
 from .config import Config, optimize_selection_partition
 from .manifest import Manifest, Stage
-from .util import retry_with_exponential_backoff
+from .util import download_with_aria2, retry_with_exponential_backoff
 
 warnings.simplefilter(
     "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
@@ -76,22 +75,12 @@ class Client(abc.ABC):
 
 class SplitCDSRequest(cds_api.Client):
     """Extended CDS class that separates fetch and download stage."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
         self.info("Downloading %s to %s (%s)", url, path, cds_api.bytes_to_string(size))
         start = time.time()
 
-        dir_path, file_name = os.path.split(path)
-        try:
-            subprocess.run(
-                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
-                check=True,
-                capture_output=True)
-        except subprocess.CalledProcessError as e:
-            self.info(f'Failed download from CDS server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        download_with_aria2(url, path)
 
         elapsed = time.time() - start
         if elapsed:
@@ -222,14 +211,7 @@ class SplitMARSRequest(api.APIRequest):
         )
         self.log("From %s" % (url,))
 
-        dir_path, file_name = os.path.split(path)
-        try:
-            subprocess.run(
-                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
-                check=True,
-                capture_output=True)
-        except subprocess.CalledProcessError as e:
-            self.log(f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        download_with_aria2(url, path)
 
     def fetch(self, request: t.Dict, dataset: str) -> t.Dict:
         status = None
@@ -277,7 +259,7 @@ class SplitRequestMixin:
 
 
 class CDSClientExtended(SplitRequestMixin):
-    """Extended CDS ECMFService class that separates fetch and download stage."""
+    """Extended CDS Client class that separates fetch and download stage."""
     def __init__(self, *args, **kwargs):
         self.c = SplitCDSRequest(*args, **kwargs)
 
