@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import typing as t
 
@@ -338,15 +339,27 @@ def __open_dataset_file(filename: str,
         False)
 
 
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gcloud alpha storage` or `gsutil`."""
+    errors = []
+    for cmd in ['gcloud alpha storage cp', 'gsutil cp']:
+        try:
+            subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True)
+            return
+        except subprocess.CalledProcessError as e:
+            errors.append(e)
+
+    msg = f'Failed to copy file {src!r} to {dst!r}'
+    logger.error(f'{msg} due to {errors[0].stderr.decode("utf-8")}')
+    raise EnvironmentError(msg, errors)
+
+
 @contextlib.contextmanager
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
-    with FileSystems().open(uri) as source_file:
-        with tempfile.NamedTemporaryFile() as dest_file:
-            shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
-            dest_file.flush()
-            dest_file.seek(0)
-            yield dest_file.name
+    with tempfile.NamedTemporaryFile() as dest_file:
+        copy(uri, dest_file.name)
+        yield dest_file.name
 
 
 @contextlib.contextmanager
