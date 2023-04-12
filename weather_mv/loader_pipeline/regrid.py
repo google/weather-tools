@@ -27,8 +27,6 @@ import apache_beam as beam
 import dask
 import xarray as xr
 import xarray_beam as xbeam
-from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
 from .sinks import ToDataSink, open_local, copy
 

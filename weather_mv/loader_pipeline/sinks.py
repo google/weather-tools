@@ -21,7 +21,6 @@ import inspect
 import logging
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 import typing as t
@@ -31,8 +30,6 @@ import cfgrib
 import numpy as np
 import rasterio
 import xarray as xr
-from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
 from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
