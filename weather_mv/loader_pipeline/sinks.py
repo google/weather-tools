@@ -340,7 +340,7 @@ def __open_dataset_file(filename: str,
 
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
-    errors = []
+    errors: t.List[subprocess.CalledProcessError] = []
     for cmd in ['gcloud alpha storage cp', 'gsutil cp']:
         try:
             subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True)
@@ -349,7 +349,8 @@ def copy(src: str, dst: str) -> None:
             errors.append(e)
 
     msg = f'Failed to copy file {src!r} to {dst!r}'
-    logger.error(f'{msg} due to {errors[0].stderr.decode("utf-8")}')
+    err_msgs = ', '.join(map(lambda err: repr(err.stderr.decode('utf-8')), errors))
+    logger.error(f'{msg} due to {err_msgs}.')
     raise EnvironmentError(msg, errors)
 
 
