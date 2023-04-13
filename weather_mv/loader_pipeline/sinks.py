@@ -181,8 +181,8 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
             end_time = match_datetime(uri, forecast_time_regex)
         except Exception:
             raise RuntimeError("Wrong regex passed in --forecast_time_regex.")
-        ds.attrs['start_time'] = start_time
-        ds.attrs['end_time'] = end_time
+        ds.attrs['start_time'] = _to_utc_timestring(start_time)
+        ds.attrs['end_time'] = _to_utc_timestring(end_time)
 
     # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
@@ -199,9 +199,11 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     return ds
 
 
-def _to_utc_timestring(np_time: np.datetime64) -> str:
+def _to_utc_timestring(time: t.Union[np.datetime64, datetime.datetime]) -> str:
     """Turn a numpy datetime64 into UTC timestring."""
-    timestamp = float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
+    if isinstance(time, datetime.datetime):
+        return time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    timestamp = float((time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
     return datetime.datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
