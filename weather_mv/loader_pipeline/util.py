@@ -69,6 +69,8 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
         k = re.sub(r'[^a-zA-Z0-9-_]+', r'_', k)
 
         if type(v) not in [int, float]:
+            if isinstance(v, bytes):
+                v = v.decode('utf-8')
             v = str(v)
             if len(v) > 1024:
                 v = f'{v[:1021]}...'  # Since 1 char = 1 byte.
