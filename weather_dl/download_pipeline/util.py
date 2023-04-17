@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 LATITUDE_RANGE = (-90, 90)
 LONGITUDE_RANGE = (-180, 180)
+GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -134,9 +135,20 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     return value
 
 
-def fetch_geo_polygon(area: list) -> str:
+def fetch_geo_polygon(area: t.Union[list, str]) -> str:
     """Calculates a geography polygon from an input area."""
-    n, w, s, e = area
+    # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=151520973
+    if isinstance(area, str):
+        # European area
+        if area == 'E':
+            area = [73.5, -27, 33, 45]
+        # Global area
+        elif area == 'G':
+            area = GLOBAL_COVERAGE_AREA
+        else:
+            raise RuntimeError(f'Not a valid value for area in config: {area}.')
+
+    n, w, s, e = [float(x) for x in area]
     if s < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value for south: '{s}'")
     if n > LATITUDE_RANGE[1]:
@@ -172,3 +184,17 @@ def get_wait_interval(num_retries: int = 0) -> float:
 def generate_md5_hash(input: str) -> str:
     """Generates md5 hash for the input string."""
     return hashlib.md5(input.encode('utf-8')).hexdigest()
+
+
+def download_with_aria2(url: str, path: str) -> None:
+    """Downloads a file from the given URL using the `aria2c` command-line utility,
+    with options set to improve download speed and reliability."""
+    dir_path, file_name = os.path.split(path)
+    try:
+        subprocess.run(
+            ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
+            check=True,
+            capture_output=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        raise

@@ -34,7 +34,8 @@ from .util import (
     get_file_size,
     get_wait_interval,
     generate_md5_hash,
-    retry_with_exponential_backoff
+    retry_with_exponential_backoff,
+    GLOBAL_COVERAGE_AREA
 )
 
 import firebase_admin
@@ -47,8 +48,6 @@ from google.cloud.firestore_v1.types import WriteResult
 Location = t.NewType('Location', str)
 
 logger = logging.getLogger(__name__)
-
-GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 
 class ManifestException(Exception):
