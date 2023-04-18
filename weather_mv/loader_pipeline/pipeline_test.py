@@ -99,6 +99,10 @@ class TestCLI(CLITests):
         _, pipeline_args = run(self.base_cli_args + '--topic projects/myproject/topics/my-topic'.split())
         self.assertEqual(pipeline_args, ['--streaming', 'true', '--save_main_session', 'true'])
 
+    def test_subscription_creates_a_streaming_pipeline(self):
+        _, pipeline_args = run(self.base_cli_args + '--subscription projects/myproject/topics/my-topic'.split())
+        self.assertEqual(pipeline_args, ['--streaming', 'true', '--save_main_session', 'true'])
+
     def test_accepts_json_string_for_xarray_open(self):
         xarray_kwargs = dict(engine='cfgrib', backend_kwargs={'filter_by_keys': {'edition': 1}})
         json_kwargs = json.dumps(xarray_kwargs)
@@ -125,6 +129,10 @@ class TestCLI(CLITests):
     def test_zarr_kwargs_must_come_with_zarr(self):
         with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
             run(self.base_cli_args + ['--zarr_kwargs', json.dumps({"time": 100})])
+
+    def test_topic_and_subscription__mutually_exclusive(self):
+        with self.assertRaisesRegex(ValueError, '`topic` or `subscription`'):
+            run(self.base_cli_args + '--topic foo --subscription bar'.split())
 
 
 class IntegrationTest(CLITests):
