@@ -42,7 +42,9 @@ _Common options_
 
 * `-i, --uris`: (required) URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'.
 * `--topic`: A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. E.g.
-  'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.
+  'projects/<PROJECT_ID>/topics/<TOPIC_ID>'. Cannot be used with `--subscription`.
+* `--subscription`: A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. Cannot be 
+  used with `--topic`.
 * `--window_size`: Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 minute.
 * `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic`
   flag. Default: 5 shards.
@@ -468,7 +470,7 @@ For a full list of how to configure the Dataflow pipeline, please review
 to [Pub/Sub events for objects added to GCS](https://cloud.google.com/storage/docs/pubsub-notifications). This can be
 used to automate ingestion into BigQuery as soon as weather data is disseminated. Another common use case it to
 automatically create a down-sampled version of a dataset with `regrid`. To set up the Weather Mover with streaming
-ingestion, use the `--topic` flag (see "Common options" above).
+ingestion, use the `--topic` or `--subscription` flag  (see "Common options" above).
 
 Objects that don't match the `--uris` glob pattern will be filtered out of ingestion. This way, a bucket can contain
 multiple types of data yet only have subsets processed with `weather-mv`.

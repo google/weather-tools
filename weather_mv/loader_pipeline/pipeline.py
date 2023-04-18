@@ -102,9 +102,10 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                            "a path to a Zarr.")
     base.add_argument('--topic', type=str,
                       help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
-                           "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
+                           "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'. Cannot be used with `--subscription`.")
     base.add_argument('--subscription', type=str,
-                      help='A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket.')
+                      help='A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. '
+                           'Cannot be used with `--topic`.')
     base.add_argument("--window_size", type=float, default=1.0,
                       help="Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 "
                            "minute.")
