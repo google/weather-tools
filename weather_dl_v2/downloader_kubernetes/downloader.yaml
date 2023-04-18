@@ -11,5 +11,16 @@ spec:
         image: XXXXXX
         imagePullPolicy: Always
         command: []
-      # restartPolicy: Never
-      restartPolicy: OnFailure # corrent one
+        resources:
+          requests:
+            cpu: "1000m"                  # CPU: 1 vCPU
+            memory: "2Gi"                 # RAM: 2 GiB
+            ephemeral-storage: "100Gi"    # Storage: 100 GiB
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      restartPolicy: OnFailure
+      volumes:
+      - name: data
+        emptyDir:
+          sizeLimit: 100Gi

@@ -11,4 +11,3 @@ dependencies:
     - numpy
     - apache-beam[gcp]
     - aiohttp
-    - redis

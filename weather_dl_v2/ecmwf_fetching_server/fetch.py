@@ -4,22 +4,20 @@ import asyncio
 import aiohttp
 import json
 import os
-import redis.asyncio as redis
+import typing as t
 
-from concurrent import futures
 from config import Config, optimize_selection_partition
 from parsers import prepare_target_name
-from google.cloud import pubsub_v1
+from job_creator import create_download_job
 
 API_URL = "https://api.ecmwf.int/v1/services/mars/requests"
-USE_REDIS = True
 
 sem = asyncio.Semaphore(2)
   
 logger = logging.getLogger(__name__)
 
 
-def build_header(config: Config) -> dict[str, str]:
+def build_header(config: Config) -> t.Dict[str, str]:
   """
   Reads the environment variable and create MARS specific header
   """
@@ -39,27 +37,8 @@ def build_header(config: Config) -> dict[str, str]:
     sys.exit()
 
 
-async def publish_on_redis(config, result):
-  r = redis.from_url("redis://<redis-master-service-ip>")
+def create_job(config, result):
   target = prepare_target_name(config)
-  res = {
-        'selection': config.selection,
-        'user_id': config.user_id,
-        'url': result['href'],
-        'target_path': target
-      }
-  data_str = json.dumps(res)
-  await r.publish("channel:1", data_str)
-
-  
-def publish_on_pub_sub(config, result):
-  target = prepare_target_name(config)
-
-  publisher = pubsub_v1.PublisherClient()
-  # The `topic_path` method creates a fully qualified identifier
-  # in the form `projects/{project_id}/topics/{topic_id}`
-  topic_path = "XXXXXXXXXX"
-
   res = {
           'selection': config.selection,
           'user_id': config.user_id,
@@ -67,14 +46,7 @@ def publish_on_pub_sub(config, result):
           'target_path': target
         }
   data_str = json.dumps(res)
-  print(data_str)
-  # Data must be a bytestring
-  data = data_str.encode("utf-8")
-  # When you publish a message, the client returns a future.
-  future = publisher.publish(topic_path, data)
-  print(f"Published message: {res} to {topic_path}.")
-  # Wait for the publish futures to resolve before exiting.
-  futures.wait([future], return_when=futures.ALL_COMPLETED)
+  create_download_job(data_str)
 
       
 async def check_status(name: str, session: aiohttp.ClientSession, headers: dict,
@@ -129,10 +101,7 @@ async def submit(partition: Config) -> None:
         
         task.cancel()
 
-        if USE_REDIS:
-          await publish_on_redis(partition, res)
-        else:
-          publish_on_pub_sub(partition, res)
+        create_job(partition, res)
 
 
 async def reader(partitions: list):

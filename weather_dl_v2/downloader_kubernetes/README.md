@@ -1,5 +1,14 @@
 # Deployment / Usage Instruction 
 
+* **User authorization required to set up the environment**:
+* roles/container.admin
+
+* **Authorization needed for the tool to operate**:
+We are not configuring any service account here hence make sure that compute engine default service account have roles:
+* roles/storage.admin
+* roles/bigquery.dataEditor
+* roles/bigquery.jobUser
+
 * **Install kubectl**:
 ```
 apt-get update
@@ -11,57 +20,16 @@ apt-get install -y kubectl
 ```
 export PROJECT_ID=<your-project-here>
 export REGION=<region> eg: us-central1
-export ZONE=<zone> eg: us-cental1-c
+export ZONE=<zone> eg: us-central1-c
 export CLUSTER_NAME=<cluster-name> eg: weather-dl-v2-cluster
 
-gcloud beta container --project $PROJECT_ID clusters create $CLUSTER_NAME --zone $ZONE --no-enable-basic-auth --cluster-version "1.24.7-gke.900" --release-channel "regular" --machine-type "e2-medium" --image-type "COS_CONTAINERD" --disk-type "pd-balanced" --disk-size "2000" --metadata disable-legacy-endpoints=true --scopes "https://www.googleapis.com/auth/cloud-platform" --max-pods-per-node "110" --num-nodes "3" --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM --enable-ip-alias --network "projects/$PROJECT_ID/global/networks/default" --subnetwork "projects/$PROJECT_ID/regions/$REGION/subnetworks/default" --no-enable-intra-node-visibility --default-max-pods-per-node "110" --enable-autoscaling --min-nodes "3" --max-nodes "100" --location-policy "BALANCED" --no-enable-master-authorized-networks --addons HorizontalPodAutoscaling,HttpLoadBalancing,GcePersistentDiskCsiDriver --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 --enable-shielded-nodes --node-locations $ZONE
+gcloud beta container --project $PROJECT_ID clusters create $CLUSTER_NAME --zone $ZONE --no-enable-basic-auth --cluster-version "1.24.9-gke.3200" --release-channel "regular" --machine-type "e2-standard-8" --image-type "COS_CONTAINERD" --disk-type "pd-balanced" --disk-size "1100" --metadata disable-legacy-endpoints=true --scopes "https://www.googleapis.com/auth/cloud-platform" --max-pods-per-node "16" --num-nodes "4" --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM --enable-ip-alias --network "projects/$PROJECT_ID/global/networks/default" --subnetwork "projects/$PROJECT_ID/regions/$REGION/subnetworks/default" --no-enable-intra-node-visibility --default-max-pods-per-node "16" --enable-autoscaling --min-nodes "4" --max-nodes "100" --location-policy "BALANCED" --no-enable-master-authorized-networks --addons HorizontalPodAutoscaling,HttpLoadBalancing,GcePersistentDiskCsiDriver --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 --enable-shielded-nodes --node-locations $ZONE --node-labels preemptible=false
 ```
 
 * **Connect to Cluster**:
 ```
 gcloud container clusters get-credentials $CLUSTER_NAME --zone $ZONE --project $PROJECT_ID
 ```
-
-* **Use of redis or pub-sub**:
-```
-Please note that by default we use redis as the queue b/w fetching & dowloading steps.
-But you can change it to make use of pub-sub by setting the value of constant USE_REDIS to False
-in subscriber.py & ecmwf_fetching_server/fetch.py
-```
-
-* **Write down the IP of created redis-master service (Required when using Redis implementation)**:
-```
-Please write down the IP of redis-master service for using redis at Line 31 of subscriber.py.
-Required when USE_REDIS is set to True.
-```
-> Note : You can get the IP of created redis-master service using `kubectl describe svc redis-master`.
-
-
-* **Deploying the Custom Metrics Adapter (Required when using pub-sub implementation)**:
-```
-kubectl create clusterrolebinding cluster-admin-binding \
-    --clusterrole cluster-admin --user "$(gcloud config get-value account)"
-    
-kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
-```
-
-* **Create a pub/sub topic (Required when using pub-sub implementation)**:
-```
-gcloud services enable cloudresourcemanager.googleapis.com pubsub.googleapis.com
-
-gcloud pubsub topics create weather-dl-v2
-
-gcloud pubsub subscriptions create weather-dl-v2-read --topic=weather-dl-v2
-```
-> Note: We are not configuring any service account here hence make sure that compute engine default service account has
-> role: "roles/pubsub.subscriber".
-
-* **Write the subscription path (Required when using pub-sub implementation)**:
-```
-Please write down the above created subscription path at Line 44 of subscriber.py.
-```
-> Note: You can get the subscription path using `gcloud pubsub subscriptions list`.
-> eg: projects/$PROJECT_ID/subscriptions/weather-dl-v2-read
 
 * **Write the manifest location path**
 ```
@@ -75,27 +43,12 @@ Eg: "fs://weather-dl-v2?projectId=XXX"
 ```
 export REPO=<repo> eg:weather-tools
 
-gcloud builds submit Dockerfile.downloader --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-downloader" --timeout=79200 --machine-type=e2-highcpu-32
+gcloud builds submit Dockerfile --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-downloader" --timeout=79200 --machine-type=e2-highcpu-32
 ```
 
 * **Add path of created downloader image in downloader.yaml**:
 ```
 Please write down the downloader's docker image path at Line 11 of downloader.yaml.
-```
-
-* **Create docker image for subscriber**:
-```
-gcloud builds submit Dockerfile.subscriber --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-subscriber" --timeout=79200 --machine-type=e2-highcpu-32
-```
-
-* **Add path of created subscriber image in subscriber.yaml**:
-```
-Please write down the subscriber's docker image path at Line 16 of subscriber.yaml.
-```
-
-* **Deploy subscriber code**:
-```
-kubectl apply -f subscriber.yaml --force
 ```
 
 ## General Commands

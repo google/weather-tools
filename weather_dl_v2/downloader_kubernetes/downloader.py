@@ -3,22 +3,14 @@
 This program downloads ECMWF data & upload it into GCS.
 """
 import tempfile
-import subprocess
 import os
 import sys
-from manifest import FirestoreManifest
+from manifest import FirestoreManifest, Stage
+from util import copy, download_with_aria2
+import datetime
 
 # [START gke_pubsub_pull]
 # [START container_pubsub_pull]
-def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil cp`."""
-    try:
-        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        print(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
-        raise
-
-
 def download(url: str, path: str) -> None:
     """Download data from client, with retries."""
     if path:
@@ -27,29 +19,36 @@ def download(url: str, path: str) -> None:
             # transfer below might be fooled into thinking we're resuming
             # an interrupted download.
             open(path, "w").close()
-        dir_path, file_name = os.path.split(path)
-        try:
-            subprocess.run(
-                ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
-                check=True,
-                capture_output=True)
-        except subprocess.CalledProcessError as e:
-            print(f'Failed download from ECMWF server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        download_with_aria2(url, path)
 
 
-def main(selection, user_id, url, target_path) -> None:
+def main(config_name, selection, user_id, url, target_path) -> None:
     """Download data from a client to a temp file."""
 
     manifest_location = "XXXXXXXXXX"
     manifest = FirestoreManifest(manifest_location)
     temp_name = ""
-    with manifest.transact(selection, target_path, user_id, 'download'):
+    with manifest.transact(config_name, selection, target_path, user_id):
         with tempfile.NamedTemporaryFile(delete=False) as temp:
             temp_name = temp.name
+            manifest.set_stage(Stage.DOWNLOAD)
+            precise_download_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_download_start_time
             print(f'Downloading data for {target_path!r}.')
             download(url, temp_name)
             print(f'Download completed for {target_path!r}.')
-    with manifest.transact(selection, target_path, user_id, 'upload'):
+
+            manifest.set_stage(Stage.UPLOAD)
+            precise_upload_start_time = (
+                datetime.datetime.utcnow()
+                .replace(tzinfo=datetime.timezone.utc)
+                .isoformat(timespec='seconds')
+            )
+            manifest.prev_stage_precise_start_time = precise_upload_start_time
             print(f'Uploading to store for {target_path!r}.')
             copy(temp_name, target_path)
             print(f'Upload to store complete for {target_path!r}.')
@@ -60,4 +59,4 @@ def main(selection, user_id, url, target_path) -> None:
 
 if __name__ == '__main__':
     temp_args = sys.argv
-    main(temp_args[1], temp_args[2], temp_args[3], temp_args[4])
+    main(temp_args[1], temp_args[2], temp_args[3], temp_args[4], temp_args[5])

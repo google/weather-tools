@@ -1,21 +1,5 @@
 # Deployment Instructions & General Notes
 
-* **Write down the IP of created redis-master service (Required when using Redis implementation)**:
-```
-Please write down the IP of redis-master service for using redis at Line 43 of fetch.py.
-Required when USE_REDIS is set to True.
-```
-> Note : You can get the IP of created redis-master service using `kubectl describe svc redis-master`.
-
-* **Write the topic path (Required when using pub-sub implementation)**
-```
-export PROJECT_ID=<your-project-here>
-
-Please write down the topic path in case of using pub-sub at Line 61 of fetch.py.
-```
-> Note: You can get the topic path using `gcloud pubsub topic list`.
-> eg: projects/$PROJECT_ID/topics/weather-dl-v2
-
 * **How to create environment:**
 ```
 conda env create --name weather-dl-v2-fetcher --file=environment.yml
