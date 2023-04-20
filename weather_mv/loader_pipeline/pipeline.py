@@ -53,13 +53,6 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     # First URI is useful to get an example data shard. It also can be a Zarr path.
     known_args.first_uri = next(iter(all_uris))
 
-    if known_args.topic or known_args.subscription:
-        if known_args.topic:
-            assert known_args.subscription is None, "When topic is provided, subscription must be None."
-        if known_args.subscription:
-            assert known_args.topic is None, "When subscription is provided, topic must be None."
-        beam.ReadFromPubSub(topic=known_args.topic, subscription=known_args.subscription)
-
     with beam.Pipeline(argv=pipeline_args) as p:
         if known_args.zarr:
             paths = p
