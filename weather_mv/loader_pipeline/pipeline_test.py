@@ -56,6 +56,7 @@ class CLITests(unittest.TestCase):
             'infer_schema': False,
             'num_shards': 5,
             'topic': None,
+            'subscription': None,
             'variables': [],
             'window_size': 1.0,
             'xarray_open_dataset_kwargs': {},
