@@ -81,7 +81,7 @@ jobs:
         id: pip-cache
         run: |
           python -m pip install --upgrade pip wheel
-          echo "::set-output name=dir::$(pip cache dir)"
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
       - name: Install linter
         run: |
           pip install flake8
@@ -117,7 +117,7 @@ jobs:
         id: pip-cache
         run: |
           python -m pip install --upgrade pip wheel
-          echo "::set-output name=dir::$(pip cache dir)"
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
       - name: Install weather-tools
         run: |
           pip install -e .[test] --use-deprecated=legacy-resolver
