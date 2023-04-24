@@ -56,12 +56,13 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     with beam.Pipeline(argv=pipeline_args) as p:
         if known_args.zarr:
             paths = p
-        elif known_args.topic:
+        elif known_args.topic or known_args.subscription:
+
             paths = (
                     p
                     # Windowing is based on this code sample:
                     # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
-                    | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(known_args.topic)
+                    | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(known_args.topic, known_args.subscription)
                     | 'WindowInto' >> GroupMessagesByFixedWindows(known_args.window_size, known_args.num_shards)
                     | 'ParsePaths' >> beam.ParDo(ParsePaths(known_args.uris))
             )
@@ -94,7 +95,10 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                            "a path to a Zarr.")
     base.add_argument('--topic', type=str,
                       help="A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. "
-                           "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.")
+                           "E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'. Cannot be used with `--subscription`.")
+    base.add_argument('--subscription', type=str,
+                      help='A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. '
+                           'Cannot be used with `--topic`.')
     base.add_argument("--window_size", type=float, default=1.0,
                       help="Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 "
                            "minute.")
@@ -146,8 +150,11 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
         ToEarthEngine.validate_arguments(known_args, pipeline_args)
 
-    # If a topic is used, then the pipeline must be a streaming pipeline.
-    if known_args.topic:
+    # If a Pub/Sub is used, then the pipeline must be a streaming pipeline.
+    if known_args.topic or known_args.subscription:
+        if known_args.topic and known_args.subscription:
+            raise ValueError('only one argument can be provided at a time: `topic` or `subscription`.')
+
         if known_args.zarr:
             raise ValueError('streaming updates to a Zarr file is not (yet) supported.')
 
