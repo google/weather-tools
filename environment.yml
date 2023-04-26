@@ -5,7 +5,7 @@ dependencies:
   - python=3.8.13
   - apache-beam=2.40.0
   - xarray-beam=0.3.1
-  - xarray=2022.11.0
+  - xarray=2023.1.0
   - fsspec=2022.11.0
   - gcsfs=2022.11.0
   - rioxarray=0.12.2

@@ -35,7 +35,7 @@ base_requirements = [
     "pygrib==2.1.4",
     "eccodes",
     "numpy>=1.20.3",
-    "xarray==2022.11.0",
+    "xarray==2023.1.0",
     "scipy==1.9.3",
 ]
 
