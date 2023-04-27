@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
-import unittest
 from functools import wraps
+import netCDF4 as nc
+import numpy as np
+import os
+import psutil
+import tempfile
+import unittest
 
 import weather_mv
 from .sinks import match_datetime, open_dataset
@@ -37,6 +42,28 @@ def _handle_missing_grib_be(f):
 
     return decorated
 
+def generate_dataset() -> str:
+    """Generates temporary netCDF file."""
+    with tempfile.NamedTemporaryFile(delete=False) as fp:
+        netcdf_file = nc.Dataset(fp.name, 'w', format='NETCDF4')
+        lat_dim = netcdf_file.createDimension('lat', 3210) # latitude axis
+        lon_dim = netcdf_file.createDimension('lon', 3440) # longitude axis
+        time_dim = netcdf_file.createDimension('time', 5)
+        
+        lat = netcdf_file.createVariable('lat', np.float32, ('lat',))
+        lon = netcdf_file.createVariable('lon', np.float32, ('lon',))
+
+        var_1 = netcdf_file.createVariable('var_1',np.float64,('time','lat','lon'), zlib=True) 
+        
+        ntimes = len(time_dim); nlats = len(lat_dim); nlons = len(lon_dim)
+        lat[:] = 0
+        lon[:] = 0 
+
+        data_arr = np.random.uniform(low=0,high=0.1,size=(ntimes,nlats,nlons))
+        var_1[:,:,:] = data_arr 
+       
+        netcdf_file.close(); 
+        return fp.name
 
 class OpenDatasetTest(TestDataBase):
 
@@ -67,7 +94,16 @@ class OpenDatasetTest(TestDataBase):
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
 
+    def test_open_dataset__fits_memory_bounds(self):
+        file_name = generate_dataset()
+        memory_before = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+        with open_dataset(file_name) as ds:
+            pass
+        memory_after = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+        os.unlink(file_name)
+        self.assertLessEqual((memory_after - memory_before), 30)
 
+    
 class DatetimeTest(unittest.TestCase):
 
     def test_datetime_regex_string(self):
