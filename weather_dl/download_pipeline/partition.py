@@ -151,7 +151,7 @@ def skip_partition(config: Config, store: Store, manifest: Manifest) -> bool:
     target = prepare_target_name(config)
     if store.exists(target):
         logger.info(f'file {target} found, skipping.')
-        manifest.skip(config.config_name, config.selection, target, config.user_id)
+        manifest.skip(config.config_name, config.dataset, config.selection, target, config.user_id)
         return True
 
     return False
@@ -233,7 +233,7 @@ def assemble_config(partition: Partition, manifest: Manifest) -> Config:
 
     location = prepare_target_name(out)
     user = out.user_id
-    manifest.schedule(out.config_name, out.selection, location, user)
+    manifest.schedule(out.config_name, out.dataset, out.selection, location, user)
 
     logger.info(f'[{name}] Created partition {location!r}.')
     beam.metrics.Metrics.counter('Subsection', name).inc()
