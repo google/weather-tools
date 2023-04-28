@@ -16,7 +16,6 @@ dependencies:
   - requests=2.28.1
   - netcdf4=1.6.1
   - rioxarray=0.12.2
-  - xarray=2023.1.0
   - xarray-beam=0.3.1
   - ecmwf-api-client=1.6.3
   - fsspec=2022.10.0
@@ -31,5 +30,6 @@ dependencies:
   - pygrib=2.1.4
   - pip:
     - earthengine-api==0.1.329
+    - xarray=2023.1.0
     - ruff==0.0.260
     - .[test]
