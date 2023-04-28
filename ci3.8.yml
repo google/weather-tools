@@ -30,6 +30,6 @@ dependencies:
   - pygrib=2.1.4
   - pip:
     - earthengine-api==0.1.329
-    - xarray=2023.1.0
+    - xarray==2023.1.0
     - ruff==0.0.260
     - .[test]
