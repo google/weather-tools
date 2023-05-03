@@ -277,6 +277,22 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
+    def test_extract_rows__specific_area_float_points(self):
+        actual = next(self.extract(self.test_data_path, area=[45.34, -103.45, 33.34, -92.87]))
+        expected = {
+            'd2m': 246.47116088867188,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 45.20000076293945,
+            'longitude': -103.4000015258789,
+            'time': '2018-01-02T06:00:00+00:00',
+            'u10': 3.94743275642395,
+            'v10': -0.19749987125396729,
+            'geo_point': geojson.dumps(geojson.Point((-103.400002, 45.200001))),
+        }
+        self.assertRowsEqual(actual, expected)
+
     def test_extract_rows__specify_import_time(self):
         now = datetime.datetime.utcnow().isoformat()
         actual = next(self.extract(self.test_data_path, import_time=now))
