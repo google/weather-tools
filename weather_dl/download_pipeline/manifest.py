@@ -96,6 +96,9 @@ class DownloadStatus():
     """The name of the config file associated with the request."""
     config_name: str = ""
 
+    """Represents the dataset field of the configuration."""
+    dataset: t.Optional[str] = ""
+
     """Copy of selection section of the configuration."""
     selection: t.Dict = dataclasses.field(default_factory=dict)
 
@@ -225,7 +228,7 @@ class Manifest(abc.ABC):
         """Initialize the manifest."""
         pass
 
-    def schedule(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
+    def schedule(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
         """Indicate that a job has been scheduled for download.
 
         'scheduled' jobs occur before 'in-progress', 'success' or 'finished'.
@@ -233,6 +236,7 @@ class Manifest(abc.ABC):
         scheduled_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat(timespec='seconds')
         self.status = DownloadStatus(
                 config_name=config_name,
+                dataset=dataset if dataset else None,
                 selection=selection,
                 location=location,
                 area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
@@ -253,7 +257,7 @@ class Manifest(abc.ABC):
             )
         self._update(self.status)
 
-    def skip(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
+    def skip(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
         """Updates the manifest to mark the shards that were skipped in the current job
         as 'upload' stage and 'success' status, indicating that they have already been downloaded.
         """
@@ -271,6 +275,7 @@ class Manifest(abc.ABC):
 
             status = DownloadStatus(
                     config_name=config_name,
+                    dataset=dataset if dataset else None,
                     selection=selection,
                     location=location,
                     area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
@@ -292,10 +297,11 @@ class Manifest(abc.ABC):
             self._update(status)
             logger.info(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
 
-    def _set_for_transaction(self, config_name: str, selection: t.Dict, location: str, user: str) -> None:
+    def _set_for_transaction(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
         self.status = dataclasses.replace(self._read(location))
         self.status.config_name = config_name
+        self.status.dataset = dataset if dataset else None
         self.status.selection = selection
         self.status.location = location
         self.status.username = user
@@ -343,9 +349,9 @@ class Manifest(abc.ABC):
 
         self._update(self.status)
 
-    def transact(self, config_name: str, selection: t.Dict, location: str, user: str) -> 'Manifest':
+    def transact(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> 'Manifest':
         """Create a download transaction."""
-        self._set_for_transaction(config_name, selection, location, user)
+        self._set_for_transaction(config_name, dataset, selection, location, user)
         return self
 
     def set_stage(self, stage: Stage) -> None:
@@ -451,6 +457,8 @@ class BQManifest(Manifest):
         TABLE_SCHEMA = [
             bigquery.SchemaField('config_name', 'STRING', mode='REQUIRED',
                                  description="The name of the config file associated with the request."),
+            bigquery.SchemaField('dataset', 'STRING', mode='NULLABLE',
+                                 description="Represents the dataset field of the configuration."),
             bigquery.SchemaField('selection', 'JSON', mode='REQUIRED',
                                  description="Copy of selection section of the configuration."),
             bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
