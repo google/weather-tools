@@ -36,6 +36,10 @@ ARG CONDA_ENV_NAME=weather-tools
 RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
 
+# Install gcloud alpha
+RUN apt-get update -y
+RUN gcloud components install alpha --quiet
+
 # Copy files from official SDK image, including script/dependencies.
 COPY --from=beam_sdk /opt/apache/beam /opt/apache/beam
 

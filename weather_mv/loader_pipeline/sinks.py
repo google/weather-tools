@@ -343,7 +343,7 @@ def copy(src: str, dst: str) -> None:
     errors: t.List[subprocess.CalledProcessError] = []
     for cmd in ['gcloud alpha storage cp', 'gsutil cp']:
         try:
-            subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True)
+            subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
             return
         except subprocess.CalledProcessError as e:
             errors.append(e)
