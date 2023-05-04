@@ -14,12 +14,14 @@
 import itertools
 import unittest
 from collections import Counter
+from datetime import datetime
 
 import xarray
 import xarray as xr
+import numpy as np
 
 from .sinks_test import TestDataBase
-from .util import get_coordinates, ichunked, make_attrs_ee_compatible
+from .util import get_coordinates, ichunked, make_attrs_ee_compatible, to_json_serializable_type
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -179,4 +181,89 @@ class MakeAttrsEeCompatibleTests(TestDataBase):
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
     # TODO(#106): Write tests...
-    pass
+    
+    def test_to_json_serializable_type_none(self):
+        attrs = None
+        
+        expected = None
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEquals(type(actual), type(expected))
+
+    def test_to_json_serializable_type_npfloat(self):
+        attrs = np.float32(1)
+        
+        expected = float(1)
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEquals(actual, expected)
+        self.assertEquals(type(actual), type(expected))
+
+    def test_to_json_serializable_type_ndarray(self):
+        attrs = np.arange(5)
+
+        expected = [0, 1, 2, 3, 4]
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEquals(actual, expected)
+        self.assertEquals(type(actual), type(expected))
+    
+    def test_to_json_serializable_type_datetime(self):
+        input_date = '2000-01-01T00:00:00+00:00'
+
+        attrs = datetime.fromisoformat(input_date) 
+
+        expected = input_date
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
+
+    def test_to_json_serializable_type_datetimestr(self):
+        input_date = '2000-01-01T00:00:00+00:00'
+
+        attrs = input_date
+
+        expected = input_date
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
+
+    def test_to_json_serializable_type_npdatetime(self):
+        input_date = '2000-01-01T00:00:00+00:00'
+
+        attrs = np.datetime64(input_date)
+
+        expected = input_date
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
+
+    def test_to_json_serializable_type_nptimedelta(self):
+        attrs = np.timedelta64(1, 'm') # timedelta of 1 minute.
+
+        expected = float(60) # seconds.
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
+    
+    def test_to_json_serializable_type_npinteger(self):
+        attrs = np.int32(1)
+        
+        expected = int(1)
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEquals(actual, expected)
+        self.assertEquals(type(actual), type(expected))
