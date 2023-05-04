@@ -50,13 +50,13 @@ def generate_dataset() -> str:
     lat = [0] * lat_dim
     lon = [0] * lon_dim
     data_arr = np.random.uniform(low=0, high=0.1, size=(5, lat_dim, lon_dim))
-    
+
     ds = xr.Dataset(
         {"var_1": (('time', 'lat', 'lon'), data_arr)},
         coords={
             "lat": lat,
             "lon": lon,
-        })   
+        })
     with tempfile.NamedTemporaryFile(delete=False) as fp:
         ds.to_netcdf(fp.name)
         return fp.name
