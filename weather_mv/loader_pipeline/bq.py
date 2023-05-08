@@ -87,7 +87,7 @@ class ToBigQuery(ToDataSink):
     """
     output_table: str
     variables: t.List[str]
-    area: t.Tuple[int, int, int, int]
+    area: t.List[float]
     import_time: t.Optional[datetime.datetime]
     infer_schema: bool
     xarray_open_dataset_kwargs: t.Dict
@@ -104,7 +104,7 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                                help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
                                     'all data variables as columns.')
-        subparser.add_argument('-a', '--area', metavar='area', type=int, nargs='+', default=list(),
+        subparser.add_argument('-a', '--area', metavar='area', type=float, nargs='+', default=list(),
                                help='Target area in [N, W, S, E]. Default: Will include all available area.')
         subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                                help=("When writing data to BigQuery, record that data import occurred at this "
@@ -270,7 +270,7 @@ def prepare_coordinates(
         uri: str, *,
         coordinate_chunk_size: int,
         variables: t.Optional[t.List[str]] = None,
-        area: t.Optional[t.List[int]] = None,
+        area: t.Optional[t.List[float]] = None,
         open_dataset_kwargs: t.Optional[t.Dict] = None,
         disable_grib_schema_normalization: bool = False,
         tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
