@@ -181,10 +181,10 @@ class MakeAttrsEeCompatibleTests(TestDataBase):
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
     # TODO(#106): Write tests...
-    
+
     def test_to_json_serializable_type_none(self):
         attrs = None
-        
+
         expected = None
 
         actual = to_json_serializable_type(attrs)
@@ -194,7 +194,7 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
     def test_to_json_serializable_type_npfloat(self):
         attrs = np.float32(1)
-        
+
         expected = float(1)
 
         actual = to_json_serializable_type(attrs)
@@ -211,11 +211,11 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
         self.assertEquals(actual, expected)
         self.assertEquals(type(actual), type(expected))
-    
+
     def test_to_json_serializable_type_datetime(self):
         input_date = '2000-01-01T00:00:00+00:00'
 
-        attrs = datetime.fromisoformat(input_date) 
+        attrs = datetime.fromisoformat(input_date)
 
         expected = input_date
 
@@ -249,18 +249,18 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(type(actual), type(expected))
 
     def test_to_json_serializable_type_nptimedelta(self):
-        attrs = np.timedelta64(1, 'm') # timedelta of 1 minute.
+        attrs = np.timedelta64(1, 'm')  # timedelta of 1 minute.
 
-        expected = float(60) # seconds.
+        expected = float(60)  # seconds.
 
         actual = to_json_serializable_type(attrs)
 
         self.assertEqual(actual, expected)
         self.assertEqual(type(actual), type(expected))
-    
+
     def test_to_json_serializable_type_npinteger(self):
         attrs = np.int32(1)
-        
+
         expected = int(1)
 
         actual = to_json_serializable_type(attrs)
