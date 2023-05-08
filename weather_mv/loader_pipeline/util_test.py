@@ -190,7 +190,7 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         actual = to_json_serializable_type(attrs)
 
         self.assertEqual(actual, expected)
-        self.assertEquals(type(actual), type(expected))
+        self.assertEqual(type(actual), type(expected))
 
     def test_to_json_serializable_type_npfloat(self):
         attrs = np.float32(1)
@@ -199,8 +199,8 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
         actual = to_json_serializable_type(attrs)
 
-        self.assertEquals(actual, expected)
-        self.assertEquals(type(actual), type(expected))
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
 
     def test_to_json_serializable_type_ndarray(self):
         attrs = np.arange(5)
@@ -209,8 +209,8 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
         actual = to_json_serializable_type(attrs)
 
-        self.assertEquals(actual, expected)
-        self.assertEquals(type(actual), type(expected))
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
 
     def test_to_json_serializable_type_datetime(self):
         input_date = '2000-01-01T00:00:00+00:00'
@@ -265,5 +265,5 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 
         actual = to_json_serializable_type(attrs)
 
-        self.assertEquals(actual, expected)
-        self.assertEquals(type(actual), type(expected))
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
