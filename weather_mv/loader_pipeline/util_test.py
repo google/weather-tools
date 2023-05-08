@@ -180,7 +180,6 @@ class MakeAttrsEeCompatibleTests(TestDataBase):
 
 
 class ToJsonSerializableTypeTests(unittest.TestCase):
-    # TODO(#106): Write tests...
 
     def test_to_json_serializable_type_none(self):
         attrs = None
