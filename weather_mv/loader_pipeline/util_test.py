@@ -22,9 +22,9 @@ import numpy as np
 
 from .sinks_test import TestDataBase
 from .util import (
-    get_coordinates, 
-    ichunked, 
-    make_attrs_ee_compatible, 
+    get_coordinates,
+    ichunked,
+    make_attrs_ee_compatible,
     to_json_serializable_type,
 )
 
@@ -210,6 +210,16 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         attrs = np.arange(5)
 
         expected = [0, 1, 2, 3, 4]
+
+        actual = to_json_serializable_type(attrs)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(type(actual), type(expected))
+
+    def test_to_json_serializable_type_ndarray_sizeone(self):
+        attrs = np.arange(1)
+
+        expected = [0]
 
         actual = to_json_serializable_type(attrs)
 
