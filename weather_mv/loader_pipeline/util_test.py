@@ -21,7 +21,12 @@ import xarray as xr
 import numpy as np
 
 from .sinks_test import TestDataBase
-from .util import get_coordinates, ichunked, make_attrs_ee_compatible, to_json_serializable_type
+from .util import (
+    get_coordinates, 
+    ichunked, 
+    make_attrs_ee_compatible, 
+    to_json_serializable_type,
+)
 
 
 class GetCoordinatesTest(TestDataBase):

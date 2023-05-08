@@ -92,7 +92,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return float(value)
     elif type(value) == np.ndarray:
         # Will return a scaler if array is of size 1, else will return a list.
-        # Replace all NaNs, NaTs with None
+        # Replace all NaNs, NaTs with None.
         return np.where(pd.isna(value), None, value).tolist()
     elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
         # Assume strings are ISO format timestamps...
