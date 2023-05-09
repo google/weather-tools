@@ -86,11 +86,11 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     logger.debug('Serializing to JSON')
 
     # pd.isna() returns ndarray if input is not scalar therefore checking if not ndarray.
-    if type(value) != np.ndarray and (pd.isna(value) or value is None):
+    if (np.isscalar(value) and pd.isna(value)) or value is None:
         return None
     elif np.issubdtype(type(value), np.floating):
         return float(value)
-    elif type(value) == np.ndarray:
+    elif isinstance(value, np.ndarray):
         # Will return a scaler if array is of size 1, else will return a list.
         # Replace all NaNs, NaTs with None.
         return np.where(pd.isna(value), None, value).tolist()
