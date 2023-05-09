@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import datetime
 from functools import wraps
 import numpy as np
-import os
-import psutil
 import tempfile
+import tracemalloc
 import unittest
 import xarray as xr
 
@@ -43,12 +43,27 @@ def _handle_missing_grib_be(f):
     return decorated
 
 
-def generate_dataset() -> str:
+@contextlib.contextmanager
+def limit_memory(max_memory=30):
+    ''''Measure memory consumption of the function.
+        'memory limit' in MB
+    '''
+    try:
+        tracemalloc.start()
+        yield
+    finally:
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        assert peak / 1024 ** 2 <= max_memory, f"Memory usage {peak / 1024 ** 2} exceeded {max_memory} MB limit."
+
+
+@contextlib.contextmanager
+def write_netcdf():
     """Generates temporary netCDF file using xarray."""
     lat_dim = 3210
     lon_dim = 3440
-    lat = [0] * lat_dim
-    lon = [0] * lon_dim
+    lat = np.linspace(-90, 90, lat_dim)
+    lon = np.linspace(-180, 180, lon_dim)
     data_arr = np.random.uniform(low=0, high=0.1, size=(5, lat_dim, lon_dim))
 
     ds = xr.Dataset(
@@ -57,9 +72,9 @@ def generate_dataset() -> str:
             "lat": lat,
             "lon": lon,
         })
-    with tempfile.NamedTemporaryFile(delete=False) as fp:
+    with tempfile.NamedTemporaryFile() as fp:
         ds.to_netcdf(fp.name)
-        return fp.name
+        yield fp.name
 
 
 class OpenDatasetTest(TestDataBase):
@@ -92,13 +107,10 @@ class OpenDatasetTest(TestDataBase):
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
 
     def test_open_dataset__fits_memory_bounds(self):
-        file_name = generate_dataset()
-        memory_before = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
-        with open_dataset(file_name) as _:
-            pass
-        memory_after = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
-        os.unlink(file_name)
-        self.assertLessEqual((memory_after - memory_before), 30)
+        with write_netcdf() as test_netcdf_path:
+            with limit_memory(max_memory=30):
+                with open_dataset(test_netcdf_path) as _:
+                    pass
 
 
 class DatetimeTest(unittest.TestCase):
