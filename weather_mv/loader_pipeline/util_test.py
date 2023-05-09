@@ -215,6 +215,13 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(self._convert(np.int64(-10_000)), -10_000)
         self.assertEqual(self._convert(np.uint16(25)), 25)
 
+    def test_to_json_serializable_type_set(self):
+        self.assertEqual(self._convert(set({})), [])
+        self.assertEqual(self._convert(set({1, 2, 3})), [1, 2, 3])
+        self.assertEqual(self._convert(set({1})), [1])
+        self.assertEqual(self._convert(set({None})), [None])
+        self.assertEqual(self._convert(set({float('NaN')})), [None])
+
     def test_to_json_serializable_type_ndarray(self):
         self.assertIsInstance(self._convert(np.array(list(range(10)))), list)
         self.assertEqual(self._convert(np.array(list(range(10)))), list(range(10)))
