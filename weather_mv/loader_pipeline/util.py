@@ -85,7 +85,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     # Note: The order of processing is significant.
     logger.debug('Serializing to JSON')
 
-    # pd.isna() returns ndarray if input is not scalar therefore checking if not ndarray.
+    # pd.isna() returns ndarray if input is not scalar therefore checking if value is scalar.
     if (np.isscalar(value) and pd.isna(value)) or value is None:
         return None
     elif np.issubdtype(type(value), np.floating):
