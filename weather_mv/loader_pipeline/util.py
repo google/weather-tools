@@ -41,7 +41,6 @@ from xarray.core.utils import ensure_us_time_resolution
 from .sinks import DEFAULT_COORD_KEYS
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
 CANARY_RECORD = {'foo': 'bar'}

@@ -113,6 +113,8 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                            'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
                       help='Preview the weather-mv job. Default: off')
+    base.add_argument('-l', '--log-level', type=int, default=2,
+                      help='An integer to configure log level. Default: 2(INFO)')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
@@ -133,7 +135,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     # Validate Zarr arguments
     if known_args.uris.endswith('.zarr'):
