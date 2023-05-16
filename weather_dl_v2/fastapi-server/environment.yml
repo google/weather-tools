@@ -1,0 +1,15 @@
+name: weather-dl-v2-server
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - xarray
+  - geojson
+  - pip=22.3
+  - pip:
+    - fastapi[all]
+    - python-multipart
+    - numpy
+    - apache-beam[gcp]
+    - aiohttp
+    - firebase-admin
