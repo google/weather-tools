@@ -421,6 +421,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
                           forecast_time_regex=self.forecast_time_regex) as ds_list:
+            if type(ds_list) is not list:
+                ds_list = [ds_list]
 
             for ds in ds_list:
                 attrs = ds.attrs

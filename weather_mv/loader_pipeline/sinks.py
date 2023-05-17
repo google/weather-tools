@@ -386,7 +386,7 @@ def open_dataset(uri: str,
                  group_common_hypercubes: t.Optional[bool] = False,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
-                 forecast_time_regex: t.Optional[str] = None) -> t.Iterator[t.List[xr.Dataset]]:
+                 forecast_time_regex: t.Optional[str] = None) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:
@@ -420,14 +420,12 @@ def open_dataset(uri: str,
                 else:
                     xr_dataset = xr_datasets
 
-                xr_datasets = []
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
-                xr_datasets.append(xr_dataset)
 
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
-            yield xr_datasets
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
+            yield xr_datasets if group_common_hypercubes else xr_dataset
 
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
