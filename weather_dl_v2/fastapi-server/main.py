@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from routers import license, download, license_priority
+from routers import license, download, queues
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,7 +15,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.include_router(license.router)
 app.include_router(download.router)
-app.include_router(license_priority.router)
+app.include_router(queues.router)
 
 @app.get("/")
 async def main():
