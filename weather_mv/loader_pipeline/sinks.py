@@ -257,7 +257,7 @@ def __normalize_grib_dataset(filename: str,
                 attrs['level'] = level  # Adding the level in the metadata, will remove in further steps.
                 attrs['is_normalized'] = True  # Adding the 'is_normalized' attribute in the metadata.
 
-            if not (level in _level_data_dict):
+            if level not in _level_data_dict:
                 _level_data_dict[level] = []
 
             no_of_levels = da.shape[0] if _is_3d_da(da) else 1
@@ -412,7 +412,7 @@ def open_dataset(uri: str,
                  group_common_hypercubes: t.Optional[bool] = False,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
-                 forecast_time_regex: t.Optional[str] = None) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
+                 forecast_time_regex: t.Optional[str] = None) -> t.Iterator[t.Union[xr.Dataset, t.List[xr.Dataset]]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         with open_local(uri) as local_path:

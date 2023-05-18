@@ -336,4 +336,4 @@ def extract_rows(uri: str,
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
             #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
             beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-            yield 
+            yield
