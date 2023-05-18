@@ -148,7 +148,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Location of the manifest. By default, it will use Cloud Logging (stdout for direct "
                              "runner). You can set the name of the manifest as the hostname of a URL with the 'cli' "
                              "protocol. For example, 'cli://manifest' will prefix all the manifest logs as "
-                             "'[manifest]'. In addition, users can specify either a BigQuery table "
+                             "'[manifest]'. In addition, users can specify either a Firestore collection URI "
+                             "('fs://<my-collection>?projectId=<my-project-id>'), or BigQuery table "
                              "('bq://<project-id>.<dataset-name>.<table-name>') [Note: Tool will create the BQ table "
                              "itself, if not already present. Or it will use the existing table but can report errors "
                              "in case of schema mismatch.], or 'noop://<name>' for an in-memory location.")
@@ -187,7 +188,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         config.user_id = getpass.getuser()
         configs.append(config)
 
-    validate_all_configs(configs)
+    # This enables support for updating just the manifest for multiple config (*.cfg)
+    # when running the tool with the '-u' or '--update-manifest' flag.
+    if not known_args.update_manifest:
+        validate_all_configs(configs)
 
     if known_args.check_skip_in_dry_run and not known_args.dry_run:
         raise RuntimeError('--check-skip-in-dry-run can only be used along with --dry-run flag.')

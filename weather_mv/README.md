@@ -42,7 +42,9 @@ _Common options_
 
 * `-i, --uris`: (required) URI glob pattern matching input weather data, e.g. 'gs://ecmwf/era5/era5-2015-*.gb'.
 * `--topic`: A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. E.g.
-  'projects/<PROJECT_ID>/topics/<TOPIC_ID>'.
+  'projects/<PROJECT_ID>/topics/<TOPIC_ID>'. Cannot be used with `--subscription`.
+* `--subscription`: A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. Cannot be 
+  used with `--topic`.
 * `--window_size`: Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 minute.
 * `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic`
   flag. Default: 5 shards.
@@ -303,8 +305,9 @@ usage: weather-mv earthengine [-h] -i URIS --asset_location ASSET_LOCATION --ee_
                            [--ee_qps EE_QPS] [--ee_latency EE_LATENCY] [--ee_max_concurrent EE_MAX_CONCURRENT]
 ```
 
-The `earthengine` subcommand ingests weather data into Earth Engine. In addition to the common options above,
-users may specify command-specific options:
+The `earthengine` subcommand ingests weather data into Earth Engine. It includes a caching function that allows it to
+skip ingestion for assets that have already been created in Earth Engine or for which the asset file already exists in
+the GCS bucket. In addition to the common options above, users may specify command-specific options:
 
 _Command options_:
 
@@ -322,6 +325,8 @@ _Command options_:
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `-f, --force`: A flag that allows overwriting of existing asset files in the GCS bucket. Default: off, which means
+  that the ingestion of URIs for which assets files (GeoTiff/CSV) already exist in the GCS bucket will be skipped.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
 * `--ee_latency`: The expected latency per requests, in seconds. Default: 0.5.
 * `--ee_max_concurrent`: Maximum concurrent api requests to EE allowed for your project. Default: 10.
@@ -465,7 +470,7 @@ For a full list of how to configure the Dataflow pipeline, please review
 to [Pub/Sub events for objects added to GCS](https://cloud.google.com/storage/docs/pubsub-notifications). This can be
 used to automate ingestion into BigQuery as soon as weather data is disseminated. Another common use case it to
 automatically create a down-sampled version of a dataset with `regrid`. To set up the Weather Mover with streaming
-ingestion, use the `--topic` flag (see "Common options" above).
+ingestion, use the `--topic` or `--subscription` flag  (see "Common options" above).
 
 Objects that don't match the `--uris` glob pattern will be filtered out of ingestion. This way, a bucket can contain
 multiple types of data yet only have subsets processed with `weather-mv`.

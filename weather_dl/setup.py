@@ -36,10 +36,11 @@ base_requirements = [
     "ecmwf-api-client==1.6.3",
     "numpy>=1.19.1",
     "pandas==1.5.1",
-    "xarray==2022.11.0",
+    "xarray==2023.1.0",
     "requests>=2.24.0",
     "urllib3==1.26.5",
     "google-cloud-firestore==2.6.0",
+    "firebase-admin==6.0.1",
     # "gcloud" should already be installed in the host image.
     # If we install it here, we'll hit auth issues.
 ]
@@ -47,7 +48,7 @@ base_requirements = [
 setup(
     name='download_pipeline',
     packages=find_packages(),
-    version='0.1.14',
+    version='0.1.18',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',

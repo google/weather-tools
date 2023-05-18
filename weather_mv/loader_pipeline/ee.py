@@ -48,6 +48,10 @@ INITIAL_DELAY = 1.0  # Initial delay in seconds.
 MAX_DELAY = 600  # Maximum delay before giving up in seconds.
 NUM_RETRIES = 10  # Number of tries with exponential backoff.
 TASK_QUEUE_WAIT_TIME = 120  # Task queue wait time in seconds.
+ASSET_TYPE_TO_EXTENSION_MAPPING = {
+    'IMAGE': '.tiff',
+    'TABLE': '.csv'
+}
 
 
 def is_compute_engine() -> bool:
@@ -223,6 +227,7 @@ class ToEarthEngine(ToDataSink):
     disable_grib_schema_normalization: bool
     skip_region_validation: bool
     use_personal_account: bool
+    force: bool
     service_account: str
     private_key: str
     ee_qps: int
@@ -250,6 +255,10 @@ class ToEarthEngine(ToDataSink):
                                help='Skip validation of regions for data migration. Default: off')
         subparser.add_argument('-u', '--use_personal_account', action='store_true', default=False,
                                help='To use personal account for earth engine authentication.')
+        subparser.add_argument('-f', '--force', action='store_true', default=False,
+                               help='A flag that allows overwriting of existing asset files in the GCS bucket.'
+                                    ' Default: off, which means that the ingestion of URIs for which assets files'
+                                    ' (GeoTiff/CSV) already exist in the GCS bucket will be skipped.')
         subparser.add_argument('--service_account', type=str, default=None,
                                help='Service account address when using a private key for earth engine authentication.')
         subparser.add_argument('--private_key', type=str, default=None,
@@ -347,16 +356,20 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
+        force: A flag that allows overwriting of existing asset files in the GCS bucket.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
         service_account: Service account address when using a private key for earth engine authentication.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
     """
 
     def __init__(self,
+                 asset_location: str,
                  ee_asset: str,
+                 ee_asset_type: str,
                  ee_qps: int,
                  ee_latency: float,
                  ee_max_concurrent: int,
+                 force: bool,
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool):
@@ -367,13 +380,23 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
                          private_key=private_key,
                          service_account=service_account,
                          use_personal_account=use_personal_account)
+        self.asset_location = asset_location
         self.ee_asset = ee_asset
+        self.ee_asset_type = ee_asset_type
+        self.force_overwrite = force
 
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
         self.check_setup()
-
         asset_name = get_ee_safe_name(uri)
+
+        # Checks if the asset is already present in the GCS bucket or not.
+        target_path = os.path.join(
+            self.asset_location, f'{asset_name}{ASSET_TYPE_TO_EXTENSION_MAPPING[self.ee_asset_type]}')
+        if not self.force_overwrite and FileSystems.exists(target_path):
+            logger.info(f'Asset file {target_path} already exists in GCS bucket. Skipping...')
+            return
+
         asset_id = os.path.join(self.ee_asset, asset_name)
         try:
             ee.data.getAsset(asset_id)
@@ -512,18 +535,22 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
         queue = Queue(maxsize=1)
         process = Process(target=self.convert_to_asset, args=(queue, uri))
         process.start()
-        kill_subprocess = False
 
-        while not kill_subprocess:
+        while True:
             if not queue.empty():
                 asset_data = queue.get_nowait()
 
-                if asset_data is not None:
-                    yield asset_data
-                else:
-                    kill_subprocess = True
+                # Not needed now but keeping this check for backwards compatibility.
+                if asset_data is None:
+                    break
+                yield asset_data
 
-        process.kill()
+            # When the convert-to-asset process terminates unexpectedly...
+            if not process.is_alive():
+                logger.warning(f'Failed to convert {uri!r} to asset!')
+                break
+
+        process.terminate()
 
     def expand(self, pcoll):
         return pcoll | beam.FlatMap(self.process)

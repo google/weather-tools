@@ -84,9 +84,9 @@ jobs:
           echo "::set-output name=dir::$(pip cache dir)"
       - name: Install linter
         run: |
-          pip install flake8
+          pip install ruff
       - name: Lint project
-        run: flake8
+        run: ruff check .
   type-check:
     runs-on: ubuntu-latest
     strategy:
