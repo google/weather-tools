@@ -9,7 +9,6 @@ import typing as t
 from apache_beam.io.filesystems import FileSystems
 
 
-
 class Store(abc.ABC):
     """A interface to represent where downloads are stored.
 

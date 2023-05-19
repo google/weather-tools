@@ -6,6 +6,7 @@ from routers import license, download, queues
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Boot up
+    # TODO: Replace hard-coded collection name by read a server config.
     print("Create database if not already exists.")
     print("Retrieve license information & create license deployment if needed.")
     yield

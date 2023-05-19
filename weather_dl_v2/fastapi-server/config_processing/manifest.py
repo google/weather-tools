@@ -1,19 +1,14 @@
 """Client interface for connecting to a manifest."""
 
 import abc
-import collections
 import dataclasses
 import datetime
 import enum
 import json
-import logging
-import os
 import pandas as pd
-import threading
 import time
 import traceback
 import typing as t
-from urllib.parse import urlparse, parse_qsl
 
 from .util import (
     to_json_serializable_type,
@@ -21,20 +16,19 @@ from .util import (
     get_file_size,
     get_wait_interval,
     generate_md5_hash,
-    retry_with_exponential_backoff,
     GLOBAL_COVERAGE_AREA
 )
 
 import firebase_admin
+from firebase_admin import credentials
 from firebase_admin import firestore
-from google.cloud import bigquery
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
+from db_service.database import Database
+
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
-
-logger = logging.getLogger(__name__)
 
 
 class ManifestException(Exception):
@@ -200,11 +194,9 @@ class Manifest(abc.ABC):
         ```
 
     Attributes:
-        location: An implementation-specific manifest URI.
         status: The current `DownloadStatus` of the Manifest.
     """
 
-    location: Location
     # To reduce the impact of _read() and _update() calls
     # on the start time of the stage.
     prev_stage_precise_start_time: t.Optional[str] = None
@@ -282,7 +274,7 @@ class Manifest(abc.ABC):
                     upload_end_time=current_utc_time,
                 )
             self._update(status)
-            logger.info(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
+            print(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
 
     def _set_for_transaction(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
@@ -382,186 +374,7 @@ class Manifest(abc.ABC):
         pass
 
 
-class ConsoleManifest(Manifest):
-
-    def __post_init__(self):
-        self.name = urlparse(self.location).hostname
-
-    def _read(self, location: str) -> DownloadStatus:
-        return DownloadStatus()
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        logger.info(f'[{self.name}] {DownloadStatus.to_dict(download_status)!r}')
-
-
-class LocalManifest(Manifest):
-    """Writes a JSON representation of the manifest to local file."""
-
-    _lock = threading.Lock()
-
-    def __init__(self, location: Location) -> None:
-        super().__init__(Location(os.path.join(location, 'manifest.json')))
-        if location and not os.path.exists(location):
-            os.makedirs(location)
-
-        # If the file is empty, it should start out as an empty JSON object.
-        if not os.path.exists(self.location) or os.path.getsize(self.location) == 0:
-            with open(self.location, 'w') as file:
-                json.dump({}, file)
-
-    def _read(self, location: str) -> DownloadStatus:
-        """Reads the JSON data from a manifest."""
-        assert os.path.exists(self.location), f'{self.location} must exist!'
-        with LocalManifest._lock:
-            with open(self.location, 'r') as file:
-                manifest = json.load(file)
-                return DownloadStatus.from_dict(manifest.get(location, {}))
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        """Writes the JSON data to a manifest."""
-        assert os.path.exists(self.location), f'{self.location} must exist!'
-        with LocalManifest._lock:
-            with open(self.location, 'r') as file:
-                manifest = json.load(file)
-
-            status = DownloadStatus.to_dict(download_status)
-            manifest[status['location']] = status
-
-            with open(self.location, 'w') as file:
-                json.dump(manifest, file)
-                logger.debug('Manifest written to.')
-                logger.debug(download_status)
-
-
-class BQManifest(Manifest):
-    """Writes a JSON representation of the manifest to BQ file.
-
-    This is an append-only implementation, the latest value in the manifest
-    represents the current state of a download.
-    """
-    def __init__(self, location: Location) -> None:
-        super().__init__(Location(location[5:]))
-        TABLE_SCHEMA = [
-            bigquery.SchemaField('config_name', 'STRING', mode='REQUIRED',
-                                 description="The name of the config file associated with the request."),
-            bigquery.SchemaField('dataset', 'STRING', mode='NULLABLE',
-                                 description="Represents the dataset field of the configuration."),
-            bigquery.SchemaField('selection', 'JSON', mode='REQUIRED',
-                                 description="Copy of selection section of the configuration."),
-            bigquery.SchemaField('location', 'STRING', mode='REQUIRED',
-                                 description="Location of the downloaded data."),
-            bigquery.SchemaField('area', 'STRING', mode='NULLABLE',
-                                 description="Represents area covered by the shard. "
-                                 "ST_GeogFromGeoJson(area): To convert a GeoJSON geometry object into a "
-                                 "GEOGRAPHY value. "
-                                 "ST_COVERS(geography_expression, ST_GEOGPOINT(longitude, latitude)): To check "
-                                 "if a point lies in the given area or not."),
-            bigquery.SchemaField('stage', 'STRING', mode='NULLABLE',
-                                 description="Current stage of request : 'fetch', 'download', 'retrieve', 'upload' "
-                                 "or None."),
-            bigquery.SchemaField('status', 'STRING', mode='REQUIRED',
-                                 description="Download status: 'scheduled', 'in-progress', 'success', or 'failure'."),
-            bigquery.SchemaField('error', 'STRING', mode='NULLABLE',
-                                 description="Cause of error, if any."),
-            bigquery.SchemaField('username', 'STRING', mode='REQUIRED',
-                                 description="Identifier for the user running the download."),
-            bigquery.SchemaField('size', 'FLOAT', mode='NULLABLE',
-                                 description="Shard size in GB."),
-            bigquery.SchemaField('scheduled_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when download was scheduled."),
-            bigquery.SchemaField('retrieve_start_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the retrieve stage starts."),
-            bigquery.SchemaField('retrieve_end_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the retrieve state ends."),
-            bigquery.SchemaField('fetch_start_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the fetch state starts."),
-            bigquery.SchemaField('fetch_end_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the fetch state ends."),
-            bigquery.SchemaField('download_start_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the download state starts."),
-            bigquery.SchemaField('download_end_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the download state ends."),
-            bigquery.SchemaField('upload_start_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the upload state starts."),
-            bigquery.SchemaField('upload_end_time', 'TIMESTAMP', mode='NULLABLE',
-                                 description="A UTC datetime when the upload state ends."),
-        ]
-        table = bigquery.Table(self.location, schema=TABLE_SCHEMA)
-        with bigquery.Client() as client:
-            client.create_table(table, exists_ok=True)
-
-    def _read(self, location: str) -> DownloadStatus:
-        """Reads the JSON data from a manifest."""
-        with bigquery.Client() as client:
-            select_statement = f"SELECT * FROM {self.location} WHERE location = @location"
-
-            # Build the QueryJobConfig object with the parameters.
-            job_config = bigquery.QueryJobConfig()
-            job_config.query_parameters = [bigquery.ScalarQueryParameter('location', 'STRING', location)]
-
-            # Execute the merge statement with the parameters.
-            query_job = client.query(select_statement, job_config=job_config)
-
-            # Wait for the query to execute.
-            result = query_job.result()
-            row = {}
-            if result.total_rows > 0:
-                records = result.to_dataframe().to_dict('records')
-                row = {n: to_json_serializable_type(v) for n, v in records[0].items()}
-            return DownloadStatus.from_dict(row)
-
-    # Added retry here to handle the concurrency issue in BigQuery.
-    # Eg: 400 Resources exceeded during query execution: Too many DML statements outstanding
-    # against table <table-name>, limit is 20
-    @retry_with_exponential_backoff
-    def _update(self, download_status: DownloadStatus) -> None:
-        """Writes the JSON data to a manifest."""
-        with bigquery.Client() as client:
-            status = DownloadStatus.to_dict(download_status)
-            table = client.get_table(self.location)
-            columns = [field.name for field in table.schema]
-            parameter_type_mapping = {field.name: field.field_type for field in table.schema}
-
-            update_dml = [f"{col} = @{col}" for col in columns]
-            insert_dml = [f"@{col}" for col in columns]
-            params = {col: status[col] for col in columns}
-
-            # Build the merge statement as a string with parameter placeholders.
-            merge_statement = f"""
-                MERGE {self.location} T
-                USING (
-                SELECT
-                    @location as location
-                ) S
-                ON T.location = S.location
-                WHEN MATCHED THEN
-                UPDATE SET
-                    {', '.join(update_dml)}
-                WHEN NOT MATCHED THEN
-                INSERT
-                    ({", ".join(columns)})
-                VALUES
-                    ({', '.join(insert_dml)})
-            """
-
-            logger.debug(merge_statement)
-
-            # Build the QueryJobConfig object with the parameters.
-            job_config = bigquery.QueryJobConfig()
-            job_config.query_parameters = [bigquery.ScalarQueryParameter(col, parameter_type_mapping[col], value)
-                                           for col, value in params.items()]
-
-            # Execute the merge statement with the parameters.
-            query_job = client.query(merge_statement, job_config=job_config)
-
-            # Wait for the query to execute.
-            query_job.result()
-
-            logger.debug('Manifest written to.')
-            logger.debug(download_status)
-
-
-class FirestoreManifest(Manifest):
+class FirestoreManifest(Manifest, Database):
     """A Firestore Manifest.
     This Manifest implementation stores DownloadStatuses in a Firebase document store.
     The document hierarchy for the manifest is as follows:
@@ -585,8 +398,11 @@ class FirestoreManifest(Manifest):
             except ValueError as e:
                 # The above call will fail with a value error when the firebase app is not initialized.
                 # Initialize the app here, and try again.
-                firebase_admin.initialize_app(options=self.get_firestore_config())
-                logger.info('Initialized Firebase App.')
+                # Use the application default credentials.
+                cred = credentials.ApplicationDefault()
+
+                firebase_admin.initialize_app(cred)
+                print('Initialized Firebase App.')
 
                 if attempts > 4:
                     raise ManifestException('Exceeded number of retries to get firestore client.') from e
@@ -616,7 +432,7 @@ class FirestoreManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Update or create a download status record."""
-        logger.debug('Updating Firestore Manifest.')
+        print('Updating Firestore Manifest.')
 
         status = DownloadStatus.to_dict(download_status)
         doc_id = generate_md5_hash(status['location'])
@@ -628,87 +444,13 @@ class FirestoreManifest(Manifest):
 
         result: WriteResult = download_doc_ref.set(status)
 
-        logger.debug(f'Firestore manifest updated. '
+        print(f'Firestore manifest updated. '
                      f'update_time={result.update_time}, '
                      f'filename={download_status.location}.')
 
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""
         # Get user-defined collection for manifest.
-        root_collection = self.get_firestore_config().get('collection', 'manifest')
+        root_collection = 'test_manifest'
         return self._get_db().collection(root_collection).document(store_scheme)
 
-    def get_firestore_config(self) -> t.Dict:
-        """Parse firestore Location format: 'fs://<collection-name>?projectId=<project-id>'
-        Users must specify a 'projectId' query parameter in the firestore location. If this argument
-        isn't passed in, users must set the `GOOGLE_CLOUD_PROJECT` environment variable.
-        Users may specify options to `firebase_admin.initialize_app()` via query arguments in the URL.
-        For more information about what options are available, consult this documentation:
-        https://firebase.google.com/docs/reference/admin/python/firebase_admin#initialize_app
-            Note: each query key-value pair may only appear once. If there are duplicates, the last pair
-            will be used.
-        Optionally, users may configure these options via the `FIREBASE_CONFIG` environment variable,
-        which is typically a path/to/a/file.json.
-        Examples:
-            >>> location = Location("fs://my-collection?projectId=my-project-id&storageBucket=foo")
-            >>> FirestoreManifest(location).get_firestore_config()
-            {'collection': 'my-collection', 'projectId': 'my-project-id', 'storageBucket': 'foo'}
-        Raises:
-            ValueError: If query parameters are malformed.
-            AssertionError: If the 'projectId' query parameter is not set.
-        """
-        parsed = urlparse(self.location)
-        query_params = {}
-        if parsed.query:
-            query_params = dict(parse_qsl(parsed.query, strict_parsing=True))
-        return {'collection': parsed.netloc, **query_params}
-
-
-class MockManifest(Manifest):
-    """In-memory mock manifest."""
-
-    def __init__(self, location: Location) -> None:
-        super().__init__(location)
-        self.records = {}
-
-    def _read(self, location: str) -> DownloadStatus:
-        manifest = self.records
-        return DownloadStatus.from_dict(manifest.get(location, {}))
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        status = DownloadStatus.to_dict(download_status)
-        self.records.update({status.get('location'): status})
-        logger.debug('Manifest updated.')
-        logger.debug(download_status)
-
-
-class NoOpManifest(Manifest):
-    """A manifest that performs no operations."""
-
-    def _read(self, location: str) -> DownloadStatus:
-        return DownloadStatus()
-
-    def _update(self, download_status: DownloadStatus) -> None:
-        pass
-
-
-"""Exposed manifest implementations.
-
-Users can choose their preferred manifest implementation by via the protocol of the Manifest Location.
-The protocol corresponds to the keys of this ordered dictionary.
-
-If no protocol is specified, we assume the user wants to write to the local file system.
-If no key is found, the `NoOpManifest` option will be chosen. See `parsers:parse_manifest_location`.
-"""
-MANIFESTS = collections.OrderedDict({
-    'cli': ConsoleManifest,
-    'fs': FirestoreManifest,
-    'bq': BQManifest,
-    '': LocalManifest,
-})
-
-if __name__ == '__main__':
-    # Execute doc tests
-    import doctest
-
-    doctest.testmod()

@@ -12,7 +12,8 @@ class Database(abc.ABC):
     @abc.abstractmethod
     def _get_db(self):
         pass
-    
+
+class CRUDOperations(abc.ABC):
     @abc.abstractmethod
     def _start_download(self, config_name: str, client_name: str) -> None:
         pass
@@ -96,7 +97,7 @@ class Database(abc.ABC):
 
     
 
-class FirestoreClient(Database):
+class FirestoreClient(Database, CRUDOperations):
     def _get_db(self) -> firestore.firestore.Client:
         """Acquire a firestore client, initializing the firebase app if necessary.
         Will attempt to get the db client five times. If it's still unsuccessful, a

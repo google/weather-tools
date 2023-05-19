@@ -9,9 +9,7 @@ db_client = FirestoreClient()
     
 def start_processing_config(config_file, licenses):
     config = {}
-    # TODO: Make use of db_service instead of FirestoreManifest.
-    manifest_location = "XXXXXXXXX"
-    manifest = FirestoreManifest(manifest_location)
+    manifest = FirestoreManifest()
 
     with open(config_file, 'r', encoding='utf-8') as f:
         # configs/example.cfg -> example.cfg
