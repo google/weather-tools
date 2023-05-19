@@ -22,6 +22,11 @@ export REPO=<repo> eg:weather-tools
 gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-server" --timeout=79200 --machine-type=e2-highcpu-32
 ```
 
+* **Add path of created server image in server.yaml**:
+```
+Please write down the fetcher's docker image path at Line 42 of server.yaml.
+```
+
 * **Deploy fastapi server on kubernetes:**
 ```
 kubectl apply -f server.yaml --force

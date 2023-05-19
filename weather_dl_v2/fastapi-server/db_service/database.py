@@ -129,7 +129,7 @@ class FirestoreClient(Database):
 
     def _start_download(self, config_name: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('download').document(config_name).set(
-            {'client_name': client_name}
+            {'config_name': config_name, 'client_name': client_name}
             )
 
         print(f"Added {config_name} in 'download' collection. Update_time: {result.update_time}.")
@@ -163,7 +163,7 @@ class FirestoreClient(Database):
     
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license_id).set(
-            {"client_name": client_name,"queue": []}
+            {"license_id": license_id, "client_name": client_name,"queue": []}
         )
         print(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
     
@@ -223,7 +223,6 @@ class FirestoreClient(Database):
 
     # def _get_dowloads(self) -> list:
     #     pass
-
 
     def _update_queues_on_start_download(self, config_name: str, licenses: list) -> None:
         for license in licenses:            
