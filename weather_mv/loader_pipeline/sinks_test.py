@@ -19,6 +19,7 @@ import numpy as np
 import tempfile
 import tracemalloc
 import xarray as xr
+import unittest
 
 import weather_mv
 from .sinks import match_datetime, open_dataset

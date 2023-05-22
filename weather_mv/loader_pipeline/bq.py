@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import typing as t
-import warnings
 from pprint import pformat
 
 import apache_beam as beam
