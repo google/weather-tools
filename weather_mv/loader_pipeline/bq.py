@@ -149,12 +149,6 @@ class ToBigQuery(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
-        if known_args.zarr:
-            # Encourage use of correct output_path format.
-            _, out_ext = os.path.splitext(known_args.output_path)
-            if out_ext not in ['', '.zarr']:
-                warnings.warn('if input is a Zarr, the output_path must also be a Zarr.', RuntimeWarning)
-
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,

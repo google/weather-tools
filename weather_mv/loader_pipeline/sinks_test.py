@@ -18,7 +18,6 @@ from functools import wraps
 import numpy as np
 import tempfile
 import tracemalloc
-import unittest
 import xarray as xr
 
 import weather_mv
