@@ -84,6 +84,7 @@ class OpenDatasetTest(TestDataBase):
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         self.test_tif_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+        self.test_grib_multi_level_path = f'{self.test_data_folder}/test_data_grib_multiple_levels.grib2'
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
@@ -111,6 +112,12 @@ class OpenDatasetTest(TestDataBase):
             with limit_memory(max_memory=30):
                 with open_dataset(test_netcdf_path) as _:
                     pass
+
+    def test_group_common_hypercubes(self):
+        with open_dataset(self.test_grib_multi_level_path,
+                          group_common_hypercubes=True) as ds:
+            error_msg = "open_dataset did not return a list."
+            self.assertIsInstance(ds, list, error_msg)
 
 
 class DatetimeTest(unittest.TestCase):
