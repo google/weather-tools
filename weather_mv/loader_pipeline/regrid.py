@@ -27,10 +27,8 @@ import apache_beam as beam
 import dask
 import xarray as xr
 import xarray_beam as xbeam
-from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 
-from .sinks import ToDataSink, open_local
+from .sinks import ToDataSink, open_local, copy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -240,16 +238,15 @@ class Regrid(ToDataSink):
             return
 
         with _metview_op():
-            logger.debug(f'Copying grib from {uri!r} to local disk.')
+            logger.info(f'Copying grib from {uri!r} to local disk.')
 
             with open_local(uri) as local_grib:
-                # TODO(alxr): Figure out way to open fieldset in memory...
-                logger.debug(f'Regridding {uri!r}.')
+                logger.info(f'Regridding {uri!r}.')
                 fs = mv.bindings.Fieldset(path=local_grib)
                 fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
 
             with tempfile.NamedTemporaryFile() as src:
-                logger.debug(f'Writing {self.target_from(uri)!r} to local disk.')
+                logger.info(f'Writing {self.target_from(uri)!r} to local disk.')
                 if self.to_netcdf:
                     fieldset.to_dataset().to_netcdf(src.name)
                 else:
@@ -260,8 +257,7 @@ class Regrid(ToDataSink):
                 _clear_metview()
 
                 logger.info(f'Uploading {self.target_from(uri)!r}.')
-                with FileSystems().create(self.target_from(uri)) as dst:
-                    shutil.copyfileobj(src, dst, WRITE_CHUNK_SIZE)
+                copy(src.name, self.target_from(uri))
 
     def expand(self, paths):
         if not self.zarr:

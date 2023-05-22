@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 import apache_beam as beam
 from xarray_beam._src.test_util import EagerPipeline
 
-from .manifest import MockManifest, Location, LocalManifest
+from .manifest import MockManifest, Location, DownloadStatus, LocalManifest, Status, Stage
 from .parsers import get_subsections
 from .partition import skip_partition, PartitionConfig
 from .stores import InMemoryStore, Store
@@ -196,6 +196,128 @@ class PreparePartitionTest(unittest.TestCase):
 
             self.assertTrue(
                 all([d['status'] == 'scheduled' for d in actual.values()])
+            )
+
+    def test_prepare_partition_records_download_status_to_manifest_for_already_downloaded_shard(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year'],
+                'target_path': 'download-{}.nc',
+            },
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 13)],
+                'year': [str(i) for i in range(2015, 2021)]
+            }
+        }
+
+        config_obj = Config.from_dict(config)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.mock_store = InMemoryStore()
+            self.mock_store.open('download-2015.nc')
+            self.dummy_manifest = LocalManifest(Location(tmpdir))
+
+            self.create_partition_configs(configs=[config_obj], store=self.mock_store)
+
+            with open(self.dummy_manifest.location, 'r') as f:
+                actual = json.load(f)
+
+            self.assertListEqual(
+                [d['selection'] for d in actual.values()], [
+                    json.dumps({**config['selection'], **{'year': [str(i)]}})
+                    for i in range(2015, 2021)
+                ])
+
+            self.assertTrue(
+                all([d['status'] == 'scheduled' if d['location'] != 'download-2015.nc'
+                     else d['stage'] == 'upload' and d['status'] == 'success'
+                     for d in actual.values()])
+            )
+
+    def test_prepare_partition_update_download_status_for_downloaded_shard_missing_upload_entry(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year'],
+                'target_path': 'download-{}.nc',
+            },
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 13)],
+                'year': [str(i) for i in range(2015, 2021)]
+            }
+        }
+
+        config_obj = Config.from_dict(config)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.mock_store = InMemoryStore()
+            self.mock_store.open('download-2015.nc')
+            self.dummy_manifest = LocalManifest(Location(tmpdir))
+            download_status = DownloadStatus(selection={**config['selection'], **{'year': [2015]}},
+                                             location='download-2015.nc',
+                                             status=Status.SUCCESS,
+                                             stage=Stage.DOWNLOAD)
+            self.dummy_manifest._update(download_status)
+
+            self.create_partition_configs(configs=[config_obj], store=self.mock_store)
+
+            with open(self.dummy_manifest.location, 'r') as f:
+                actual = json.load(f)
+
+            self.assertListEqual(
+                [d['selection'] for d in actual.values()], [
+                    json.dumps({**config['selection'], **{'year': [str(i)]}})
+                    for i in range(2015, 2021)
+                ])
+
+            self.assertTrue(
+                all([d['status'] == 'scheduled' if d['location'] != 'download-2015.nc'
+                     else d['stage'] == 'upload' and d['status'] == 'success'
+                     for d in actual.values()])
+            )
+
+    def test_prepare_partition_update_manifest_for_failed_upload_status_of_downloaded_shard(self):
+        config = {
+            'parameters': {
+                'partition_keys': ['year'],
+                'target_path': 'download-{}.nc',
+            },
+            'selection': {
+                'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                'month': [str(i) for i in range(1, 13)],
+                'year': [str(i) for i in range(2015, 2021)]
+            }
+        }
+
+        config_obj = Config.from_dict(config)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.mock_store = InMemoryStore()
+            self.mock_store.open('download-2015.nc')
+            self.dummy_manifest = LocalManifest(Location(tmpdir))
+            download_status = DownloadStatus(selection={**config['selection'], **{'year': [2015]}},
+                                             location='download-2015.nc',
+                                             status=Status.FAILURE,
+                                             error='error',
+                                             stage=Stage.UPLOAD)
+            self.dummy_manifest._update(download_status)
+
+            self.create_partition_configs(configs=[config_obj], store=self.mock_store)
+
+            with open(self.dummy_manifest.location, 'r') as f:
+                actual = json.load(f)
+
+            self.assertListEqual(
+                [d['selection'] for d in actual.values()], [
+                    json.dumps({**config['selection'], **{'year': [str(i)]}})
+                    for i in range(2015, 2021)
+                ])
+
+            self.assertTrue(
+                all([d['status'] == 'scheduled' if d['location'] != 'download-2015.nc'
+                     else d['stage'] == 'upload' and d['status'] == 'success'
+                     for d in actual.values()])
             )
 
     def test_skip_partitions__never_unbalances_licenses(self):
@@ -431,6 +553,7 @@ class SkipPartitionsTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.mock_store = InMemoryStore()
+        self.dummy_manifest = MockManifest(Location('mock://dummy'))
 
     def test_skip_partition_missing_force_download(self):
         config = {
@@ -446,7 +569,7 @@ class SkipPartitionsTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, False)
 
@@ -465,7 +588,7 @@ class SkipPartitionsTest(unittest.TestCase):
         }
 
         config_obj = Config.from_dict(config)
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, False)
 
@@ -487,7 +610,7 @@ class SkipPartitionsTest(unittest.TestCase):
 
         self.mock_store.exists = MagicMock(return_value=True)
 
-        actual = skip_partition(config_obj, self.mock_store)
+        actual = skip_partition(config_obj, self.mock_store, self.dummy_manifest)
 
         self.assertEqual(actual, True)
 

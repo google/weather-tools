@@ -56,7 +56,8 @@ DEFAULT_ARGS = PipelineArgs(
                                   num_requests_per_key=-1,
                                   partition_chunks=None,
                                   schedule='in-order',
-                                  check_skip_in_dry_run=False),
+                                  check_skip_in_dry_run=False,
+                                  update_manifest=False),
     pipeline_options=PipelineOptions('--save_main_session True'.split()),
     configs=[Config.from_dict(CONFIG)],
     client_name='cds',
@@ -134,6 +135,12 @@ class ParsePipelineArgs(unittest.TestCase):
             )
         )
 
+    def test_update_manifest(self):
+        self.assert_pipeline(
+            f'{self.DEFAULT_CMD} -u',
+            default_args(known_args=dict(update_manifest=True))
+        )
+
     def test_user_specified_num_requests_per_key(self):
         self.assert_pipeline(
             f'{self.DEFAULT_CMD} -n 7',
@@ -141,6 +148,10 @@ class ParsePipelineArgs(unittest.TestCase):
                 known_args=dict(num_requests_per_key=7), num_requesters_per_key=7
             )
         )
+
+    def test_check_skip_in_dry_run_raise_error_if_dry_run_flag_is_absent(self):
+        with self.assertRaisesRegex(RuntimeError, 'can only be used along with --dry-run flag.'):
+            run(f'{self.DEFAULT_CMD} --check-skip-in-dry-run'.split())
 
 
 if __name__ == '__main__':

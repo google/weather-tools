@@ -11,10 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import datetime
 import os
-import unittest
 from functools import wraps
+import numpy as np
+import tempfile
+import tracemalloc
+import unittest
+import xarray as xr
 
 import weather_mv
 from .sinks import match_datetime, open_dataset
@@ -37,6 +42,40 @@ def _handle_missing_grib_be(f):
                 raise
 
     return decorated
+
+
+@contextlib.contextmanager
+def limit_memory(max_memory=30):
+    ''''Measure memory consumption of the function.
+        'memory limit' in MB
+    '''
+    try:
+        tracemalloc.start()
+        yield
+    finally:
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        assert peak / 1024 ** 2 <= max_memory, f"Memory usage {peak / 1024 ** 2} exceeded {max_memory} MB limit."
+
+
+@contextlib.contextmanager
+def write_netcdf():
+    """Generates temporary netCDF file using xarray."""
+    lat_dim = 3210
+    lon_dim = 3440
+    lat = np.linspace(-90, 90, lat_dim)
+    lon = np.linspace(-180, 180, lon_dim)
+    data_arr = np.random.uniform(low=0, high=0.1, size=(5, lat_dim, lon_dim))
+
+    ds = xr.Dataset(
+        {"var_1": (('time', 'lat', 'lon'), data_arr)},
+        coords={
+            "lat": lat,
+            "lon": lon,
+        })
+    with tempfile.NamedTemporaryFile() as fp:
+        ds.to_netcdf(fp.name)
+        yield fp.name
 
 
 class OpenDatasetTest(TestDataBase):
@@ -73,6 +112,11 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_zarr_path, is_zarr=True) as ds:
             self.assertIsNotNone(ds)
             self.assertEqual(list(ds.data_vars), ['cape', 'd2m'])
+    def test_open_dataset__fits_memory_bounds(self):
+        with write_netcdf() as test_netcdf_path:
+            with limit_memory(max_memory=30):
+                with open_dataset(test_netcdf_path) as _:
+                    pass
 
 
 class DatetimeTest(unittest.TestCase):

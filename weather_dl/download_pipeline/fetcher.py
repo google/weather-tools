@@ -63,7 +63,7 @@ class Fetcher(beam.DoFn):
         if not config:
             return
 
-        if skip_partition(config, self.store):
+        if skip_partition(config, self.store, self.manifest):
             return
 
         client = CLIENTS[self.client_name](config)
@@ -71,7 +71,7 @@ class Fetcher(beam.DoFn):
 
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
-            with self.manifest.transact(config.config_name, config.selection, target, config.user_id):
+            with self.manifest.transact(config.config_name, config.dataset, config.selection, target, config.user_id):
                 self.retrieve(client, config.dataset, config.selection, temp.name)
 
                 self.manifest.set_stage(Stage.UPLOAD)

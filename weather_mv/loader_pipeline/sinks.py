@@ -16,22 +16,23 @@ import abc
 import argparse
 import contextlib
 import dataclasses
+import datetime
+import inspect
 import logging
+import os
+import re
 import shutil
+import subprocess
 import tempfile
 import typing as t
-import os
-from pyproj import Transformer
-import numpy as np
-import datetime
-import re
 
 import apache_beam as beam
+import cfgrib
+import numpy as np
 import rasterio
 import xarray as xr
-import cfgrib
-from apache_beam.io.filesystems import FileSystems
-from apache_beam.io.gcp.gcsio import DEFAULT_READ_BUFFER_SIZE
+from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
+from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
@@ -42,17 +43,24 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+class KwargsFactoryMixin:
+    """Adds a factory method to classes or dataclasses for key-word args."""
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        if dataclasses.is_dataclass(cls):
+            fields = [f.name for f in dataclasses.fields(cls)]
+        else:
+            fields = inspect.signature(cls.__init__).parameters.keys()
+
+        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
+
+
 @dataclasses.dataclass
-class ToDataSink(abc.ABC, beam.PTransform):
+class ToDataSink(abc.ABC, beam.PTransform, KwargsFactoryMixin):
     first_uri: str
     dry_run: bool
     zarr: bool
     zarr_kwargs: t.Dict
-
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        fields = [f.name for f in dataclasses.fields(cls)]
-        return cls(**{k: v for k, v, in kwargs.items() if k in fields})
 
     @classmethod
     @abc.abstractmethod
@@ -330,15 +338,41 @@ def __open_dataset_file(filename: str,
         False)
 
 
+def copy(src: str, dst: str) -> None:
+    """Copy data via `gcloud alpha storage` or `gsutil`."""
+    errors: t.List[subprocess.CalledProcessError] = []
+    for cmd in ['gcloud alpha storage cp', 'gsutil cp']:
+        try:
+            subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
+            return
+        except subprocess.CalledProcessError as e:
+            errors.append(e)
+
+    msg = f'Failed to copy file {src!r} to {dst!r}'
+    err_msgs = ', '.join(map(lambda err: repr(err.stderr.decode('utf-8')), errors))
+    logger.error(f'{msg} due to {err_msgs}.')
+    raise EnvironmentError(msg, errors)
+
+
 @contextlib.contextmanager
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
-    with FileSystems().open(uri) as source_file:
-        with tempfile.NamedTemporaryFile() as dest_file:
-            shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
-            dest_file.flush()
-            dest_file.seek(0)
+    with tempfile.NamedTemporaryFile() as dest_file:
+        # Transfer data with gsutil or gcloud alpha storage (when available)
+        copy(uri, dest_file.name)
+
+        # Check if data is compressed. Decompress the data using the same methods that beam's
+        # FileSystems interface uses.
+        compression_type = FileSystem._get_compression_type(uri, CompressionTypes.AUTO)
+        if compression_type == CompressionTypes.UNCOMPRESSED:
             yield dest_file.name
+            return
+
+        dest_file.seek(0)
+        with tempfile.NamedTemporaryFile() as dest_uncompressed:
+            with CompressedFile(dest_file, compression_type=compression_type) as dcomp:
+                shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
+                yield dest_uncompressed.name
 
 
 @contextlib.contextmanager

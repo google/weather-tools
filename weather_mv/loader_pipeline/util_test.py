@@ -14,12 +14,19 @@
 import itertools
 import unittest
 from collections import Counter
+from datetime import datetime, timezone
 
 import xarray
 import xarray as xr
+import numpy as np
 
 from .sinks_test import TestDataBase
-from .util import get_coordinates, ichunked
+from .util import (
+    get_coordinates,
+    ichunked,
+    make_attrs_ee_compatible,
+    to_json_serializable_type,
+)
 
 
 class GetCoordinatesTest(TestDataBase):
@@ -93,6 +100,143 @@ class IChunksTests(TestDataBase):
         )
 
 
+class MakeAttrsEeCompatibleTests(TestDataBase):
+    def test_make_attrs_ee_compatible_a1(self):
+        attrs = {
+            'int_attr': 48,
+            'float_attr': 48.48,
+            'str_attr': '48.48',
+            'str_long_attr': 'Lorem ipsum dolor sit amet, consectetur '
+            'adipiscing elit. Fusce bibendum odio ac lorem tristique, sed '
+            'tincidunt orci ultricies. Vivamus eu rhoncus metus. Praesent '
+            'vitae imperdiet sapien. Donec vel ipsum sapien. Aliquam '
+            'suscipit suscipit turpis, a vehicula neque. Maecenas '
+            'hendrerit, mauris eu consequat aliquam, nunc elit lacinia '
+            'elit, vel accumsan ipsum ex a tellus. Pellentesque habitant '
+            'morbi tristique senectus et netus et malesuada fames ac '
+            'turpis egestas. Fusce a felis vel dolor lobortis vestibulum '
+            'ac ac velit. Etiam vitae nibh sed justo hendrerit feugiat. '
+            'Sed vulputate, turpis eget fringilla euismod, urna magna '
+            'consequat turpis, at aliquam metus dolor vel tortor. Sed sit '
+            'amet dolor quis libero venenatis porttitor a non odio. Morbi '
+            'interdum tellus non neque placerat, vel fermentum turpis '
+            'bibendum. In efficitur nunc ac leo eleifend commodo. Maecenas '
+            'in tincidunt diam. In consectetur eget sapien a suscipit. '
+            'Nulla porttitor ullamcorper tellus sit amet ornare. Aliquam '
+            'in nibh at mauris tincidunt bibendum a a elit.',
+            'bool_attr': True,
+            'none_attr': None,
+            'key_long_raesent_id_tincidunt_velit_Integer_eget_sapien_tincidunt_'
+            'iaculis_nulla_vitae_consectetur_metus_Vestibul': 'long_string'
+        }
+        expected = {
+            'int_attr': 48,
+            'float_attr': 48.48,
+            'str_attr': '48.48',
+            'str_long_attr': 'Lorem ipsum dolor sit amet, consectetur '
+            'adipiscing elit. Fusce bibendum odio ac lorem tristique, sed '
+            'tincidunt orci ultricies. Vivamus eu rhoncus metus. Praesent '
+            'vitae imperdiet sapien. Donec vel ipsum sapien. Aliquam '
+            'suscipit suscipit turpis, a vehicula neque. Maecenas '
+            'hendrerit, mauris eu consequat aliquam, nunc elit lacinia '
+            'elit, vel accumsan ipsum ex a tellus. Pellentesque habitant '
+            'morbi tristique senectus et netus et malesuada fames ac '
+            'turpis egestas. Fusce a felis vel dolor lobortis vestibulum '
+            'ac ac velit. Etiam vitae nibh sed justo hendrerit feugiat. '
+            'Sed vulputate, turpis eget fringilla euismod, urna magna '
+            'consequat turpis, at aliquam metus dolor vel tortor. Sed sit '
+            'amet dolor quis libero venenatis porttitor a non odio. Morbi '
+            'interdum tellus non neque placerat, vel fermentum turpis '
+            'bibendum. In efficitur nunc ac leo eleifend commodo. Maecenas '
+            'in tincidunt diam. In consectetur eget sapien a suscipit. '
+            'Nulla porttitor ullamcorper tellus sit amet ornare. Aliquam '
+            'in nibh at mauris tincidunt bibendum a a ...',
+            'bool_attr': 'True',
+            'none_attr': 'None',
+            'key_long_raesent_id_tincidunt_velit_Integer_eget_sapien_tincidunt_'
+            'iaculis_nulla_vitae_consectetur_metus_Vestib': 'long_string'
+        }
+
+        actual = make_attrs_ee_compatible(attrs)
+
+        self.assertDictEqual(actual, expected)
+
+    def test_make_attrs_ee_compatible_a2(self):
+        attrs = {
+            'list_attr': ['attr1', 'attr1'],
+            'tuple_attr': ('attr1', 'attr2'),
+            'dict_attr': {
+                'attr1': 1,
+                'attr2': 'two',
+                'attr3': 3.0,
+                'attr4': True
+            }
+        }
+        expected = {
+            'list_attr': "['attr1', 'attr1']",
+            'tuple_attr': "('attr1', 'attr2')",
+            'dict_attr': "{'attr1': 1, 'attr2': 'two', 'attr3': 3.0, "
+            "'attr4': True}"
+        }
+
+        actual = make_attrs_ee_compatible(attrs)
+
+        self.assertDictEqual(actual, expected)
+
+
 class ToJsonSerializableTypeTests(unittest.TestCase):
-    # TODO(#106): Write tests...
-    pass
+
+    def _convert(self, value):
+        return to_json_serializable_type(value)
+
+    def test_to_json_serializable_type_none(self):
+        self.assertIsNone(self._convert(None))
+        self.assertIsNone(self._convert(float('NaN')))
+        self.assertIsNone(self._convert(np.NaN))
+        self.assertIsNone(self._convert(np.datetime64('NaT')))
+        self.assertIsNotNone(self._convert(np.array([])))
+
+    def test_to_json_serializable_type_float(self):
+        self.assertIsInstance(self._convert(np.float32('0.1')), float)
+        self.assertIsInstance(self._convert(np.float32('1')), float)
+        self.assertIsInstance(self._convert(np.float16('0.1')), float)
+        self.assertIsInstance(self._convert(np.single('0.1')), float)
+        self.assertIsInstance(self._convert(np.double('0.1')), float)
+        self.assertNotIsInstance(self._convert(1), float)
+        self.assertNotIsInstance(self._convert(np.csingle('0.1')), float)
+        self.assertNotIsInstance(self._convert(np.cdouble('0.1')), float)
+        self.assertNotIsInstance(self._convert(np.intc('1')), float)
+
+    def test_to_json_serializable_type_int(self):
+        self.assertIsInstance(self._convert(np.int16('1')), int)
+        self.assertEqual(self._convert(np.int16('1')), int(1))
+        self.assertEqual(self._convert(np.int32('1')), int(1))
+        self.assertEqual(self._convert(np.int64('1')), int(1))
+        self.assertEqual(self._convert(np.int64(-10_000)), -10_000)
+        self.assertEqual(self._convert(np.uint16(25)), 25)
+
+    def test_to_json_serializable_type_set(self):
+        self.assertEqual(self._convert(set({})), [])
+        self.assertEqual(self._convert(set({1, 2, 3})), [1, 2, 3])
+        self.assertEqual(self._convert(set({1})), [1])
+        self.assertEqual(self._convert(set({None})), [None])
+        self.assertEqual(self._convert(set({float('NaN')})), [None])
+
+    def test_to_json_serializable_type_ndarray(self):
+        self.assertIsInstance(self._convert(np.array(list(range(10)))), list)
+        self.assertEqual(self._convert(np.array(list(range(10)))), list(range(10)))
+        self.assertEqual(self._convert(np.array([1])), [1])
+        self.assertEqual(self._convert(np.array([[1, 2, 3], [4, 5, 6]])), [[1, 2, 3], [4, 5, 6]])
+        self.assertEqual(self._convert(np.array(1)), 1)
+
+    def test_to_json_serializable_type_datetime(self):
+        input_date = '2000-01-01T00:00:00+00:00'
+        now = datetime.now()
+
+        self.assertEqual(self._convert(datetime.fromisoformat(input_date)), input_date)
+        self.assertEqual(self._convert(now), now.replace(tzinfo=timezone.utc).isoformat())
+        self.assertEqual(self._convert(input_date), input_date)
+        self.assertEqual(self._convert(np.datetime64(input_date)), input_date)
+        self.assertEqual(self._convert(np.datetime64(1, 'Y')), '1971-01-01T00:00:00+00:00')
+        self.assertEqual(self._convert(np.datetime64(30, 'Y')), input_date)
+        self.assertEqual(self._convert(np.timedelta64(1, 'm')), float(60))

@@ -68,8 +68,10 @@ def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
         # Replace unaccepted characters with underscores.
         k = re.sub(r'[^a-zA-Z0-9-_]+', r'_', k)
 
-        if type(v) in [bool, list, dict]:
+        if type(v) not in [int, float]:
             v = str(v)
+            if len(v) > 1024:
+                v = f'{v[:1021]}...'  # Since 1 char = 1 byte.
 
         v = to_json_serializable_type(v)
         new_attrs[k] = v
@@ -83,14 +85,19 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     # Note: The order of processing is significant.
     logger.debug('Serializing to JSON')
 
-    if pd.isna(value) or value is None:
+    # pd.isna() returns ndarray if input is not scalar therefore checking if value is scalar.
+    if (np.isscalar(value) and pd.isna(value)) or value is None:
         return None
     elif np.issubdtype(type(value), np.floating):
         return float(value)
-    elif type(value) == np.ndarray:
+    elif isinstance(value, set):
+        value = list(value)
+        return np.where(pd.isna(value), None, value).tolist()
+    elif isinstance(value, np.ndarray):
         # Will return a scaler if array is of size 1, else will return a list.
-        return value.tolist()
-    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+        # Replace all NaNs, NaTs with None.
+        return np.where(pd.isna(value), None, value).tolist()
+    elif isinstance(value, datetime.datetime) or isinstance(value, str) or isinstance(value, np.datetime64):
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
@@ -111,7 +118,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
 
         # We assume here that naive timestamps are in UTC timezone.
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
-    elif type(value) == np.timedelta64:
+    elif isinstance(value, np.timedelta64):
         # Return time delta in seconds.
         return float(value / np.timedelta64(1, 's'))
     # This check must happen after processing np.timedelta64 and np.datetime64.

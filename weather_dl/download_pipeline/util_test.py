@@ -36,12 +36,27 @@ class IChunksTests(unittest.TestCase):
 class TestFetchGeoPolygon(unittest.TestCase):
     def test_valid_area(self):
         # Test with valid area values.
-        area = [40, -75, 39, -74]
+        area = ['40', '-75', '39', '-74']
         expected_result = (
             '{"type": "Polygon", "coordinates": '
-            '[[[-75, 40], [-75, 39], [-74, 39], [-74, 40], [-75, 40]]]}'
+            '[[[-75.0, 40.0], [-75.0, 39.0], [-74.0, 39.0], [-74.0, 40.0], [-75.0, 40.0]]]}'
         )
         self.assertEqual(fetch_geo_polygon(area), expected_result)
+
+    def test_valid_string_area_value(self):
+        # Test with valid string area value.
+        area = 'E'
+        expected_result = (
+            '{"type": "Polygon", "coordinates": '
+            '[[[-27.0, 73.5], [-27.0, 33.0], [45.0, 33.0], [45.0, 73.5], [-27.0, 73.5]]]}'
+        )
+        self.assertEqual(fetch_geo_polygon(area), expected_result)
+
+    def test_invalid_string_area_value(self):
+        # Test with invalid string area value.
+        area = 'B'
+        with self.assertRaises(RuntimeError):
+            fetch_geo_polygon(area)
 
     def test_invalid_latitude_south(self):
         # Test with invalid south latitude value

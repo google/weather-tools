@@ -33,7 +33,7 @@ def make_download_status(location: t.Optional[str] = None) -> DownloadStatus:
         status=random.choice([Status.SCHEDULED, Status.IN_PROGRESS,
                               Status.SUCCESS, Status.FAILURE]),
         error=random.choice([None] + [rand_str(100) for _ in range(4)]),
-        user=random.choice(['user', 'alice', 'bob', 'root']),
+        username=random.choice(['user', 'alice', 'bob', 'root']),
         stage=random.choice([Stage.FETCH, Stage.DOWNLOAD,
                              Stage.UPLOAD, Stage.RETRIEVE, None]),
         size=0.039322572,
