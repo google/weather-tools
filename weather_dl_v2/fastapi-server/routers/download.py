@@ -21,39 +21,40 @@ def upload(file: UploadFile):
 
 # Can submit a config to the server.
 @router.post("/")
-def submit_download(file: UploadFile | None = None, licenses: list = [], background_tasks: BackgroundTasks = BackgroundTasks()):
+def submit_download(file: UploadFile | None = None, licenses: list = [],
+                    background_tasks: BackgroundTasks = BackgroundTasks()):
     if not file:
         return {"message": "No upload file sent."}
     else:
         if db_client._check_download_exists(file.filename):
-                raise HTTPException(status_code=400,
-                                    detail=f"Please stop the ongoing download of the config file '{file.filename}' "
-                                            "before attempting to start a new download.")
+            raise HTTPException(status_code=400,
+                                detail=f"Please stop the ongoing download of the config file '{file.filename}' "
+                                "before attempting to start a new download.")
         try:
             dest = upload(file)
             # Start processing config.
             background_tasks.add_task(start_processing_config, dest, licenses)
             return {"message": f"file '{file.filename}' saved at '{dest}' successfully."}
-        except:
+        except Exception:
             return {"message": f"Failed to save file '{file.filename}'."}
 
-    
+
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
 async def get_downloads(client_name: str | None = None):
-    # Get this kind of response by querying fake_download_db + fake_manifest_db.
+    # Get this kind of response by querying download collection + manifest collection.
     if client_name:
-        result = { "config_name": "config_3", "client_name": client_name,"total_shards": 10000, "scheduled_shards": 4990, 
-                "downloaded_shards": 5000, "failed_shards": 0 }
+        result = {"config_name": "config_3", "client_name": client_name, "total_shards": 10000,
+                  "scheduled_shards": 4990, "downloaded_shards": 5000, "failed_shards": 0}
     else:
         result = [
-                { "config_name": "config_1", "client_name": "MARS","total_shards": 10000, "scheduled_shards": 4990, 
-                "downloaded_shards": 5000, "failed_shards": 0 },
-                { "config_name": "config_2", "client_name": "MARS","total_shards": 10000, "scheduled_shards": 4990, 
-                "downloaded_shards": 5000, "failed_shards": 0 },
-                { "config_name": "config_3", "client_name": "CDS","total_shards": 10000, "scheduled_shards": 4990, 
-                "downloaded_shards": 5000, "failed_shards": 0 }
+                {"config_name": "config_1", "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990,
+                 "downloaded_shards": 5000, "failed_shards": 0},
+                {"config_name": "config_2", "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990,
+                 "downloaded_shards": 5000, "failed_shards": 0},
+                {"config_name": "config_3", "client_name": "CDS", "total_shards": 10000, "scheduled_shards": 4990,
+                 "downloaded_shards": 5000, "failed_shards": 0}
         ]
     return result
 
@@ -65,8 +66,8 @@ async def get_download(config_name: str):
         raise HTTPException(status_code=404, detail="Download config not found in weather-dl v2.")
 
     # Get this kind of response by querying fake_manifest_db.
-    result = { "config_name": config_name, "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990, 
-            "downloaded_shards": 5000, "failed_shards": 0 }              
+    result = {"config_name": config_name, "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990,
+              "downloaded_shards": 5000, "failed_shards": 0}
     return result
 
 

@@ -13,35 +13,36 @@ class Database(abc.ABC):
     def _get_db(self):
         pass
 
+
 class CRUDOperations(abc.ABC):
     @abc.abstractmethod
     def _start_download(self, config_name: str, client_name: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     def _stop_download(self, config_name: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     def _check_download_exists(self, config_name: str) -> bool:
         pass
-    
+
     @abc.abstractmethod
     def _add_license(self, license_dict: dict) -> str:
         pass
-    
+
     @abc.abstractmethod
     def _delete_license(self, license_id: str) -> str:
         pass
-    
+
     @abc.abstractmethod
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     def _remove_license_queue(self, license_id: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     def _get_queues(self) -> list:
         pass
@@ -49,11 +50,11 @@ class CRUDOperations(abc.ABC):
     @abc.abstractmethod
     def _get_queue_by_license_id(self, license_id: str) -> dict:
         pass
-    
+
     @abc.abstractmethod
     def _get_queue_by_client_name(self, client_name: str) -> list:
         pass
-    
+
     @abc.abstractmethod
     def _update_license_queue(self, license_id: str, priority_list: list) -> None:
         pass
@@ -61,7 +62,7 @@ class CRUDOperations(abc.ABC):
     @abc.abstractmethod
     def _check_license_exists(self, license_id: str) -> bool:
         pass
-    
+
     @abc.abstractmethod
     def _get_license_by_license_id(slef, license_id: str) -> dict:
         pass
@@ -69,7 +70,7 @@ class CRUDOperations(abc.ABC):
     @abc.abstractmethod
     def _get_license_by_client_name(self, client_name: str) -> list:
         pass
-    
+
     @abc.abstractmethod
     def _get_licenses(self) -> list:
         pass
@@ -78,7 +79,7 @@ class CRUDOperations(abc.ABC):
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         pass
 
-    # TODO: Find better way to execute these query. 
+    # TODO: Find better way to execute these query.
     # @abc.abstractmethod
     # def _get_download_by_config_name(self, config_name: str) -> dict:
     #     pass
@@ -86,7 +87,7 @@ class CRUDOperations(abc.ABC):
     # @abc.abstractmethod
     # def _get_dowloads(self) -> list:
     #     pass
-    
+
     @abc.abstractmethod
     def _update_queues_on_start_download(self, config_name: str, licenses: list) -> None:
         pass
@@ -95,7 +96,6 @@ class CRUDOperations(abc.ABC):
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         pass
 
-    
 
 class FirestoreClient(Database, CRUDOperations):
     def _get_db(self) -> firestore.firestore.Client:
@@ -126,7 +126,6 @@ class FirestoreClient(Database, CRUDOperations):
             attempts += 1
 
         return db
-    
 
     def _start_download(self, config_name: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('download').document(config_name).set(
@@ -134,15 +133,15 @@ class FirestoreClient(Database, CRUDOperations):
             )
 
         print(f"Added {config_name} in 'download' collection. Update_time: {result.update_time}.")
-    
+
     def _stop_download(self, config_name: str) -> None:
         timestamp = self._get_db().collection('download').document(config_name).delete()
         print(f"Removed {config_name} in 'download' collection. Update_time: {timestamp}.")
-    
+
     def _check_download_exists(self, config_name: str) -> bool:
         result: DocumentSnapshot = self._get_db().collection('download').document(config_name).get()
         return result.exists
-    
+
     def _add_license(self, license_dict: dict) -> str:
         license_id = f"L{len(self._get_db().collection('license').get()) + 1}"
         license_dict["license_id"] = license_id
@@ -151,45 +150,45 @@ class FirestoreClient(Database, CRUDOperations):
         )
         print(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
         return license_id
-    
+
     def _delete_license(self, license_id: str) -> None:
         timestamp = self._get_db().collection('license').document(license_id).delete()
         print(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
-    
+
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         result: WriteResult = self._get_db().collection('license').document(license_id).update({
             license_dict
             })
         print(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
-    
+
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license_id).set(
-            {"license_id": license_id, "client_name": client_name,"queue": []}
+            {"license_id": license_id, "client_name": client_name, "queue": []}
         )
         print(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
-    
+
     def _remove_license_queue(self, license_id: str) -> None:
         timestamp = self._get_db().collection('queues').document(license_id).delete()
         print(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
-    
+
     def _get_queues(self) -> list:
         snapshot_list = self._get_db().collection('queues').get()
         result = []
         for snapshot in snapshot_list:
             result.append(self._get_db().collection('queues').document(snapshot.id).get().to_dict())
         return result
-    
+
     def _get_queue_by_license_id(self, license_id: str) -> dict:
         result: DocumentSnapshot = self._get_db().collection('queues').document(license_id).get()
         return result.to_dict()
-    
+
     def _get_queue_by_client_name(self, client_name: str) -> list:
         snapshot_list = self._get_db().collection('queues').where('client_name', '==', client_name).get()
         result = []
         for snapshot in snapshot_list:
             result.append(snapshot.to_dict())
         return result
-    
+
     def _update_license_queue(self, license_id: str, priority_list: list) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license).update(
                 {'queue': priority_list}
@@ -199,7 +198,7 @@ class FirestoreClient(Database, CRUDOperations):
     def _check_license_exists(self, license_id: str) -> bool:
         result: DocumentSnapshot = self._get_db().collection('license').document(license_id).get()
         return result.exists
-    
+
     def _get_license_by_license_id(self, license_id: str) -> dict:
         result: DocumentSnapshot = self._get_db().collection('license').document(license_id).get()
         return result.to_dict()
@@ -210,7 +209,7 @@ class FirestoreClient(Database, CRUDOperations):
         for snapshot in snapshot_list:
             result.append(snapshot.to_dict())
         return result
-    
+
     def _get_licenses(self) -> list:
         snapshot_list = self._get_db().collection('license').get()
         result = []
@@ -226,7 +225,7 @@ class FirestoreClient(Database, CRUDOperations):
     #     pass
 
     def _update_queues_on_start_download(self, config_name: str, licenses: list) -> None:
-        for license in licenses:            
+        for license in licenses:
             result: WriteResult = self._get_db().collection('queues').document(license).update(
                 {'queue': firestore.ArrayUnion([config_name])}
             )

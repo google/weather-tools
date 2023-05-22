@@ -445,12 +445,11 @@ class FirestoreManifest(Manifest, Database):
         result: WriteResult = download_doc_ref.set(status)
 
         print(f'Firestore manifest updated. '
-                     f'update_time={result.update_time}, '
-                     f'filename={download_status.location}.')
+              f'update_time={result.update_time}, '
+              f'filename={download_status.location}.')
 
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""
-        # Get user-defined collection for manifest.
+        # TODO: Get user-defined collection for manifest.
         root_collection = 'test_manifest'
         return self._get_db().collection(root_collection).document(store_scheme)
-

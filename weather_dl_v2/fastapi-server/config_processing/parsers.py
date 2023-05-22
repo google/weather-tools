@@ -10,9 +10,10 @@ import textwrap
 import typing as t
 import numpy as np
 from collections import OrderedDict
+from .config import Config
 
 CLIENTS = ['cds', 'mars', 'ecpublic']
-from .config import Config
+
 
 def date(candidate: str) -> datetime.date:
     """Converts ECMWF-format date strings into a `datetime.date`.
@@ -445,4 +446,3 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
     """
     return [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]
-

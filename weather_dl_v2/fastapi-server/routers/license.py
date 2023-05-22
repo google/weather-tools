@@ -3,7 +3,10 @@ from pydantic import BaseModel
 from db_service.database import FirestoreClient
 
 db_client = FirestoreClient()
-    
+
+
+# TODO: Make use of google secret manager.
+# REF: https://cloud.google.com/secret-manager.
 class License(BaseModel):
     client_name: str
     number_of_requests: int
@@ -47,7 +50,7 @@ async def get_license_by_license_id(license_id: str):
 async def update_license(license_id: str, license: License):
     if not db_client._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
-    
+
     license_dict = license.dict()
     db_client._update_license(license_id, license_dict)
     # TODO: Add a background task to create k8s deployement for this updated license.
@@ -64,12 +67,11 @@ async def update_license_internal(license_id: str, k8s_deployment_id: str):
 
     db_client._update_license(license_id, license_dict)
     return {"license_id": license_id, "message": "License updated successfully."}
-   
- 
+
+
 # Add new license
 @router.post("/")
 async def add_license(license: License):
-    print(license)
     license_dict = license.dict()
     license_dict['k8s_deployment_id'] = ""
     license_id = db_client._add_license(license_dict)

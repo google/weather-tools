@@ -53,7 +53,6 @@ class PartitionConfig():
         out.selection = copy
         return out
 
-
     def skip_partition(self, config: Config) -> bool:
         """Return true if partition should be skipped."""
 
@@ -67,7 +66,6 @@ class PartitionConfig():
             return True
 
         return False
-
 
     def prepare_partitions(self) -> t.Iterator[Config]:
         """Iterate over client parameters, partitioning over `partition_keys`.
@@ -84,19 +82,17 @@ class PartitionConfig():
         for option in itertools.product(*[self.config.selection[key] for key in self.config.partition_keys]):
             yield self._create_partition_config(option)
 
-
     def new_downloads_only(self, candidate: Config) -> bool:
         """Predicate function to skip already downloaded partitions."""
         if self.store is None:
             self.store = FSStore()
         should_skip = self.skip_partition(candidate)
-        if should_skip:
-            print("Skipped.")
-        return not should_skip
 
+        return not should_skip
 
     def update_manifest_collection(self, partition: Config) -> Config:
         """Updates the DB."""
         location = prepare_target_name(partition)
-        self.manifest.schedule(partition.config_name, partition.dataset, partition.selection, location, partition.user_id)
+        self.manifest.schedule(partition.config_name, partition.dataset,
+                               partition.selection, location, partition.user_id)
         print(f'Created partition {location!r}.')

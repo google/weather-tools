@@ -6,7 +6,8 @@ from .manifest import FirestoreManifest
 from db_service.database import FirestoreClient
 
 db_client = FirestoreClient()
-    
+
+
 def start_processing_config(config_file, licenses):
     config = {}
     manifest = FirestoreManifest()
@@ -15,10 +16,10 @@ def start_processing_config(config_file, licenses):
         # configs/example.cfg -> example.cfg
         config_name = os.path.split(config_file)[1]
         config = process_config(f, config_name)
-    
+
     config.force_download = True
     config.user_id = getpass.getuser()
-    
+
     partition_obj = PartitionConfig(config, None, manifest)
 
     # Prepare partitions
@@ -26,7 +27,7 @@ def start_processing_config(config_file, licenses):
         # Skip existing downloads
         if partition_obj.new_downloads_only(partition):
             partition_obj.update_manifest_collection(partition)
-    
+
     # Make entry in 'download' & 'queues' collection.
     db_client._start_download(config_name, config.client)
     db_client._update_queues_on_start_download(config_name, licenses)
