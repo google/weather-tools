@@ -52,14 +52,17 @@ LATITUDE_RANGE = (-90, 90)
 @dataclasses.dataclass
 class ToBigQuery(ToDataSink):
     """Load weather data into Google BigQuery.
+
     A sink that loads de-normalized weather data into BigQuery. First, this sink will
     create a BigQuery table from user input (either from `variables` or by inferring the
     schema). Next, it will convert the weather data into rows and then write each row to
     the BigQuery table.
+
     During a batch job, this transform will use the BigQueryWriter's file processing
     step, which requires that a `temp_location` is passed into the main CLI. This
     transform will perform streaming writes to BigQuery during a streaming Beam job. See
     `these docs`_ for more.
+
     Attributes:
         output_table: The destination for where data should be written in BigQuery
         variables: Target variables (or coordinates) for the BigQuery schema. By default,
@@ -79,6 +82,7 @@ class ToBigQuery(ToDataSink):
         coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
           xr.Dataset coordinate indexes) to group together into chunks. Used to tune
           how data is loaded into BigQuery in parallel.
+
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
     output_table: str

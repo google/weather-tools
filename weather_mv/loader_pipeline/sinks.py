@@ -434,21 +434,20 @@ def open_dataset(uri: str,
                     total_size_in_bytes += xr_dataset.nbytes
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
+            elif uri_extension in ['.tif', '.tiff']:
+                xr_dataset = _preprocess_tif(xr_datasets,
+                                             local_path,
+                                             tif_metadata_for_datetime,
+                                             uri,
+                                             band_names_dict,
+                                             initialization_time_regex,
+                                             forecast_time_regex)
             else:
-                if uri_extension in ['.tif', '.tiff']:
-                    xr_dataset = _preprocess_tif(xr_datasets,
-                                                 local_path,
-                                                 tif_metadata_for_datetime,
-                                                 uri,
-                                                 band_names_dict,
-                                                 initialization_time_regex,
-                                                 forecast_time_regex)
-                else:
-                    xr_dataset = xr_datasets
+                xr_dataset = xr_datasets
 
-                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+            xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
-                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_datasets if group_common_hypercubes else xr_dataset

@@ -116,8 +116,7 @@ class OpenDatasetTest(TestDataBase):
     def test_group_common_hypercubes(self):
         with open_dataset(self.test_grib_multi_level_path,
                           group_common_hypercubes=True) as ds:
-            error_msg = "open_dataset did not return a list."
-            self.assertIsInstance(ds, list, error_msg)
+            self.assertEqual(isinstance(ds, list), True)
 
 
 class DatetimeTest(unittest.TestCase):
