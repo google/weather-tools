@@ -84,7 +84,7 @@ class OpenDatasetTest(TestDataBase):
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         self.test_tif_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
-        self.test_grib_multi_level_path = f'{self.test_data_folder}/test_data_grib_multiple_levels.grib2'
+        self.test_grib_multi_level_path = f'{self.test_data_folder}/test_data_grib_multi_levels.grib2'
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
