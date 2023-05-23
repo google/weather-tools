@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+from dateutil.relativedelta import relativedelta
 import geojson
 import hashlib
 import itertools
@@ -198,3 +199,25 @@ def download_with_aria2(url: str, path: str) -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
         raise
+
+
+def generate_hdate(date: str, subtract_year: str) -> str:
+    """
+    Generate a historical date by subtracting a specified number of years from the given date.
+
+    Args:
+        date (str): The input date in the format 'YYYY-MM-DD'.
+        subtract_year (str): The number of years to subtract.
+
+    Returns:
+        str: The historical date in the format 'YYYY-MM-DD'.
+    """
+    try:
+        input_date = datetime.datetime.strptime(date, "%Y-%m-%d")
+        subtract_year = int(subtract_year)
+    except (ValueError, TypeError):
+        logger.error("Invalid input.")
+        raise
+
+    hdate = input_date - relativedelta(years=subtract_year)
+    return hdate.strftime("%Y-%m-%d")
