@@ -13,13 +13,13 @@
 # limitations under the License.
 import contextlib
 import datetime
-import os
 from functools import wraps
 import numpy as np
+import os
 import tempfile
 import tracemalloc
-import xarray as xr
 import unittest
+import xarray as xr
 
 import weather_mv
 from .sinks import match_datetime, open_dataset
