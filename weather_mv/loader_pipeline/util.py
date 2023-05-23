@@ -181,7 +181,7 @@ def _only_target_vars(ds: xr.Dataset, data_vars: t.Optional[t.List[str]] = None)
 
         dropped_ds = ds.drop_vars(drop_vars)
 
-        logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
+    logger.info(f'target-only dataset size: {dropped_ds.nbytes}')
 
     return dropped_ds
 
