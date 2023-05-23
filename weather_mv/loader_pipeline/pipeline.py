@@ -16,10 +16,10 @@
 import argparse
 import json
 import logging
+import glob
 import typing as t
 
 import apache_beam as beam
-from apache_beam.io.filesystems import FileSystems
 
 from .bq import ToBigQuery
 from .regrid import Regrid
@@ -36,17 +36,12 @@ def configure_logger(verbosity: int) -> None:
     logger.setLevel(level)
 
 
-def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str]:
-    if is_zarr:
-        yield match_pattern
-        return
-
-    for match in FileSystems().match([match_pattern]):
-        yield from [x.path for x in match.metadata_list]
+def pattern_to_uris(match_pattern: str) -> t.Iterable[str]:
+    yield from [x for x in glob.glob(match_pattern)]
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
-    all_uris = list(pattern_to_uris(known_args.uris, known_args.zarr))
+    all_uris = list(pattern_to_uris(known_args.uris))
     if not all_uris:
         raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
 
