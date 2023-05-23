@@ -14,9 +14,9 @@
 """Pipeline for loading weather data into analysis-ready mediums, like Google BigQuery."""
 
 import argparse
+import glob
 import json
 import logging
-import glob
 import typing as t
 
 import apache_beam as beam
