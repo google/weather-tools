@@ -548,6 +548,27 @@ class PreparePartitionTest(unittest.TestCase):
 
         self.assertListEqual(actual, expected)
 
+    def test_hdate_partition_single_key(self):
+        config = Config.from_dict({
+                'parameters': {
+                    'partition_keys': ['date'],
+                    'target_path': 'download-{}.nc',
+                },
+                'selection': {
+                    'features': ['pressure', 'temperature', 'wind_speed_U', 'wind_speed_V'],
+                    'date': ['2016-01-04', '2016-01-07', '2016-01-11'],
+                    'hdate': ['1', '2', '3'],
+                }
+            })
+
+        actual = self.create_partition_configs([config])
+
+        expected = [{'date': ['2016-01-04'], 'hdate': ['2015-01-04', '2014-01-04', '2013-01-04']},
+                    {'date': ['2016-01-07'], 'hdate': ['2015-01-07', '2014-01-07', '2013-01-07']},
+                    {'date': ['2016-01-11'], 'hdate': ['2015-01-11', '2014-01-11', '2013-01-11']},
+                    ]
+        self.assertListEqual([d.selection for d in actual], [{**config.selection, **e} for e in expected])
+
 
 class SkipPartitionsTest(unittest.TestCase):
 
