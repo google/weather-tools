@@ -202,8 +202,7 @@ def download_with_aria2(url: str, path: str) -> None:
 
 
 def generate_hdate(date: str, subtract_year: str) -> str:
-    """
-    Generate a historical date by subtracting a specified number of years from the given date.
+    """Generate a historical date by subtracting a specified number of years from the given date.
 
     Args:
         date (str): The input date in the format 'YYYY-MM-DD'.
