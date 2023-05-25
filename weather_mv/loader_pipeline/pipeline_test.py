@@ -64,6 +64,7 @@ class CLITests(unittest.TestCase):
             'disable_grib_schema_normalization': False,
             'tif_metadata_for_datetime': None,
             'zarr': False,
+            'zarr_kwargs': {},
         }
 
 
@@ -121,6 +122,10 @@ class TestCLI(CLITests):
 
     def test_rg_happy_path(self):
         run(self.rg_cli_args + ['--zarr'])
+
+    def test_zarr_kwargs_must_come_with_zarr(self):
+        with self.assertRaisesRegex(ValueError, 'allowed with valid Zarr input URI'):
+            run(self.base_cli_args + ['--zarr_kwargs', json.dumps({"time": 100})])
 
     def test_topic_and_subscription__mutually_exclusive(self):
         with self.assertRaisesRegex(ValueError, '`topic` or `subscription`'):
