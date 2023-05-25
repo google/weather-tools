@@ -193,10 +193,8 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
-                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None) -> t.Iterator[t.Dict]:
-        if zarr_kwargs is None:
-            zarr_kwargs = {}
-        op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
+                tif_metadata_for_datetime=None, zarr: bool = False) -> t.Iterator[t.Dict]:
+        op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr,
                         output_table='foo.bar.baz', variables=variables, area=area,
                         xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
                         tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
@@ -373,7 +371,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_extract_rows_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        actual = next(self.extract(input_path, zarr=True))
+        actual = next(self.extract(input_path, zarr=True, open_dataset_kwargs={}))
         expected = {
             'cape': 0.623349666595459,
             'd2m': 237.5404052734375,

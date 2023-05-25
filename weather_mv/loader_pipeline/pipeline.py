@@ -14,7 +14,6 @@
 """Pipeline for loading weather data into analysis-ready mediums, like Google BigQuery."""
 
 import argparse
-import json
 import logging
 import typing as t
 
@@ -106,9 +105,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     base.add_argument('--zarr', action='store_true', default=False,
                       help="Treat the input URI as a Zarr. If the URI ends with '.zarr', this will be set to True. "
                            "Default: off")
-    base.add_argument('--zarr_kwargs', type=json.loads, default='{}',
-                      help='Keyword arguments to pass into `xarray.open_zarr()`, as a JSON string. '
-                           'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
                       help='Preview the weather-mv job. Default: off')
 
@@ -136,9 +132,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Validate Zarr arguments
     if known_args.uris.endswith('.zarr'):
         known_args.zarr = True
-
-    if known_args.zarr_kwargs and not known_args.zarr:
-        raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
 
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':

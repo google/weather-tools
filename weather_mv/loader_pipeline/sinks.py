@@ -60,7 +60,6 @@ class ToDataSink(abc.ABC, beam.PTransform, KwargsFactoryMixin):
     first_uri: str
     dry_run: bool
     zarr: bool
-    zarr_kwargs: t.Dict
 
     @classmethod
     @abc.abstractmethod
@@ -387,7 +386,7 @@ def open_dataset(uri: str,
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         if is_zarr:
-            ds = xr.open_dataset(uri, engine='zarr', chunks=None)
+            ds: xr.Dataset = xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()

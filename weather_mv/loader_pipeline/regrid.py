@@ -180,6 +180,7 @@ class Regrid(ToDataSink):
     """
     output_path: str
     regrid_kwargs: t.Dict
+    zarr_kwargs: t.Dict
     to_netcdf: bool = False
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
