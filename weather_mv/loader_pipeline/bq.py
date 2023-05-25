@@ -150,6 +150,8 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
+        if self.zarr:
+            self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
                           is_zarr=self.zarr) as open_ds:

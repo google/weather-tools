@@ -387,6 +387,21 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
+    def test_droping_variable_while_opening_zarr(self):
+        input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
+        actual = next(self.extract(input_path, zarr=True, zarr_kwargs={ 'drop_variables': ['cape'] }))
+        expected = {
+            'd2m': 237.5404052734375,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '1959-01-01T00:00:00+00:00',
+            'data_uri': input_path,
+            'latitude': 90,
+            'longitude': 0,
+            'time': '1959-01-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
+
 
 class ExtractRowsTifSupportTest(ExtractRowsTestBase):
 
