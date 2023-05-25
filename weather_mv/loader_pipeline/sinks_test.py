@@ -109,7 +109,7 @@ class OpenDatasetTest(TestDataBase):
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
 
     def test_opens_zarr(self):
-        with open_dataset(self.test_zarr_path, is_zarr=True) as ds:
+        with open_dataset(self.test_zarr_path, is_zarr=True, open_dataset_kwargs={}) as ds:
             self.assertIsNotNone(ds)
             self.assertEqual(list(ds.data_vars), ['cape', 'd2m'])
     def test_open_dataset__fits_memory_bounds(self):
