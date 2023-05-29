@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import os
+from shapely.geometry import Polygon
 import typing as t
 from pprint import pformat
 
@@ -46,6 +47,7 @@ DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 GEO_POINT_COLUMN = 'geo_point'
+GEO_POLYGON_COLUMN = 'polygon'
 LATITUDE_RANGE = (-90, 90)
 
 
@@ -253,6 +255,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
 
     return fields
 
@@ -289,6 +292,24 @@ def prepare_coordinates(
             yield uri, list(chunk)
 
 
+def fetch_geo_polygon(latitude: float, longitude: float, grid_resolution : float) -> Polygon:
+    lower_left = [latitude - grid_resolution, longitude - grid_resolution]
+    upper_left = [latitude - grid_resolution, longitude + grid_resolution]
+    upper_right = [latitude + grid_resolution, longitude + grid_resolution]
+    lower_right = [latitude + grid_resolution, longitude - grid_resolution]
+    lat_lon_bound = [lower_left, upper_left, upper_right, lower_right]
+    
+    for i, _ in enumerate(lat_lon_bound):
+        if lat_lon_bound[i][1] >= 180: 
+            lat_lon_bound[i][1] = lat_lon_bound[i][1] - 360
+    return Polygon([
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),
+        (lat_lon_bound[1][0], lat_lon_bound[1][1]),
+        (lat_lon_bound[2][0], lat_lon_bound[2][1]),
+        (lat_lon_bound[3][0], lat_lon_bound[3][1])
+    ])
+
+
 def extract_rows(uri: str,
                  coordinates: t.List[t.Dict],
                  variables: t.Optional[t.List[str]] = None,
@@ -305,6 +326,14 @@ def extract_rows(uri: str,
 
     with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
+        
+        # Find the grid_resolution. In case of single point we can't find grid resolution.  
+        should_create_polygon = False
+        if len(ds['latitude']) > 1:
+            # consider that Grid is regular.
+            grid_resolution = (ds["latitude"][1].values - ds["latitude"][0].values)//2
+            should_create_polygon = True
+        
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
         first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
@@ -331,7 +360,9 @@ def extract_rows(uri: str,
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
             row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-
+            row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], grid_resolution) \
+                                      if should_create_polygon else None
+            
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
             #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
