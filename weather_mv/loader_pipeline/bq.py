@@ -17,7 +17,6 @@ import datetime
 import json
 import logging
 import os
-from shapely.geometry import Polygon
 import typing as t
 from pprint import pformat
 
@@ -269,6 +268,26 @@ def fetch_geo_point(lat: float, long: float) -> str:
     return point
 
 
+def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> str:
+    """Create a Polygon based on latitude and longitude and resolution."""
+    lower_left = [latitude - lat_grid_resolution, longitude - lon_grid_resolution]
+    upper_left = [latitude - lat_grid_resolution, longitude + lon_grid_resolution]
+    upper_right = [latitude + lat_grid_resolution, longitude + lon_grid_resolution]
+    lower_right = [latitude + lat_grid_resolution, longitude - lon_grid_resolution]
+    lat_lon_bound = [lower_left, upper_left, upper_right, lower_right]
+
+    for i, _ in enumerate(lat_lon_bound):
+        if lat_lon_bound[i][1] >= 180:
+            lat_lon_bound[i][1] = lat_lon_bound[i][1] - 360
+    polygon = geojson.dumps(geojson.Polygon([
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),
+        (lat_lon_bound[1][0], lat_lon_bound[1][1]),
+        (lat_lon_bound[2][0], lat_lon_bound[2][1]),
+        (lat_lon_bound[3][0], lat_lon_bound[3][1])
+    ]))
+    return polygon
+
+
 def prepare_coordinates(
         uri: str, *,
         coordinate_chunk_size: int,
@@ -290,25 +309,6 @@ def prepare_coordinates(
 
         for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
             yield uri, list(chunk)
-
-
-def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> Polygon:
-    """Create a Polygon based on latitude and longitude and resolution."""
-    lower_left = [latitude - lat_grid_resolution, longitude - lon_grid_resolution]
-    upper_left = [latitude - lat_grid_resolution, longitude + lon_grid_resolution]
-    upper_right = [latitude + lat_grid_resolution, longitude + lon_grid_resolution]
-    lower_right = [latitude + lat_grid_resolution, longitude - lon_grid_resolution]
-    lat_lon_bound = [lower_left, upper_left, upper_right, lower_right]
-
-    for i, _ in enumerate(lat_lon_bound):
-        if lat_lon_bound[i][1] >= 180:
-            lat_lon_bound[i][1] = lat_lon_bound[i][1] - 360
-    return Polygon([
-        (lat_lon_bound[0][0], lat_lon_bound[0][1]),
-        (lat_lon_bound[1][0], lat_lon_bound[1][1]),
-        (lat_lon_bound[2][0], lat_lon_bound[2][1]),
-        (lat_lon_bound[3][0], lat_lon_bound[3][1])
-    ])
 
 
 def extract_rows(uri: str,
@@ -362,8 +362,8 @@ def extract_rows(uri: str,
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
             row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-            row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], lat_grid_resolution, lon_grid_resolution) \
-                                      if should_create_polygon else None
+            row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], lat_grid_resolution,
+                                                        lon_grid_resolution) if should_create_polygon else None
 
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
