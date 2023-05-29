@@ -283,7 +283,8 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),
         (lat_lon_bound[1][0], lat_lon_bound[1][1]),
         (lat_lon_bound[2][0], lat_lon_bound[2][1]),
-        (lat_lon_bound[3][0], lat_lon_bound[3][1])
+        (lat_lon_bound[3][0], lat_lon_bound[3][1]),
+        (lat_lon_bound[0][0], lat_lon_bound[0][1])
     ]))
     return polygon
 
