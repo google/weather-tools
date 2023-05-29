@@ -46,7 +46,7 @@ DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 GEO_POINT_COLUMN = 'geo_point'
-GEO_POLYGON_COLUMN = 'polygon'
+GEO_POLYGON_COLUMN = 'geo_polygon'
 LATITUDE_RANGE = (-90, 90)
 
 
@@ -254,7 +254,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
-    fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'STRING', mode='NULLABLE'))
 
     return fields
 
@@ -333,8 +333,10 @@ def extract_rows(uri: str,
         should_create_polygon = False
         if len(ds['latitude']) > 1 and len(ds['longitude']) > 1:
             # consider that Grid is regular.
-            lat_grid_resolution = (ds["latitude"][1].values - ds["latitude"][0].values)/2
-            lon_grid_resolution = (ds["longitude"][1].values - ds["longitude"][0].values)/2
+            latitude_length = len(ds['latitude'])
+            longitude_length = len(ds['longitude'])
+            lat_grid_resolution = (ds["latitude"][-1].values - ds["latitude"][0].values)/latitude_length
+            lon_grid_resolution = (ds["longitude"][-1].values - ds["longitude"][0].values)/longitude_length
             should_create_polygon = True
 
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
