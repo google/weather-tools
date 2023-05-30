@@ -486,7 +486,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 df = xr.Dataset.to_dataframe(ds)
                 df = df.reset_index()
                 # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
-                df = df.fillna(-9999.0)
+                # fillna fills in NaNs, NULL, and NaTs, we have to exclude NaTs
+                non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
+                df[non_nat.columns] = non_nat.fillna(-9999)
 
                 # Copy in-memory dataframe to gcs.
                 target_path = os.path.join(self.asset_location, file_name)
