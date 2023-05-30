@@ -54,9 +54,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     known_args.first_uri = next(iter(all_uris))
 
     with beam.Pipeline(argv=pipeline_args) as p:
-        if known_args.zarr:
-            paths = p
-        elif known_args.topic or known_args.subscription:
+        if known_args.topic or known_args.subscription:
 
             paths = (
                     p
@@ -140,6 +138,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Validate Zarr arguments
     if known_args.uris.endswith('.zarr'):
         known_args.zarr = True
+        known_args.zarr_kwargs['chunks'] = known_args.zarr_kwargs.get('chunks', None)
 
     if known_args.zarr_kwargs and not known_args.zarr:
         raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')

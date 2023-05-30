@@ -1,6 +1,6 @@
 import unittest
 
-from .util import fetch_geo_polygon, ichunked
+from .util import fetch_geo_polygon, generate_hdate, ichunked
 
 
 # TODO(#245): Duplicate tests; remove.
@@ -81,3 +81,11 @@ class TestFetchGeoPolygon(unittest.TestCase):
         area = [40, -75, 39, 181]
         with self.assertRaises(ValueError):
             fetch_geo_polygon(area)
+
+
+class TestGenerateHdate(unittest.TestCase):
+    def test_valid_hdate(self):
+        date = '2020-01-02'
+        substract_year = '4'
+        expected_result = '2016-01-02'
+        self.assertEqual(generate_hdate(date, substract_year), expected_result)

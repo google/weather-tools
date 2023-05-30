@@ -117,10 +117,6 @@ class TestCLI(CLITests):
         )
         self.assertEqual(known_args.xarray_open_dataset_kwargs, xarray_kwargs)
 
-    def test_bq_does_not_yet_support_zarr(self):
-        with self.assertRaisesRegex(RuntimeError, 'Reading Zarr'):
-            run(self.base_cli_args + '--zarr'.split())
-
     def test_ee_does_not_yet_support_zarr(self):
         with self.assertRaisesRegex(RuntimeError, 'Reading Zarr'):
             run(self.ee_cli_args + '--zarr'.split())
