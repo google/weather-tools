@@ -331,7 +331,7 @@ def extract_rows(uri: str,
 
         # Find the grid_resolution. In case of single point we can't find grid resolution.
         should_create_polygon = False
-        if len(ds['latitude']) > 1 and len(ds['longitude']) > 1:
+        if ds['latitude'].size > 1 and ds['longitude'].size > 1:
             # consider that Grid is regular.
             latitude_length = len(ds['latitude'])
             longitude_length = len(ds['longitude'])
