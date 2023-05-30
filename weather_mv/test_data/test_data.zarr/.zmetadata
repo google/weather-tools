@@ -1,0 +1,166 @@
+{
+    "metadata": {
+        ".zattrs": {
+            "Conventions": "CF-1.6",
+            "history": "2022-12-07 15:15:12 GMT by grib_to_netcdf-2.25.1: /opt/ecmwf/mars-client/bin/grib_to_netcdf.bin -S param -o /cache/data1/adaptor.mars.internal-1670426111.8966048-4371-13-ae423cb0-986b-4dc9-abe5-76478aea4cef.nc /cache/tmp/ae423cb0-986b-4dc9-abe5-76478aea4cef-adaptor.mars.internal-1670426109.7807662-4371-20-tmp.grib"
+        },
+        ".zgroup": {
+            "zarr_format": 2
+        },
+        "cape/.zarray": {
+            "chunks": [
+                24,
+                721,
+                1440
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                24,
+                721,
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "cape/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 3403.948056704256,
+            "long_name": "Convective available potential energy",
+            "missing_value": -32767,
+            "scale_factor": 0.10388659148825782,
+            "units": "J kg**-1"
+        },
+        "d2m/.zarray": {
+            "chunks": [
+                24,
+                721,
+                1440
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                24,
+                721,
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "d2m/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 253.12335326621286,
+            "long_name": "2 metre dewpoint temperature",
+            "missing_value": -32767,
+            "scale_factor": 0.0014471540977416674,
+            "units": "K"
+        },
+        "latitude/.zarray": {
+            "chunks": [
+                721
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                721
+            ],
+            "zarr_format": 2
+        },
+        "latitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "latitude"
+            ],
+            "long_name": "latitude",
+            "units": "degrees_north"
+        },
+        "longitude/.zarray": {
+            "chunks": [
+                1440
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "longitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "longitude"
+            ],
+            "long_name": "longitude",
+            "units": "degrees_east"
+        },
+        "time/.zarray": {
+            "chunks": [
+                24
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i4",
+            "fill_value": null,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                24
+            ],
+            "zarr_format": 2
+        },
+        "time/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time"
+            ],
+            "calendar": "gregorian",
+            "long_name": "time",
+            "units": "hours since 1900-01-01"
+        }
+    },
+    "zarr_consolidated_format": 1
+}
