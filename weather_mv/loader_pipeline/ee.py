@@ -486,7 +486,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 df = xr.Dataset.to_dataframe(ds)
                 df = df.reset_index()
                 # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
-                # fillna fills in NaNs, NULL, and NaTs, we have to exclude NaTs
+                # fillna fills in NaNs, NULLs, and NaTs but we have to exclude NaTs.
                 non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
                 df[non_nat.columns] = non_nat.fillna(-9999)
 
