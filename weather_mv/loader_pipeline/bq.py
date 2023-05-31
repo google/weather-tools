@@ -157,7 +157,8 @@ class ToBigQuery(ToDataSink):
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime, is_zarr=self.zarr) as open_ds:
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
+                          is_zarr=self.zarr) as open_ds:
 
             # Find the grid_resolution. In case of single point we can't find grid resolution.
             if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
@@ -249,9 +250,9 @@ class ToBigQuery(ToDataSink):
                 row[DATA_URI_COLUMN] = uri
                 row[DATA_FIRST_STEP] = first_time_step
                 row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-                row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], self.lat_grid_resolution,
-                                                        self.lon_grid_resolution) if self.should_create_polygon else None
-                
+                row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'],
+                                                            self.lat_grid_resolution, self.lon_grid_resolution
+                                                            ) if self.should_create_polygon else None
                 # 'row' ends up looking like:
                 # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
                 #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
