@@ -204,10 +204,12 @@ class ExtractRowsTestBase(TestDataBase):
         if zarr_kwargs is None:
             zarr_kwargs = {}
         op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
-                        output_table='foo.bar.baz', variables=variables, area=area,
-                        xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
-                        tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
-                        disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000)
+                                    output_table='foo.bar.baz', variables=variables, area=area,
+                                    xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time,
+                                    infer_schema=False, tif_metadata_for_datetime=tif_metadata_for_datetime,
+                                    skip_region_validation=True,
+                                    disable_grib_schema_normalization=disable_grib_schema_normalization,
+                                    coordinate_chunk_size=1000)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -416,12 +418,16 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': 0,
             'time': '1959-01-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (90.249653, -0.249826), (90.249653, 0.249826),
+                        (89.750347, 0.249826), (89.750347, -0.249826),
+                        (90.249653, -0.249826)]))
         }
         self.assertRowsEqual(actual, expected)
 
     def test_droping_variable_while_opening_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        actual = next(self.extract(input_path, zarr=True, zarr_kwargs={ 'drop_variables': ['cape'] }))
+        actual = next(self.extract(input_path, zarr=True, zarr_kwargs={'drop_variables': ['cape']}))
         expected = {
             'd2m': 237.5404052734375,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -431,6 +437,10 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'longitude': 0,
             'time': '1959-01-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (90.249653, -0.249826), (90.249653, 0.249826),
+                        (89.750347, 0.249826), (89.750347, -0.249826),
+                        (90.249653, -0.249826)]))
         }
         self.assertRowsEqual(actual, expected)
 
