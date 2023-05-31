@@ -96,6 +96,9 @@ class ToBigQuery(ToDataSink):
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
     coordinate_chunk_size: int = 10_000
+    should_create_polygon: bool = False
+    lat_grid_resolution: t.Optional[float] = None
+    lon_grid_resolution: t.Optional[float] = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -156,6 +159,20 @@ class ToBigQuery(ToDataSink):
         """Initializes Sink by creating a BigQuery table based on user input."""
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
+
+            # Find the grid_resolution. In case of single point we can't find grid resolution.
+            if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
+                # consider that Grid is regular.
+                latitude_length = len(open_ds['latitude'])
+                longitude_length = len(open_ds['longitude'])
+                self.lat_grid_resolution = (open_ds["latitude"][-1].values - open_ds["latitude"][0].values
+                                            )/latitude_length
+                self.lon_grid_resolution = (open_ds["longitude"][-1].values - open_ds["longitude"][0].values
+                                            )/longitude_length
+                self.should_create_polygon = True
+            else:
+                logger.warning("Polygon can't be genereated as dataset has a single point.")
+
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
                 logger.info('Creating schema from input variables.')
@@ -200,7 +217,10 @@ class ToBigQuery(ToDataSink):
                     import_time=self.import_time,
                     open_dataset_kwargs=self.xarray_open_dataset_kwargs,
                     disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                    tif_metadata_for_datetime=self.tif_metadata_for_datetime)
+                    tif_metadata_for_datetime=self.tif_metadata_for_datetime,
+                    should_create_polygon=self.should_create_polygon,
+                    lon_grid_resolution=self.lon_grid_resolution,
+                    lat_grid_resolution=self.lat_grid_resolution,)
         )
 
         if not self.dry_run:
@@ -269,22 +289,22 @@ def fetch_geo_point(lat: float, long: float) -> str:
 
 
 def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> str:
-    """Create a Polygon based on latitude and longitude and resolution."""
+    """Create a Polygon based on latitude, longitude and resolution."""
     lower_left = [latitude - lat_grid_resolution, longitude - lon_grid_resolution]
     upper_left = [latitude - lat_grid_resolution, longitude + lon_grid_resolution]
     upper_right = [latitude + lat_grid_resolution, longitude + lon_grid_resolution]
     lower_right = [latitude + lat_grid_resolution, longitude - lon_grid_resolution]
     lat_lon_bound = [lower_left, upper_left, upper_right, lower_right]
 
-    for i, _ in enumerate(lat_lon_bound):
+    for i in range(len(lat_lon_bound)):
         if lat_lon_bound[i][1] >= 180:
             lat_lon_bound[i][1] = lat_lon_bound[i][1] - 360
     polygon = geojson.dumps(geojson.Polygon([
-        (lat_lon_bound[0][0], lat_lon_bound[0][1]),
-        (lat_lon_bound[1][0], lat_lon_bound[1][1]),
-        (lat_lon_bound[2][0], lat_lon_bound[2][1]),
-        (lat_lon_bound[3][0], lat_lon_bound[3][1]),
-        (lat_lon_bound[0][0], lat_lon_bound[0][1])
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
+        (lat_lon_bound[1][0], lat_lon_bound[1][1]),  # upper_left
+        (lat_lon_bound[2][0], lat_lon_bound[2][1]),  # upper_right
+        (lat_lon_bound[3][0], lat_lon_bound[3][1]),  # lower_right
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
     ]))
     return polygon
 
@@ -318,7 +338,10 @@ def extract_rows(uri: str,
                  import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Dict]:
+                 tif_metadata_for_datetime: t.Optional[str] = None,
+                 should_create_polygon: bool = False,
+                 lat_grid_resolution: t.Optional[float] = None,
+                 lon_grid_resolution: t.Optional[float] = None) -> t.Iterator[t.Dict]:
     """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
     logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
 
@@ -328,16 +351,6 @@ def extract_rows(uri: str,
 
     with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
                       tif_metadata_for_datetime) as ds:
-
-        # Find the grid_resolution. In case of single point we can't find grid resolution.
-        should_create_polygon = False
-        if ds['latitude'].size > 1 and ds['longitude'].size > 1:
-            # consider that Grid is regular.
-            latitude_length = len(ds['latitude'])
-            longitude_length = len(ds['longitude'])
-            lat_grid_resolution = (ds["latitude"][-1].values - ds["latitude"][0].values)/latitude_length
-            lon_grid_resolution = (ds["longitude"][-1].values - ds["longitude"][0].values)/longitude_length
-            should_create_polygon = True
 
         data_ds: xr.Dataset = _only_target_vars(ds, variables)
 
