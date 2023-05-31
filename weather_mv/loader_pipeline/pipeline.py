@@ -111,7 +111,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                            'Default: `{"chunks": null, "consolidated": true}`.')
     base.add_argument('-d', '--dry-run', action='store_true', default=False,
                       help='Preview the weather-mv job. Default: off')
-    base.add_argument('-l', '--log-level', type=int, default=2,
+    base.add_argument('--log-level', type=int, default=2,
                       help='An integer to configure log level. Default: 2(INFO)')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
