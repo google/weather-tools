@@ -125,7 +125,10 @@ def pipeline(args: PipelineArgs) -> None:
             (
                 partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store, args.known_args.log_level))
+                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name,
+                                                     args.manifest,
+                                                     args.store,
+                                                     args.known_args.log_level))
             )
 
 
