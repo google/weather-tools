@@ -15,6 +15,7 @@ import contextlib
 import datetime
 from functools import wraps
 import numpy as np
+import os
 import tempfile
 import tracemalloc
 import unittest
@@ -81,9 +82,10 @@ class OpenDatasetTest(TestDataBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
-        self.test_grib_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        self.test_tif_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+        self.test_data_path = os.path.join(self.test_data_folder, 'test_data_20180101.nc')
+        self.test_grib_path = os.path.join(self.test_data_folder, 'test_data_grib_single_timestep')
+        self.test_tif_path = os.path.join(self.test_data_folder, 'test_data_tif_start_time.tif')
+        self.test_zarr_path = os.path.join(self.test_data_folder, 'test_data.zarr')
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
@@ -106,6 +108,10 @@ class OpenDatasetTest(TestDataBase):
             self.assertIsNotNone(ds)
             self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
 
+    def test_opens_zarr(self):
+        with open_dataset(self.test_zarr_path, is_zarr=True, open_dataset_kwargs={}) as ds:
+            self.assertIsNotNone(ds)
+            self.assertEqual(list(ds.data_vars), ['cape', 'd2m'])
     def test_open_dataset__fits_memory_bounds(self):
         with write_netcdf() as test_netcdf_path:
             with limit_memory(max_memory=30):

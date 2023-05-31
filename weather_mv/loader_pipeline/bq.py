@@ -137,9 +137,6 @@ class ToBigQuery(ToDataSink):
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
-        if known_args.zarr:
-            raise RuntimeError('Reading Zarr is not (yet) supported.')
-
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
         if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
@@ -157,8 +154,10 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
+        if self.zarr:
+            self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime) as open_ds:
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime, is_zarr=self.zarr) as open_ds:
 
             # Find the grid_resolution. In case of single point we can't find grid resolution.
             if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
@@ -198,29 +197,74 @@ class ToBigQuery(ToDataSink):
             logger.error(f'Unable to create table in BigQuery: {e}')
             raise
 
+    def prepare_coordinates(self, uri: str) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
+        """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
+        logger.info(f'Preparing coordinates for: {uri!r}.')
+
+        with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
+                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+            data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
+            if self.area:
+                n, w, s, e = self.area
+                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+
+            for chunk in ichunked(get_coordinates(data_ds, uri), self.coordinate_chunk_size):
+                yield uri, list(chunk)
+
+    def extract_rows(self, uri: str, coordinates: t.List[t.Dict]) -> t.Iterator[t.Dict]:
+        """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
+        logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
+
+        # Re-calculate import time for streaming extractions.
+        if not self.import_time:
+            self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+
+        with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
+                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+            data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
+
+            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values,
+                                                                np.ndarray) else data_ds.time.values
+            first_time_step = to_json_serializable_type(first_ts_raw)
+
+            for it in coordinates:
+                # Use those index values to select a Dataset containing one row of data.
+                row_ds = data_ds.loc[it]
+
+                # Create a Name-Value map for data columns. Result looks like:
+                # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+                row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                       for n, v in row_ds.data_vars.items()}
+
+                # Add indexed coordinates.
+                row.update(it)
+                # Add un-indexed coordinates.
+                for c in row_ds.coords:
+                    if c not in it and (not self.variables or c in self.variables):
+                        row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+
+                # Add import metadata.
+                row[DATA_IMPORT_TIME_COLUMN] = self.import_time
+                row[DATA_URI_COLUMN] = uri
+                row[DATA_FIRST_STEP] = first_time_step
+                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
+                row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], self.lat_grid_resolution,
+                                                        self.lon_grid_resolution) if self.should_create_polygon else None
+                
+                # 'row' ends up looking like:
+                # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+                #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+                beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+                yield row
+
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
-                | 'PrepareCoordinates' >> beam.FlatMap(
-                    prepare_coordinates,
-                    coordinate_chunk_size=self.coordinate_chunk_size,
-                    area=self.area,
-                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                    variables=self.variables,
-                    disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                    tif_metadata_for_datetime=self.tif_metadata_for_datetime)
+                | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
                 | beam.Reshuffle()
-                | 'ExtractRows' >> beam.FlatMapTuple(
-                    extract_rows,
-                    variables=self.variables,
-                    import_time=self.import_time,
-                    open_dataset_kwargs=self.xarray_open_dataset_kwargs,
-                    disable_grib_schema_normalization=self.disable_grib_schema_normalization,
-                    tif_metadata_for_datetime=self.tif_metadata_for_datetime,
-                    should_create_polygon=self.should_create_polygon,
-                    lon_grid_resolution=self.lon_grid_resolution,
-                    lat_grid_resolution=self.lat_grid_resolution,)
+                | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
         )
 
         if not self.dry_run:
@@ -307,82 +351,3 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
     ]))
     return polygon
-
-
-def prepare_coordinates(
-        uri: str, *,
-        coordinate_chunk_size: int,
-        variables: t.Optional[t.List[str]] = None,
-        area: t.Optional[t.List[float]] = None,
-        open_dataset_kwargs: t.Optional[t.Dict] = None,
-        disable_grib_schema_normalization: bool = False,
-        tif_metadata_for_datetime: t.Optional[str] = None) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
-    """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
-    logger.info(f'Preparing coordinates for: {uri!r}.')
-
-    with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
-                      tif_metadata_for_datetime) as ds:
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
-        if area:
-            n, w, s, e = area
-            data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-            logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
-
-        for chunk in ichunked(get_coordinates(data_ds, uri), coordinate_chunk_size):
-            yield uri, list(chunk)
-
-
-def extract_rows(uri: str,
-                 coordinates: t.List[t.Dict],
-                 variables: t.Optional[t.List[str]] = None,
-                 import_time: t.Optional[str] = DEFAULT_IMPORT_TIME,
-                 open_dataset_kwargs: t.Optional[t.Dict] = None,
-                 disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None,
-                 should_create_polygon: bool = False,
-                 lat_grid_resolution: t.Optional[float] = None,
-                 lon_grid_resolution: t.Optional[float] = None) -> t.Iterator[t.Dict]:
-    """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
-    logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
-
-    # Re-calculate import time for streaming extractions.
-    if not import_time:
-        import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
-
-    with open_dataset(uri, open_dataset_kwargs, disable_grib_schema_normalization,
-                      tif_metadata_for_datetime) as ds:
-
-        data_ds: xr.Dataset = _only_target_vars(ds, variables)
-
-        first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values, np.ndarray) else data_ds.time.values
-        first_time_step = to_json_serializable_type(first_ts_raw)
-
-        for it in coordinates:
-            # Use those index values to select a Dataset containing one row of data.
-            row_ds = data_ds.loc[it]
-
-            # Create a Name-Value map for data columns. Result looks like:
-            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                   for n, v in row_ds.data_vars.items()}
-
-            # Add indexed coordinates.
-            row.update(it)
-            # Add un-indexed coordinates.
-            for c in row_ds.coords:
-                if c not in it and (not variables or c in variables):
-                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
-
-            # Add import metadata.
-            row[DATA_IMPORT_TIME_COLUMN] = import_time
-            row[DATA_URI_COLUMN] = uri
-            row[DATA_FIRST_STEP] = first_time_step
-            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-            row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'], lat_grid_resolution,
-                                                        lon_grid_resolution) if should_create_polygon else None
-
-            # 'row' ends up looking like:
-            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-            yield row

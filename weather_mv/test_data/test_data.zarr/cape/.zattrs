@@ -1,0 +1,12 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "time",
+        "latitude",
+        "longitude"
+    ],
+    "add_offset": 3403.948056704256,
+    "long_name": "Convective available potential energy",
+    "missing_value": -32767,
+    "scale_factor": 0.10388659148825782,
+    "units": "J kg**-1"
+}
