@@ -181,16 +181,15 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
         ds.attrs['start_time'] = start_time
         ds.attrs['end_time'] = end_time
 
-    with rasterio.open(filename) as f:
-        datetime_value_ms = None
-        try:
-            datetime_value_s = (int(end_time.timestamp()) if end_time is not None
-                                else int(f.tags()[tif_metadata_for_datetime]) / 1000.0)
-            ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
-        except KeyError:
+    datetime_value_ms = None
+    try:
+        datetime_value_s = (int(end_time.timestamp()) if end_time is not None
+                        else int(ds.attrs[tif_metadata_for_datetime]) / 1000.0)
+        ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
+    except KeyError:
             raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
-        except ValueError:
-            raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
+    except ValueError:
+        raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
     return ds
 
