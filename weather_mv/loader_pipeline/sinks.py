@@ -30,6 +30,7 @@ import apache_beam as beam
 import cfgrib
 import numpy as np
 import rasterio
+import rioxarray
 import xarray as xr
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
 from pyproj import Transformer
@@ -145,14 +146,15 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
-    def _get_band_data(i):
-        if not band_names_dict:
-            band = ds.band_data[i]
-            band.name = ds.band_data.attrs['long_name'][i]
-        else:
-            band = ds.band_data
-            band.name = band_names_dict.get(band.name)
-        return band
+    def replace_dataarray_names_with_long_names(ds):
+        new_ds = xr.Dataset()
+        new_ds.attrs = ds.attrs
+        for var_name in ds.variables:
+            var = ds[var_name]
+            long_name = var.attrs.get('long_name', var_name)
+            new_ds[long_name] = var
+        new_ds.attrs = ds.attrs
+        return new_ds
 
     y, x = np.meshgrid(ds['y'], ds['x'])
     transformer = Transformer.from_crs(ds.spatial_ref.crs_wkt, TIF_TRANSFORM_CRS_TO, always_xy=True)
@@ -162,14 +164,9 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds['x'] = lon[:, 0]
     ds = ds.rename({'y': 'latitude', 'x': 'longitude'})
 
-    band_length = len(ds.band)
-    ds = ds.squeeze().drop_vars('band').drop_vars('spatial_ref')
+    ds = ds.squeeze().drop_vars('spatial_ref')
 
-    band_data_list = [_get_band_data(i) for i in range(band_length)]
-
-    ds_is_normalized_attr = ds.attrs['is_normalized']
-    ds = xr.merge(band_data_list)
-    ds.attrs['is_normalized'] = ds_is_normalized_attr
+    ds = replace_dataarray_names_with_long_names(ds)
 
     end_time = None
     if initialization_time_regex and forecast_time_regex:
@@ -184,7 +181,6 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
         ds.attrs['start_time'] = start_time
         ds.attrs['end_time'] = end_time
 
-    # TODO(#159): Explore ways to capture required metadata using xarray.
     with rasterio.open(filename) as f:
         datetime_value_ms = None
         try:
@@ -306,7 +302,7 @@ def __open_dataset_file(filename: str,
 
     # If URI extension is .tif, try opening file by specifying engine="rasterio".
     if uri_extension in ['.tif', '.tiff']:
-        return _add_is_normalized_attr(xr.open_dataset(filename, engine='rasterio'), False)
+        return _add_is_normalized_attr(rioxarray.open_rasterio(filename, band_as_variable=True), False)
 
     # If no open kwargs are available and URI extension is other than tif, make educated guesses about the dataset.
     try:
