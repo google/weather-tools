@@ -236,6 +236,7 @@ class ToEarthEngine(ToDataSink):
     band_names_mapping: str
     initialization_time_regex: str
     forecast_time_regex: str
+    tiff_config: t.Dict
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -274,6 +275,8 @@ class ToEarthEngine(ToDataSink):
                                help='A Regex string to get the initialization time from the filename.')
         subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
+        subparser.add_argument('--tiff_config', type=json.loads, default={"dims":[],"individual_assets":False},
+                               help='Configs to handle source data with more than two dimensions.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -323,6 +326,15 @@ class ToEarthEngine(ToDataSink):
         # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
+
+        if known_args.tiff_config['dims']:
+            with open_local(known_args.uris) as local_path:
+                ds = xr.open_dataset(local_path)
+                ds_dims = ds.dims.keys()
+                for dim in known_args.tiff_config['dims']:
+                    if dim not in ds_dims:
+                        raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
+
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
@@ -420,6 +432,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     band_names_dict: t.Optional[t.Dict] = None
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
+    tiff_config: t.Optional[t.Dict] = None
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -438,77 +451,89 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                           self.disable_grib_schema_normalization,
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
-                          forecast_time_regex=self.forecast_time_regex) as ds:
+                          forecast_time_regex=self.forecast_time_regex,
+                          tiff_config = self.tiff_config) as ds_list:
+            if not isinstance(ds_list, list):
+                ds_list = [ds_list]
 
-            attrs = ds.attrs
-            data = list(ds.values())
-            asset_name = get_ee_safe_name(uri)
-            channel_names = [da.name for da in data]
-            start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                   ('start_time', 'end_time', 'is_normalized'))
-            dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
-            attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
-            # Make attrs EE ingestable.
-            attrs = make_attrs_ee_compatible(attrs)
+            for ds in ds_list:
+                attrs = ds.attrs
+                data = list(ds.values())
+                asset_name = get_ee_safe_name(uri)
+                channel_names = [da.name for da in data]
+                start_time, end_time, is_normalized, forecast_hour = (attrs.get(key) for key in
+                                                    ('start_time', 'end_time', 'is_normalized','forecast_hour'))
+                dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+                # Make attrs EE ingestable.
+                attrs = make_attrs_ee_compatible(attrs)
 
-            # For tiff ingestions.
-            if self.ee_asset_type == 'IMAGE':
-                file_name = f'{asset_name}.tiff'
+                if start_time:
+                    st = re.sub("[^0-9]","",start_time)
+                    asset_name = f"{asset_name}_{st}"
+                if forecast_hour:
+                    asset_name = f"{asset_name}_FH-{forecast_hour}"
+                for var in set(self.tiff_config["dims"]).difference(['time','step']):
+                    asset_name = f"{asset_name}_{var}_{ds.get(var).values}"
+                asset_name = get_ee_safe_name(asset_name)
 
-                with MemoryFile() as memfile:
-                    with memfile.open(driver='COG',
-                                      dtype=dtype,
-                                      width=data[0].data.shape[1],
-                                      height=data[0].data.shape[0],
-                                      count=len(data),
-                                      nodata=np.nan,
-                                      crs=crs,
-                                      transform=transform,
-                                      compress='lzw') as f:
-                        for i, da in enumerate(data):
-                            f.write(da, i+1)
-                            # Making the channel name EE-safe before adding it as a band name.
-                            f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                            f.update_tags(i+1, band_name=channel_names[i])
-                            f.update_tags(i+1, **da.attrs)
-                        # Write attributes as tags in tiff.
-                        f.update_tags(**attrs)
+                # For tiff ingestions.
+                if self.ee_asset_type == 'IMAGE':
+                    file_name = f'{asset_name}.tiff'
 
-                    # Copy in-memory tiff to gcs.
+                    with MemoryFile() as memfile:
+                        with memfile.open(driver='COG',
+                                        dtype=dtype,
+                                        width=data[0].data.shape[1],
+                                        height=data[0].data.shape[0],
+                                        count=len(data),
+                                        nodata=np.nan,
+                                        crs=crs,
+                                        transform=transform,
+                                        compress='lzw') as f:
+                            for i, da in enumerate(data):
+                                f.write(da, i+1)
+                                # Making the channel name EE-safe before adding it as a band name.
+                                f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                                f.update_tags(i+1, band_name=channel_names[i])
+                                f.update_tags(i+1, **da.attrs)
+                            # Write attributes as tags in tiff.
+                            f.update_tags(**attrs)
+
+                        # Copy in-memory tiff to gcs.
+                        target_path = os.path.join(self.asset_location, file_name)
+                        with FileSystems().create(target_path) as dst:
+                            shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                # For feature collection ingestions.
+                elif self.ee_asset_type == 'TABLE':
+                    channel_names = []
+                    file_name = f'{asset_name}.csv'
+
+                    df = xr.Dataset.to_dataframe(ds)
+                    df = df.reset_index()
+                    # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
+                    # fillna fills in NaNs, NULLs, and NaTs but we have to exclude NaTs.
+                    non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
+                    df[non_nat.columns] = non_nat.fillna(-9999)
+
+                    # Copy in-memory dataframe to gcs.
                     target_path = os.path.join(self.asset_location, file_name)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
-            # For feature collection ingestions.
-            elif self.ee_asset_type == 'TABLE':
-                channel_names = []
-                file_name = f'{asset_name}.csv'
+                    with tempfile.NamedTemporaryFile() as tmp_df:
+                        df.to_csv(tmp_df.name, index=False)
+                        tmp_df.flush()
+                        tmp_df.seek(0)
+                        with FileSystems().create(target_path) as dst:
+                            shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+                asset_data = AssetData(
+                    name=asset_name,
+                    target_path=target_path,
+                    channel_names=channel_names,
+                    start_time=start_time,
+                    end_time=end_time,
+                    properties=attrs
+                )
 
-                df = xr.Dataset.to_dataframe(ds)
-                df = df.reset_index()
-                # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
-                # fillna fills in NaNs, NULLs, and NaTs but we have to exclude NaTs.
-                non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
-                df[non_nat.columns] = non_nat.fillna(-9999)
-
-                # Copy in-memory dataframe to gcs.
-                target_path = os.path.join(self.asset_location, file_name)
-                with tempfile.NamedTemporaryFile() as tmp_df:
-                    df.to_csv(tmp_df.name, index=False)
-                    tmp_df.flush()
-                    tmp_df.seek(0)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
-
-            asset_data = AssetData(
-                name=asset_name,
-                target_path=target_path,
-                channel_names=channel_names,
-                start_time=start_time,
-                end_time=end_time,
-                properties=attrs
-            )
-
-            self.add_to_queue(queue, asset_data)
+                self.add_to_queue(queue, asset_data)
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:

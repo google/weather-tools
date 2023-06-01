@@ -18,7 +18,9 @@ import contextlib
 import dataclasses
 import datetime
 import inspect
+import itertools
 import logging
+from operator import itemgetter
 import os
 import re
 import shutil
@@ -296,6 +298,127 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
     return merged_dataset
 
 
+def __partition_dataset(ds: xr.Dataset,
+                        tiff_config: t.Optional[t.Dict] = None) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
+    """
+    Reads dataset and tiff_config given by user. By default if time or step dimension is present in source data
+    then it will partition the dataset based on this dimension. Based on tiff_config it will consider the dimensions
+    given by user to partition the dataset.
+    """
+
+    default_tiff_dims = set([x for x in ["time", "step"] if ds.dims.get(x)])
+    dims = [dim for dim in ds.dims if dim not in ["latitude", "longitude"]]
+    ds_attrs = ds.attrs
+    dv_units_dict = {}
+    _merged_dataset_list = []
+    coords_set = set(ds.coords.keys())
+    if tiff_config:
+        default_tiff_dims = (
+            default_tiff_dims.union(tiff_config["dims"])
+            if tiff_config["individual_assets"]
+            else default_tiff_dims
+        )
+        if default_tiff_dims:
+            flat_dims = set(dims).difference(default_tiff_dims)
+            _dims = [range(len(ds[x])) for x in dims]
+            it = list(itertools.product(*_dims))
+            configs = []
+            for i in it:
+                _config = {}
+                for idx, val in enumerate(i):
+                    _config[dims[idx]] = val
+                configs.append(_config)
+            groups = []
+            for k, g in itertools.groupby(configs, key=itemgetter(*default_tiff_dims)):
+                groups.append(list(g))
+
+            for group in groups:
+                _data_array_list = []
+                for conf in group:
+                    dataset = ds.isel(conf)
+                    for var in dataset.data_vars.keys():
+                        da = dataset[var]
+                        attrs = da.attrs
+                        forecast_hour = (
+                            int(da.step.values / np.timedelta64(1, "h"))
+                            if "step" in coords_set
+                            else None
+                        )
+
+                        # We are going to treat the time field as start_time and the
+                        # valid_time field as the end_time for EE purposes. Also, get the
+                        # times into UTC timestrings.
+                        start_time = _to_utc_timestring(da.time.values)
+
+                        end_time = (
+                            _to_utc_timestring(da.valid_time.values)
+                            if "valid_time" in coords_set
+                            else start_time
+                        )
+
+                        attrs[
+                            "forecast_hour"
+                        ] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
+                        attrs["start_time"] = start_time
+                        attrs["end_time"] = end_time
+                        copied_da = da.copy(deep=True)
+                        ch_name = ""
+                        for fl in flat_dims:
+                            if da[fl].values >= 10:
+                                ch_name += f"{fl}_{da[fl].values:.0f}_"
+                            else:
+                                ch_name += f"{fl}_{da[fl].values:.2f}_".replace(
+                                    ".", "_"
+                                )
+                            copied_da = copied_da.drop(fl)
+                        channel_name = f"{ch_name}{var}"
+                        dv_units_dict["unit_" + channel_name] = None
+                        if "units" in attrs:
+                            dv_units_dict["unit_" + channel_name] = attrs["units"]
+
+                        copied_da.name = channel_name
+                        _data_array_list.append(copied_da)
+
+                ds_attrs["forecast_hour"] = _data_array_list[0].attrs["forecast_hour"]
+                ds_attrs["start_time"] = _data_array_list[0].attrs["start_time"]
+                ds_attrs["end_time"] = _data_array_list[0].attrs["end_time"]
+                ds_attrs.update(**dv_units_dict)
+
+                merged_dataset = xr.merge(_data_array_list)
+                merged_dataset.attrs.clear()
+                merged_dataset.attrs.update(ds_attrs)
+                _merged_dataset_list.append(merged_dataset)
+            return _merged_dataset_list
+
+        else:
+            if not ds.attrs.get("start_time"):
+                forecast_hour = (
+                    int(ds.step.values / np.timedelta64(1, "h"))
+                    if "step" in coords_set
+                    else None
+                )
+
+                # We are going to treat the time field as start_time and the
+                # valid_time field as the end_time for EE purposes. Also, get the
+                # times into UTC timestrings.
+                start_time = _to_utc_timestring(ds.time.values)
+
+                end_time = (
+                    _to_utc_timestring(ds.valid_time.values)
+                    if "valid_time" in coords_set
+                    else start_time
+                )
+
+                attrs_to_add = {}
+                attrs_to_add[
+                    "forecast_hour"
+                ] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
+                attrs_to_add["start_time"] = start_time
+                attrs_to_add["end_time"] = end_time
+                ds.attrs.update(attrs_to_add)
+    return ds
+
+
 def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
@@ -383,7 +506,8 @@ def open_dataset(uri: str,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
                  forecast_time_regex: t.Optional[str] = None,
-                 is_zarr: bool = False) -> t.Iterator[xr.Dataset]:
+                 is_zarr: bool = False,
+                 tiff_config: t.Optional[t.Dict] = None,) -> t.Iterator[t.Union[xr.Dataset, t.List[xr.Dataset]]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         if is_zarr:
@@ -406,13 +530,24 @@ def open_dataset(uri: str,
                                              band_names_dict,
                                              initialization_time_regex,
                                              forecast_time_regex)
-
+            else:
+                xr_dataset = __partition_dataset(xr_dataset,tiff_config)
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
             with rasterio.open(local_path, 'r') as f:
                 dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+
+            if isinstance(xr_dataset, list):
+                total_size_in_bytes = 0
+
+                for dataset in xr_dataset:
+                    dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                    total_size_in_bytes += dataset.nbytes
+
+                logger.info(f"opened dataset size: {total_size_in_bytes}")
+            else:
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
 
-            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+                logger.info(f"opened dataset size: {xr_dataset.nbytes}")
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_dataset

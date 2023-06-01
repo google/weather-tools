@@ -65,15 +65,22 @@ class ConvertToAssetTests(TestDataBase):
     def setUp(self) -> None:
         super().setUp()
         self.tmpdir = tempfile.TemporaryDirectory()
-        self.convert_to_image_asset = ConvertToAsset(asset_location=self.tmpdir.name)
-        self.convert_to_table_asset = ConvertToAsset(asset_location=self.tmpdir.name, ee_asset_type='TABLE')
+        self.convert_to_image_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            tiff_config={"dims": [], "individual_assets": False},
+        )
+        self.convert_to_table_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            ee_asset_type='TABLE',
+            tiff_config={"dims": [], "individual_assets": False},
+        )
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
     def test_convert_to_image_asset(self):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep_20211018060000.tiff')
 
         next(self.convert_to_image_asset.process(data_path))
 
@@ -82,7 +89,10 @@ class ConvertToAssetTests(TestDataBase):
 
     def test_convert_to_image_asset__with_multiple_grib_edition(self):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
+        asset_path = os.path.join(
+            self.tmpdir.name,
+            'test_data_grib_multiple_edition_single_timestep_20211210120000_FH-8.tiff',
+        )
 
         next(self.convert_to_image_asset.process(data_path))
 
@@ -91,7 +101,7 @@ class ConvertToAssetTests(TestDataBase):
 
     def test_convert_to_table_asset(self):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.csv')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep_20211018060000.csv')
 
         next(self.convert_to_table_asset.process(data_path))
 
@@ -100,7 +110,10 @@ class ConvertToAssetTests(TestDataBase):
 
     def test_convert_to_table_asset__with_multiple_grib_edition(self):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.csv')
+        asset_path = os.path.join(
+            self.tmpdir.name,
+            'test_data_grib_multiple_edition_single_timestep_20211210120000_FH-8.csv',
+        )
 
         next(self.convert_to_table_asset.process(data_path))
 

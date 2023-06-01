@@ -333,6 +333,8 @@ _Command options_:
 * `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
 * `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
 * `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
+* `--tiff_config`: Configs to handle source data with more than two dimensions. It is a JSON string containing two keys as `dims`(array with dimensions) and `individual_assets`(boolean). `individual_assets` true will create a seperate tiff files otherwise by default tiff files will be created considering time and step dimension, rest all data will be stored as bands. 
+e.g {"dims":["isobaricInhPa"],"individual_assets":True} 
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
