@@ -142,14 +142,15 @@ class CdsClient(Client):
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(selection_, dataset)
-            manifest.set_stage(Stage.DOWNLOAD)
-            precise_download_start_time = (
-                datetime.datetime.utcnow()
-                .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
-            )
-            manifest.prev_stage_precise_start_time = precise_download_start_time
-            c.download(result, target=output)
+            return result
+            # manifest.set_stage(Stage.DOWNLOAD)
+            # precise_download_start_time = (
+            #     datetime.datetime.utcnow()
+            #     .replace(tzinfo=datetime.timezone.utc)
+            #     .isoformat(timespec='seconds')
+            # )
+            # manifest.prev_stage_precise_start_time = precise_download_start_time
+            # c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -330,14 +331,15 @@ class MarsClient(Client):
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(req=selection_)
-            manifest.set_stage(Stage.DOWNLOAD)
-            precise_download_start_time = (
-                datetime.datetime.utcnow()
-                .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
-            )
-            manifest.prev_stage_precise_start_time = precise_download_start_time
-            c.download(result, target=output)
+            return result
+            # manifest.set_stage(Stage.DOWNLOAD)
+            # precise_download_start_time = (
+            #     datetime.datetime.utcnow()
+            #     .replace(tzinfo=datetime.timezone.utc)
+            #     .isoformat(timespec='seconds')
+            # )
+            # manifest.prev_stage_precise_start_time = precise_download_start_time
+            # c.download(result, target=output)
 
     @property
     def license_url(self):
@@ -380,14 +382,15 @@ class ECMWFPublicClient(Client):
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(req=selection_)
-            manifest.set_stage(Stage.DOWNLOAD)
-            precise_download_start_time = (
-                datetime.datetime.utcnow()
-                .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
-            )
-            manifest.prev_stage_precise_start_time = precise_download_start_time
-            c.download(result, target=output)
+            return result
+            # manifest.set_stage(Stage.DOWNLOAD)
+            # precise_download_start_time = (
+            #     datetime.datetime.utcnow()
+            #     .replace(tzinfo=datetime.timezone.utc)
+            #     .isoformat(timespec='seconds')
+            # )
+            # manifest.prev_stage_precise_start_time = precise_download_start_time
+            # c.download(result, target=output)
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:

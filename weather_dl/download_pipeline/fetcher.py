@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from concurrent import futures
+import json
 import dataclasses
 import datetime
 import logging
@@ -26,6 +28,7 @@ from .parsers import prepare_target_name
 from .partition import skip_partition
 from .stores import Store, FSStore
 from .util import copy, retry_with_exponential_backoff
+from google.cloud import pubsub_v1
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +57,9 @@ class Fetcher(beam.DoFn):
             self.store = FSStore()
 
     @retry_with_exponential_backoff
-    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> None:
+    def retrieve(self, client: Client, dataset: str, selection: t.Dict, dest: str) -> t.Dict:
         """Retrieve from download client, with retries."""
-        client.retrieve(dataset, selection, dest, self.manifest)
+        return client.retrieve(dataset, selection, dest, self.manifest)
 
     def fetch_data(self, config: Config, *, worker_name: str = 'default') -> None:
         """Download data from a client to a temp file, then upload to Cloud Storage."""
@@ -72,22 +75,29 @@ class Fetcher(beam.DoFn):
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
             with self.manifest.transact(config.config_name, config.dataset, config.selection, target, config.user_id):
-                self.retrieve(client, config.dataset, config.selection, temp.name)
+                result = self.retrieve(client, config.dataset, config.selection, temp.name)
 
-                self.manifest.set_stage(Stage.UPLOAD)
-                precise_upload_start_time = (
-                    datetime.datetime.utcnow()
-                    .replace(tzinfo=datetime.timezone.utc)
-                    .isoformat(timespec='seconds')
-                )
-                self.manifest.prev_stage_precise_start_time = precise_upload_start_time
-                logger.info(f'[{worker_name}] Uploading to store for {target!r}.')
+            publisher = pubsub_v1.PublisherClient()
+            # `projects/{project_id}/topics/{topic_id}`
+            topic_path = "XXXXXXXXXXXXXXXX"
 
-                # In dry-run mode we actually aren't required to upload a file.
-                if not self.client_name == "fake":
-                    copy(temp.name, target)
+            res = {
+                    'config_name': config.config_name,
+                    'dataset': config.dataset,
+                    'selection': config.selection,
+                    'user_id': config.user_id,
+                    'url': result['href'],
+                    'target_path': target
+                    }
+            data_str = json.dumps(res)
 
-                logger.info(f'[{worker_name}] Upload to store complete for {target!r}.')
+            # Data must be a bytestring
+            data = data_str.encode("utf-8")
+            # When you publish a message, the client returns a future.
+            future = publisher.publish(topic_path, data)
+            logger.info(f"Published message: {res} to {topic_path}.")
+            # Wait for the publish futures to resolve before exiting.
+            futures.wait([future], return_when=futures.ALL_COMPLETED)
 
     def process(self, element) -> None:
         # element: Tuple[Tuple[str, int], Iterator[Config]]

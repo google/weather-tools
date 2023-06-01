@@ -1,0 +1,17 @@
+name: weather-tools-kubernetes
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8.13
+  - google-cloud-sdk=410.0.0
+  - aria2=1.36.0
+  - geojson=2.5.0=py_0
+  - xarray=2022.11.0
+  - google-apitools
+  - pip=22.3
+  - pip:
+    - apache_beam[gcp]==2.40.0
+    - firebase-admin
+    - google-cloud-pubsub
+    - kubernetes
+    - psutil

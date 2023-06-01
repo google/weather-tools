@@ -230,6 +230,9 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
     logger.warning(f'By using {client_name} datasets, '
                    f'users agree to the terms and conditions specified in {client.license_url!r}')
 
+    if not (client_name == 'mars' or client_name == 'ecpublic' or client_name == 'cds'):
+        raise NotImplementedError(f"As of now weather-dl v1.5 is not supported for client: {client_name}.")
+
     return PipelineArgs(
         known_args, pipeline_options, configs, client_name, store, manifest, num_requesters_per_key
     )
