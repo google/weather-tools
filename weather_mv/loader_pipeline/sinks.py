@@ -146,15 +146,12 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
-    def replace_dataarray_names_with_long_names(ds):
-        new_ds = xr.Dataset()
-        new_ds.attrs = ds.attrs
+    def replace_dataarray_names_with_long_names(ds: xr.Dataset):
+        rename_dict = {}
         for var_name in ds.variables:
-            var = ds[var_name]
-            long_name = var.attrs.get('long_name', var_name)
-            new_ds[long_name] = var
-        new_ds.attrs = ds.attrs
-        return new_ds
+            rename_dict[var_name] = ds[var_name].attrs.get('long_name', var_name)
+        print(rename_dict)
+        return ds.rename(rename_dict)
 
     y, x = np.meshgrid(ds['y'], ds['x'])
     transformer = Transformer.from_crs(ds.spatial_ref.crs_wkt, TIF_TRANSFORM_CRS_TO, always_xy=True)
