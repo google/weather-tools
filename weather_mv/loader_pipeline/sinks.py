@@ -146,7 +146,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     This also retrieves datetime from tif's metadata and stores it into dataset.
     """
 
-    def replace_dataarray_names_with_long_names(ds: xr.Dataset):
+    def _replace_dataarray_names_with_long_names(ds: xr.Dataset):
         rename_dict = {}
         for var_name in ds.variables:
             rename_dict[var_name] = ds[var_name].attrs.get('long_name', var_name)
@@ -163,7 +163,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
 
     ds = ds.squeeze().drop_vars('spatial_ref')
 
-    ds = replace_dataarray_names_with_long_names(ds)
+    ds = _replace_dataarray_names_with_long_names(ds)
 
     end_time = None
     if initialization_time_regex and forecast_time_regex:
