@@ -28,8 +28,8 @@ dependencies:
   - pandas=1.5.1
   - pip=22.3
   - pygrib=2.1.4
+  - xarray==2023.1.0
+  - ruff==0.0.260
   - pip:
     - earthengine-api==0.1.329
-    - xarray==2023.1.0
-    - ruff==0.0.260
     - .[test]
