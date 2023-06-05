@@ -133,9 +133,6 @@ class ToBigQuery(ToDataSink):
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
-        if known_args.zarr:
-            raise RuntimeError('Reading Zarr is not (yet) supported.')
-
         # Add a check for group_common_hypercubes.
         if pipeline_options_dict.get('group_common_hypercubes'):
             raise RuntimeError('--group_common_hypercubes can be specified only for earth engine ingestions.')
