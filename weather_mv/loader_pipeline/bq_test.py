@@ -14,6 +14,7 @@
 import datetime
 import json
 import logging
+import os
 import typing as t
 import unittest
 
@@ -27,9 +28,8 @@ from google.cloud.bigquery import SchemaField
 from .bq import (
     DEFAULT_IMPORT_TIME,
     dataset_to_table_schema,
-    extract_rows,
     fetch_geo_point,
-    prepare_coordinates,
+    ToBigQuery,
 )
 from .sinks_test import TestDataBase, _handle_missing_grib_be
 from .util import _only_target_vars
@@ -193,16 +193,17 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
-                tif_metadata_for_datetime=None) -> t.Iterator[t.Dict]:
-        coords = prepare_coordinates(data_path, coordinate_chunk_size=1000, area=area,
-                                     open_dataset_kwargs=open_dataset_kwargs, variables=variables,
-                                     disable_grib_schema_normalization=disable_grib_schema_normalization,
-                                     tif_metadata_for_datetime=tif_metadata_for_datetime)
+                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None) -> t.Iterator[t.Dict]:
+        if zarr_kwargs is None:
+            zarr_kwargs = {}
+        op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
+                        output_table='foo.bar.baz', variables=variables, area=area,
+                        xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
+                        tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
+                        disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000)
+        coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
-            yield from extract_rows(uri, import_time=import_time, open_dataset_kwargs=open_dataset_kwargs,
-                                    coordinates=chunk, variables=variables,
-                                    disable_grib_schema_normalization=disable_grib_schema_normalization,
-                                    tif_metadata_for_datetime=tif_metadata_for_datetime)
+            yield from op.extract_rows(uri, chunk)
 
     def assertGeopointEqual(self, actual: str, expected: str) -> None:
         expected_json, actual_json = geojson.loads(expected), geojson.loads(actual)
@@ -369,6 +370,37 @@ class ExtractRowsTest(ExtractRowsTestBase):
             with self.subTest():
                 with self.assertRaises(ValueError):
                     fetch_geo_point(lat, long)
+
+    def test_extract_rows_zarr(self):
+        input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
+        actual = next(self.extract(input_path, zarr=True))
+        expected = {
+            'cape': 0.623349666595459,
+            'd2m': 237.5404052734375,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '1959-01-01T00:00:00+00:00',
+            'data_uri': input_path,
+            'latitude': 90,
+            'longitude': 0,
+            'time': '1959-01-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
+
+    def test_droping_variable_while_opening_zarr(self):
+        input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
+        actual = next(self.extract(input_path, zarr=True, zarr_kwargs={ 'drop_variables': ['cape'] }))
+        expected = {
+            'd2m': 237.5404052734375,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '1959-01-01T00:00:00+00:00',
+            'data_uri': input_path,
+            'latitude': 90,
+            'longitude': 0,
+            'time': '1959-01-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
+        }
+        self.assertRowsEqual(actual, expected)
 
 
 class ExtractRowsTifSupportTest(ExtractRowsTestBase):

@@ -266,7 +266,7 @@ class Regrid(ToDataSink):
 
         # Since `chunks=None` here, data will be opened lazily upon access.
         # This is used to get the Zarr metadata without loading the data.
-        source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs, chunks=None)
+        source_ds = xr.open_zarr(self.first_uri, **self.zarr_kwargs)
 
         regrid_op = RegridChunk(self.regrid_kwargs, self.zarr_input_chunks)
 

@@ -519,7 +519,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 )
 
                 self.add_to_queue(queue, asset_data)
-            self.add_to_queue(queue, None)  # Indicates end of the subprocess.
+                self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData.

@@ -24,7 +24,7 @@ from .config import Config
 from .manifest import Manifest, NoOpManifest, Location
 from .parsers import prepare_target_name
 from .stores import Store, FSStore
-from .util import ichunked
+from .util import ichunked, generate_hdate
 
 Partition = t.Tuple[str, t.Dict, Config]
 Index = t.Tuple[int]
@@ -137,6 +137,10 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     out = cp.deepcopy(config)
     for idx, key in enumerate(config.partition_keys):
         copy[key] = [option[idx]]
+
+    # Replace hdate with actual value.
+    if 'hdate' in copy:
+        copy['hdate'] = [generate_hdate(copy['date'][0], v) for v in copy['hdate']]
 
     out.selection = copy
     return out

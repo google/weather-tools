@@ -1,0 +1,12 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "time",
+        "latitude",
+        "longitude"
+    ],
+    "add_offset": 253.12335326621286,
+    "long_name": "2 metre dewpoint temperature",
+    "missing_value": -32767,
+    "scale_factor": 0.0014471540977416674,
+    "units": "K"
+}

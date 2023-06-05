@@ -921,6 +921,24 @@ class ProcessConfigTest(unittest.TestCase):
             ) as f:
                 process_config(f, 'test.cfg')
 
+    def test_partition_key_contains_date__in_case_of_hdate(self):
+        with self.assertRaisesRegex(ValueError, "'date' is required as a partition keys."):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=ecpublic
+                    target_path=bar-{}
+                    partition_keys=
+                        step
+                    [selection]
+                    date=2020-01-02
+                    step=1/2/3/4
+                    hdate=1/to/6
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
     def test_singleton_partitions_are_converted_to_lists(self):
         with io.StringIO(
                 """
