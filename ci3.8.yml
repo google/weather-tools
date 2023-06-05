@@ -18,7 +18,8 @@ dependencies:
   - rioxarray=0.13.4
   - xarray-beam=0.3.1
   - ecmwf-api-client=1.6.3
-  - fsspec=2022.10.0
+  - fsspec=2022.11.0
+  - gcsfs=2022.11.0
   - gdal=3.5.1
   - pyproj=3.4.0
   - geojson=2.5.0=py_0
@@ -30,6 +31,8 @@ dependencies:
   - pygrib=2.1.4
   - xarray==2023.1.0
   - ruff==0.0.260
+  - google-cloud-sdk=410.0.0
+  - aria2=1.36.0
   - pip:
     - earthengine-api==0.1.329
     - .[test]
