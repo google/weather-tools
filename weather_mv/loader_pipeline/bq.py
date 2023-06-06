@@ -151,7 +151,7 @@ class ToBigQuery(ToDataSink):
     def create_bq_table(self, uri: str) -> str:
         if self.table:
             return uri
-        
+
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
@@ -172,7 +172,7 @@ class ToBigQuery(ToDataSink):
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
             logger.debug(f'\n{pformat(table_schema)}')
-            return
+            return uri
 
         # Create the table in BigQuery
         try:
