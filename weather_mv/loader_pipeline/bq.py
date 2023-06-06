@@ -148,8 +148,10 @@ class ToBigQuery(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
-    def __post_init__(self):
-        """Initializes Sink by creating a BigQuery table based on user input."""
+    def create_bq_table(self, uri: str) -> str:
+        if self.table:
+            return uri
+        
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
@@ -176,6 +178,7 @@ class ToBigQuery(ToDataSink):
         try:
             table = bigquery.Table(self.output_table, schema=table_schema)
             self.table = bigquery.Client().create_table(table, exists_ok=True)
+            return uri
         except Exception as e:
             logger.error(f'Unable to create table in BigQuery: {e}')
             raise
@@ -243,6 +246,7 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
+                | 'CreateTable' >> beam.Map(self.create_bq_table)
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
