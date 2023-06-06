@@ -147,10 +147,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     """
 
     def _replace_dataarray_names_with_long_names(ds: xr.Dataset):
-        rename_dict = {}
-        for var_name in ds.variables:
-            rename_dict[var_name] = ds[var_name].attrs.get('long_name', var_name)
-        print(rename_dict)
+        rename_dict = {var_name: ds[var_name].attrs.get('long_name', var_name) for var_name in ds.variables}
         return ds.rename(rename_dict)
 
     y, x = np.meshgrid(ds['y'], ds['x'])
@@ -184,7 +181,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
                         else int(ds.attrs[tif_metadata_for_datetime]) / 1000.0)
         ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
     except KeyError:
-            raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
+        raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
     except ValueError:
         raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
 
