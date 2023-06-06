@@ -329,7 +329,6 @@ def __open_dataset_file(filename: str,
     if group_common_hypercubes:
         return __normalize_grib_dataset(filename, group_common_hypercubes)
 
-    # add a flag to use cfgrib
     if open_dataset_kwargs:
         return _add_is_normalized_attr(xr.open_dataset(filename, **open_dataset_kwargs), False)
 
@@ -441,24 +440,29 @@ def open_dataset(uri: str,
                     total_size_in_bytes += xr_dataset.nbytes
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
-            elif uri_extension in ['.tif', '.tiff']:
-                xr_dataset = _preprocess_tif(xr_datasets,
-                                             local_path,
-                                             tif_metadata_for_datetime,
-                                             uri,
-                                             band_names_dict,
-                                             initialization_time_regex,
-                                             forecast_time_regex)
             else:
-                xr_dataset = xr_datasets
-
-            xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
-
-            logger.info(f'opened dataset size: {xr_dataset.nbytes}')
+                if uri_extension in ['.tif', '.tiff']:
+                    xr_dataset = _preprocess_tif(xr_datasets,
+                                                local_path,
+                                                tif_metadata_for_datetime,
+                                                uri,
+                                                band_names_dict,
+                                                initialization_time_regex,
+                                                forecast_time_regex)
+                else:
+                    xr_dataset = xr_datasets
+                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield xr_datasets if group_common_hypercubes else xr_dataset
-            xr_dataset.close()
+
+            # Releasing any resources linked to the object(s).
+            if group_common_hypercubes:
+                for xr_dataset in xr_datasets:
+                    xr_dataset.close()
+            else:
+                xr_dataset.close()
 
     except Exception as e:
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
