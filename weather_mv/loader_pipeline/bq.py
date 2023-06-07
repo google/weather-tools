@@ -273,8 +273,6 @@ class ToBigQuery(ToDataSink):
                         project=self.project,
                         dataset=self.dataset,
                         table=self.table_name,
-                        method="STREAMING_INSERTS",
-                        batch_size=1000,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
                         create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
