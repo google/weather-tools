@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import typing as t
 from pprint import pformat
 
@@ -130,6 +131,12 @@ class ToBigQuery(ToDataSink):
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
 
+        if known_args.output_table:
+            # checking if the output table is in format (<project>.<dataset>.<table>).
+            pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
+            if not bool(re.match(pattern, known_args.output_table)):
+                raise RuntimeError("Output table is not in correct format.")
+
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
@@ -147,6 +154,13 @@ class ToBigQuery(ToDataSink):
             validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
+
+    def __post_init__(self):
+        self.table =  None
+        project, dataset, table_name = self.output_table.split('.')
+        self.project = project
+        self.dataset = dataset
+        self.table_name = table_name
 
     def create_bq_table(self, uri: str) -> str:
         if self.table:
@@ -256,9 +270,11 @@ class ToBigQuery(ToDataSink):
             (
                     extracted_rows
                     | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
+                        project=self.project,
+                        dataset=self.dataset,
+                        table=self.table_name,
+                        method="STREAMING_INSERTS",
+                        batch_size=1000,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
                         create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
