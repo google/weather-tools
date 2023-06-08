@@ -12,6 +12,7 @@ class License(BaseModel):
     number_of_requests: int
     api_key: str
     api_url: str
+    api_email: str
 
 
 class LicenseInternal(License):

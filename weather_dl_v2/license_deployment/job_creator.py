@@ -1,0 +1,23 @@
+from os import path
+import yaml
+import json
+import uuid
+from kubernetes import client, config
+
+          
+def create_download_job(message):
+    """Creates a kubernetes workflow of type Job for downloading the data."""
+    parsed_message = json.loads(message)
+    config_name, dataset, selection, user_id, url, target_path = parsed_message.values()
+    selection = str(selection).replace(" ", "")
+    config.load_config()
+
+    with open(path.join(path.dirname(__file__), "downloader.yaml")) as f:
+        dep = yaml.safe_load(f)
+        uid = uuid.uuid4()
+        dep['metadata']['name'] = f'downloader-job-id-{uid}'
+        # d = target_path.rsplit('/')[-1]
+        # dep['metadata']['name'] = f'a{d}a'
+        dep['spec']['template']['spec']['containers'][0]['command'] = ['python', 'downloader.py', config_name, dataset, selection, user_id, url, target_path]
+        batch_api = client.BatchV1Api()
+        batch_api.create_namespaced_job(body=dep, namespace='default')
