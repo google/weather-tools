@@ -161,13 +161,13 @@ class ToBigQuery(ToDataSink):
         self.project = project
         self.dataset = dataset
         self.table_name = table_name
+        if self.zarr:
+            self.xarray_open_dataset_kwargs = self.zarr_kwargs
 
     def create_bq_table(self, uri: str) -> str:
         if self.table:
             return uri
 
-        if self.zarr:
-            self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
                           is_zarr=self.zarr) as open_ds:
