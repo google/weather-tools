@@ -53,8 +53,8 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2
       with:
         python-version: ${{ matrix.python-version }}
+        channels: conda-forge
         environment-file: ci${{ matrix.python-version}}.yml
-        use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
         activate-environment: weather-tools
     - name: Check MetView's installation
       shell: bash -l {0}
