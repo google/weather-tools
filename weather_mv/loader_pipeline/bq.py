@@ -133,9 +133,9 @@ class ToBigQuery(ToDataSink):
 
         if known_args.output_table:
             # checking if the output table is in format (<project>.<dataset>.<table>).
-            pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
-            if not bool(re.match(pattern, known_args.output_table)):
-                raise RuntimeError("Output table is not in correct format.")
+            output_table_pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
+            if not bool(re.match(output_table_pattern, known_args.output_table)):
+                raise RuntimeError("output_table is not in correct format.")
 
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
@@ -156,16 +156,20 @@ class ToBigQuery(ToDataSink):
             logger.info('Region validation completed successfully.')
 
     def __post_init__(self):
-        self.table =  None
-        project, dataset, table_name = self.output_table.split('.')
+        """Initializes BigQuery table based on user input."""
+        project, dataset_id, table_id = self.output_table.split('.')
         self.project = project
-        self.dataset = dataset
-        self.table_name = table_name
+        self.dataset_id = dataset_id
+        self.table_id = table_id
+        self.table =  None
+
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
 
     def create_bq_table(self, uri: str) -> str:
+        """Create a big query table for the first uri. After table is created, subsequent uris are returned."""
         if self.table:
+            # Skip table creation.
             return uri
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs,
@@ -258,7 +262,6 @@ class ToBigQuery(ToDataSink):
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
-        print(f"paths {paths}")
         extracted_rows = (
                 paths
                 | 'CreateTable' >> beam.Map(self.create_bq_table)
@@ -272,8 +275,8 @@ class ToBigQuery(ToDataSink):
                     extracted_rows
                     | 'WriteToBigQuery' >> WriteToBigQuery(
                         project=self.project,
-                        dataset=self.dataset,
-                        table=self.table_name,
+                        dataset=self.dataset_id,
+                        table=self.table_id,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
                         create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
