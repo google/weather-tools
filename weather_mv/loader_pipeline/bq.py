@@ -135,7 +135,7 @@ class ToBigQuery(ToDataSink):
             # checking if the output table is in format (<project>.<dataset>.<table>).
             output_table_pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
             if not bool(re.match(output_table_pattern, known_args.output_table)):
-                raise RuntimeError("output_table is not in correct format.")
+                raise RuntimeError("output_table is not in correct format (<project>.<dataset_id>.<table_id>). ")
 
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
@@ -168,8 +168,8 @@ class ToBigQuery(ToDataSink):
 
     def create_bq_table(self, uri: str) -> str:
         """Create a big query table for the first uri. After table is created, subsequent uris are returned."""
+        # Skip table creation.
         if self.table:
-            # Skip table creation.
             return uri
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs,

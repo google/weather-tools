@@ -47,7 +47,7 @@ def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
     all_uris = list(pattern_to_uris(known_args.uris, known_args.zarr))
-    if not all_uris and "topic" not in known_args:
+    if not all_uris and not known_args.topic:
         raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
 
     # First URI is useful to get an example data shard. It also can be a Zarr path.
