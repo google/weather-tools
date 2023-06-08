@@ -168,7 +168,7 @@ class ToBigQuery(ToDataSink):
 
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
-        with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
+        with open_dataset(uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
                           is_zarr=self.zarr) as open_ds:
             # Define table from user input
@@ -258,6 +258,7 @@ class ToBigQuery(ToDataSink):
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
+        print(f"paths {paths}")
         extracted_rows = (
                 paths
                 | 'CreateTable' >> beam.Map(self.create_bq_table)

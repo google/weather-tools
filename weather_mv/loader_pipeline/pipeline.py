@@ -47,11 +47,15 @@ def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
     all_uris = list(pattern_to_uris(known_args.uris, known_args.zarr))
-    if not all_uris and (known_args.topic or known_args.subscription):
+    if not all_uris and "topic" not in known_args:
         raise FileNotFoundError(f"File pattern '{known_args.uris}' matched no objects")
 
     # First URI is useful to get an example data shard. It also can be a Zarr path.
-    known_args.first_uri = next(iter(all_uris))
+    if all_uris:
+        known_args.first_uri = next(iter(all_uris))
+    else:
+        # If it's a streaming pipeline, it will allow first_uri to be empty.
+        known_args.first_uri = ""
 
     with beam.Pipeline(argv=pipeline_args) as p:
         if known_args.topic or known_args.subscription:
