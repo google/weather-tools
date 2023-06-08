@@ -55,7 +55,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         known_args.first_uri = next(iter(all_uris))
     else:
         # If it's a streaming pipeline, it will allow first_uri to be empty.
-        known_args.first_uri = ""
+        known_args.first_uri = None
 
     with beam.Pipeline(argv=pipeline_args) as p:
         if known_args.topic or known_args.subscription:
