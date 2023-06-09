@@ -1,8 +1,11 @@
 import abc
+import logging
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_db
+
+logger = logging.getLogger(__name__)
 
 def get_queue_handler():
     return QueueHandlerFirestore(db=get_db())
@@ -49,11 +52,11 @@ class QueueHandlerFirestore(QueueHandler):
         result: WriteResult = self.db.collection(self.collection).document(license_id).set(
             {"license_id": license_id, "client_name": client_name, "queue": []}
         )
-        print(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _remove_license_queue(self, license_id: str) -> None:
         timestamp = self.db.collection(self.collection).document(license_id).delete()
-        print(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
+        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
 
     def _get_queues(self) -> list:
         snapshot_list = self.db.collection(self.collection).get()
@@ -77,18 +80,18 @@ class QueueHandlerFirestore(QueueHandler):
         result: WriteResult = self.db.collection(self.collection).document(license_id).update(
                 {'queue': priority_list}
             )
-        print(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+        logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _update_queues_on_start_download(self, config_name: str, licenses: list) -> None:
         for license in licenses:
             result: WriteResult = self.db.collection(self.collection).document(license).update(
                 {'queue': firestore.ArrayUnion([config_name])}
             )
-            print(f"Updated {license} queue in 'queues' collection. Update_time: {result.update_time}.")
+            logger.info(f"Updated {license} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         snapshot_list = self.db.collection(self.collection).get()
         for snapshot in snapshot_list:
             result: WriteResult = self.db.collection(self.collection).document(snapshot.id).update({
                 'queue': firestore.ArrayRemove([config_name])})
-            print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
+            logger.info(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")

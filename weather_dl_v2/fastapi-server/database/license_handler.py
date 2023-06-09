@@ -1,8 +1,11 @@
 import abc
+import logging
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_db
+
+logger = logging.getLogger(__name__)
 
 def get_license_handler():
     return LicenseHandlerFirestore(db=get_db())
@@ -47,16 +50,16 @@ class LicenseHandlerFirestore(LicenseHandler):
         result: WriteResult = self.db.collection(self.collection).document(license_id).set(
             license_dict
         )
-        print(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
+        logger.info(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
         return license_id
     
     def _delete_license(self, license_id: str) -> None:
         timestamp = self.db.collection(self.collection).document(license_id).delete()
-        print(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
+        logger.info(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
 
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         result: WriteResult = self.db.collection(self.collection).document(license_id).update(license_dict)
-        print(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
+        logger.info(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
 
     def _check_license_exists(self, license_id: str) -> bool:
         result: DocumentSnapshot = self.db.collection(self.collection).document(license_id).get()
