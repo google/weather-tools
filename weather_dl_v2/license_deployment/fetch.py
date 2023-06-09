@@ -1,5 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
-import threading
+import logging
 import time
 import sys
 import os
@@ -10,6 +11,8 @@ from clients import CLIENTS
 from manifest import FirestoreManifest
 
 db_client = FirestoreClient()
+
+logger = logging.getLogger(__name__)
 
 def create_job(request, result):
     res = {
@@ -22,24 +25,24 @@ def create_job(request, result):
           }
 
     data_str = json.dumps(res)
+    logger.info(f"Creating download job for res: {data_str}")
     create_download_job(data_str)
 
 
 def make_fetch_request(request):
-    with semaphore:
-        client = CLIENTS[client_name](request['dataset'])
-        manifest = FirestoreManifest()
-        print(f'By using {client_name} datasets, '
-              f'users agree to the terms and conditions specified in {client.license_url!r}')
+    client = CLIENTS[client_name](request['dataset'])
+    manifest = FirestoreManifest()
+    logger.info(f'By using {client_name} datasets, '
+            f'users agree to the terms and conditions specified in {client.license_url!r}')
 
-        target = request['location']
-        selection = json.loads(request['selection'])
+    target = request['location']
+    selection = json.loads(request['selection'])
 
-        print(f'Fetching data for {target!r}.')
-        with manifest.transact(request['config_name'], request['dataset'], selection, target, request['username']):
-            result = client.retrieve(request['dataset'], selection, manifest)
-        print(f"Result fetched {result} for request {request}.")
-        create_job(request, result)
+    logger.info(f'Fetching data for {target!r}.')
+    with manifest.transact(request['config_name'], request['dataset'], selection, target, request['username']):
+        result = client.retrieve(request['dataset'], selection, manifest)
+
+    create_job(request, result)
 
 
 def fetch_request_from_db():
@@ -53,27 +56,26 @@ def fetch_request_from_db():
 
 
 def main():
-    print("Started looking at the request.")
-    while True:
-        # Fetch a request from the database
-        request = fetch_request_from_db()
+    logger.info("Started looking at the request.")
+    with ThreadPoolExecutor(concurrency_limit) as executor:
+        while True:
+            # Fetch a request from the database
+            request = fetch_request_from_db()
 
-        if request is not None:
-            # Create a thread to process the request
-            thread = threading.Thread(target=make_fetch_request, args=(request,))
-            thread.start()
-        else:
-            print("No request available. Waiting...")
-            time.sleep(5)
+            if request is not None:
+                executor.submit(make_fetch_request, request)
+            else:
+                logger.info("No request available. Waiting...")
+                time.sleep(5)
 
-        # Check if the maximum concurrency level has been reached
-        # If so, wait for a slot to become available
-        with semaphore:
-            pass
+            # Check if the maximum concurrency level has been reached
+            # If so, wait for a slot to become available
+            while executor._work_queue.qsize()>=concurrency_limit:
+                time.sleep(1)
 
 
 def boot_up(license: str) -> None:
-    global license_id, client_name, concurrency_limit, semaphore
+    global license_id, client_name, concurrency_limit
 
     result = db_client._initialize_license_deployment(license)
     license_id = license
@@ -82,11 +84,10 @@ def boot_up(license: str) -> None:
     os.environ.setdefault('CLIENT_URL', result['api_url'])
     os.environ.setdefault('CLIENT_KEY', result['api_key'])
     os.environ.setdefault('CLIENT_EMAIL', result['api_email'])
-    semaphore = threading.Semaphore(concurrency_limit)
  
 
 if __name__ == "__main__":
     license = sys.argv[2]
-    print(f"Deployment for license: {license}.")
+    logger.info(f"Deployment for license: {license}.")
     boot_up(license)
     main()
