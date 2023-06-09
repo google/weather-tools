@@ -157,10 +157,7 @@ class ToBigQuery(ToDataSink):
 
     def __post_init__(self):
         """Initializes BigQuery table based on user input."""
-        project, dataset_id, table_id = self.output_table.split('.')
-        self.project = project
-        self.dataset_id = dataset_id
-        self.table_id = table_id
+        self.project, self.dataset_id, self.table_id = self.output_table.split('.')
         self.table =  None
 
         if self.zarr:
