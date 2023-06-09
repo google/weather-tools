@@ -10,13 +10,16 @@ logger = logging.getLogger(__name__)
 def get_license_handler():
     return LicenseHandlerFirestore(db=get_db())
 
+def get_mock_license_handler():
+    return LicenseHandlerMock()
+
 class LicenseHandler(abc.ABC):
     @abc.abstractmethod
     def _add_license(self, license_dict: dict) -> str:
         pass
 
     @abc.abstractmethod
-    def _delete_license(self, license_id: str) -> str:
+    def _delete_license(self, license_id: str) -> None:
         pass
     
     @abc.abstractmethod
@@ -24,7 +27,7 @@ class LicenseHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _get_license_by_license_id(slef, license_id: str) -> dict:
+    def _get_license_by_license_id(self, license_id: str) -> dict:
         pass
 
     @abc.abstractmethod
@@ -39,11 +42,65 @@ class LicenseHandler(abc.ABC):
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         pass
 
+class LicenseHandlerMock(LicenseHandler):
+    def __init__(self):
+        pass
+    
+    def _add_license(self, license_dict: dict) -> str:
+        license_id = "L1"
+        logger.info(f"Added {license_id} in 'license' collection. Update_time: 00000.")
+        return license_id
+    
+    def _delete_license(self, license_id: str) -> None:
+        logger.info(f"Removed {license_id} in 'license' collection. Update_time: 00000.")
+
+    def _update_license(self, license_id: str, license_dict: dict) -> None:
+        logger.info(f"Updated {license_id} in 'license' collection. Update_time: 00000.")
+    
+    def _check_license_exists(self, license_id: str) -> bool:
+        if license_id == "no_exits":
+            return False
+        else:
+            return True
+        
+    def _get_license_by_license_id(self, license_id: str) -> dict:
+        return {
+            "license_id": license_id,
+            "api_key": "xxxxxx",
+            "api_url": "api_url.com",
+            "client_name": "dummy_client",
+            "k8s_deployment_id": "k1",
+            "number_of_requets": 100
+        }
+    
+    def _get_license_by_client_name(self, client_name: str) -> list:
+        return {
+            "license_id": "L1",
+            "api_key": "xxxxxx",
+            "api_url": "api_url.com",
+            "client_name": client_name,
+            "k8s_deployment_id": "k1",
+            "number_of_requets": 100
+        }
+    
+    def _get_licenses(self) -> list:
+        return [
+            {
+                "license_id": "L1",
+                "api_key": "xxxxxx",
+                "api_url": "api_url.com",
+                "client_name": "dummy_client",
+                "k8s_deployment_id": "k1",
+                "number_of_requets": 100
+            }
+        ]
+
 class LicenseHandlerFirestore(LicenseHandler):
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
         self.collection = "license"
 
+    # TODO: find alternative way to create license_id 
     def _add_license(self, license_dict: dict) -> str:
         license_id = f"L{len(self.db.collection(self.collection).get()) + 1}"
         license_dict["license_id"] = license_id
