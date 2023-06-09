@@ -21,6 +21,7 @@ spec:
         - name: weather-dl-v2-license-dep
           image: XXXXXXX
           imagePullPolicy: Always
+          args: []
           # resources:
           #   # You must specify requests for CPU to autoscale
           #   # based on CPU utilization
