@@ -1,15 +1,20 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from routers import license, download, queues
 
+# set up logger.
+logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Started FastAPI server")
     # Boot up
     # TODO: Replace hard-coded collection name by read a server config.
-    print("Create database if not already exists.")
-    print("Retrieve license information & create license deployment if needed.")
+    logger.info("Create database if not already exists.")
+    logger.info("Retrieve license information & create license deployment if needed.")
     yield
     # Clean up
 
@@ -22,9 +27,4 @@ app.include_router(queues.router)
 
 @app.get("/")
 async def main():
-    content = """
-<body>
-Greetings from weather-dl v2 !!
-</body>
-    """
-    return HTMLResponse(content=content)
+    return {"msg": "Greetings from weather-dl v2 !!"}

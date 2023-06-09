@@ -1,3 +1,4 @@
+import logging
 import copy as cp
 import dataclasses
 import itertools
@@ -8,6 +9,7 @@ from .parsers import prepare_target_name
 from .config import Config
 from .stores import Store, FSStore
 
+logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class PartitionConfig():
@@ -61,7 +63,7 @@ class PartitionConfig():
 
         target = prepare_target_name(config)
         if self.store.exists(target):
-            print(f'file {target} found, skipping.')
+            logger.info(f'file {target} found, skipping.')
             self.manifest.skip(config.config_name, config.dataset, config.selection, target, config.user_id)
             return True
 
@@ -95,4 +97,4 @@ class PartitionConfig():
         location = prepare_target_name(partition)
         self.manifest.schedule(partition.config_name, partition.dataset,
                                partition.selection, location, partition.user_id)
-        print(f'Created partition {location!r}.')
+        logger.info(f'Created partition {location!r}.')

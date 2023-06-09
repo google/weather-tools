@@ -1,5 +1,6 @@
 import abc
 import time
+import logging
 import firebase_admin
 from firebase_admin import firestore
 from firebase_admin import credentials
@@ -7,6 +8,7 @@ from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from config_processing.util import get_wait_interval
 
+logger = logging.getLogger(__name__)
 
 class Database(abc.ABC):
     @abc.abstractmethod
@@ -116,7 +118,7 @@ class FirestoreClient(Database, CRUDOperations):
                 cred = credentials.ApplicationDefault()
 
                 firebase_admin.initialize_app(cred)
-                print('Initialized Firebase App.')
+                logger.info('Initialized Firebase App.')
 
                 if attempts > 4:
                     raise RuntimeError('Exceeded number of retries to get firestore client.') from e
@@ -132,11 +134,11 @@ class FirestoreClient(Database, CRUDOperations):
             {'config_name': config_name, 'client_name': client_name}
             )
 
-        print(f"Added {config_name} in 'download' collection. Update_time: {result.update_time}.")
+        logger.info(f"Added {config_name} in 'download' collection. Update_time: {result.update_time}.")
 
     def _stop_download(self, config_name: str) -> None:
         timestamp = self._get_db().collection('download').document(config_name).delete()
-        print(f"Removed {config_name} in 'download' collection. Update_time: {timestamp}.")
+        logger.info(f"Removed {config_name} in 'download' collection. Update_time: {timestamp}.")
 
     def _check_download_exists(self, config_name: str) -> bool:
         result: DocumentSnapshot = self._get_db().collection('download').document(config_name).get()
@@ -148,28 +150,28 @@ class FirestoreClient(Database, CRUDOperations):
         result: WriteResult = self._get_db().collection('license').document(license_id).set(
             license_dict
         )
-        print(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
+        logger.info(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
         return license_id
 
     def _delete_license(self, license_id: str) -> None:
         timestamp = self._get_db().collection('license').document(license_id).delete()
-        print(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
+        logger.info(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
 
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         result: WriteResult = self._get_db().collection('license').document(license_id).update({
             license_dict
             })
-        print(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
+        logger.info(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license_id).set(
             {"license_id": license_id, "client_name": client_name, "queue": []}
         )
-        print(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _remove_license_queue(self, license_id: str) -> None:
         timestamp = self._get_db().collection('queues').document(license_id).delete()
-        print(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
+        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
 
     def _get_queues(self) -> list:
         snapshot_list = self._get_db().collection('queues').get()
@@ -193,7 +195,7 @@ class FirestoreClient(Database, CRUDOperations):
         result: WriteResult = self._get_db().collection('queues').document(license).update(
                 {'queue': priority_list}
             )
-        print(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+        logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _check_license_exists(self, license_id: str) -> bool:
         result: DocumentSnapshot = self._get_db().collection('license').document(license_id).get()
@@ -229,11 +231,11 @@ class FirestoreClient(Database, CRUDOperations):
             result: WriteResult = self._get_db().collection('queues').document(license).update(
                 {'queue': firestore.ArrayUnion([config_name])}
             )
-            print(f"Updated {license} queue in 'queues' collection. Update_time: {result.update_time}.")
+            logger.info(f"Updated {license} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         snapshot_list = self._get_db().collection('queues').get()
         for snapshot in snapshot_list:
             result: WriteResult = self._get_db().collection('queues').document(snapshot.id).update({
                 'queue': firestore.ArrayRemove([config_name])})
-            print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
+            logger.info(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
