@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 def get_queue_handler():
     return QueueHandlerFirestore(db=get_db())
 
+def get_mock_queue_handler():
+    return QueueHandlerMock()
+
 class QueueHandler(abc.ABC):
     @abc.abstractmethod
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
@@ -42,6 +45,48 @@ class QueueHandler(abc.ABC):
     @abc.abstractmethod
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         pass
+
+class QueueHandlerMock(QueueHandler):
+    def __init__(self):
+        pass
+
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: 000000.")
+
+    def _remove_license_queue(self, license_id: str) -> None:
+        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: 000000.")
+
+    def _get_queues(self) -> list:
+        return [
+            {
+                "client_name": "dummy_client",
+                "license_id": "L1",
+                "queue": []
+            }
+        ]
+    
+    def _get_queue_by_license_id(self, license_id: str) -> dict:
+        return {
+                "client_name": "dummy_client",
+                "license_id": license_id,
+                "queue": []
+            }
+    
+    def _get_queue_by_client_name(self, client_name: str) -> list:
+        return {
+                "client_name": client_name,
+                "license_id": "L1",
+                "queue": []
+            }
+    
+    def _update_license_queue(self, license_id: str, priority_list: list) -> None:
+        logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: 00000.")
+
+    def _update_queues_on_start_download(self, config_name: str, licenses: list) -> None:
+        logger.info(f"Updated {license} queue in 'queues' collection. Update_time: 00000.")
+
+    def _update_queues_on_stop_download(self, config_name: str) -> None:
+        logger.info(f"Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
 
 class QueueHandlerFirestore(QueueHandler):
     def __init__(self, db: firestore.firestore.Client, collection: str = "queues"):

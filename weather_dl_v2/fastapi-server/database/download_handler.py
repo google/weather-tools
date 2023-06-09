@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 def get_download_handler():
     return DownloadHandlerFirestore(db=get_db())
 
+def get_mock_download_handler():
+    return DownloadHandlerMock()
+
 class DownloadHandler(abc.ABC):
     @abc.abstractmethod
     def _start_download(self, config_name: str, client_name: str) -> None:
@@ -22,6 +25,22 @@ class DownloadHandler(abc.ABC):
     @abc.abstractmethod
     def _check_download_exists(self, config_name: str) -> bool:
         pass
+
+class DownloadHandlerMock(DownloadHandler):
+    def __init__(self):
+        pass
+
+    def _start_download(self, config_name: str, client_name: str) -> None:
+        logger.info(f"Added {config_name} in 'download' collection. Update_time: 000000.")
+
+    def _stop_download(self, config_name: str) -> None:
+        logger.info(f"Removed {config_name} in 'download' collection. Update_time: 000000.")
+
+    def _check_download_exists(self, config_name: str) -> bool:
+        if config_name == "no_exist":
+            return False
+        else:
+            return True
 
 class DownloadHandlerFirestore(DownloadHandler):
     def __init__(self, db: firestore.firestore.Client):
