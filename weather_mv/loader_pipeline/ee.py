@@ -335,7 +335,7 @@ class ToEarthEngine(ToDataSink):
                     for dim in known_args.tiff_config['dims']:
                         if dim not in ds_dims:
                             raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
-                except:
+                except ValueError:
                     dslist = cfgrib.open_datasets(local_path)
                     ds_dims = set()
                     for ds in dslist:

@@ -307,7 +307,7 @@ def create_partition_configs(_dims,dims,default_tiff_dims):
 
 def create_partition(ds,group,flat_dims,coords_set):
     dv_units_dict = {}
-    _data_array_list = []      
+    _data_array_list = []
     for conf in group:
         dataset = ds.isel(conf)
         for var in dataset.data_vars.keys():
@@ -319,9 +319,9 @@ def create_partition(ds,group,flat_dims,coords_set):
             # valid_time field as the end_time for EE purposes. Also, get the
             # times into UTC timestrings.
             start_time = _to_utc_timestring(da.time.values)
-            
+
             end_time = _to_utc_timestring(da.valid_time.values) if 'valid_time' in coords_set else start_time
-            
+
 
             attrs['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
             attrs['start_time'] = start_time
@@ -344,7 +344,7 @@ def create_partition(ds,group,flat_dims,coords_set):
 
             da.name = channel_name
             _data_array_list.append(da)
-        
+
     return (_data_array_list,dv_units_dict)
 
 def __partition_dataset(ds: xr.Dataset,
@@ -360,7 +360,7 @@ def __partition_dataset(ds: xr.Dataset,
     coords_set = set(ds.coords.keys())
     _merged_dataset_list = []
     if tiff_config:
-        default_tiff_dims = default_tiff_dims.union(tiff_config['dims']) 
+        default_tiff_dims = default_tiff_dims.union(tiff_config['dims'])
         if default_tiff_dims or dims:
             flat_dims = set(dims).difference(default_tiff_dims)
             _dims = [range(len(ds[x])) for x in dims]
@@ -379,9 +379,8 @@ def __partition_dataset(ds: xr.Dataset,
                 merged_dataset.attrs.clear()
                 merged_dataset.attrs.update(ds_attrs)
                 _merged_dataset_list.append(merged_dataset)
-            
+
             return _merged_dataset_list
-    
         else:
             forecast_hour = int(ds.step.values / np.timedelta64(1, 'h')) if 'step' in coords_set else None
 
@@ -389,11 +388,11 @@ def __partition_dataset(ds: xr.Dataset,
             # valid_time field as the end_time for EE purposes. Also, get the
             # times into UTC timestrings.
             start_time = _to_utc_timestring(ds.time.values)
-            
+
             end_time = _to_utc_timestring(ds.valid_time.values) if 'valid_time' in coords_set else start_time
-            
+
             attrs_to_add = {}
-            attrs_to_add['forecast_hour'] = forecast_hour  # Stick the forecast hour in the metadata as well, that's useful.
+            attrs_to_add['forecast_hour'] = forecast_hour  # Stick forecast hour in the metadata as well, that's useful.
             attrs_to_add['start_time'] = start_time
             attrs_to_add['end_time'] = end_time
             ds.attrs.update(attrs_to_add)
@@ -420,7 +419,8 @@ def __open_dataset_file(filename: str,
         return _add_is_normalized_attr(__partition_dataset(ds,tiff_config),False)
     except ValueError as e:
         e_str = str(e)
-        if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str) and not ("multiple values for unique key" in e_str):
+        if (not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str)
+             and ("multiple values for unique key" not in e_str)):
             raise
     if not disable_grib_schema_normalization:
         dslist = cfgrib.open_datasets(filename)
@@ -432,6 +432,7 @@ def __open_dataset_file(filename: str,
         mdl = []
         for keys,dsl in dims_map.items():
             _merged_dataset_list = []
+            ds_attrs = dsl[0].attrs
             for ds in dsl:
                 default_tiff_dims = set([x for x in ['time','step'] if ds.dims.get(x)])
                 default_tiff_dims = default_tiff_dims.union(keys.split("_")) if keys else default_tiff_dims
@@ -447,7 +448,6 @@ def __open_dataset_file(filename: str,
                 groups = create_partition_configs(_dims,dims,default_tiff_dims)
                 dl = []
                 for group in groups:
-                    ds_attrs = ds.attrs
                     _data_array_list,dv_units_dict = create_partition(ds,group,flat_dims,coords_set)
                     dl.append(_data_array_list)
                 if not _merged_dataset_list:
@@ -455,10 +455,12 @@ def __open_dataset_file(filename: str,
                 else:
                     _merged_dataset_list = [arr1 + arr2 for arr1,arr2 in zip(_merged_dataset_list,dl)]
             for i in _merged_dataset_list:
+                merged_ds = xr.merge(i)
+                merged_ds.attrs.update(ds_attrs)
                 mdl.append(xr.merge(i))
         if not tiff_config:
             return _add_is_normalized_attr(xr.merge(mdl),True)
-        return _add_is_normalized_attr(mdl,True) 
+        return _add_is_normalized_attr(mdl,True)
 
     # Trying with explicit engine for cfgrib.
     try:

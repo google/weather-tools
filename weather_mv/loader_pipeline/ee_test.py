@@ -85,7 +85,7 @@ class ConvertToAssetTests(TestDataBase):
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
-    
+
     def test_convert_to_multiple_image_assets(self):
         data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         # file with multiple time values will generate separate tiff files
