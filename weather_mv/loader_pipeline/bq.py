@@ -132,6 +132,10 @@ class ToBigQuery(ToDataSink):
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
+        # Add a check for tiff_config.
+        if pipeline_options_dict.get('tiff_config'):
+            raise RuntimeError('--tiff_config can be specified only for earth engine ingestions.')
+
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
         if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:

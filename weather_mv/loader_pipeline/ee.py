@@ -28,6 +28,7 @@ import apache_beam as beam
 import ee
 import numpy as np
 import xarray as xr
+import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -274,7 +275,7 @@ class ToEarthEngine(ToDataSink):
                                help='A Regex string to get the initialization time from the filename.')
         subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
-        subparser.add_argument('--tiff_config', type=json.loads, default={"dims":[],"individual_assets":False},
+        subparser.add_argument('--tiff_config', type=json.loads, default={"dims":[]},
                                help='Configs to handle source data with more than two dimensions.')
 
     @classmethod
@@ -328,11 +329,21 @@ class ToEarthEngine(ToDataSink):
 
         if known_args.tiff_config['dims']:
             with open_local(known_args.uris) as local_path:
-                ds = xr.open_dataset(local_path)
-                ds_dims = ds.dims.keys()
-                for dim in known_args.tiff_config['dims']:
-                    if dim not in ds_dims:
-                        raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
+                try:
+                    ds = xr.open_dataset(local_path)
+                    ds_dims = ds.dims.keys()
+                    for dim in known_args.tiff_config['dims']:
+                        if dim not in ds_dims:
+                            raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
+                except:
+                    dslist = cfgrib.open_datasets(local_path)
+                    ds_dims = set()
+                    for ds in dslist:
+                        for dims in ds.dims.keys():
+                            ds_dims.add(dims)
+                    for dim in known_args.tiff_config['dims']:
+                        if dim not in ds_dims:
+                            raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
 
 
     def expand(self, paths):
@@ -472,8 +483,10 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     asset_name = f"{asset_name}_{st}"
                 if forecast_hour:
                     asset_name = f"{asset_name}_FH-{forecast_hour}"
-                for var in set(self.tiff_config["dims"]).difference(['time','step']):
-                    asset_name = f"{asset_name}_{var}_{ds.get(var).values}"
+                if self.tiff_config:
+                    for var in set(self.tiff_config["dims"]).difference(['time','step']):
+                        if ds.get(var):
+                            asset_name = f"{asset_name}_{var}_{ds.get(var).values}"
                 asset_name = get_ee_safe_name(asset_name)
 
                 # For tiff ingestions.
