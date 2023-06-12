@@ -8,7 +8,6 @@ RUN conda install -n base conda-libmamba-solver
 RUN conda config --set solver libmamba
 
 COPY . .
-COPY ../downloader/downloader.yaml .
 # Create conda env using environment.yml
 RUN conda env create -f environment.yml --debug
 
