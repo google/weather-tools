@@ -8,8 +8,8 @@ from routers import license, download, queues
 async def lifespan(app: FastAPI):
     # Boot up
     # TODO: Replace hard-coded collection name by read a server config.
-    print("Create database if not already exists.")
-    print("Retrieve license information & create license deployment if needed.")
+    print("TODO: Create database if not already exists.")
+    print("TODO: Retrieve license information & create license deployment if needed.")
     yield
     # Clean up
 

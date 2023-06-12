@@ -156,9 +156,7 @@ class FirestoreClient(Database, CRUDOperations):
         print(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
 
     def _update_license(self, license_id: str, license_dict: dict) -> None:
-        result: WriteResult = self._get_db().collection('license').document(license_id).update({
-            license_dict
-            })
+        result: WriteResult = self._get_db().collection('license').document(license_id).update(license_dict)
         print(f"Updated {license_id} in 'license' collection. Update_time: {result.update_time}.")
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
