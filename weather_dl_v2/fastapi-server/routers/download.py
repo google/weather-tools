@@ -24,7 +24,7 @@ def submit_download(file: UploadFile | None = None, licenses: list = [],
                     background_tasks: BackgroundTasks = BackgroundTasks(),
                     download_handler: DownloadHandler = Depends(get_download_handler)):
     if not file:
-        return {"message": "No upload file sent."}
+        raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
         if download_handler._check_download_exists(file.filename):
             raise HTTPException(status_code=400,
@@ -36,7 +36,7 @@ def submit_download(file: UploadFile | None = None, licenses: list = [],
             background_tasks.add_task(start_processing_config, dest, licenses)
             return {"message": f"file '{file.filename}' saved at '{dest}' successfully."}
         except Exception:
-            return {"message": f"Failed to save file '{file.filename}'."}
+            raise HTTPException(status_code=500, detail=f"Failed to save file '{file.filename}'.")
 
 
 # Can check the current status of the submitted config.

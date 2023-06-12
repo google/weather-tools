@@ -39,6 +39,8 @@ class DownloadHandlerMock(DownloadHandler):
     def _check_download_exists(self, config_name: str) -> bool:
         if config_name == "no_exist":
             return False
+        elif config_name == "no_exist.cfg":
+            return False
         else:
             return True
 
