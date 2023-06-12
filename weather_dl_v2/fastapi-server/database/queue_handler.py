@@ -66,6 +66,8 @@ class QueueHandlerMock(QueueHandler):
         ]
     
     def _get_queue_by_license_id(self, license_id: str) -> dict:
+        if license_id == "no_exists":
+            return None
         return {
                 "client_name": "dummy_client",
                 "license_id": license_id,
@@ -73,11 +75,13 @@ class QueueHandlerMock(QueueHandler):
             }
     
     def _get_queue_by_client_name(self, client_name: str) -> list:
-        return {
+        return [
+            {
                 "client_name": client_name,
                 "license_id": "L1",
                 "queue": []
             }
+        ]
     
     def _update_license_queue(self, license_id: str, priority_list: list) -> None:
         logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: 00000.")
