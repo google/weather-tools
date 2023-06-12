@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from database.license_handler import LicenseHandler, get_license_handler
-from database.queue_handler import QueueHandler, get_queue_handler
+from db_service.database import FirestoreClient
+from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
+
+db_client = FirestoreClient()
 
 
 # TODO: Make use of google secret manager.
@@ -52,46 +54,45 @@ async def update_license(license_id: str, license: License, license_handler: Lic
         raise HTTPException(status_code=404, detail="No such license to update.")
 
     license_dict = license.dict()
-    license_handler._update_license(license_id, license_dict)
-    # TODO: Add a background task to create k8s deployement for this updated license.
-    # And update entry of 'k8s_deployment_id' entry in 'license' collection.
+    db_client._update_license(license_id, license_dict)
+
+    terminate_license_deployment(license_id)
+    create_deployment(license_id)
     return {"license_id": license_id, "name": "License updated successfully."}
 
 
 # Add/Update k8s deployment ID for existing license (intenally).
-@router.put("/server/{license_id}")
-async def update_license_internal(license_id: str, k8s_deployment_id: str, license_handler: LicenseHandler = Depends(get_license_handler)):
-    if not license_handler._check_license_exists(license_id):
+def update_license_internal(license_id: str, k8s_deployment_id: str):
+    if not db_client._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
     license_dict = {"k8s_deployment_id": k8s_deployment_id}
 
-    license_handler._update_license(license_id, license_dict)
+    db_client._update_license(license_id, license_dict)
     return {"license_id": license_id, "message": "License updated successfully."}
+
+
+def create_deployment(license_id: str):
+    k8s_deployment_id = create_license_deployment(license_id)
+    update_license_internal(license_id, k8s_deployment_id)
 
 
 # Add new license
 @router.post("/")
-async def add_license(license: License,
-                      license_handler: LicenseHandler = Depends(get_license_handler),
-                      queue_handler: QueueHandler = Depends(get_queue_handler)):
+async def add_license(license: License, background_tasks: BackgroundTasks = BackgroundTasks()):
     license_dict = license.dict()
     license_dict['k8s_deployment_id'] = ""
-    license_id = license_handler._add_license(license_dict)
-    queue_handler._create_license_queue(license_id, license_dict['client_name'])
-    # TODO: Add a background task to create k8s deployement for this newly added license.
-    # And update entry of 'k8s_deployment_id' entry in 'license' collection.
+    license_id = db_client._add_license(license_dict)
+    db_client._create_license_queue(license_id, license_dict['client_name'])
+    background_tasks.add_task(create_deployment, license_id)
     return {"license_id": license_id, "message": "License added successfully."}
 
 
 # Remove license
 @router.delete("/{license_id}")
-async def delete_license(license_id: str,
-                         license_handler: LicenseHandler = Depends(get_license_handler),
-                         queue_handler: QueueHandler = Depends(get_queue_handler)):
-    if not license_handler._check_license_exists(license_id):
+async def delete_license(license_id: str, background_tasks: BackgroundTasks = BackgroundTasks()):
+    if not db_client._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to delete.")
-    license_handler._delete_license(license_id)
-    queue_handler._remove_license_queue(license_id)
-    # TODO: Add a background task to delete k8s deployement for this deleted license.
-    # And update entry of 'k8s_deployment_id' entry in 'license' collection.
+    db_client._delete_license(license_id)
+    db_client._remove_license_queue(license_id)
+    background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
