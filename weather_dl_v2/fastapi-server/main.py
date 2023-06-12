@@ -1,8 +1,5 @@
 import logging
-<<<<<<< HEAD
 import os
-=======
->>>>>>> df692d8744c05f2dc851a4c1ae57203cab6b8a56
 import logging.config
 from contextlib import asynccontextmanager
 from fastapi import FastAPI

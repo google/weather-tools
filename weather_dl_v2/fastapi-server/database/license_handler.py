@@ -42,6 +42,14 @@ class LicenseHandler(abc.ABC):
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         pass
 
+    @abc.abstractmethod
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        pass
+
+    @abc.abstractmethod
+    def _remove_license_queue(self, license_id: str) -> None:
+        pass
+
 class LicenseHandlerMock(LicenseHandler):
     def __init__(self):
         pass
@@ -94,6 +102,12 @@ class LicenseHandlerMock(LicenseHandler):
                 "number_of_requets": 100
             }
         ]
+    
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        logger.info(f"Added L1 queue in 'queues' collection. Update_time: 00000.")
+
+    def _remove_license_queue(self, license_id: str) -> None:
+        logger.info(f"Removed L1 queue in 'queues' collection. Update_time: 00000.")
 
 class LicenseHandlerFirestore(LicenseHandler):
     def __init__(self, db: firestore.firestore.Client):
@@ -139,3 +153,13 @@ class LicenseHandlerFirestore(LicenseHandler):
         for snapshot in snapshot_list:
             result.append(self.db.collection(self.collection).document(snapshot.id).get().to_dict())
         return result
+    
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        result: WriteResult = self._get_db().collection('queues').document(license_id).set(
+            {"license_id": license_id, "client_name": client_name, "queue": []}
+        )
+        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+
+    def _remove_license_queue(self, license_id: str) -> None:
+        timestamp = self._get_db().collection('queues').document(license_id).delete()
+        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
