@@ -292,10 +292,14 @@ class DrySplitter(FileSplitter):
         return {name: name for name in self.output_info.split_dims()}
 
 
-def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_split: bool = False) -> FileSplitter:
+def get_splitter(file_path: str,
+                 output_info: OutFileInfo,
+                 dry_run: bool,
+                 force_split: bool = False,
+                 logging_level: int = logging.INFO) -> FileSplitter:
     if dry_run:
         logger.info('Using splitter: DrySplitter')
-        return DrySplitter(file_path, output_info)
+        return DrySplitter(file_path, output_info, logging_level=logging_level)
 
     with FileSystems.open(file_path) as f:
         header = f.read(4)
@@ -309,10 +313,10 @@ def get_splitter(file_path: str, output_info: OutFileInfo, dry_run: bool, force_
         cmd = shutil.which('grib_copy')
         if cmd:
             logger.info('Using splitter: GribSplitterV2')
-            return GribSplitterV2(file_path, output_info, force_split)
+            return GribSplitterV2(file_path, output_info, force_split, logging_level)
         else:
             logger.info('Using splitter: GribSplitter')
-            return GribSplitter(file_path, output_info, force_split)
+            return GribSplitter(file_path, output_info, force_split, logging_level)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses

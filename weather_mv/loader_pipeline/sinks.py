@@ -41,7 +41,6 @@ DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longi
 DEFAULT_TIME_ORDER_LIST = ['%Y', '%m', '%d', '%H', '%M', '%S']
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class KwargsFactoryMixin:
