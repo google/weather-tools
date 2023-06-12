@@ -12,7 +12,6 @@ client = TestClient(app)
 
 logger = logging.getLogger(__name__)
 
-
 app.dependency_overrides[get_download_handler] = get_mock_download_handler
 app.dependency_overrides[get_license_handler] = get_mock_license_handler
 app.dependency_overrides[get_queue_handler] = get_mock_queue_handler
