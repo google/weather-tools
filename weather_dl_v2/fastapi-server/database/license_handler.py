@@ -66,12 +66,14 @@ class LicenseHandlerMock(LicenseHandler):
         logger.info(f"Updated {license_id} in 'license' collection. Update_time: 00000.")
     
     def _check_license_exists(self, license_id: str) -> bool:
-        if license_id == "no_exits":
+        if license_id == "no_exists":
             return False
         else:
             return True
         
     def _get_license_by_license_id(self, license_id: str) -> dict:
+        if license_id == "no_exists":
+            return None
         return {
             "license_id": license_id,
             "api_key": "xxxxxx",
@@ -82,14 +84,14 @@ class LicenseHandlerMock(LicenseHandler):
         }
     
     def _get_license_by_client_name(self, client_name: str) -> list:
-        return {
+        return [{
             "license_id": "L1",
             "api_key": "xxxxxx",
             "api_url": "api_url.com",
             "client_name": client_name,
             "k8s_deployment_id": "k1",
             "number_of_requets": 100
-        }
+        }]
     
     def _get_licenses(self) -> list:
         return [

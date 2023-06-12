@@ -27,6 +27,25 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+def get_create_deployment():
+    def create_deployment(license_id: str):
+        k8s_deployment_id = create_license_deployment(license_id)
+        update_license_internal(license_id, k8s_deployment_id)
+    return create_deployment
+
+def get_create_deployment_mock():
+    def create_deployment_mock(license_id: str):
+        print("create deployment mocked")
+    return create_deployment_mock
+
+def get_terminate_license_deployment():
+    return get_terminate_license_deployment
+
+def get_terminate_license_deployment_mock():
+    def get_terminate_license_deployment_mock(license_id):
+        print(f"terminating license deployment for {license_id}")
+    return get_terminate_license_deployment_mock
+
 
 # List all the license + handle filters of {client_name}
 @router.get("/")
@@ -49,7 +68,12 @@ async def get_license_by_license_id(license_id: str, license_handler: LicenseHan
 
 # Update existing license
 @router.put("/{license_id}")
-async def update_license(license_id: str, license: License, license_handler: LicenseHandler = Depends(get_license_handler)):
+async def update_license(license_id: str,
+                         license: License,
+                         license_handler: LicenseHandler = Depends(get_license_handler),
+                         create_deployment = Depends(get_create_deployment),
+                         terminate_license_deployment = Depends(get_terminate_license_deployment)
+                         ):
     if not license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
 
@@ -70,15 +94,12 @@ def update_license_internal(license_id: str, k8s_deployment_id: str, license_han
     license_handler._update_license(license_id, license_dict)
     return {"license_id": license_id, "message": "License updated successfully."}
 
-
-def create_deployment(license_id: str):
-    k8s_deployment_id = create_license_deployment(license_id)
-    update_license_internal(license_id, k8s_deployment_id)
-
-
 # Add new license
 @router.post("/")
-async def add_license(license: License, background_tasks: BackgroundTasks = BackgroundTasks(), license_handler: LicenseHandler = Depends(get_license_handler)):
+async def add_license(license: License, 
+                      background_tasks: BackgroundTasks = BackgroundTasks(), 
+                      license_handler: LicenseHandler = Depends(get_license_handler),
+                      create_deployment = Depends(get_create_deployment)):
     license_dict = license.dict()
     license_dict['k8s_deployment_id'] = ""
     license_id = license_handler._add_license(license_dict)
@@ -89,7 +110,11 @@ async def add_license(license: License, background_tasks: BackgroundTasks = Back
 
 # Remove license
 @router.delete("/{license_id}")
-async def delete_license(license_id: str, background_tasks: BackgroundTasks = BackgroundTasks(), license_handler: LicenseHandler = Depends(get_license_handler)):
+async def delete_license(license_id: str,
+                         background_tasks: BackgroundTasks = BackgroundTasks(),
+                         license_handler: LicenseHandler = Depends(get_license_handler),
+                         terminate_license_deployment = Depends(get_terminate_license_deployment)
+                         ):
     if not license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to delete.")
     license_handler._delete_license(license_id)

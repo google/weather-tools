@@ -6,8 +6,6 @@ from database.download_handler import get_download_handler, get_mock_download_ha
 from database.license_handler import get_license_handler, get_mock_license_handler
 from database.queue_handler import get_queue_handler, get_mock_queue_handler
 
-from database.queue_handler import get_queue_handler
-
 client = TestClient(app)
 
 logger = logging.getLogger(__name__)
@@ -22,7 +20,6 @@ def _get_download(headers, query, code, expected):
     
     assert response.status_code == code
     assert response.json() == expected
-    
 
 def test_get_downloads_basic():
     headers = {}
@@ -131,13 +128,13 @@ def test_get_download_by_config_wrong_config():
 
     _get_download_by_config(headers, config_name, code, expected)
 
+
 def _delete_download_by_config(headers, config_name, code, expected):
     response = client.delete(f"/download/{config_name}",headers=headers)
 
     assert response.status_code == code
     assert response.json() == expected
     
-
 def test_delete_download_by_config_basic():
     headers = {}
     config_name = "dummy_config"
