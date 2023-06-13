@@ -33,6 +33,7 @@ class NetworkService:
             x = requests.get(uri, params=query, headers=header, data=payload)
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
             raise SystemExit(e)
         
     @timeit
@@ -41,6 +42,7 @@ class NetworkService:
             x = requests.post(uri, params=query, headers=header, data=payload, files=file)
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
             raise SystemExit(e)
         
     @timeit
@@ -50,6 +52,7 @@ class NetworkService:
 
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
             raise SystemExit(e)
         
     @timeit
@@ -58,6 +61,7 @@ class NetworkService:
             x =  requests.delete(uri, params=query, headers=header)
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
             raise SystemExit(e)
         
 network_service = NetworkService()
