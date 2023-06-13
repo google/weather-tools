@@ -101,8 +101,7 @@ def test_submit_download_file_alreadys_exist():
     licenses = ["L1"]
     code = 400
     expected = {
-        "detail": "Please stop the ongoing download of the config \
-        file 'example.cfg' before attempting to start a new download."
+        "detail": "Please stop the ongoing download of the config file 'example.cfg' before attempting to start a new download." # noqa: E501
         }
 
     _submit_download(header, file_path, licenses, code, expected)
