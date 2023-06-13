@@ -26,10 +26,9 @@ Docker
 ```
 docker build -t dl-cli .
 docker run -it --net <network name> dl-cli
-conda activate weather-dl-v2-cli
 ```
 After activating the conda enviroment, cli can be used. To see baisc subcommands use -
 ## Usage
 ```
-weather-dl-cli --help
+weather-dl-v2 --help
 ```
