@@ -64,7 +64,7 @@ class QueueHandlerMock(QueueHandler):
                 "queue": []
             }
         ]
-    
+
     def _get_queue_by_license_id(self, license_id: str) -> dict:
         if license_id == "no_exists":
             return None
@@ -73,7 +73,7 @@ class QueueHandlerMock(QueueHandler):
                 "license_id": license_id,
                 "queue": []
             }
-    
+
     def _get_queue_by_client_name(self, client_name: str) -> list:
         return [
             {
@@ -82,7 +82,7 @@ class QueueHandlerMock(QueueHandler):
                 "queue": []
             }
         ]
-    
+
     def _update_license_queue(self, license_id: str, priority_list: list) -> None:
         logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: 00000.")
 
@@ -90,7 +90,7 @@ class QueueHandlerMock(QueueHandler):
         logger.info(f"Updated {license} queue in 'queues' collection. Update_time: 00000.")
 
     def _update_queues_on_stop_download(self, config_name: str) -> None:
-        logger.info(f"Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
+        logger.info("Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
 
 class QueueHandlerFirestore(QueueHandler):
     def __init__(self, db: firestore.firestore.Client, collection: str = "queues"):

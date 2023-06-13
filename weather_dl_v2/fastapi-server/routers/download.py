@@ -42,7 +42,7 @@ def submit_download(file: UploadFile | None = None, licenses: list = [],
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
-async def get_downloads(client_name: str | None = None, download_handler: DownloadHandler = Depends(get_download_handler)):
+async def get_downloads(client_name: str | None = None):
     # Get this kind of response by querying download collection + manifest collection.
     if client_name:
         result = {"config_name": "config_3", "client_name": client_name, "total_shards": 10000,
@@ -73,7 +73,7 @@ async def get_download(config_name: str, download_handler: DownloadHandler = Dep
 
 # Stop & remove the execution of the config.
 @router.delete("/{config_name}")
-async def delete_download(config_name: str, 
+async def delete_download(config_name: str,
                           download_handler: DownloadHandler = Depends(get_download_handler),
                           queue_handler: QueueHandler = Depends(get_queue_handler)):
     if not download_handler._check_download_exists(config_name):

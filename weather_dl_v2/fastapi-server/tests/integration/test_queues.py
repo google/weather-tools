@@ -30,7 +30,7 @@ def test_get_all_queues():
                 "queue": []
             }
         ]
-    
+
     _get_all_queue(headers, query, code, expected)
 
 def test_get_client_queues():
@@ -64,7 +64,7 @@ def test_get_queue_by_license_basic():
                 "license_id": license_id,
                 "queue": []
             }
-    
+
     _get_queue_by_license(headers, license_id, code, expected)
 
 def test_get_queue_by_license_wrong_license():

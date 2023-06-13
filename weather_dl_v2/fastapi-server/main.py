@@ -3,7 +3,6 @@ import os
 import logging.config
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 from routers import license, download, queues
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

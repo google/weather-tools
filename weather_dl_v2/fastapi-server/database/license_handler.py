@@ -21,7 +21,7 @@ class LicenseHandler(abc.ABC):
     @abc.abstractmethod
     def _delete_license(self, license_id: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     def _check_license_exists(self, license_id: str) -> bool:
         pass
@@ -53,24 +53,24 @@ class LicenseHandler(abc.ABC):
 class LicenseHandlerMock(LicenseHandler):
     def __init__(self):
         pass
-    
+
     def _add_license(self, license_dict: dict) -> str:
         license_id = "L1"
         logger.info(f"Added {license_id} in 'license' collection. Update_time: 00000.")
         return license_id
-    
+
     def _delete_license(self, license_id: str) -> None:
         logger.info(f"Removed {license_id} in 'license' collection. Update_time: 00000.")
 
     def _update_license(self, license_id: str, license_dict: dict) -> None:
         logger.info(f"Updated {license_id} in 'license' collection. Update_time: 00000.")
-    
+
     def _check_license_exists(self, license_id: str) -> bool:
         if license_id == "no_exists":
             return False
         else:
             return True
-        
+
     def _get_license_by_license_id(self, license_id: str) -> dict:
         if license_id == "no_exists":
             return None
@@ -82,7 +82,7 @@ class LicenseHandlerMock(LicenseHandler):
             "k8s_deployment_id": "k1",
             "number_of_requets": 100
         }
-    
+
     def _get_license_by_client_name(self, client_name: str) -> list:
         return [{
             "license_id": "L1",
@@ -92,7 +92,7 @@ class LicenseHandlerMock(LicenseHandler):
             "k8s_deployment_id": "k1",
             "number_of_requets": 100
         }]
-    
+
     def _get_licenses(self) -> list:
         return [
             {
@@ -104,19 +104,19 @@ class LicenseHandlerMock(LicenseHandler):
                 "number_of_requets": 100
             }
         ]
-    
+
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
-        logger.info(f"Added L1 queue in 'queues' collection. Update_time: 00000.")
+        logger.info("Added L1 queue in 'queues' collection. Update_time: 00000.")
 
     def _remove_license_queue(self, license_id: str) -> None:
-        logger.info(f"Removed L1 queue in 'queues' collection. Update_time: 00000.")
+        logger.info("Removed L1 queue in 'queues' collection. Update_time: 00000.")
 
 class LicenseHandlerFirestore(LicenseHandler):
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
         self.collection = "license"
 
-    # TODO: find alternative way to create license_id 
+    # TODO: find alternative way to create license_id
     def _add_license(self, license_dict: dict) -> str:
         license_id = f"L{len(self.db.collection(self.collection).get()) + 1}"
         license_dict["license_id"] = license_id
@@ -125,7 +125,7 @@ class LicenseHandlerFirestore(LicenseHandler):
         )
         logger.info(f"Added {license_id} in 'license' collection. Update_time: {result.update_time}.")
         return license_id
-    
+
     def _delete_license(self, license_id: str) -> None:
         timestamp = self.db.collection(self.collection).document(license_id).delete()
         logger.info(f"Removed {license_id} in 'license' collection. Update_time: {timestamp}.")
@@ -155,7 +155,7 @@ class LicenseHandlerFirestore(LicenseHandler):
         for snapshot in snapshot_list:
             result.append(self.db.collection(self.collection).document(snapshot.id).get().to_dict())
         return result
-    
+
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license_id).set(
             {"license_id": license_id, "client_name": client_name, "queue": []}

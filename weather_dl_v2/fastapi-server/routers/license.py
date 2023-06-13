@@ -1,9 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
-from db_service.database import FirestoreClient
-from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
+from license_dep.deployment_creator import create_license_deployment
 from database.license_handler import LicenseHandler, get_license_handler
-from database.queue_handler import QueueHandler, get_queue_handler
 
 
 # TODO: Make use of google secret manager.
@@ -86,7 +84,9 @@ async def update_license(license_id: str,
 
 
 # Add/Update k8s deployment ID for existing license (intenally).
-def update_license_internal(license_id: str, k8s_deployment_id: str, license_handler: LicenseHandler = Depends(get_license_handler)):
+def update_license_internal(license_id: str,
+                            k8s_deployment_id: str,
+                            license_handler: LicenseHandler = Depends(get_license_handler)):
     if not license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
     license_dict = {"k8s_deployment_id": k8s_deployment_id}
@@ -96,8 +96,8 @@ def update_license_internal(license_id: str, k8s_deployment_id: str, license_han
 
 # Add new license
 @router.post("/")
-async def add_license(license: License, 
-                      background_tasks: BackgroundTasks = BackgroundTasks(), 
+async def add_license(license: License,
+                      background_tasks: BackgroundTasks = BackgroundTasks(),
                       license_handler: LicenseHandler = Depends(get_license_handler),
                       create_deployment = Depends(get_create_deployment)):
     license_dict = license.dict()

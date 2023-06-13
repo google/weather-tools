@@ -17,7 +17,7 @@ app.dependency_overrides[get_queue_handler] = get_mock_queue_handler
 
 def _get_download(headers, query, code, expected):
     response = client.get("/download", headers=headers, params=query)
-    
+
     assert response.status_code == code
     assert response.json() == expected
 
@@ -100,7 +100,10 @@ def test_submit_download_file_alreadys_exist():
     file_path = os.path.join(ROOT_DIR, "tests/test_data/example.cfg")
     licenses = ["L1"]
     code = 400
-    expected = {"detail": "Please stop the ongoing download of the config file 'example.cfg' before attempting to start a new download."}
+    expected = {
+        "detail": "Please stop the ongoing download of the config \
+        file 'example.cfg' before attempting to start a new download."
+        }
 
     _submit_download(header, file_path, licenses, code, expected)
 
@@ -117,7 +120,7 @@ def test_get_download_by_config_basic():
     code = 200
     expected = {"config_name": config_name, "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990,
               "downloaded_shards": 5000, "failed_shards": 0}
-    
+
     _get_download_by_config(headers, config_name, code, expected)
 
 def test_get_download_by_config_wrong_config():
@@ -134,7 +137,7 @@ def _delete_download_by_config(headers, config_name, code, expected):
 
     assert response.status_code == code
     assert response.json() == expected
-    
+
 def test_delete_download_by_config_basic():
     headers = {}
     config_name = "dummy_config"

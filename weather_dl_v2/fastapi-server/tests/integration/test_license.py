@@ -4,7 +4,12 @@ from fastapi.testclient import TestClient
 from main import app
 from database.download_handler import get_download_handler, get_mock_download_handler
 from database.license_handler import get_license_handler, get_mock_license_handler
-from routers.license import get_create_deployment, get_create_deployment_mock, get_terminate_license_deployment, get_terminate_license_deployment_mock
+from routers.license import (
+        get_create_deployment,
+        get_create_deployment_mock,
+        get_terminate_license_deployment,
+        get_terminate_license_deployment_mock
+    )
 from database.queue_handler import get_queue_handler, get_mock_queue_handler
 
 client = TestClient(app)
@@ -91,7 +96,7 @@ def _get_license_by_license_id(headers, license_id, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
-def test_get_license_basic():
+def test_get_license_by_license_id():
     headers = {
         "accept": "application/json",
         "Content-Type" : "application/json"
