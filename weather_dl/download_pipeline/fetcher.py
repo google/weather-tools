@@ -82,7 +82,7 @@ class Fetcher(beam.DoFn):
 
             res = {
                     'config_name': config.config_name,
-                    'dataset': config.dataset,
+                    #'dataset': config.dataset,
                     'selection': config.selection,
                     'user_id': config.user_id,
                     'url': result['href'],
