@@ -1,4 +1,5 @@
 import time
+import abc
 import logging
 import firebase_admin
 from firebase_admin import firestore
@@ -6,6 +7,11 @@ from firebase_admin import credentials
 from config_processing.util import get_wait_interval
 
 logger = logging.getLogger(__name__)
+
+class Database(abc.ABC):
+    @abc.abstractmethod
+    def _get_db(self):
+        pass
 
 def get_db() -> firestore.firestore.Client:
     """Acquire a firestore client, initializing the firebase app if necessary.

@@ -26,7 +26,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
-from db_service.database import Database
+from database.session import Database
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
