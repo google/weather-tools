@@ -158,7 +158,7 @@ class ToBigQuery(ToDataSink):
     def __post_init__(self):
         """Initializes BigQuery table based on user input."""
         self.project, self.dataset_id, self.table_id = self.output_table.split('.')
-        self.table =  None
+        self.table = None
 
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
