@@ -48,8 +48,8 @@ gcloud pubsub topics create weather-dl-1.5
 
 gcloud pubsub subscriptions create weather-dl-1.5-read --topic=weather-dl-1.5
 ```
-> Note: Please write down the above created topic path at Line 82 weather_dl/download_pipeline/fetcher.py & subscription path
-> at Line 23 weather_dl/download_kubernetes/pub-sub-subscriber.py
+> Note: Please write down the above created subscription path at Line 23 weather_dl/download_kubernetes/pub-sub-subscriber.py.
+> Also you need to pass the topic path in --topic-path argument while running weather-dl tool. 
 
 * **Specify Firestore manifest location in downloader code**:
 Please write down the FS manifest location that will be used in fetcher code (weather-dl) at Line 36 weather_dl/download_kubernetes/downloader.py.
