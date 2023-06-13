@@ -1,4 +1,3 @@
----
 # weather-dl-v2-license-dep Deployment
 # Defines the deployment of the app running in a pod on any worker node
 apiVersion: apps/v1
@@ -27,39 +26,3 @@ spec:
           #   # based on CPU utilization
           #   requests:
           #     cpu: "250m"
----
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: weather-dl-v2-license-dep
-rules:
-  - apiGroups:
-      - ""
-      - "apps"
-      - "batch"
-    resources:
-      - endpoints
-      - deployments
-      - pods
-      - jobs
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - delete
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: weather-dl-v2-license-dep
-  namespace: default
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: weather-dl-v2-license-dep
----

@@ -21,14 +21,3 @@ export REPO=<repo> eg:weather-tools
 
 gcloud builds submit Dockerfile --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-downloader" --timeout=79200 --machine-type=e2-highcpu-32
 ```
-
-* **Add path of created downloader image in downloader.yaml**:
-```
-Please write down the downloader's docker image path at Line 11 of downloader.yaml.
-```
-
-## General Commands
-* **For viewing the current pods**:
-```
-kubectl get pods
-```

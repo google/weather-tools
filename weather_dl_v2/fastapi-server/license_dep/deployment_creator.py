@@ -10,7 +10,7 @@ def create_license_deployment(license_id: str) -> str:
 
     with open(path.join(path.dirname(__file__), "license_deployment.yaml")) as f:
         deployment_manifest = yaml.safe_load(f)
-        deployment_name = f"weather-dl-v2-license-dep-{license_id}"
+        deployment_name = f"weather-dl-v2-license-dep-{license_id}".lower()
         
         # Update the deployment name with a unique identifier 
         deployment_manifest["metadata"]["name"] = deployment_name
@@ -27,13 +27,13 @@ def create_license_deployment(license_id: str) -> str:
 
 def terminate_license_deployment(license_id: str) -> None:
     # Load Kubernetes configuration
-    config.load_kube_config()
+    config.load_config()
 
     # Create an instance of the Kubernetes API client
     api_instance = client.AppsV1Api()
 
     # Specify the name and namespace of the deployment to delete
-    deployment_name = f"weather-dl-v2-license-dep-{license_id}"
+    deployment_name = f"weather-dl-v2-license-dep-{license_id}".lower()
 
     # Delete the deployment
     api_instance.delete_namespaced_deployment(name=deployment_name, namespace="default")
