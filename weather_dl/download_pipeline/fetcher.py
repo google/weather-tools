@@ -49,6 +49,7 @@ class Fetcher(beam.DoFn):
     """
 
     client_name: str
+    topic_path: str
     manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
     store: t.Optional[Store] = None
 
@@ -78,8 +79,6 @@ class Fetcher(beam.DoFn):
                 result = self.retrieve(client, config.dataset, config.selection, temp.name)
 
             publisher = pubsub_v1.PublisherClient()
-            # `projects/{project_id}/topics/{topic_id}`
-            topic_path = "XXXXXXXXXXXXXXXX"
 
             res = {
                     'config_name': config.config_name,
@@ -94,8 +93,8 @@ class Fetcher(beam.DoFn):
             # Data must be a bytestring
             data = data_str.encode("utf-8")
             # When you publish a message, the client returns a future.
-            future = publisher.publish(topic_path, data)
-            logger.info(f"Published message: {res} to {topic_path}.")
+            future = publisher.publish(self.topic_path, data)
+            logger.info(f"Published message: {res} to {self.topic_path}.")
             # Wait for the publish futures to resolve before exiting.
             futures.wait([future], return_when=futures.ALL_COMPLETED)
 

@@ -125,7 +125,7 @@ def pipeline(args: PipelineArgs) -> None:
             (
                 partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.manifest, args.store))
+                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.known_args.topic_path, args.manifest, args.store))
             )
 
 
@@ -172,6 +172,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="To enable file skipping logic in dry-run mode. Default: 'false'.")
     parser.add_argument('-u', '--update-manifest', action='store_true', default=False,
                         help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
+    parser.add_argument('--topic-path', action=str, required=True,
+                        help="Topic path for weather-dl v1.5. Eg: 'projects/<project_id>/topics/<topic_id>'.")
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
