@@ -9,6 +9,7 @@ from database import FirestoreClient
 from job_creator import create_download_job
 from clients import CLIENTS
 from manifest import FirestoreManifest
+from util import exceptionit
 
 db_client = FirestoreClient()
 
@@ -28,7 +29,7 @@ def create_job(request, result):
     logger.info(f"Creating download job for res: {data_str}")
     create_download_job(data_str)
 
-
+@exceptionit
 def make_fetch_request(request):
     client = CLIENTS[client_name](request['dataset'])
     manifest = FirestoreManifest()
@@ -43,6 +44,11 @@ def make_fetch_request(request):
         result = client.retrieve(request['dataset'], selection, manifest)
 
     create_job(request, result)
+
+# TODO: Add request clean up logic when anything fails in make_fetch_request
+@exceptionit
+def fetch_request_done_callback(future):
+    pass
 
 
 def fetch_request_from_db():
@@ -63,7 +69,8 @@ def main():
             request = fetch_request_from_db()
 
             if request is not None:
-                executor.submit(make_fetch_request, request)
+                future = executor.submit(make_fetch_request, request)
+                future.add_done_callback(fetch_request_done_callback)
             else:
                 logger.info("No request available. Waiting...")
                 time.sleep(5)

@@ -1,5 +1,6 @@
 import abc
 import time
+import logging
 import firebase_admin
 from firebase_admin import firestore
 from firebase_admin import credentials
@@ -8,6 +9,7 @@ from google.cloud.firestore_v1.types import WriteResult
 from google.cloud.firestore_v1.base_query import FieldFilter, And
 from util import get_wait_interval
 
+logger = logging.getLogger(__name__)
 
 class Database(abc.ABC):
     @abc.abstractmethod
@@ -51,7 +53,7 @@ class FirestoreClient(Database, CRUDOperations):
                 cred = credentials.ApplicationDefault()
 
                 firebase_admin.initialize_app(cred)
-                print('Initialized Firebase App.')
+                logger.info('Initialized Firebase App.')
 
                 if attempts > 4:
                     raise RuntimeError('Exceeded number of retries to get firestore client.') from e
@@ -81,7 +83,7 @@ class FirestoreClient(Database, CRUDOperations):
     def _remove_config_from_license_queue(self, license_id: str, config_name: str) -> None:
         result: WriteResult = self._get_db().collection('queues').document(license_id).update({
             'queue': firestore.ArrayRemove([config_name])})
-        print(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+        logger.info(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
 
 @firestore.transactional
