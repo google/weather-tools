@@ -296,12 +296,7 @@ def __normalize_grib_dataset(filename: str,
                 _level_data_dict[level].append(copied_da)
 
     _data_array_list = []
-    for level, ds in _level_data_dict.items():
-        if len(ds) == 1:
-            dataset = ds[0].to_dataset(promote_attrs=True)
-        else:
-            dataset = xr.merge(ds)
-        _data_array_list.append(dataset)
+    _data_array_list = [xr.merge(list_da) for list_da in _level_data_dict.values()]
 
     if not group_common_hypercubes:
         # Stick the forecast hour, start_time, end_time, data variables units

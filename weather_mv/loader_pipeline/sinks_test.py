@@ -86,7 +86,6 @@ class OpenDatasetTest(TestDataBase):
         self.test_grib_path = os.path.join(self.test_data_folder, 'test_data_grib_single_timestep')
         self.test_tif_path = os.path.join(self.test_data_folder, 'test_data_tif_start_time.tif')
         self.test_zarr_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        self.test_grib_multi_level_path = os.path.join(self.test_data_folder, 'test_data_grib_multi_levels.grib2')
 
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
@@ -120,7 +119,7 @@ class OpenDatasetTest(TestDataBase):
                     pass
 
     def test_group_common_hypercubes(self):
-        with open_dataset(self.test_grib_multi_level_path,
+        with open_dataset(self.test_grib_path,
                           group_common_hypercubes=True) as ds:
             self.assertEqual(isinstance(ds, list), True)
 
