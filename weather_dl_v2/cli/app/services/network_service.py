@@ -3,10 +3,6 @@ import json
 
 class NetworkService:
     def parse_response(self, response: requests.Response):
-        #TODO: implement other http status codes.
-        if(response.status_code != 200):
-            print("Server error! Try again later.")
-
         parsed = json.loads(response.text)
         return json.dumps(parsed, indent=3)
         
