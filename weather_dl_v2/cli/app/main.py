@@ -1,13 +1,14 @@
 import typer
 from app.config import Config
 import requests
-from app.subcommands import download, queue
+from app.subcommands import download, queue, license
 
 
 app = typer.Typer(help="weather-dl-v2 is a cli tool for communicating with FastAPI server.")
 
 app.add_typer(download.app, name="download", help="Manage downloads.")
 app.add_typer(queue.app, name="queue", help="Manage queues.")
+app.add_typer(license.app, name="license", help="Manage licenses.")
 
 
 

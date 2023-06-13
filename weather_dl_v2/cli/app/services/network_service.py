@@ -14,7 +14,14 @@ def timeit(func):
 
 class NetworkService:
     def parse_response(self, response: requests.Response):
-        parsed = json.loads(response.text)
+        try:
+            parsed = json.loads(response.text)
+        except Exception as e:
+            print(f"Parsing error: {e}.")
+            print(f"Status code {response.status_code}")
+            print(f"Response {response.text}")
+            return
+
         return json.dumps(parsed, indent=3)
         
     @timeit
