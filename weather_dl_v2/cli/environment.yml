@@ -1,0 +1,13 @@
+name: weather-dl-v2-cli
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip=23.0.1
+  - typer=0.9.0
+  - pip:
+    - requests
+    - ruff
+    - pytype
+    - pytest
+    - .
