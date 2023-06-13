@@ -1,7 +1,10 @@
 import abc
+import logging
 import dataclasses
 import typing as t
 import json
+
+logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class Validator(abc.ABC):
@@ -16,7 +19,7 @@ class Validator(abc.ABC):
 
             if(len(_filter)!=2):
                 if show_valid_filters:
-                    print(f"valid filters are: {self.valid_keys}.")
+                    logger.info(f"valid filters are: {self.valid_keys}.")
                 raise ValueError("Incorrect Filter. Please Try again.")
 
             key, value = _filter
@@ -41,7 +44,7 @@ class Validator(abc.ABC):
                     return data
 
         except FileNotFoundError:
-            print("file not found.")
+            logger.info("file not found.")
             raise FileNotFoundError
         
     def _validate_keys(self, data_set: set, valid_set: set):

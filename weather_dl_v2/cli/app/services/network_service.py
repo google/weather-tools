@@ -1,6 +1,9 @@
 import requests
 import json
+import logging
 from time import time
+
+logger = logging.getLogger(__name__)
 
 def timeit(func):
     def wrap_func(*args, **kwargs):
@@ -17,9 +20,9 @@ class NetworkService:
         try:
             parsed = json.loads(response.text)
         except Exception as e:
-            print(f"Parsing error: {e}.")
-            print(f"Status code {response.status_code}")
-            print(f"Response {response.text}")
+            logger.info(f"Parsing error: {e}.")
+            logger.info(f"Status code {response.status_code}")
+            logger.info(f"Response {response.text}")
             return
 
         return json.dumps(parsed, indent=3)

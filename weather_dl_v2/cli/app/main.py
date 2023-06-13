@@ -1,8 +1,10 @@
 import typer
+import logging
 from app.config import Config
 import requests
 from app.subcommands import download, queue, license
 
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(help="weather-dl-v2 is a cli tool for communicating with FastAPI server.")
 
@@ -22,7 +24,7 @@ def ping():
         raise SystemExit(e)
 
 
-    print(x.text)
+    logger.info(x.text)
 
 if __name__ == "__main__":
     app()
