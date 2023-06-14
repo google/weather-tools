@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from google.cloud import secretmanager
 import json
 import logging
 import time
@@ -11,7 +12,8 @@ from clients import CLIENTS
 from manifest import FirestoreManifest
 
 db_client = FirestoreClient()
-
+secretmanager_client = secretmanager.SecretManagerServiceClient()
+    
 logger = logging.getLogger(__name__)
 
 def create_job(request, result):
@@ -81,9 +83,14 @@ def boot_up(license: str) -> None:
     license_id = license
     client_name = result['client_name']
     concurrency_limit = result['number_of_requests']
-    os.environ.setdefault('CLIENT_URL', result['api_url'])
-    os.environ.setdefault('CLIENT_KEY', result['api_key'])
-    os.environ.setdefault('CLIENT_EMAIL', result['api_email'])
+
+    response = secretmanager_client.access_secret_version(request={"name": result['secret_id']})
+    payload = response.payload.data.decode("UTF-8")
+    secret_dict = json.loads(payload)
+
+    os.environ.setdefault('CLIENT_URL', secret_dict.get('api_url', ""))
+    os.environ.setdefault('CLIENT_KEY', secret_dict.get('api_key', ""))
+    os.environ.setdefault('CLIENT_EMAIL', secret_dict.get('api_email', ""))
  
 
 if __name__ == "__main__":

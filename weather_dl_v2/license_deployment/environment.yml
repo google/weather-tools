@@ -9,6 +9,7 @@ dependencies:
   - pip=22.3
   - pip:
     - kubernetes
+    - google-cloud-secret-manager
     - aiohttp
     - numpy
     - xarray

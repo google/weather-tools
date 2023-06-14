@@ -11,9 +11,7 @@ db_client = FirestoreClient()
 class License(BaseModel):
     client_name: str
     number_of_requests: int
-    api_key: str
-    api_url: str
-    api_email: str
+    secret_id: str
 
 
 class LicenseInternal(License):
