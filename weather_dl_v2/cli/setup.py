@@ -8,7 +8,7 @@ setup(
     install_requires=requirements,
     version = "0.0.1",
     author = "aniket",
-    description = ("This cli tools helps in interacting with weather dl v2 fast API server"),
+    description = ("This cli tools helps in interacting with weather dl v2 fast API server."),
     entry_points={
         "console_scripts": [
             "weather-dl-v2=app.main:app"

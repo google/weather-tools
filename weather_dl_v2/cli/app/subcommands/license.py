@@ -2,8 +2,6 @@ import typer
 from typing_extensions import Annotated
 from app.services.license_service import license_service
 from app.utils import Validator
-from typing import List
-
 
 app = typer.Typer()
 
@@ -11,8 +9,8 @@ app = typer.Typer()
 class LicenseValidator(Validator):
     pass
 
-@app.command(help="List all licenses.")
-def list(
+@app.command("list", help="List all licenses.")
+def get_all_license(
         filter: Annotated[str, typer.Option(help="Filter by some value. Format: filter_key=filter_value")] = None
     ):
     if filter:
@@ -36,17 +34,15 @@ def get_license(
     ):
     print(license_service._get_license_by_license_id(license))
 
-@app.command(help="Add new license.")
-def add(
-        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "api_key" : <str>, "api_url" : <str>}''')],
+@app.command("add", help="Add new license.")
+def add_license(
+        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')],
     ):
     validator = LicenseValidator(
         valid_keys=[
             "client_name",
             "number_of_requests",
-            "api_key",
-            "api_url",
-            "api_email"
+            "secret_id"
         ]
     )
 
@@ -58,24 +54,22 @@ def add(
     
     print(license_service._add_license(license_dict))
 
-@app.command(help="Remove a license")
-def remove(
+@app.command("remove", help="Remove a license.")
+def remove_license(
         license: Annotated[str, typer.Argument( help="License ID.")]
     ):
     print(license_service._remove_license(license))
 
-@app.command(help="Update existing license.")
-def update(
+@app.command("update", help="Update existing license.")
+def update_license(
         license: Annotated[str, typer.Argument(help="License ID.")],
-        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "api_key" : <str>, "api_url" : <str>}''')]
+        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for updated license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')]
     ):
     validator = LicenseValidator(
         valid_keys=[
             "client_name",
             "number_of_requests",
-            "api_key",
-            "api_url",
-            "api_email"
+            "secret_id"
         ]
     )
     try:

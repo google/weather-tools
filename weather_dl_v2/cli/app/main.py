@@ -13,8 +13,7 @@ app.add_typer(queue.app, name="queue", help="Manage queues.")
 app.add_typer(license.app, name="license", help="Manage licenses.")
 
 
-
-@app.command(help="Check if FastAPI server is live and rechable")
+@app.command("ping", help="Check if FastAPI server is live and rechable.")
 def ping():
     uri = f"{Config().BASE_URI}"
 

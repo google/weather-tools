@@ -33,7 +33,7 @@ class LicenseService(abc.ABC):
         pass
 
 
-class LicneseServiceNetwork(LicenseService):
+class LicenseServiceNetwork(LicenseService):
     def __init__(self):
         self.endpoint = f"{Config().BASE_URI}/license"
 
@@ -84,6 +84,6 @@ def get_license_service(test: bool = False):
     if test:
         return LicenseServiceMock()
     else:
-        return LicneseServiceNetwork()
+        return LicenseServiceNetwork()
     
 license_service = get_license_service()

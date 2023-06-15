@@ -8,8 +8,8 @@ app = typer.Typer()
 class QueueValidator(Validator):
     pass
 
-@app.command(help="List all the queues.")
-def list(
+@app.command("list", help="List all the license queues.")
+def get_all_license_queue(
         filter: Annotated[str, typer.Option(help="Filter by some value. Format: filter_key=filter_value")] = None
     ):
     if filter:
@@ -23,19 +23,19 @@ def list(
             print(f"filter error: {e}")
             return 
         
-        print(queue_service._list_all_queues_by_client_name(client_name))
+        print(queue_service._get_license_queue_by_client_name(client_name))
         return
     
-    print(queue_service._list_all_queues())
+    print(queue_service._get_all_license_queues())
 
-@app.command(help="Get queue of particular license.")
-def license_queue(
+@app.command("get", help="Get queue of particular license.")
+def get_license_queue(
         license: Annotated[str, typer.Argument(help="License ID")],
     ):
     print(queue_service._get_queue_by_license(license))
 
-@app.command(help="Edit existing queues.")
-def edit(
+@app.command("edit", help="Edit existing license queue.")
+def modify_license_queue(
         license: Annotated[str, typer.Argument(help="License ID.")],
         file_path: Annotated[str, typer.Argument(help='''File path of priority json file. Example json: {"priority": ["c1.cfg", "c2.cfg",...]}''')]
     ):
@@ -48,6 +48,5 @@ def edit(
         print(f"key error: {e}")
         return
     
-    print(queue_service._edit_queues(license, priority_list))
-    
-    
+    print(queue_service._edit_license_queue(license, priority_list))
+

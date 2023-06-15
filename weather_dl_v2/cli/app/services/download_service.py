@@ -4,10 +4,7 @@ import typing as t
 from app.services.network_service import network_service
 from app.config import Config
 
-
 logger = logging.getLogger(__name__)
-
-
 
 class DownloadService(abc.ABC):
     

@@ -5,19 +5,16 @@ import typing as t
 from app.services.network_service import network_service
 from app.config import Config
 
-
 logger = logging.getLogger(__name__)
-
-
 
 class QueueService(abc.ABC):
     
     @abc.abstractmethod
-    def _list_all_queues(self):
+    def _get_all_license_queues(self):
         pass
 
     @abc.abstractmethod
-    def _list_all_queues_by_client_name(self, client_name: str):
+    def _get_license_queue_by_client_name(self, client_name: str):
         pass
 
     @abc.abstractmethod
@@ -25,20 +22,20 @@ class QueueService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _edit_queues(self, license_id: str, priority_list: t.List[str]):
+    def _edit_license_queue(self, license_id: str, priority_list: t.List[str]):
         pass
 
 class QueueServiceNetwork(QueueService):
     def __init__(self):
         self.endpoint = f"{Config().BASE_URI}/queues"
 
-    def _list_all_queues(self):
+    def _get_all_license_queues(self):
         return network_service.get(
             uri = self.endpoint,
             header = {"accept": "application/json"}
         )
     
-    def _list_all_queues_by_client_name(self, client_name: str):
+    def _get_license_queue_by_client_name(self, client_name: str):
         return network_service.get(
             uri = self.endpoint,
             header = {"accept": "application/json"},
@@ -51,7 +48,7 @@ class QueueServiceNetwork(QueueService):
             header = {"accept": "application/json"}
         )
     
-    def _edit_queues(self, license_id: str, priority_list: t.List[str]):
+    def _edit_license_queue(self, license_id: str, priority_list: t.List[str]):
         return network_service.post(
             uri = f"{self.endpoint}/{license_id}",
             header = {

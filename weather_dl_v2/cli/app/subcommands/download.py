@@ -1,5 +1,4 @@
 import typer
-import json
 from typing_extensions import Annotated
 from app.services.download_service import download_service
 from app.utils import Validator
@@ -10,9 +9,9 @@ app = typer.Typer()
 class DowloadFilterValidator(Validator):
     pass
 
-@app.command(help="List out all the configs.")
-def list(
-        filter: Annotated[str, typer.Option(help="Filter by some value. Format: filter_key=filter_value")] = None
+@app.command("list", help="List out all the configs.")
+def get_downloads(
+        filter: Annotated[str, typer.Option(help="Filter by some value. Format: filter_key=filter_value.")] = None
     ):
     if filter:
         validator = DowloadFilterValidator(valid_keys=["client_name"])
@@ -29,9 +28,9 @@ def list(
 
     print(download_service._list_all_downloads())
 
-@app.command(help="Add new configs.")
-def add(
-        file_path: Annotated[str, typer.Argument(help="File path of config to be uploaded")],
+@app.command("add", help="Submit new config to download.")
+def submit_download(
+        file_path: Annotated[str, typer.Argument(help="File path of config to be uploaded.")],
         license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")] = [],
     ):
     if len(license) == 0:
@@ -40,14 +39,14 @@ def add(
     
     print(download_service._add_new_download(file_path, license))
 
-@app.command(help="Get a particular config.")
-def config(
+@app.command("get", help="Get a particular config.")
+def get_download_by_config(
         config_name: Annotated[str, typer.Argument(help="Config file name.")]
     ):
     print(download_service._get_download_by_config(config_name))
 
-@app.command(help="Remove existing configs.")
-def remove(
+@app.command("remove", help="Remove existing config.")
+def remove_download(
         config_name: Annotated[str, typer.Argument(help="Config file name.")]
     ):
     print(download_service._remove_download(config_name))
