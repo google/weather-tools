@@ -396,9 +396,12 @@ def open_dataset(uri: str,
                                              forecast_time_regex)
 
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
-            with rasterio.open(local_path, 'r') as f:
-                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
-                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+            try:
+                with rasterio.open(local_path, 'r') as f:
+                    dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+            except rasterio.errors.RasterioIOError:
+                logger.warning('Cannot parse projection and data type information for Dataset %r.', uri)
 
             logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
