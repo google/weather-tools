@@ -28,7 +28,6 @@ import apache_beam as beam
 import ee
 import numpy as np
 import xarray as xr
-import cfgrib
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -326,24 +325,6 @@ class ToEarthEngine(ToDataSink):
         # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
-
-        if known_args.tiff_config['dims']:
-            with open_local(known_args.uris) as local_path:
-                try:
-                    ds = xr.open_dataset(local_path)
-                    ds_dims = ds.dims.keys()
-                    for dim in known_args.tiff_config['dims']:
-                        if dim not in ds_dims:
-                            raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
-                except ValueError:
-                    dslist = cfgrib.open_datasets(local_path)
-                    ds_dims = set()
-                    for ds in dslist:
-                        for dims in ds.dims.keys():
-                            ds_dims.add(dims)
-                    for dim in known_args.tiff_config['dims']:
-                        if dim not in ds_dims:
-                            raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
 
 
     def expand(self, paths):

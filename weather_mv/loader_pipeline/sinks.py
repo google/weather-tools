@@ -292,6 +292,7 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
 
 
 def create_partition_configs(_dims,dims,default_tiff_dims):
+    # Produces indexes and group them according to default_tiff_dims
     it=list(itertools.product(*_dims))
     configs = []
     for i in it:
@@ -347,6 +348,12 @@ def create_partition(ds,group,flat_dims,coords_set):
 
     return (_data_array_list,dv_units_dict)
 
+def validate_tiff_config(ds_dims:t.List,tiff_config: t.Dict):
+    if tiff_config['dims']:
+        for dim in tiff_config['dims']:
+            if dim not in ds_dims:
+                raise RuntimeError("Please provide valid dimensions for '--tiff_config'")
+
 def __partition_dataset(ds: xr.Dataset,
                         tiff_config: t.Optional[t.Dict] = None) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
     """
@@ -354,50 +361,140 @@ def __partition_dataset(ds: xr.Dataset,
     then it will partition the dataset based on this dimension. Based on tiff_config it will consider the dimensions
     given by user to partition the dataset.
     """
-
     default_tiff_dims = set([x for x in ['time','step'] if ds.dims.get(x)])
+    if not default_tiff_dims:
+        default_tiff_dims = set([x for x in ['time','step'] if ds.get(x)])
+        for dim in default_tiff_dims:
+            ds = ds.expand_dims(dim)
     dims = [ dim  for dim in ds.dims if dim not in ['latitude','longitude']]
     coords_set = set(ds.coords.keys())
     _merged_dataset_list = []
     if tiff_config:
+        validate_tiff_config(ds.dims.keys(),tiff_config)
         default_tiff_dims = default_tiff_dims.union(tiff_config['dims'])
-        if default_tiff_dims or dims:
-            flat_dims = set(dims).difference(default_tiff_dims)
-            _dims = [range(len(ds[x])) for x in dims]
-            if not default_tiff_dims:
-                default_tiff_dims = dims
-            groups = create_partition_configs(_dims,dims,default_tiff_dims)
-            for group in groups:
-                ds_attrs = ds.attrs
-                _data_array_list,dv_units_dict = create_partition(ds,group,flat_dims,coords_set)
-                ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
-                ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
-                ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
-                ds_attrs.update(**dv_units_dict)
 
-                merged_dataset = xr.merge(_data_array_list)
-                merged_dataset.attrs.clear()
-                merged_dataset.attrs.update(ds_attrs)
-                _merged_dataset_list.append(merged_dataset)
+        flat_dims = set(dims).difference(default_tiff_dims)
+        _dims = [range(len(ds[x])) for x in dims]
+        if not default_tiff_dims:
+            default_tiff_dims = dims
+        groups = create_partition_configs(_dims,dims,default_tiff_dims)
+        for group in groups:
+            ds_attrs = ds.attrs
+            _data_array_list,dv_units_dict = create_partition(ds,group,flat_dims,coords_set)
+            ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
+            ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
+            ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
+            ds_attrs.update(**dv_units_dict)
 
-            return _merged_dataset_list
-        else:
-            forecast_hour = int(ds.step.values / np.timedelta64(1, 'h')) if 'step' in coords_set else None
+            merged_dataset = xr.merge(_data_array_list)
+            merged_dataset.attrs.clear()
+            merged_dataset.attrs.update(ds_attrs)
+            _merged_dataset_list.append(merged_dataset)
 
-            # We are going to treat the time field as start_time and the
-            # valid_time field as the end_time for EE purposes. Also, get the
-            # times into UTC timestrings.
-            start_time = _to_utc_timestring(ds.time.values)
-
-            end_time = _to_utc_timestring(ds.valid_time.values) if 'valid_time' in coords_set else start_time
-
-            attrs_to_add = {}
-            attrs_to_add['forecast_hour'] = forecast_hour  # Stick forecast hour in the metadata as well, that's useful.
-            attrs_to_add['start_time'] = start_time
-            attrs_to_add['end_time'] = end_time
-            ds.attrs.update(attrs_to_add)
+        return _merged_dataset_list
     return ds
 
+def __partition_grib_dataset(filename: str,
+                        tiff_config: t.Optional[t.Dict] = None) -> t.List[xr.Dataset]:
+    """
+    By default partition of all datasets in list will be done for time and step dimensions. If user specifies dimension
+    and if dataset consist that dimension then it will be considered for partition. Datasets not containing dimension
+    will be stored as bands in all the tiff files.
+    we will store data_arrays into dictionary
+    dictionary structure
+    common_dims is intersection of tiff_config["dims"] and ds.dims
+    {
+        time_step_value1:{
+            common_dims_value1:[ list of data array with common_dims_value1],
+            common_dims_value2:[ list of data array with common_dims_value2],
+            .
+            .
+            bands:[list of data arrays not containing user given dimension]
+        },
+        time_step_value2:{
+            common_dims_value1:[ list of data array with common_dims_value1],
+            common_dims_value2:[ list of data array with common_dims_value2],
+            .
+            .
+            bands:[list of data arrays not containing user given dimension]
+        },
+
+    }
+
+    for each common_dims_value one tiff file will be generated.
+    """
+    dslist = cfgrib.open_datasets(filename)
+    data_arr_dict = defaultdict(lambda: defaultdict(list))
+    da_units_dict = defaultdict(dict)
+    ds_attrs = dslist[0].attrs
+    _merged_dataset_list = []
+    ds_dims = set()
+    for ds in dslist:
+        for dims in ds.dims.keys():
+            ds_dims.add(dims)
+    validate_tiff_config(ds_dims,tiff_config)
+    for ds in dslist:
+        # store common dimensions between tiff_config and dataset
+        common_dims = set(tiff_config['dims']).intersection(set(ds.dims)) if tiff_config else []
+        default_tiff_dims = set([x for x in ['time','step'] if ds.dims.get(x)])
+        if not default_tiff_dims:
+            default_tiff_dims = set([x for x in ['time','step'] if ds.get(x)])
+            for dim in default_tiff_dims:
+                ds = ds.expand_dims(dim)
+        default_tiff_dims = default_tiff_dims.union(common_dims)
+        coords_set = set(ds.coords.keys())
+        flat_dims = set(coords_set).difference(DEFAULT_COORD_KEYS)
+        flat_dims.difference_update(default_tiff_dims)
+        for val in flat_dims:
+            if val not in ds.dims:
+                ds = ds.expand_dims(val)
+        dims = [ dim  for dim in ds.dims if dim not in ['latitude','longitude']]
+        _dims = [range(len(ds[x])) for x in dims]
+        default_tiff_dims = dims if not default_tiff_dims else default_tiff_dims
+        groups = create_partition_configs(_dims,dims,default_tiff_dims)
+        for group in groups:
+            _data_array_list,dv_units_dict = create_partition(ds,group,flat_dims,coords_set)
+            dims_val = ""
+            da = _data_array_list[0]
+            time_step_val = f"time_{da.attrs['start_time']}_step_{da.attrs['forecast_hour']}"
+            # if common_dims empty add list of data array to "bands" for respective time_step_value
+            # else add list of data array to common_dims_value for respective time_step_value
+            if not common_dims:
+                data_arr_dict[time_step_val]["bands"].extend(_data_array_list)
+                da_units_dict["bands"].update(**dv_units_dict)
+            else:
+                for _dim in common_dims:
+                    dims_val +=f"{_dim}_{da[_dim].values}"
+                data_arr_dict[time_step_val][dims_val].extend(_data_array_list)
+                da_units_dict[dims_val].update(**dv_units_dict)
+
+    # add data arrays from "bands" to all common_dims_value for respective time_step_value
+    if tiff_config['dims']:
+        for keys in data_arr_dict:
+            if data_arr_dict[keys]["bands"]:
+                bands = data_arr_dict[keys]["bands"]
+                bands_attr = da_units_dict["bands"]
+                for dims_val in data_arr_dict[keys]:
+                    data_arr_dict[keys][dims_val].extend(bands)
+                    da_units_dict[dims_val].update(**bands_attr)
+                del data_arr_dict[keys]["bands"]
+                del da_units_dict["bands"]
+    for time_step in data_arr_dict:
+        for key,data_arr_list in data_arr_dict[time_step].items():
+
+            attrs_to_add = ds_attrs
+
+            attrs_to_add['forecast_hour'] = data_arr_list[0].attrs['forecast_hour']
+            attrs_to_add['start_time'] = data_arr_list[0].attrs['start_time']
+            attrs_to_add['end_time'] = data_arr_list[0].attrs['end_time']
+            attrs_to_add.update(**da_units_dict[key])
+
+            merged_ds = xr.merge(data_arr_list)
+            merged_ds.attrs.clear()
+            merged_ds.attrs.update(attrs_to_add)
+            _merged_dataset_list.append(merged_ds)
+
+    return _merged_dataset_list
 
 def __open_dataset_file(filename: str,
                         uri_extension: str,
@@ -418,49 +515,17 @@ def __open_dataset_file(filename: str,
         ds = xr.open_dataset(filename)
         return _add_is_normalized_attr(__partition_dataset(ds,tiff_config),False)
     except ValueError as e:
-        e_str = str(e)
-        if (not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str)
-             and ("multiple values for unique key" not in e_str)):
-            raise
+            e_str = str(e)
+            if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
+                raise
+
     if not disable_grib_schema_normalization:
-        dslist = cfgrib.open_datasets(filename)
-        _merged_dataset_list = []
-        dims_map = defaultdict(list)
-        for ds in dslist:
-            common_dims = set(tiff_config['dims']).intersection(set(ds.dims)) if tiff_config else []
-            dims_map['_'.join(common_dims)].append(ds)
-        mdl = []
-        for keys,dsl in dims_map.items():
-            _merged_dataset_list = []
-            ds_attrs = dsl[0].attrs
-            for ds in dsl:
-                default_tiff_dims = set([x for x in ['time','step'] if ds.dims.get(x)])
-                default_tiff_dims = default_tiff_dims.union(keys.split("_")) if keys else default_tiff_dims
-                coords_set = set(ds.coords.keys())
-                flat_dims = set(coords_set).difference(DEFAULT_COORD_KEYS)
-                flat_dims.difference_update(default_tiff_dims)
-                for val in flat_dims:
-                    if val not in ds.dims:
-                        ds = ds.expand_dims(val)
-                dims = [ dim  for dim in ds.dims if dim not in ['latitude','longitude']]
-                _dims = [range(len(ds[x])) for x in dims]
-                default_tiff_dims = dims if not default_tiff_dims else default_tiff_dims
-                groups = create_partition_configs(_dims,dims,default_tiff_dims)
-                dl = []
-                for group in groups:
-                    _data_array_list,dv_units_dict = create_partition(ds,group,flat_dims,coords_set)
-                    dl.append(_data_array_list)
-                if not _merged_dataset_list:
-                    _merged_dataset_list = dl
-                else:
-                    _merged_dataset_list = [arr1 + arr2 for arr1,arr2 in zip(_merged_dataset_list,dl)]
-            for i in _merged_dataset_list:
-                merged_ds = xr.merge(i)
-                merged_ds.attrs.update(ds_attrs)
-                mdl.append(xr.merge(i))
-        if not tiff_config:
-            return _add_is_normalized_attr(xr.merge(mdl),True)
-        return _add_is_normalized_attr(mdl,True)
+        logger.warning("Assuming grib.")
+        logger.info("Normalizing the grib schema, name of the data variables will look like "
+                    "'<level>_<height>_<attrs['GRIB_stepType']>_<key>'.")
+        if tiff_config:
+            return _add_is_normalized_attr(__partition_grib_dataset(filename,tiff_config),True)
+        return _add_is_normalized_attr(__normalize_grib_dataset(filename),True)
 
     # Trying with explicit engine for cfgrib.
     try:
