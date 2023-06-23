@@ -242,4 +242,4 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(self._convert(np.timedelta64(1, 'm')), float(60))
         self.assertEqual(self._convert(timedelta(seconds=1)), float(1))
         self.assertEqual(self._convert(timedelta(minutes=1)), float(60))
-        self.assertEqual(self._convert(timedelta(days=1)), float(86400))        
+        self.assertEqual(self._convert(timedelta(days=1)), float(86400))
