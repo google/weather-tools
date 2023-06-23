@@ -14,7 +14,7 @@
 import itertools
 import unittest
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import xarray
 import xarray as xr
@@ -240,3 +240,6 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(self._convert(np.datetime64(1, 'Y')), '1971-01-01T00:00:00+00:00')
         self.assertEqual(self._convert(np.datetime64(30, 'Y')), input_date)
         self.assertEqual(self._convert(np.timedelta64(1, 'm')), float(60))
+        self.assertEqual(self._convert(timedelta(seconds=1)), float(1))
+        self.assertEqual(self._convert(timedelta(minutes=1)), float(60))
+        self.assertEqual(self._convert(timedelta(days=1)), float(86400))        
