@@ -375,7 +375,7 @@ def open_dataset(uri: str,
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         if is_zarr:
-            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs))
+            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
