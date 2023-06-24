@@ -55,8 +55,9 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     known_args.first_uri = next(iter(all_uris))
 
     with beam.Pipeline(argv=pipeline_args) as p:
-        if known_args.topic or known_args.subscription:
-
+        if known_args.zarr:
+            paths = p
+        elif known_args.topic or known_args.subscription:
             paths = (
                     p
                     # Windowing is based on this code sample:
