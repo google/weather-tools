@@ -16,7 +16,7 @@ dependencies:
   - requests=2.28.1
   - netcdf4=1.6.1
   - rioxarray=0.13.4
-  - xarray-beam=0.3.1
+  - xarray-beam=0.6.2
   - ecmwf-api-client=1.6.3
   - fsspec=2022.11.0
   - gcsfs=2022.11.0
