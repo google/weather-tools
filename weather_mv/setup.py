@@ -55,6 +55,7 @@ base_requirements = [
     "earthengine-api>=0.1.263",
     "pyproj==3.4.0",  # requires separate binary installation!
     "gdal==3.5.1",  # requires separate binary installation!
+    "gcsfs==2022.11.0",
 ]
 
 setup(
