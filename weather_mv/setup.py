@@ -45,7 +45,7 @@ base_requirements = [
     "numpy==1.22.4",
     "pandas==1.5.1",
     "xarray==2023.1.0",
-    "xarray-beam=0.6.2",
+    "xarray-beam==0.6.2",
     "cfgrib==0.9.10.2",
     "netcdf4==1.6.1",
     "geojson==2.5.0",
