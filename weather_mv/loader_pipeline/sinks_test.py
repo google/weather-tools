@@ -112,6 +112,7 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_zarr_path, is_zarr=True, open_dataset_kwargs={}) as ds:
             self.assertIsNotNone(ds)
             self.assertEqual(list(ds.data_vars), ['cape', 'd2m'])
+
     def test_open_dataset__fits_memory_bounds(self):
         with write_netcdf() as test_netcdf_path:
             with limit_memory(max_memory=30):
