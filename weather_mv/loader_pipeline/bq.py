@@ -308,21 +308,17 @@ class ToBigQuery(ToDataSink):
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
             )
 
-        if not self.dry_run:
-            (
-                    extracted_rows
-                    | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
-                        write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
-            )
-        else:
-            (
-                    extracted_rows
-                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
-            )
+        if self.dry_run:
+            return extracted_rows | 'Log Rows' >> beam.Map(logger.info)
+        return (
+            extracted_rows
+            | 'WriteToBigQuery' >> WriteToBigQuery(
+                project=self.table.project,
+                dataset=self.table.dataset_id,
+                table=self.table.table_id,
+                write_disposition=BigQueryDisposition.WRITE_APPEND,
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
+        )
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:

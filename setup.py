@@ -82,6 +82,7 @@ test_requirements = [
     "memray",
     "pytest-memray",
     "h5py",
+    "pooch",
 ]
 
 all_test_requirements = beam_gcp_requirements + weather_dl_requirements + \
