@@ -253,10 +253,10 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         if not self.zarr:
             extracted_rows = (
-                    paths
-                    | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
-                    | beam.Reshuffle()
-                    | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
+                paths
+                | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
+                | beam.Reshuffle()
+                | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
             )
         else:
             ds, chunks = xbeam.open_zarr(self.first_uri)
