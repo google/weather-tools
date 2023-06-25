@@ -72,7 +72,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
 
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
             op = ToBigQuery.from_kwargs(**vars(known_args))
-            ds, chunks = xbeam.open_zarr(known_args.first_uri, op.xarray_open_dataset_kwargs)
+            ds, chunks = xbeam.open_zarr(known_args.first_uri, **op.xarray_open_dataset_kwargs)
             ds.attrs[DATA_URI_COLUMN] = known_args.first_uri
             (
                paths
