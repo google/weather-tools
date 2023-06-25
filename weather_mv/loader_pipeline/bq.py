@@ -167,9 +167,6 @@ class ToBigQuery(ToDataSink):
                 ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
                 table_schema = dataset_to_table_schema(ds)
 
-                del ds
-            del open_ds
-
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
             logger.debug(f'\n{pformat(table_schema)}')
@@ -269,6 +266,9 @@ class ToBigQuery(ToDataSink):
                 | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
             )
+
+            # Fixes pickling error.
+            del ds
 
         if self.dry_run:
             return extracted_rows | 'Log Rows' >> beam.Map(logger.info)
