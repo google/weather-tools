@@ -19,13 +19,15 @@ import logging
 import typing as t
 
 import apache_beam as beam
+from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
 
-from .bq import ToBigQuery
+from .bq import ToBigQuery, DATA_URI_COLUMN
 from .regrid import Regrid
 from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
+import xarray_beam as xbeam
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +71,20 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
             paths = p | 'Create' >> beam.Create(all_uris)
 
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
-            paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
+            op = ToBigQuery.from_kwargs(**vars(known_args))
+            ds, chunks = xbeam.open_zarr(known_args.first_uri, op.xarray_open_dataset_kwargs)
+            ds.attrs[DATA_URI_COLUMN] = known_args.first_uri
+            (
+               paths
+               | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
+               | 'ExtractRows' >> beam.FlatMapTuple(op.chunks_to_rows)
+               | 'WriteToBigQuery' >> WriteToBigQuery(
+                   project=op.table.project,
+                   dataset=op.table.dataset_id,
+                   table=op.table.table_id,
+                   write_disposition=BigQueryDisposition.WRITE_APPEND,
+                   create_disposition=BigQueryDisposition.CREATE_NEVER)
+            )
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':

@@ -267,9 +267,6 @@ class ToBigQuery(ToDataSink):
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
             )
 
-            # Fixes pickling error.
-            del ds
-
         if self.dry_run:
             return extracted_rows | 'Log Rows' >> beam.Map(logger.info)
         return (

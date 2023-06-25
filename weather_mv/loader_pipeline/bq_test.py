@@ -19,6 +19,8 @@ import tempfile
 import typing as t
 import unittest
 
+import apache_beam as beam
+from apache_beam.internal import pickler
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that, is_not_empty
 import geojson
@@ -649,22 +651,22 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
         super().setUp()
         self.tmpdir = tempfile.TemporaryDirectory()
 
-    def tearDown(self) -> None:
-        super().tearDown()
-        self.tmpdir.cleanup()
-
-    def test_extracts_rows(self):
-        input_zarr = os.path.join(self.tmpdir.name, 'air_temp.zarr')
+        self.input_zarr = os.path.join(self.tmpdir.name, 'air_temp.zarr')
 
         ds = (
             xr.tutorial.open_dataset('air_temperature', cache_dir=self.test_data_folder)
             .isel(time=slice(0, 4), lat=slice(0, 4), lon=slice(0, 4))
             .rename(dict(lon='longitude', lat='latitude'))
         )
-        ds.to_zarr(input_zarr)
+        ds.to_zarr(self.input_zarr)
 
+    def tearDown(self) -> None:
+        super().tearDown()
+        self.tmpdir.cleanup()
+
+    def test_extracts_rows(self):
         op = ToBigQuery.from_kwargs(
-            first_uri=input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
+            first_uri=self.input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
             tif_metadata_for_datetime=None, skip_region_validation=True, disable_grib_schema_normalization=False,
         )
@@ -672,6 +674,19 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
         with TestPipeline() as p:
             result = p | op
             assert_that(result, is_not_empty())
+
+    def test_pickles_ok(self):
+        op = ToBigQuery.from_kwargs(
+            first_uri=self.input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
+            variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
+            tif_metadata_for_datetime=None, skip_region_validation=True, disable_grib_schema_normalization=False,
+        )
+
+        after = pickler.loads(pickler.dumps(op))
+        self.assertEqual(op, after)
+
+        with beam.Pipeline() as p:
+            result = p | op
 
 
 if __name__ == '__main__':
