@@ -300,11 +300,12 @@ class ToBigQuery(ToDataSink):
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
             )
         else:
-            ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
+            # ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
+            ds = xr.open_dataset(self.first_uri, **self.xarray_open_dataset_kwargs, chunks=None)
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
-                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
+                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, {'time': 240})
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
             )
 
