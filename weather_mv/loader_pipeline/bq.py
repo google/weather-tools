@@ -26,6 +26,7 @@ import numpy as np
 import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.transforms import window
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
@@ -243,7 +244,6 @@ class ToBigQuery(ToDataSink):
         extracted_rows = (
                 paths
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
-                | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
         )
 
@@ -255,7 +255,8 @@ class ToBigQuery(ToDataSink):
                         dataset=self.table.dataset_id,
                         table=self.table.table_id,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
+                        create_disposition=BigQueryDisposition.CREATE_NEVER,
+                        method='STREAMING_INSERTS')
             )
         else:
             (
