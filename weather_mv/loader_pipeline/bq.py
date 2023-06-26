@@ -244,8 +244,6 @@ class ToBigQuery(ToDataSink):
         extracted_rows = (
                 paths
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
-                | 'Window' >> beam.WindowInto(window.FixedWindows(60))
-                | 'AddTimestamp' >> beam.Map()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
         )
 
