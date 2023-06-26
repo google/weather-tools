@@ -376,6 +376,7 @@ def open_dataset(uri: str,
     try:
         if is_zarr:
             ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
+            ds = ds.sel(time=slice('2021-01-01', '2022-01-01'))
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
