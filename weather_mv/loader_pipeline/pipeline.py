@@ -22,7 +22,6 @@ import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 
 from .bq import ToBigQuery
-from .regrid import Regrid
 from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
@@ -69,8 +68,6 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
 
         if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
             paths | "MoveToBigQuery" >> ToBigQuery.from_kwargs(**vars(known_args))
-        elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
-            paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**vars(known_args))
         else:
@@ -121,10 +118,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                                       help='Move data into Google BigQuery')
     ToBigQuery.add_parser_arguments(bq_parser)
 
-    # Regrid command registration
-    rg_parser = subparsers.add_parser('regrid', aliases=['rg'], parents=[base],
-                                      help='Copy and regrid grib data with MetView.')
-    Regrid.add_parser_arguments(rg_parser)
 
     # EarthEngine command registration
     ee_parser = subparsers.add_parser('earthengine', aliases=['ee'], parents=[base],
@@ -146,8 +139,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
         ToBigQuery.validate_arguments(known_args, pipeline_args)
-    elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
-        Regrid.validate_arguments(known_args, pipeline_args)
     elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
         ToEarthEngine.validate_arguments(known_args, pipeline_args)
 
