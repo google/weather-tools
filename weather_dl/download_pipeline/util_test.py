@@ -89,3 +89,14 @@ class TestGenerateHdate(unittest.TestCase):
         substract_year = '4'
         expected_result = '2016-01-02'
         self.assertEqual(generate_hdate(date, substract_year), expected_result)
+        
+        # Also test for leap day correctness
+        date = '2020-02-29'
+        substract_year = '3'
+        expected_result = '2017-02-28'
+        self.assertEqual(generate_hdate(date, substract_year), expected_result)
+        
+        substract_year = '4'
+        expected_result = '2016-02-28'
+        self.assertEqual(generate_hdate(date, substract_year), expected_result)
+        
