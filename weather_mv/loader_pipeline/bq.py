@@ -164,10 +164,10 @@ class ToBigQuery(ToDataSink):
                 # consider that Grid is regular.
                 latitude_length = len(open_ds['latitude'])
                 longitude_length = len(open_ds['longitude'])
-                self.lat_grid_resolution = (open_ds["latitude"][-1].values - open_ds["latitude"][0].values
-                                            )/latitude_length
-                self.lon_grid_resolution = (open_ds["longitude"][-1].values - open_ds["longitude"][0].values
-                                            )/longitude_length
+                self.lat_grid_resolution = abs((open_ds["latitude"][-1].values - open_ds["latitude"][0].values
+                                                )/latitude_length)/2
+                self.lon_grid_resolution = abs((open_ds["longitude"][-1].values - open_ds["longitude"][0].values
+                                                )/longitude_length)/2
                 self.should_create_polygon = True
             else:
                 logger.warning("Polygon can't be genereated as dataset has a single point.")
@@ -334,15 +334,9 @@ def fetch_geo_point(lat: float, long: float) -> str:
 
 def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> str:
     """Create a Polygon based on latitude, longitude and resolution."""
-    lower_left = [latitude - lat_grid_resolution, longitude - lon_grid_resolution]
-    upper_left = [latitude - lat_grid_resolution, longitude + lon_grid_resolution]
-    upper_right = [latitude + lat_grid_resolution, longitude + lon_grid_resolution]
-    lower_right = [latitude + lat_grid_resolution, longitude - lon_grid_resolution]
-    lat_lon_bound = [lower_left, upper_left, upper_right, lower_right]
-
-    for i in range(len(lat_lon_bound)):
-        if lat_lon_bound[i][1] >= 180:
-            lat_lon_bound[i][1] = lat_lon_bound[i][1] - 360
+    if longitude >= 180:
+        longitude = longitude - 360
+    lat_lon_bound = bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution)
     polygon = geojson.dumps(geojson.Polygon([
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
         (lat_lon_bound[1][0], lat_lon_bound[1][1]),  # upper_left
@@ -351,3 +345,34 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
     ]))
     return polygon
+
+
+def bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution) -> t.List:
+    '''Calculate the bound point based on latitude, longitude and grid resolution.'''
+    is_lat_out_of_bound = True if latitude in [90.0, -90.0] else False
+    is_lon_out_of_bound = True if longitude in [-180.0, 180.0] else False
+
+    lat_range = get_lat_lon_range(latitude, "latitude", is_lat_out_of_bound,
+                                  lat_grid_resolution, lon_grid_resolution)
+    lon_range = get_lat_lon_range(longitude, "longitude", is_lon_out_of_bound,
+                                  lat_grid_resolution, lon_grid_resolution)
+    lower_left = [lon_range[1], lat_range[1]]
+    upper_left = [lon_range[0], lat_range[1]]
+    upper_right = [lon_range[0], lat_range[0]]
+    lower_right = [lon_range[1], lat_range[0]]
+    return [lower_left, upper_left, upper_right, lower_right]
+
+
+def get_lat_lon_range(value, lat_lon, is_point_out_of_bound, lat_grid_resolution, lon_grid_resolution):
+    '''Calculate the latitude, longitude point range point latitude, longitude and grid resolution.'''
+    if is_point_out_of_bound:
+        if lat_lon == 'latitude':
+            if value == -90.0:
+                return [90 - lat_grid_resolution, value + lat_grid_resolution]
+            return [value - lat_grid_resolution, -90 + lat_grid_resolution]
+        else:
+            if value == 180.0:
+                return [-180 + lon_grid_resolution, value - lon_grid_resolution]
+            return [value + lon_grid_resolution, 180 - lon_grid_resolution]
+    else:
+        return [value + lat_grid_resolution, value - lat_grid_resolution]

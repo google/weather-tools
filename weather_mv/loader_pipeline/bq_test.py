@@ -255,9 +255,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (49.198347, -108.197674), (49.198347, -107.802326),
-                        (48.801653, -107.802326), (48.801653, -108.197674),
-                        (49.198347, -108.197674)]))
+                        (-108.099174, 48.900826), (-107.900826, 48.900826),
+                        (-107.900826, 49.099174), (-108.099174, 49.099174),
+                        (-108.099174, 48.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -273,9 +273,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'u10': 3.4776244163513184,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (49.198347, -108.197674), (49.198347, -107.802326),
-                        (48.801653, -107.802326), (48.801653, -108.197674),
-                        (49.198347, -108.197674)]))
+                        (-108.099174, 48.900826), (-107.900826, 48.900826),
+                        (-107.900826, 49.099174), (-108.099174, 49.099174),
+                        (-108.099174, 48.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -293,9 +293,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.08277571201324463,
             'geo_point': geojson.dumps(geojson.Point((-103.0, 45.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (45.198347, -103.197674), (45.198347, -102.802326),
-                        (44.801653, -102.802326), (44.801653, -103.197674),
-                        (45.198347, -103.197674)]))
+                        (-103.099174, 44.900826), (-102.900826, 44.900826),
+                        (-102.900826, 45.099174), (-103.099174, 45.099174),
+                        (-103.099174, 44.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -313,9 +313,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': -0.19749987125396729,
             'geo_point': geojson.dumps(geojson.Point((-103.400002, 45.200001))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (45.398348, -103.597676), (45.398348, -103.202327),
-                        (45.001654, -103.202327), (45.001654, -103.597676),
-                        (45.398348, -103.597676)]))
+                        (-103.499175, 45.100827), (-103.300828, 45.100827),
+                        (-103.300828, 45.299174), (-103.499175, 45.299174),
+                        (-103.499175, 45.100827)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -334,9 +334,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (49.198347, -108.197674), (49.198347, -107.802326),
-                        (48.801653, -107.802326), (48.801653, -108.197674),
-                        (49.198347, -108.197674)]))
+                        (-108.099174, 48.900826), (-107.900826, 48.900826),
+                        (-107.900826, 49.099174), (-108.099174, 49.099174),
+                        (-108.099174, 48.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -373,9 +373,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (49.198347, -108.197674), (49.198347, -107.802326),
-                        (48.801653, -107.802326), (48.801653, -108.197674),
-                        (49.198347, -108.197674)]))
+                        (-108.099174, 48.900826), (-107.900826, 48.900826),
+                        (-107.900826, 49.099174), (-108.099174, 49.099174),
+                        (-108.099174, 48.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -419,9 +419,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '1959-01-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.249653, -0.249826), (90.249653, 0.249826),
-                        (89.750347, 0.249826), (89.750347, -0.249826),
-                        (90.249653, -0.249826)]))
+                        (-0.124827, -89.875173), (0.124827, -89.875173),
+                        (0.124827, 89.875173), (-0.124827, 89.875173),
+                        (-0.124827, -89.875173)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -438,9 +438,9 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '1959-01-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((0.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.249653, -0.249826), (90.249653, 0.249826),
-                        (89.750347, 0.249826), (89.750347, -0.249826),
-                        (90.249653, -0.249826)]))
+                        (-0.124827, -89.875173), (0.124827, -89.875173),
+                        (0.124827, 89.875173), (-0.124827, 89.875173),
+                        (-0.124827, -89.875173)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -464,9 +464,9 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
             'time': '2020-07-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (42.102297, -123.672837), (42.102297, -123.660901),
-                        (42.093375, -123.660901), (42.093375, -123.672837),
-                        (42.102297, -123.672837)]))
+                        (-123.669099, 42.095605), (-123.664638, 42.095605),
+                        (-123.664638, 42.100066), (-123.669099, 42.100066),
+                        (-123.669099, 42.095605)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -494,9 +494,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'z': 1.42578125,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -512,9 +512,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'z': 1.42578125,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -532,9 +532,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'z': 1.42578125,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -550,9 +550,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'surface_0_00_instant_z': 1.42578125,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -569,9 +569,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'surface_0_00_instant_z': 1.42578125,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -626,9 +626,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'valid_time': '2021-12-10T20:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -686,9 +686,9 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'valid_time': '2021-12-10T20:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
         }
         self.assertRowsEqual(actual, expected)
 
@@ -709,9 +709,10 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'depthBelowLandLayer_7_00_instant_stl2': 253.54124450683594,
             'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (90.099944, -180.099972), (90.099944, -179.900028),
-                        (89.900056, -179.900028), (89.900056, -180.099972),
-                        (90.099944, -180.099972)]))
+                        (179.950014, -89.950055), (-179.950014, -89.950055),
+                        (-179.950014, 89.950055), (179.950014, 89.950055),
+                        (179.950014, -89.950055)]))
+
         }
         self.assertRowsEqual(actual, expected)
 
