@@ -27,6 +27,7 @@ import xarray as xr
 import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.transforms import window
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
@@ -286,7 +287,7 @@ class ToBigQuery(ToDataSink):
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
         uri = ds.attrs.get(DATA_URI_COLUMN, '')
         # Re-calculate import time for streaming extractions.
-        if not self.import_time:
+        if not self.import_time or self.zarr:
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
         yield from self.to_rows(get_coordinates(ds, uri), ds, uri)
 
@@ -300,6 +301,7 @@ class ToBigQuery(ToDataSink):
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
             )
         else:
+
             ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
             # ds = ds.sel(time=slice('2021-01-01', '2023-01-01'))
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
@@ -307,6 +309,8 @@ class ToBigQuery(ToDataSink):
                 paths
                 | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
+                | 'Window' >> beam.WindowInto(window.FixedWindows(60))
+                | 'AddTimestamp' >> beam.Map(timestamp_row)
             )
 
         if self.dry_run:
@@ -360,6 +364,11 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'STRING', mode='NULLABLE'))
 
     return fields
+
+
+def timestamp_row(it: t.Dict) -> window.TimestampedValue:
+    timestamp = it[DATA_IMPORT_TIME_COLUMN].timestamp()
+    return window.TimestampedValue(it, timestamp)
 
 
 def fetch_geo_point(lat: float, long: float) -> str:
