@@ -20,7 +20,7 @@ ENV BASE_URI=http://<pod-ip>:8080
 export PROJECT_ID=<your-project-here>
 export REPO=<repo> eg:weather-tools
 
-gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-cli" --timeout=79200 --machine-type=e2-highcpu-32
+gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-cli" --timeout=79200 --machine-type=e2-highcpu-32
 
 ```
 
@@ -52,7 +52,7 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --labels=goog-ec-src=vm_add-gcloud,container-vm=cos-stable-105-17412-101-24
 ```
 
-## Get the weather-dl-v2 docker image id
+## To get the weather-dl-v2 cli docker-image id in VM
 ```
 docker images
 ```

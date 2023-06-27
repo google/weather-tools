@@ -60,6 +60,10 @@ class CRUDOperations(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _update_config_priority__in_license(self, license_id: str, config_name: str, priority: int) -> None:
+        pass
+
+    @abc.abstractmethod
     def _check_license_exists(self, license_id: str) -> bool:
         pass
 
@@ -192,6 +196,19 @@ class FirestoreClient(Database, CRUDOperations):
                 {'queue': priority_list}
             )
         print(f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+
+    def _update_config_priority__in_license(self, license_id: str, config_name: str, priority: int) -> None:
+        snapshot: DocumentSnapshot = self._get_db().collection('queues').document(license_id).get()
+        priority_list = snapshot.to_dict()['queue']
+        if config_name not in priority_list:
+            print(f"'{config_name}' not in queue.")
+            raise
+        new_priority_list = [c for c in priority_list if c != config_name]
+        new_priority_list.insert(priority, config_name)
+        result: WriteResult = self._get_db().collection('queues').document(license_id).update(
+            {'queue': new_priority_list}
+        )
+        print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _check_license_exists(self, license_id: str) -> bool:
         result: DocumentSnapshot = self._get_db().collection('license').document(license_id).get()

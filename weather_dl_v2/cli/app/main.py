@@ -15,7 +15,7 @@ app.add_typer(license.app, name="license", help="Manage licenses.")
 
 @app.command("ping", help="Check if FastAPI server is live and rechable.")
 def ping():
-    uri = f"{Config().BASE_URI}"
+    uri = f"{Config().BASE_URI}/"
 
     try:
         x = requests.get(uri)
