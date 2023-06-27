@@ -301,7 +301,7 @@ class ToBigQuery(ToDataSink):
             )
         else:
             ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
-            ds = ds.sel(time=slice('2021-01-01', '2023-01-01'))
+            # ds = ds.sel(time=slice('2021-01-01', '2023-01-01'))
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
@@ -318,7 +318,8 @@ class ToBigQuery(ToDataSink):
                 dataset=self.table.dataset_id,
                 table=self.table.table_id,
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
-                create_disposition=BigQueryDisposition.CREATE_NEVER)
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                method='STREAMING_INSERTS')
         )
 
 
