@@ -301,6 +301,7 @@ class ToBigQuery(ToDataSink):
             )
         else:
             ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
+            ds = ds.sel(time=slice('2021-01-01', '2023-01-01'))
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
