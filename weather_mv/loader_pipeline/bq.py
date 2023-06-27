@@ -39,7 +39,6 @@ from .util import (
 )
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'

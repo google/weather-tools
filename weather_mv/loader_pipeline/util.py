@@ -41,7 +41,6 @@ from xarray.core.utils import ensure_us_time_resolution
 from .sinks import DEFAULT_COORD_KEYS
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 CANARY_BUCKET_NAME = 'anthromet_canary_bucket'
 CANARY_RECORD = {'foo': 'bar'}
@@ -118,6 +117,8 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
 
         # We assume here that naive timestamps are in UTC timezone.
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
+    elif isinstance(value, datetime.timedelta):
+        return value.total_seconds()
     elif isinstance(value, np.timedelta64):
         # Return time delta in seconds.
         return float(value / np.timedelta64(1, 's'))
