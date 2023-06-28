@@ -38,7 +38,9 @@ class GetCoordinatesTest(TestDataBase):
         ds = xr.open_dataset(self.test_data_path)
         self.assertEqual(
             next(get_coordinates(ds)),
-            {'latitude': 49.0, 'longitude': -108.0, 'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)}
+            {'latitude': 49.0,
+             'longitude':-108.0,
+             'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)}
         )
 
     def test_no_duplicate_coordinates(self):
@@ -89,12 +91,24 @@ class IChunksTests(TestDataBase):
             actual,
             [
                 [
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)},
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.fromisoformat('2018-01-02T07:00:00+00:00').replace(tzinfo=None)},
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.fromisoformat('2018-01-02T08:00:00+00:00').replace(tzinfo=None)},
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)
+                    },
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T07:00:00+00:00').replace(tzinfo=None)
+                    },
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T08:00:00+00:00').replace(tzinfo=None)
+                    },
                 ],
                 [
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.fromisoformat('2018-01-02T09:00:00+00:00').replace(tzinfo=None)}
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T09:00:00+00:00').replace(tzinfo=None)
+                    }
                 ]
             ]
         )
