@@ -70,8 +70,8 @@ def write_netcdf():
     ds = xr.Dataset(
         {"var_1": (('time', 'lat', 'lon'), data_arr)},
         coords={
-            "lat": lat,
-            "lon": lon,
+            "latitude": lat,
+            "longitude": lon,
         })
     with tempfile.NamedTemporaryFile() as fp:
         ds.to_netcdf(fp.name)
