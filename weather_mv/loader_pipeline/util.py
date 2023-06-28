@@ -204,14 +204,11 @@ def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
     """Generates normalized coordinate dictionaries that can be used to index Datasets with `.loc[]`."""
     # Creates flattened iterator of all coordinate positions in the Dataset.
     #
-    # Coordinates have been pre-processed to remove NaNs and to format datetime objects
-    # to ISO format strings.
-    #
-    # Example: (-108.0, 49.0, '2018-01-02T22:00:00+00:00')
+    # Example: (-108.0, 49.0, datetime.datetime('2018-01-02T22:00:00+00:00'))
     coords = itertools.product(
         *(
             (
-                to_json_serializable_type(v)
+                v
                 for v in ensure_us_time_resolution(ds[c].variable.values).tolist()
             )
             for c in ds.coords.indexes
@@ -220,7 +217,7 @@ def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
     # Give dictionary keys to a coordinate index.
     #
     # Example:
-    #   {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T23:00:00+00:00'}
+    #   {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.datetime('2018-01-02T23:00:00+00:00')}
     idx = 0
     total_coords = math.prod(ds.coords.dims.values())
     for idx, it in enumerate(coords):
