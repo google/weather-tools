@@ -600,14 +600,18 @@ def open_dataset(uri: str,
             return
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
+
             xr_datasets: xr.Dataset = __open_dataset_file(local_path,
                                                           uri_extension,
                                                           disable_grib_schema_normalization,
                                                           open_dataset_kwargs,
                                                           tiff_config)
-            # Extracting dtype, crs and transform from the dataset.
-            with rasterio.open(local_path, 'r') as f:
-                dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+            # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+            try:
+                with rasterio.open(local_path, 'r') as f:
+                    dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
+            except rasterio.errors.RasterioIOError:
+                logger.warning('Cannot parse projection and data type information for Dataset %r.', uri)
 
             if isinstance(xr_datasets, list):
                 total_size_in_bytes = 0
