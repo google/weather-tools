@@ -366,7 +366,9 @@ def __partition_dataset(ds: xr.Dataset,
         default_tiff_dims = set([x for x in ['time','step'] if ds.get(x)])
         for dim in default_tiff_dims:
             ds = ds.expand_dims(dim)
-    dims = [ dim  for dim in ds.dims if dim not in ['latitude','longitude']]
+    latitude_dims = ds.coords['latitude'].dims
+    longitude_dims = ds.coords['longitude'].dims
+    dims = [ dim  for dim in ds.dims if dim not in latitude_dims + longitude_dims]
     coords_set = set(ds.coords.keys())
     _merged_dataset_list = []
     if tiff_config:
@@ -428,10 +430,10 @@ def __partition_grib_dataset(filename: str,
     da_units_dict = defaultdict(dict)
     ds_attrs = dslist[0].attrs
     _merged_dataset_list = []
-    ds_dims = set()
+    ds_dims = []
     for ds in dslist:
-        for dims in ds.dims.keys():
-            ds_dims.add(dims)
+        ds_dims.extend(ds.dims.keys())
+    ds_dims = list(set(ds_dims))
     validate_tiff_config(ds_dims,tiff_config)
     for ds in dslist:
         # store common dimensions between tiff_config and dataset
@@ -448,7 +450,9 @@ def __partition_grib_dataset(filename: str,
         for val in flat_dims:
             if val not in ds.dims:
                 ds = ds.expand_dims(val)
-        dims = [ dim  for dim in ds.dims if dim not in ['latitude','longitude']]
+        latitude_dims = ds.coords['latitude'].dims
+        longitude_dims = ds.coords['longitude'].dims
+        dims = [ dim  for dim in ds.dims if dim not in latitude_dims + longitude_dims]
         _dims = [range(len(ds[x])) for x in dims]
         default_tiff_dims = dims if not default_tiff_dims else default_tiff_dims
         groups = create_partition_configs(_dims,dims,default_tiff_dims)

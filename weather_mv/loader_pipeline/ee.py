@@ -466,10 +466,14 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     asset_name = f"{asset_name}_FH-{forecast_hour}"
                 if self.tiff_config:
                     for var in set(self.tiff_config["dims"]).difference(['time','step']):
-                        if ds.get(var):
-                            asset_name = f"{asset_name}_{var}_{ds.get(var).values}"
+                        var_val = ds.get(var)
+                        if var_val is not None:
+                            if var_val >= 10:
+                                asset_name = f"{asset_name}_{var}_{var_val.values:.0f}"
+                            else:
+                                asset_name = f"{asset_name}_{var}_{var_val.values:.2f}".replace('.', '_')
                 asset_name = get_ee_safe_name(asset_name)
-
+                print("-----------------------------",asset_name)
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
                     file_name = f'{asset_name}.tiff'
