@@ -367,6 +367,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
 
 
 def timestamp_row(it: t.Dict) -> window.TimestampedValue:
+    """Associate an extracted row with the import_time timestamp."""
     timestamp = it[DATA_IMPORT_TIME_COLUMN].timestamp()
     return window.TimestampedValue(it, timestamp)
 
