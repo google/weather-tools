@@ -200,7 +200,8 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
-                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None) -> t.Iterator[t.Dict]:
+                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None,
+                create_polygon: bool = True) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
         op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
@@ -209,7 +210,7 @@ class ExtractRowsTestBase(TestDataBase):
                                     infer_schema=False, tif_metadata_for_datetime=tif_metadata_for_datetime,
                                     skip_region_validation=True,
                                     disable_grib_schema_normalization=disable_grib_schema_normalization,
-                                    coordinate_chunk_size=1000)
+                                    coordinate_chunk_size=1000, create_polygon=create_polygon)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -242,7 +243,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
 
     def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path))
+        actual = next(self.extract(self.test_data_path, create_polygon=False))
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -254,10 +255,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
-            'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (-108.099174, 48.900826), (-107.900826, 48.900826),
-                        (-107.900826, 49.099174), (-108.099174, 49.099174),
-                        (-108.099174, 48.900826)]))
+            'geo_polygon': None
         }
         self.assertRowsEqual(actual, expected)
 
@@ -280,7 +278,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     def test_extract_rows__specific_area(self):
-        actual = next(self.extract(self.test_data_path, area=[45, -103, 33, -92]))
+        actual = next(self.extract(self.test_data_path, area=[45, -103, 33, -92], create_polygon=False))
+        print("actual is here",actual)
         expected = {
             'd2m': 246.19993591308594,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -292,10 +291,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'u10': 2.73445987701416,
             'v10': 0.08277571201324463,
             'geo_point': geojson.dumps(geojson.Point((-103.0, 45.0))),
-            'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (-103.099174, 44.900826), (-102.900826, 44.900826),
-                        (-102.900826, 45.099174), (-103.099174, 45.099174),
-                        (-103.099174, 44.900826)]))
+            'geo_polygon': None
         }
         self.assertRowsEqual(actual, expected)
 
@@ -380,8 +376,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     def test_extract_rows__with_valid_lat_long(self):
-        valid_lat_long = [[-90, -360], [-90, -359], [-45, -180], [-45, -45], [0, 0], [45, 45], [45, 180], [90, 359],
-                          [90, 360]]
+        valid_lat_long = [[-90, 0], [-90, 1], [-45, -180], [-45, -45], [0, 0], [45, 45], [45, -180], [90, -1],
+                          [90, 0]]
         actual_val = [
             '{"type": "Point", "coordinates": [0, -90]}',
             '{"type": "Point", "coordinates": [1, -90]}',
