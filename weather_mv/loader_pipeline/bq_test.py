@@ -19,13 +19,13 @@ import tempfile
 import typing as t
 import unittest
 
-from apache_beam.testing.test_pipeline import TestPipeline
-from apache_beam.testing.util import assert_that, is_not_empty
 import geojson
 import numpy as np
 import pandas as pd
 import simplejson
 import xarray as xr
+from apache_beam.testing.test_pipeline import TestPipeline
+from apache_beam.testing.util import assert_that, is_not_empty
 from google.cloud.bigquery import SchemaField
 
 from .bq import (

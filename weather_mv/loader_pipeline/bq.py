@@ -322,8 +322,7 @@ class ToBigQuery(ToDataSink):
                 dataset=self.table.dataset_id,
                 table=self.table.table_id,
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
-                method='STREAMING_INSERTS')
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
         )
 
 
