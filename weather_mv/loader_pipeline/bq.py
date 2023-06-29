@@ -95,6 +95,7 @@ class ToBigQuery(ToDataSink):
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
     coordinate_chunk_size: int = 10_000
+    create_polygon: bool = False
     should_create_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
@@ -109,6 +110,10 @@ class ToBigQuery(ToDataSink):
                                     'all data variables as columns.')
         subparser.add_argument('-a', '--area', metavar='area', type=float, nargs='+', default=list(),
                                help='Target area in [N, W, S, E]. Default: Will include all available area.')
+        subparser.add_argument('--create_polygon', action='store_true',
+                               help='Ingest grid points as polygons in BigQuery. Default: Ingest grid points as normal '
+                                    'point in BigQuery. Note: This feature relies on the assumption that the provided '
+                                    'grid is regular.')
         subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                                help=("When writing data to BigQuery, record that data import occurred at this "
                                      "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -159,18 +164,22 @@ class ToBigQuery(ToDataSink):
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
                           is_zarr=self.zarr) as open_ds:
 
-            # Find the grid_resolution. In case of single point we can't find grid resolution.
-            if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
-                # consider that Grid is regular.
-                latitude_length = len(open_ds['latitude'])
-                longitude_length = len(open_ds['longitude'])
-                self.lat_grid_resolution = abs((open_ds["latitude"][-1].values - open_ds["latitude"][0].values
-                                                )/latitude_length)/2
-                self.lon_grid_resolution = abs((open_ds["longitude"][-1].values - open_ds["longitude"][0].values
-                                                )/longitude_length)/2
-                self.should_create_polygon = True
-            else:
-                logger.warning("Polygon can't be genereated as dataset has a single point.")
+            if self.create_polygon:
+                logger.warning("Assumes that Grid is regular.")
+                # Find the grid_resolution.
+                if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
+                    latitude_length = len(open_ds['latitude'])
+                    longitude_length = len(open_ds['longitude'])
+
+                    latitude_range = np.ptp(open_ds["latitude"].values)
+                    longitude_range = np.ptp(open_ds["longitude"].values)
+
+                    self.lat_grid_resolution = abs(latitude_range / latitude_length) / 2
+                    self.lon_grid_resolution = abs(longitude_range / longitude_length) / 2
+
+                    self.should_create_polygon = True
+                else:
+                    logger.warning("Polygon can't be genereated as provided dataset has a only single grid point.")
 
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
@@ -248,8 +257,10 @@ class ToBigQuery(ToDataSink):
                 row[DATA_IMPORT_TIME_COLUMN] = self.import_time
                 row[DATA_URI_COLUMN] = uri
                 row[DATA_FIRST_STEP] = first_time_step
-                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
-                row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], row['longitude'],
+
+                longitude = ((row['longitude'] + 180) % 360) - 180
+                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
+                row[GEO_POLYGON_COLUMN] = fetch_geo_polygon(row['latitude'], longitude,
                                                             self.lat_grid_resolution, self.lon_grid_resolution
                                                             ) if self.should_create_polygon else None
                 # 'row' ends up looking like:
@@ -327,15 +338,12 @@ def fetch_geo_point(lat: float, long: float) -> str:
     """Calculates a geography point from an input latitude and longitude."""
     if lat > LATITUDE_RANGE[1] or lat < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value '{lat}'")
-    long = ((long + 180) % 360) - 180
     point = geojson.dumps(geojson.Point((long, lat)))
     return point
 
 
 def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> str:
     """Create a Polygon based on latitude, longitude and resolution."""
-    if longitude >= 180:
-        longitude = longitude - 360
     lat_lon_bound = bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution)
     polygon = geojson.dumps(geojson.Polygon([
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
@@ -348,13 +356,13 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
 
 
 def bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution) -> t.List:
-    '''Calculate the bound point based on latitude, longitude and grid resolution.'''
-    is_lat_out_of_bound = True if latitude in [90.0, -90.0] else False
-    is_lon_out_of_bound = True if longitude in [-180.0, 180.0] else False
+    """Calculate the bound point based on latitude, longitude and grid resolution."""
+    lat_in_bound = latitude in [90.0, -90.0]
+    lon_in_bound = longitude in [-180.0, 180.0]
 
-    lat_range = get_lat_lon_range(latitude, "latitude", is_lat_out_of_bound,
+    lat_range = get_lat_lon_range(latitude, "latitude", lat_in_bound,
                                   lat_grid_resolution, lon_grid_resolution)
-    lon_range = get_lat_lon_range(longitude, "longitude", is_lon_out_of_bound,
+    lon_range = get_lat_lon_range(longitude, "longitude", lon_in_bound,
                                   lat_grid_resolution, lon_grid_resolution)
     lower_left = [lon_range[1], lat_range[1]]
     upper_left = [lon_range[0], lat_range[1]]
@@ -364,7 +372,7 @@ def bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution) -
 
 
 def get_lat_lon_range(value, lat_lon, is_point_out_of_bound, lat_grid_resolution, lon_grid_resolution):
-    '''Calculate the latitude, longitude point range point latitude, longitude and grid resolution.'''
+    """Calculate the latitude, longitude point range point latitude, longitude and grid resolution."""
     if is_point_out_of_bound:
         if lat_lon == 'latitude':
             if value == -90.0:
