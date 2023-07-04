@@ -41,7 +41,8 @@ def split_file(input_file: str,
                output_dir: t.Optional[str],
                formatting: str,
                dry_run: bool,
-               force_split: bool = False):
+               force_split: bool = False,
+               logging_level: int = logging.INFO):
     output_base_name = get_output_base_name(input_path=input_file,
                                             input_base=input_base_dir,
                                             output_template=output_template,
@@ -50,10 +51,12 @@ def split_file(input_file: str,
     logger.info('Splitting file: %s. Output base name: %s',
                 input_file, output_base_name)
     metrics.Metrics.counter('pipeline', 'splitting file').inc()
+    level = 40 - logging_level * 10
     splitter = get_splitter(input_file,
                             output_base_name,
                             dry_run,
-                            force_split)
+                            force_split,
+                            level)
     splitter.split_data()
 
 
@@ -113,9 +116,11 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Test the input file matching and the output file scheme without splitting.')
     parser.add_argument('-f', '--force', action='store_true', default=False,
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
+    parser.add_argument('--log-level', type=int, default=2,
+                      help='An integer to configure log level. Default: 2(INFO)')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(2)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
@@ -153,5 +158,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                                        output_dir,
                                        formatting,
                                        dry_run,
-                                       known_args.force)
+                                       known_args.force,
+                                       known_args.log_level)
         )

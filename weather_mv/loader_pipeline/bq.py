@@ -39,7 +39,6 @@ from .util import (
 )
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DEFAULT_IMPORT_TIME = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=datetime.timezone.utc).isoformat()
 DATA_IMPORT_TIME_COLUMN = 'data_import_time'
@@ -223,6 +222,9 @@ class ToBigQuery(ToDataSink):
                 # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
                 row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
                        for n, v in row_ds.data_vars.items()}
+
+                # Serialize coordinates.
+                it = {k: to_json_serializable_type(v) for k, v in it.items()}
 
                 # Add indexed coordinates.
                 row.update(it)

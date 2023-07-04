@@ -14,7 +14,7 @@
 import itertools
 import unittest
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import xarray
 import xarray as xr
@@ -38,7 +38,9 @@ class GetCoordinatesTest(TestDataBase):
         ds = xr.open_dataset(self.test_data_path)
         self.assertEqual(
             next(get_coordinates(ds)),
-            {'latitude': 49.0, 'longitude': -108.0, 'time': '2018-01-02T06:00:00+00:00'}
+            {'latitude': 49.0,
+             'longitude':-108.0,
+             'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)}
         )
 
     def test_no_duplicate_coordinates(self):
@@ -89,12 +91,24 @@ class IChunksTests(TestDataBase):
             actual,
             [
                 [
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T06:00:00+00:00'},
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T07:00:00+00:00'},
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T08:00:00+00:00'},
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T06:00:00+00:00').replace(tzinfo=None)
+                    },
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T07:00:00+00:00').replace(tzinfo=None)
+                    },
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T08:00:00+00:00').replace(tzinfo=None)
+                    },
                 ],
                 [
-                    {'longitude': -108.0, 'latitude': 49.0, 'time': '2018-01-02T09:00:00+00:00'}
+                    {'longitude': -108.0,
+                     'latitude': 49.0,
+                     'time': datetime.fromisoformat('2018-01-02T09:00:00+00:00').replace(tzinfo=None)
+                    }
                 ]
             ]
         )
@@ -240,3 +254,6 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(self._convert(np.datetime64(1, 'Y')), '1971-01-01T00:00:00+00:00')
         self.assertEqual(self._convert(np.datetime64(30, 'Y')), input_date)
         self.assertEqual(self._convert(np.timedelta64(1, 'm')), float(60))
+        self.assertEqual(self._convert(timedelta(seconds=1)), float(1))
+        self.assertEqual(self._convert(timedelta(minutes=1)), float(60))
+        self.assertEqual(self._convert(timedelta(days=1)), float(86400))

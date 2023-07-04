@@ -49,7 +49,7 @@ base_requirements = [
     "netcdf4==1.6.1",
     "geojson==2.5.0",
     "simplejson==3.17.6",
-    "rioxarray==0.12.2",
+    "rioxarray==0.13.4",
     "metview==1.13.1",
     "rasterio==1.3.1",
     "earthengine-api>=0.1.263",

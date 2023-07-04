@@ -40,7 +40,6 @@ from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
 from .util import make_attrs_ee_compatible, RateLimit, validate_region
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 COMPUTE_ENGINE_STR = 'Metadata-Flavor: Google'
 # For EE ingestion retry logic.
