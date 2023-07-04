@@ -275,7 +275,7 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
         subparser.add_argument('--tiff_config', type=json.loads, default={"dims":[]},
-                               help='Configs to handle source data with more than two dimensions.')
+                               help='Config to create assets splitted by given dimensions.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -325,7 +325,6 @@ class ToEarthEngine(ToDataSink):
         # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
-
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
@@ -473,7 +472,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                             else:
                                 asset_name = f"{asset_name}_{var}_{var_val.values:.2f}".replace('.', '_')
                 asset_name = get_ee_safe_name(asset_name)
-                print("-----------------------------",asset_name)
+
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
                     file_name = f'{asset_name}.tiff'

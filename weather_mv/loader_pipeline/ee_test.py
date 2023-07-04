@@ -89,12 +89,12 @@ class ConvertToAssetTests(TestDataBase):
     def test_convert_to_multiple_image_assets(self):
         data_path = f'{self.test_data_folder}/test_data_20180101.nc'
         # file with multiple time values will generate separate tiff files
-        time_arr = ["20180102060000","20180102070000","20180102080000","20180102090000",
-                    "20180102100000","20180102110000","20180102120000","20180102130000",
-                    "20180102140000","20180102150000","20180102160000","20180102170000",
-                    "20180102180000","20180102190000","20180102200000","20180102210000",
-                    "20180102220000","20180102230000","20180103000000","20180103010000",
-                    "20180103020000","20180103030000","20180103040000","20180103050000",
+        time_arr = ["20180102060000", "20180102070000", "20180102080000", "20180102090000",
+                    "20180102100000", "20180102110000", "20180102120000", "20180102130000",
+                    "20180102140000", "20180102150000", "20180102160000", "20180102170000",
+                    "20180102180000", "20180102190000", "20180102200000", "20180102210000",
+                    "20180102220000", "20180102230000", "20180103000000", "20180103010000",
+                    "20180103020000", "20180103030000", "20180103040000", "20180103050000",
                     "20180103060000"]
         it = self.convert_to_image_asset.process(data_path)
         total_assets_size = 0
@@ -128,12 +128,12 @@ class ConvertToAssetTests(TestDataBase):
 
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_multiple_timestep.grib2'
         expected = [
-                {"time":"20230614000000","depthBelowLandLayer":"0_00"},
-                {"time":"20230614000000","depthBelowLandLayer":"0_10"},
-                {"time":"20230614060000","depthBelowLandLayer":"0_00"},
-                {"time":"20230614060000","depthBelowLandLayer":"0_10"},
-                {"time":"20230614120000","depthBelowLandLayer":"0_00"},
-                {"time":"20230614120000","depthBelowLandLayer":"0_10"}
+                {"time": "20230614000000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614000000", "depthBelowLandLayer": "0_10"},
+                {"time": "20230614060000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614060000", "depthBelowLandLayer": "0_10"},
+                {"time": "20230614120000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614120000", "depthBelowLandLayer": "0_10"}
         ]
         convert_to_image_asset = ConvertToAsset(
             asset_location=self.tmpdir.name,
