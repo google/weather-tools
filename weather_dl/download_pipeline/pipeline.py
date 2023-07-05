@@ -46,6 +46,7 @@ from .partition import PartitionConfig
 from .stores import TempFileStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
+SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
 
 
 def configure_logger(verbosity: int) -> None:
@@ -179,6 +180,10 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                       help='An integer to configure log level. Default: 2(INFO)')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
+
+    if "DataflowRunner" in pipeline_args and  "--sdk_container_image" not in pipeline_args:
+        pipeline_args.extend(['--sdk_container_image', os.getenv('SDK_CONTAINER_IMAGE', SDK_CONTAINER_IMAGE),
+                              '--experiments', 'use_runner_v2'])
 
     configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
