@@ -16,7 +16,6 @@
 import argparse
 import json
 import logging
-import os
 import typing as t
 
 import apache_beam as beam
@@ -115,6 +114,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                       help='Preview the weather-mv job. Default: off')
     base.add_argument('--log-level', type=int, default=2,
                       help='An integer to configure log level. Default: 2(INFO)')
+    base.add_argument('--use-local-code', action='store_true', default=False, help='Supply local code to the Runner.')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
@@ -134,10 +134,6 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     ToEarthEngine.add_parser_arguments(ee_parser)
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
-
-    if "DataflowRunner" in pipeline_args and  "--sdk_container_image" not in pipeline_args:
-        pipeline_args.extend(['--sdk_container_image', os.getenv('SDK_CONTAINER_IMAGE',SDK_CONTAINER_IMAGE),
-                              '--experiments', 'use_runner_v2'])
 
     configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 

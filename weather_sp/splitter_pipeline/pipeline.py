@@ -89,6 +89,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     )
     parser.add_argument('-i', '--input-pattern', type=str, required=True,
                         help='Pattern for input weather data.')
+    parser.add_argument('--use-local-code', action='store_true', default=False, help='Supply local code to the Runner.')
     output_options = parser.add_mutually_exclusive_group(required=True)
     output_options.add_argument(
         '--output-template', type=str,
@@ -120,10 +121,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('--log-level', type=int, default=2,
                       help='An integer to configure log level. Default: 2(INFO)')
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
-
-    if "DataflowRunner" in pipeline_args and  "--sdk_container_image" not in pipeline_args:
-        pipeline_args.extend(['--sdk_container_image', os.getenv('SDK_CONTAINER_IMAGE', SDK_CONTAINER_IMAGE),
-                              '--experiments', 'use_runner_v2'])
 
     configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
