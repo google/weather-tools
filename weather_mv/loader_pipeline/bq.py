@@ -111,9 +111,10 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('-a', '--area', metavar='area', type=float, nargs='+', default=list(),
                                help='Target area in [N, W, S, E]. Default: Will include all available area.')
         subparser.add_argument('--skip_creating_polygon', action='store_true',
-                               help='Ingest grid points as polygons in BigQuery. Default: Ingest grid points as normal '
-                                    'point in BigQuery. Note: This feature relies on the assumption that the provided '
-                                    'grid is regular.')
+                               help='Not ingest grid points as polygons in BigQuery. Default: Ingest grid points as '
+                                    'Polygon in BigQuery. Note: This feature relies on the assumption that the '
+                                    'provided grid has an equal distance between consecutive points of latitude and '
+                                    'longitude.')
         subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                                help=("When writing data to BigQuery, record that data import occurred at this "
                                      "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
