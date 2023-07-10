@@ -1,0 +1,7 @@
+{
+    "single" : "project_id.dataset_id.table_id",
+    "point" : "project_id.dataset_id.table_id",
+    "dabhi" : "project_id.dataset_id.table_id",
+    "points" : "project_id.dataset_id.table_id",
+    "default_table" : "project_id.dataset_id.table_id"
+}

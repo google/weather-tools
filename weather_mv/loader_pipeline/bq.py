@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import typing as t
 from pprint import pformat
 
@@ -27,6 +28,7 @@ import xarray as xr
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
 from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
 from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import ToDataSink, open_dataset
@@ -85,6 +87,7 @@ class ToBigQuery(ToDataSink):
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
     output_table: str
+    output_table_mapping: str
     variables: t.List[str]
     area: t.List[float]
     import_time: t.Optional[datetime.datetime]
@@ -93,13 +96,18 @@ class ToBigQuery(ToDataSink):
     tif_metadata_for_datetime: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
+    output_table_mapping_data: t.Dict = None
     coordinate_chunk_size: int = 10_000
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
-        subparser.add_argument('-o', '--output_table', type=str, required=True,
+        subparser.add_argument('-o', '--output_table', type=str,
                                help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
                                     "will be created if it doesn't exist.")
+        subparser.add_argument('-om', '--output_table_mapping', type=str,
+                               help="A json file containing input file to BigQuery table mappings. Default: A default "
+                               "table will be created for all input files. Note: A json must contain this one entry : "
+                               " 'default_table' : 'project.dataset_id.table_id'  ")
         subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                                help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
                                     'all data variables as columns.')
@@ -129,6 +137,10 @@ class ToBigQuery(ToDataSink):
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
 
+        # Check that output_table is in correct format.
+        if known_args.output_table:
+            table_format_checker(known_args.output_table)
+
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
@@ -147,37 +159,24 @@ class ToBigQuery(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
+        # Check that 'output_table' and 'output_table_mapping' both passed or not'.
+        if known_args.output_table and known_args.output_table_mapping:
+            raise RuntimeError("'--output_table' and '--output_table_mapping' both passed.")
+        if not known_args.output_table and not known_args.output_table_mapping:
+            raise RuntimeError("Pass either '--output_table' or '--output_table_mapping'.")
+
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
-        with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
-                          is_zarr=self.zarr) as open_ds:
-            # Define table from user input
-            if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
-                logger.info('Creating schema from input variables.')
-                table_schema = to_table_schema(
-                    [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
-                    [(var, 'FLOAT64') for var in self.variables]
-                )
-            else:
-                logger.info('Inferring schema from data.')
-                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
-                table_schema = dataset_to_table_schema(ds)
 
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
-            logger.debug(f'\n{pformat(table_schema)}')
             return
 
-        # Create the table in BigQuery
-        try:
-            table = bigquery.Table(self.output_table, schema=table_schema)
-            self.table = bigquery.Client().create_table(table, exists_ok=True)
-        except Exception as e:
-            logger.error(f'Unable to create table in BigQuery: {e}')
-            raise
+        if self.output_table_mapping:
+            with open(self.output_table_mapping, 'r') as output_table_mapping_data:
+                self.output_table_mapping_data = json.load(output_table_mapping_data)
 
     def prepare_coordinates(self, uri: str) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
         """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
@@ -241,6 +240,57 @@ class ToBigQuery(ToDataSink):
                 beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
                 yield row
 
+    def mapping_table_name(self, uri):
+        """Extract the word from the uri and return appropriate tabel name from the
+        `--output_table_mapping` file based on the uri."""
+        file_name = os.path.basename(uri)
+        pattern = r'[\W_]+'
+        split_string = re.split(pattern, file_name)
+
+        for word in split_string:   # list comprehension
+            if word in self.output_table_mapping_data.keys():
+                return self.output_table_mapping_data[word]
+        return self.output_table_mapping_data["default_table"]
+
+    def create_schema(self, uri):
+        """Create a table schema from the input uri."""
+        with open_dataset(uri, self.xarray_open_dataset_kwargs,
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
+                          is_zarr=self.zarr) as open_ds:
+            # Define table from user input
+            if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
+                logger.info('Creating schema from input variables.')
+                table_schema = to_table_schema(
+                    [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
+                    [(var, 'FLOAT64') for var in self.variables]
+                )
+            else:
+                logger.info('Inferring schema from data.')
+                ds: xr.Dataset = _only_target_vars(open_ds, self.variables)
+                table_schema = dataset_to_table_schema(ds)
+        return table_schema
+
+    def get_table_name(self, element):
+        """Retrieve the table name from the input PCollection and, if the table does
+        not exist in BigQuery, create the table and return it."""
+
+        file_path = element['data_uri']
+        table_name = self.output_table if self.output_table else self.mapping_table_name(file_path)
+        table_format_checker(table_name)
+
+        try:
+            table = bigquery.Client().get_table(table_name)
+            return f"{table.project}:{table.dataset_id}.{table.table_id}"
+        except NotFound:
+            try:
+                table_schema = self.create_schema(file_path)
+                new_table = bigquery.Table(table_name, schema=table_schema)
+                new_table = bigquery.Client().create_table(new_table, exists_ok=True)
+                return f"{new_table.project}:{new_table.dataset_id}.{new_table.table_id}"
+            except Exception as e:
+                logger.error(f'Unable to create table in BigQuery: {e}')
+                raise
+
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
@@ -254,9 +304,8 @@ class ToBigQuery(ToDataSink):
             (
                     extracted_rows
                     | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
+                        table=self.get_table_name,
+                        schema='SCHEMA_AUTODETECT',
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
                         create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
@@ -300,7 +349,7 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_IMPORT_TIME_COLUMN, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
-    fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'STRING', mode='NULLABLE'))
 
     return fields
 
@@ -312,3 +361,11 @@ def fetch_geo_point(lat: float, long: float) -> str:
     long = ((long + 180) % 360) - 180
     point = geojson.dumps(geojson.Point((long, lat)))
     return point
+
+
+def table_format_checker(table_name: str):
+    """checking if the table_name is in format (<project>.<dataset>.<table>)."""
+    output_table_pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
+    if not bool(re.match(output_table_pattern, table_name)):
+        raise RuntimeError(f'The received table name is {table_name} but it is not in correct format'
+                           '(<project>.<dataset_id>.<table_id>).')
