@@ -49,6 +49,8 @@ _Common options_
 * `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic`
   flag. Default: 5 shards.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
+* `--log-level`: An integer to configure log level. Default: 2(INFO).
+* `--use-local-code`: Supply local code to the Runner. Default: False.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -167,6 +169,19 @@ weather-mv bq --uris "gs://your-bucket/*.nc" \
            --region  $REGION \
            --temp_location "gs://$BUCKET/tmp" \
            --job_name $JOB_NAME 
+```
+
+Using DataflowRunner and using local code for pipeline
+
+```bash
+weather-mv bq --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region  $REGION \
+           --temp_location "gs://$BUCKET/tmp" \
+           --job_name $JOB_NAME \
+           --use-local-code
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review
