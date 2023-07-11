@@ -240,7 +240,7 @@ class ToBigQuery(ToDataSink):
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             yield from self.to_rows(coordinates, data_ds, uri)
 
-    def to_rows(self, coordinates: t.List[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
+    def to_rows(self, coordinates: t.Iterable[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
         first_ts_raw = (
             ds.time[0].values if isinstance(ds.time.values, np.ndarray)
             else ds.time.values
