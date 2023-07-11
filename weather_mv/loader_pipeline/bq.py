@@ -240,7 +240,7 @@ class ToBigQuery(ToDataSink):
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             yield from self.to_rows(coordinates, data_ds, uri)
 
-    def to_rows(self, coordinates, ds, uri) -> t.Iterator[t.Dict]:
+    def to_rows(self, coordinates: t.List[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
         first_ts_raw = (
             ds.time[0].values if isinstance(ds.time.values, np.ndarray)
             else ds.time.values
@@ -269,7 +269,6 @@ class ToBigQuery(ToDataSink):
             row[DATA_IMPORT_TIME_COLUMN] = self.import_time
             row[DATA_URI_COLUMN] = uri
             row[DATA_FIRST_STEP] = first_time_step
-
 
             longitude = ((row['longitude'] + 180) % 360) - 180
             row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
