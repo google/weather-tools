@@ -31,7 +31,6 @@ import xarray_beam as xbeam
 from .sinks import ToDataSink, open_local, copy
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 try:
     import metview as mv

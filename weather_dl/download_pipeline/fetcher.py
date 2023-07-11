@@ -52,6 +52,7 @@ class Fetcher(beam.DoFn):
     topic_path: str
     manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
     store: t.Optional[Store] = None
+    log_level: t.Optional[int] = logging.INFO
 
     def __post_init__(self):
         if self.store is None:
@@ -70,7 +71,7 @@ class Fetcher(beam.DoFn):
         if skip_partition(config, self.store, self.manifest):
             return
 
-        client = CLIENTS[self.client_name](config)
+        client = CLIENTS[self.client_name](config, self.log_level)
         target = prepare_target_name(config)
 
         with tempfile.NamedTemporaryFile() as temp:

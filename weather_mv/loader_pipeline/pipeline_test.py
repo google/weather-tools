@@ -65,6 +65,8 @@ class CLITests(unittest.TestCase):
             'tif_metadata_for_datetime': None,
             'zarr': False,
             'zarr_kwargs': {},
+            'log_level': 2,
+            'skip_creating_polygon': False,
         }
 
 
@@ -73,6 +75,10 @@ class TestCLI(CLITests):
     def test_dry_runs_are_allowed(self):
         known_args, _ = run(self.base_cli_args + '--dry-run'.split())
         self.assertEqual(known_args.dry_run, True)
+
+    def test_log_level_arg(self):
+        known_args, _ = run(self.base_cli_args + '--log-level 3'.split())
+        self.assertEqual(known_args.log_level, 3)
 
     def test_tif_metadata_for_datetime_raise_error_for_non_tif_file(self):
         with self.assertRaisesRegex(RuntimeError, 'can be specified only for tif files.'):

@@ -28,9 +28,7 @@ from urllib.parse import urlparse
 import apache_beam as beam
 from apache_beam.transforms.window import FixedWindows
 
-logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class GroupMessagesByFixedWindows(beam.PTransform):

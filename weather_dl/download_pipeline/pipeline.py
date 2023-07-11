@@ -125,7 +125,11 @@ def pipeline(args: PipelineArgs) -> None:
             (
                 partitions
                 | 'GroupBy Request Limits' >> beam.GroupBy(subsection_and_request)
-                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name, args.known_args.topic_path, args.manifest, args.store))
+                | 'Fetch Data' >> beam.ParDo(Fetcher(args.client_name,
+                                                     args.known_args.topic_path,
+                                                     args.manifest,
+                                                     args.store,
+                                                     args.known_args.log_level))
             )
 
 
@@ -174,10 +178,12 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
     parser.add_argument('--topic-path', type=str, required=True,
                         help="Topic path for weather-dl v1.5. Eg: 'projects/<project_id>/topics/<topic_id>'.")
+    parser.add_argument('--log-level', type=int, default=2,
+                        help='An integer to configure log level. Default: 2(INFO)')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
-    configure_logger(3)  # 0 = error, 1 = warn, 2 = info, 3 = debug
+    configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
     configs = []
     for cfg in known_args.config:
@@ -225,7 +231,8 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
         manifest = LocalManifest(Location(local_dir))
 
     num_requesters_per_key = known_args.num_requests_per_key
-    client = CLIENTS[client_name](configs[0])
+    known_args.log_level = 40 - known_args.log_level * 10
+    client = CLIENTS[client_name](configs[0], known_args.log_level)
     if num_requesters_per_key == -1:
         num_requesters_per_key = client.num_requests_per_key(config.dataset)
 
