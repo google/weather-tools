@@ -67,6 +67,7 @@ class CLITests(unittest.TestCase):
             'zarr_kwargs': {},
             'log_level': 2,
             'use_local_code': False,
+            'skip_creating_polygon': False,
         }
 
 
