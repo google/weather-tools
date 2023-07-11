@@ -213,8 +213,8 @@ class ExtractRowsTestBase(TestDataBase):
             output_table='foo.bar.baz', variables=variables, area=area,
             xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
             tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
-            disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000
-        , skip_creating_polygon=skip_creating_polygon)
+            disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
+            skip_creating_polygon=skip_creating_polygon)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)

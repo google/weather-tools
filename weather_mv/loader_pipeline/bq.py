@@ -258,7 +258,7 @@ class ToBigQuery(ToDataSink):
             # Serialize coordinates.
             it = {k: to_json_serializable_type(v) for k, v in it.items()}
 
-                # Add indexed coordinates.
+            # Add indexed coordinates.
             row.update(it)
             # Add un-indexed coordinates.
             for c in row_ds.coords:

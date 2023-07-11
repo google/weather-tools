@@ -27,7 +27,7 @@ from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
-SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
+SDK_CONTAINER_IMAGE = 'gcr.io/weather-tools-prod/weather-tools:0.0.0'
 
 
 def configure_logger(verbosity: int) -> None:
