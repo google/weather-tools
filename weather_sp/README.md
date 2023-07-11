@@ -27,6 +27,8 @@ _Common options_:
    using Python formatting, see [Output section](#output) below.
 * `-f, --force`: Force re-splitting of the pipeline. Turns of skipping of already split data.
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
+* `--log-level`: An integer to configure log level. Default: 2(INFO).
+* `--use-local-code`: Supply local code to the Runner. Default: False.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -57,6 +59,19 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME
+```
+
+Using DataflowRunner and using local code for pipeline
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
+           --output-dir 'gs://test-tmp/era5/splits'
+           --formatting '.{typeOfLevel}' \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --job_name $JOB_NAME \
+           --use-local-code
 ```
 
 Using ecCodes-powered grib splitting on Dataflow (this is often more robust, especially when splitting multiple 

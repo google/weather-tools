@@ -177,6 +177,7 @@ def run(argv: t.List[str], save_main_session: bool = True) -> PipelineArgs:
                         help="Update the manifest for the already downloaded shards and exit. Default: 'false'.")
     parser.add_argument('--log-level', type=int, default=2,
                       help='An integer to configure log level. Default: 2(INFO)')
+    parser.add_argument('--use-local-code', action='store_true', default=False, help='Supply local code to the Runner.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 

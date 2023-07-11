@@ -27,6 +27,7 @@ from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
+SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
 
 
 def configure_logger(verbosity: int) -> None:
@@ -113,6 +114,7 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
                       help='Preview the weather-mv job. Default: off')
     base.add_argument('--log-level', type=int, default=2,
                       help='An integer to configure log level. Default: 2(INFO)')
+    base.add_argument('--use-local-code', action='store_true', default=False, help='Supply local code to the Runner.')
 
     subparsers = parser.add_subparsers(help='help for subcommand', dest='subcommand')
 
