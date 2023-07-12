@@ -30,7 +30,7 @@ async def get_license_queue(license_id: str, queue_handler: QueueHandler = Depen
     return result
 
 
-# Change config's priority on particular license
+# Change priority queue of particular license
 @router.post("/{license_id}")
 def modify_license_queue(license_id: str, priority_list: list | None = [],
                          queue_handler: QueueHandler = Depends(get_queue_handler),
@@ -41,5 +41,17 @@ def modify_license_queue(license_id: str, priority_list: list | None = [],
     try:
         queue_handler._update_license_queue(license_id, priority_list)
         return {"message": f"'{license_id}' license priority updated successfully."}
-    except Exception as e:
-        return {"message": f"Failed to update '{license_id}' license priority. {e}"}
+    except Exception:
+        return {"message": f"Failed to update '{license_id}' license priority."}
+
+
+# Change config's priority in particular license
+@router.put("/priority/{license_id}")
+def modify_config_priority__in_license(license_id: str, config_name: str, priority: int):
+    if not db_client._check_license_exists(license_id):
+        raise HTTPException(status_code=404, detail="License's priority not found.")
+    try:
+        db_client._update_config_priority__in_license(license_id, config_name, priority)
+        return {"message": f"'{license_id}' license '{config_name}' priority updated successfully."}
+    except Exception:
+        return {"message": f"Failed to update '{license_id}' license priority."}

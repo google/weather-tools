@@ -31,7 +31,7 @@ gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-server" --t
 
 * **Add path of created server image in server.yaml**:
 ```
-Please write down the fetcher's docker image path at Line 42 of server.yaml.
+Please write down the fastAPI server's docker image path at Line 42 of server.yaml.
 ```
 
 * **Deploy fastapi server on kubernetes:**
