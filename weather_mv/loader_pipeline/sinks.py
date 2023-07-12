@@ -388,6 +388,7 @@ def create_partition(ds:xr.Dataset, group:t.List[dict], flat_dims:t.Set[str], co
                 channel_name += f'{attrs.get("GRIB_stepType")}_{var}'
             else:
                 channel_name += var
+            channel_name = re.sub(r'[^a-zA-Z0-9_]+', r'_', channel_name)
             da_units['unit_'+channel_name] = None
             if 'units' in attrs:
                 da_units['unit_'+channel_name] = attrs['units']
@@ -554,9 +555,9 @@ def __open_dataset_file(filename: str,
         ds = xr.open_dataset(filename)
         return _add_is_normalized_attr(__partition_dataset(ds, tiff_config), False)
     except ValueError as e:
-            e_str = str(e)
-            if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
-                raise
+        e_str = str(e)
+        if not ("Consider explicitly selecting one of the installed engines" in e_str and "cfgrib" in e_str):
+            raise
 
     if not disable_grib_schema_normalization:
         logger.warning("Assuming grib.")

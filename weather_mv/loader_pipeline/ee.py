@@ -391,8 +391,10 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
 
         # Checks if the asset is already present in the GCS bucket or not.
         target_path = os.path.join(
-            self.asset_location, f'{asset_name}{ASSET_TYPE_TO_EXTENSION_MAPPING[self.ee_asset_type]}')
-        if not self.force_overwrite and FileSystems.exists(target_path):
+            self.asset_location, f'{asset_name}*{ASSET_TYPE_TO_EXTENSION_MAPPING[self.ee_asset_type]}')
+        files = FileSystems.match([target_path])
+
+        if not self.force_overwrite and files[0].metadata_list:
             logger.info(f'Asset file {target_path} already exists in GCS bucket. Skipping...')
             return
 
