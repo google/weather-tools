@@ -8,7 +8,6 @@ from routers import license, download, queues
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # set up logger.
-logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager

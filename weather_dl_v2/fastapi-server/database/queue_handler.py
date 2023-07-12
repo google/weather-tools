@@ -46,6 +46,10 @@ class QueueHandler(abc.ABC):
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         pass
 
+    @abc.abstractmethod
+    def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
+        pass
+
 class QueueHandlerMock(QueueHandler):
     def __init__(self):
         pass
@@ -91,6 +95,9 @@ class QueueHandlerMock(QueueHandler):
 
     def _update_queues_on_stop_download(self, config_name: str) -> None:
         logger.info("Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
+
+    def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
+        print(f"Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
 
 class QueueHandlerFirestore(QueueHandler):
     def __init__(self, db: firestore.firestore.Client, collection: str = "queues"):
@@ -144,3 +151,16 @@ class QueueHandlerFirestore(QueueHandler):
             result: WriteResult = self.db.collection(self.collection).document(snapshot.id).update({
                 'queue': firestore.ArrayRemove([config_name])})
             logger.info(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
+
+    def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
+        snapshot: DocumentSnapshot = self._get_db().collection('queues').document(license_id).get()
+        priority_list = snapshot.to_dict()['queue']
+        if config_name not in priority_list:
+            print(f"'{config_name}' not in queue.")
+            raise
+        new_priority_list = [c for c in priority_list if c != config_name]
+        new_priority_list.insert(priority, config_name)
+        result: WriteResult = self._get_db().collection('queues').document(license_id).update(
+            {'queue': new_priority_list}
+        )
+        print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
