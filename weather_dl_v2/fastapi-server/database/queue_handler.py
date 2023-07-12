@@ -153,14 +153,14 @@ class QueueHandlerFirestore(QueueHandler):
             logger.info(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
-        snapshot: DocumentSnapshot = self._get_db().collection('queues').document(license_id).get()
+        snapshot: DocumentSnapshot = self.db.collection('queues').document(license_id).get()
         priority_list = snapshot.to_dict()['queue']
         if config_name not in priority_list:
             print(f"'{config_name}' not in queue.")
             raise
         new_priority_list = [c for c in priority_list if c != config_name]
         new_priority_list.insert(priority, config_name)
-        result: WriteResult = self._get_db().collection('queues').document(license_id).update(
+        result: WriteResult = self.db.collection('queues').document(license_id).update(
             {'queue': new_priority_list}
         )
         print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")

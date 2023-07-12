@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
-from license_dep.deployment_creator import create_license_deployment
+from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
 from database.license_handler import LicenseHandler, get_license_handler
 
 
@@ -35,7 +35,7 @@ def get_create_deployment_mock():
     return create_deployment_mock
 
 def get_terminate_license_deployment():
-    return get_terminate_license_deployment
+    return terminate_license_deployment
 
 def get_terminate_license_deployment_mock():
     def get_terminate_license_deployment_mock(license_id):

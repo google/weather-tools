@@ -157,11 +157,11 @@ class LicenseHandlerFirestore(LicenseHandler):
         return result
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
-        result: WriteResult = self._get_db().collection('queues').document(license_id).set(
+        result: WriteResult = self.db.collection('queues').document(license_id).set(
             {"license_id": license_id, "client_name": client_name, "queue": []}
         )
         logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
 
     def _remove_license_queue(self, license_id: str) -> None:
-        timestamp = self._get_db().collection('queues').document(license_id).delete()
+        timestamp = self.db.collection('queues').document(license_id).delete()
         logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")

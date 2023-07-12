@@ -55,5 +55,5 @@ def modify_config_priority_in_license(license_id: str, config_name: str, priorit
     try:
         queue_handler._update_config_priority_in_license(license_id, config_name, priority)
         return {"message": f"'{license_id}' license '{config_name}' priority updated successfully."}
-    except Exception:
+    except Exception as e:
         return {"message": f"Failed to update '{license_id}' license priority."}
