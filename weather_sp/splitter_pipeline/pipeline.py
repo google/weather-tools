@@ -26,6 +26,7 @@ from .file_name_utils import OutFileInfo, get_output_file_info
 from .file_splitters import get_splitter
 
 logger = logging.getLogger(__name__)
+SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
 
 
 def configure_logger(verbosity: int) -> None:
@@ -88,6 +89,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     )
     parser.add_argument('-i', '--input-pattern', type=str, required=True,
                         help='Pattern for input weather data.')
+    parser.add_argument('--use-local-code', action='store_true', default=False, help='Supply local code to the Runner.')
     output_options = parser.add_mutually_exclusive_group(required=True)
     output_options.add_argument(
         '--output-template', type=str,

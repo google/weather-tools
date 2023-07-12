@@ -57,6 +57,8 @@ _Common options_:
   that partitions will be processed in sequential order of each config; 'fair' means that partitions from each config 
   will be interspersed evenly. Note: When using 'fair' scheduling, we recommend you set the '--partition-chunks' to a 
   much smaller number. Default: 'in-order'.
+* `--log-level`: An integer to configure log level. Default: 2(INFO).
+* `--use-local-code`: Supply local code to the Runner. Default: False.
 
 > Note: 
 >  * In case of BigQuery manifest tool will create the BQ table itself, if not already present. 
@@ -91,6 +93,17 @@ weather-dl configs/mars_example_config.cfg \
            --project $PROJECT \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME
+```
+
+Using DataflowRunner and using local code for pipeline
+
+```bash
+weather-dl configs/mars_example_config.cfg \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --job_name $JOB_NAME \
+           --use-local-code
 ```
 
 Using the DataflowRunner and specifying 3 requests per license

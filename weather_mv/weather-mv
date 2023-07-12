@@ -23,6 +23,8 @@ import tempfile
 
 import weather_mv
 
+SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
@@ -47,9 +49,15 @@ if __name__ == '__main__':
         except ImportError as e:
             raise ImportError('please re-install package in a clean python environment.') from e
 
-    if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
-        cli()
-    else:
+    args = []
+
+    if "DataflowRunner" in sys.argv and  "--sdk_container_image" not in sys.argv:
+        args.extend(['--sdk_container_image',
+             os.getenv('SDK_CONTAINER_IMAGE', SDK_CONTAINER_IMAGE),
+             '--experiments',
+             'use_runner_v2'])
+        
+    if "--use-local-code" in sys.argv:
         with tempfile.TemporaryDirectory() as tmpdir:
             original_dir = os.getcwd()
 
@@ -70,5 +78,7 @@ if __name__ == '__main__':
             # cleanup memory to prevent pickling error.
             tar = None
             weather_mv = None
-
-            cli(['--extra_package', pkg_archive])
+            args.extend(['--extra_package', pkg_archive])
+            cli(args)
+    else:
+        cli(args)

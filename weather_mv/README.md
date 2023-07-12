@@ -49,6 +49,8 @@ _Common options_
 * `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic`
   flag. Default: 5 shards.
 * `-d, --dry-run`: Preview the load into BigQuery. Default: off.
+* `--log-level`: An integer to configure log level. Default: 2(INFO).
+* `--use-local-code`: Supply local code to the Runner. Default: False.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -60,7 +62,7 @@ usage: weather-mv bigquery [-h] -i URIS [--topic TOPIC] [--window_size WINDOW_SI
                            [--import_time IMPORT_TIME] [--infer_schema]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS]
                            [--tif_metadata_for_datetime TIF_METADATA_FOR_DATETIME] [-s]
-                           [--coordinate_chunk_size COORDINATE_CHUNK_SIZE]
+                           [--coordinate_chunk_size COORDINATE_CHUNK_SIZE] ['--skip_creating_polygon']
 ```
 
 The `bigquery` subcommand loads weather data into BigQuery. In addition to the common options above, users may specify
@@ -81,6 +83,9 @@ _Command options_:
 * `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 * `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
+* `--skip_creating_polygon` : Not ingest grid points as polygons in BigQuery. Default: Ingest grid points as Polygon in 
+  BigQuery. Note: This feature relies on the assumption that the provided grid has an equal distance between consecutive 
+  points of latitude and longitude.
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
 
@@ -115,6 +120,16 @@ weather-mv bq --uris "gs://your-bucket/*.nc" \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
            --dry-run
+```
+
+Ingest grid points with skip creating polygon in BigQuery:
+
+```bash
+weather-mv bq --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
+           --direct_num_workers 2 \
+           --skip_creating_polygon
 ```
 
 Load COG's (.tif) files:
@@ -167,6 +182,19 @@ weather-mv bq --uris "gs://your-bucket/*.nc" \
            --region  $REGION \
            --temp_location "gs://$BUCKET/tmp" \
            --job_name $JOB_NAME 
+```
+
+Using DataflowRunner and using local code for pipeline
+
+```bash
+weather-mv bq --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region  $REGION \
+           --temp_location "gs://$BUCKET/tmp" \
+           --job_name $JOB_NAME \
+           --use-local-code
 ```
 
 For a full list of how to configure the Dataflow pipeline, please review

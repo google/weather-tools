@@ -368,6 +368,9 @@ class Manifest(abc.ABC):
 
         if stage == Stage.FETCH:
             new_status.fetch_start_time = current_utc_time
+            new_status.fetch_end_time = None
+            new_status.download_start_time = None
+            new_status.download_end_time = None
         elif stage == Stage.RETRIEVE:
             new_status.retrieve_start_time = current_utc_time
         elif stage == Stage.DOWNLOAD:
