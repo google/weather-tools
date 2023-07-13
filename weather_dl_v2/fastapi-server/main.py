@@ -30,7 +30,4 @@ app.include_router(queues.router)
 
 @app.get("/")
 async def main():
-    logger.debug("debug msg")
-    logger.info("info msg")
-    logger.error("error msg")
     return {"msg": "Greetings from weather-dl v2 !!"}
