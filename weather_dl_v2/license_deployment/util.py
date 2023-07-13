@@ -18,6 +18,11 @@ from urllib.parse import urlparse
 from google.api_core.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+LATITUDE_RANGE = (-90, 90)
+LONGITUDE_RANGE = (-180, 180)
+GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 def exceptionit(func):
     def inner_function(*args, **kwargs):
@@ -26,11 +31,6 @@ def exceptionit(func):
         except Exception as e:
             logger.error(f"exception in {func.__name__}  {e.__class__.__name__} {e}")
     return inner_function
-
-LATITUDE_RANGE = (-90, 90)
-LONGITUDE_RANGE = (-180, 180)
-GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
-
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
     if isinstance(exception, socket.timeout):

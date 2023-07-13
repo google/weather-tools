@@ -47,12 +47,6 @@ def make_fetch_request(request):
 
     create_job(request, result)
 
-# TODO: Add request clean up logic when anything fails in make_fetch_request
-@exceptionit
-def fetch_request_done_callback(future):
-    pass
-
-
 def fetch_request_from_db():
     request = None
     config_name = db_client._get_config_from_queue_by_license_id(license_id)
@@ -71,8 +65,7 @@ def main():
             request = fetch_request_from_db()
 
             if request is not None:
-                future = executor.submit(make_fetch_request, request)
-                future.add_done_callback(fetch_request_done_callback)
+                executor.submit(make_fetch_request, request)
             else:
                 logger.info("No request available. Waiting...")
                 time.sleep(5)
