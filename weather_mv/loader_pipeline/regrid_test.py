@@ -122,7 +122,7 @@ class RegridTest(TestDataBase):
             self.Op,
             first_uri=input_zarr,
             output_path=output_zarr,
-            zarr_input_chunks={"time": 5},
+            zarr_input_chunks={"time": 25},
             zarr=True
         )
 
