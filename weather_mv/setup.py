@@ -57,7 +57,7 @@ base_requirements = [
     "pyproj==3.4.0",  # requires separate binary installation!
     "gdal==3.5.1",  # requires separate binary installation!
     "gcsfs==2022.11.0",
-    "zarr==2.13.3",
+    "zarr==2.15.0",
 ]
 
 setup(
