@@ -76,8 +76,7 @@ class LicenseHandlerMock(LicenseHandler):
             return None
         return {
             "license_id": license_id,
-            "api_key": "xxxxxx",
-            "api_url": "api_url.com",
+            "secret_id": "xxxx",
             "client_name": "dummy_client",
             "k8s_deployment_id": "k1",
             "number_of_requets": 100
@@ -86,8 +85,7 @@ class LicenseHandlerMock(LicenseHandler):
     def _get_license_by_client_name(self, client_name: str) -> list:
         return [{
             "license_id": "L1",
-            "api_key": "xxxxxx",
-            "api_url": "api_url.com",
+            "secret_id": "xxxx",
             "client_name": client_name,
             "k8s_deployment_id": "k1",
             "number_of_requets": 100
@@ -97,8 +95,7 @@ class LicenseHandlerMock(LicenseHandler):
         return [
             {
                 "license_id": "L1",
-                "api_key": "xxxxxx",
-                "api_url": "api_url.com",
+                "secret_id": "xxxx",
                 "client_name": "dummy_client",
                 "k8s_deployment_id": "k1",
                 "number_of_requets": 100
