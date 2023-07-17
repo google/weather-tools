@@ -1,3 +1,4 @@
+import logging
 import datetime
 import geojson
 import hashlib
@@ -20,6 +21,8 @@ from google.api_core.exceptions import BadRequest
 LATITUDE_RANGE = (-90, 90)
 LONGITUDE_RANGE = (-180, 180)
 GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
+
+logger = logging.getLogger(__name__)
 
 
 def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
@@ -72,7 +75,7 @@ def copy(src: str, dst: str) -> None:
     try:
         subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        print(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
+        logger.info(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
         raise
 
 
@@ -80,7 +83,7 @@ def copy(src: str, dst: str) -> None:
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.
-    print('Serializing to JSON')
+    logger.info('Serializing to JSON')
 
     if pd.isna(value) or value is None:
         return None
@@ -181,5 +184,5 @@ def download_with_aria2(url: str, path: str) -> None:
             check=True,
             capture_output=True)
     except subprocess.CalledProcessError as e:
-        print(f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        logger.info(f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
         raise

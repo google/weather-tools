@@ -2,6 +2,7 @@
 
 import abc
 import dataclasses
+import logging
 import datetime
 import enum
 import json
@@ -25,11 +26,12 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
-from db_service.database import Database
+from database.session import Database
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
 
+logger = logging.getLogger(__name__)
 
 class ManifestException(Exception):
     """Errors that occur in Manifest Clients."""
@@ -274,7 +276,7 @@ class Manifest(abc.ABC):
                     upload_end_time=current_utc_time,
                 )
             self._update(status)
-            print(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
+            logger.info(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
 
     def _set_for_transaction(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
         """Reset Manifest state in preparation for a new transaction."""
@@ -402,7 +404,7 @@ class FirestoreManifest(Manifest, Database):
                 cred = credentials.ApplicationDefault()
 
                 firebase_admin.initialize_app(cred)
-                print('Initialized Firebase App.')
+                logger.info('Initialized Firebase App.')
 
                 if attempts > 4:
                     raise ManifestException('Exceeded number of retries to get firestore client.') from e
@@ -432,7 +434,7 @@ class FirestoreManifest(Manifest, Database):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Update or create a download status record."""
-        print('Updating Firestore Manifest.')
+        logger.info('Updating Firestore Manifest.')
 
         status = DownloadStatus.to_dict(download_status)
         doc_id = generate_md5_hash(status['location'])
@@ -444,7 +446,7 @@ class FirestoreManifest(Manifest, Database):
 
         result: WriteResult = download_doc_ref.set(status)
 
-        print(f'Firestore manifest updated. '
+        logger.info(f'Firestore manifest updated. '
               f'update_time={result.update_time}, '
               f'filename={download_status.location}.')
 

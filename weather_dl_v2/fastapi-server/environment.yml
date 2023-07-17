@@ -6,6 +6,7 @@ dependencies:
   - xarray
   - geojson
   - pip=22.3
+  - google-cloud-sdk=410.0.0
   - pip:
     - kubernetes
     - fastapi[all]
@@ -14,3 +15,4 @@ dependencies:
     - apache-beam[gcp]
     - aiohttp
     - firebase-admin
+    - gcloud

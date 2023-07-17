@@ -10,6 +10,7 @@ from database import FirestoreClient
 from job_creator import create_download_job
 from clients import CLIENTS
 from manifest import FirestoreManifest
+from util import exceptionit
 
 db_client = FirestoreClient()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
@@ -30,7 +31,7 @@ def create_job(request, result):
     logger.info(f"Creating download job for res: {data_str}")
     create_download_job(data_str)
 
-
+@exceptionit
 def make_fetch_request(request):
     client = CLIENTS[client_name](request['dataset'])
     manifest = FirestoreManifest()
@@ -45,7 +46,6 @@ def make_fetch_request(request):
         result = client.retrieve(request['dataset'], selection, manifest)
 
     create_job(request, result)
-
 
 def fetch_request_from_db():
     request = None

@@ -1,9 +1,8 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile
-from db_service.database import FirestoreClient
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
 from config_processing.pipeline import start_processing_config
+from database.download_handler import DownloadHandler, get_download_handler
+from database.queue_handler import QueueHandler, get_queue_handler
 import shutil
-
-db_client = FirestoreClient()
 
 router = APIRouter(
     prefix="/download",
@@ -22,11 +21,12 @@ def upload(file: UploadFile):
 # Can submit a config to the server.
 @router.post("/")
 def submit_download(file: UploadFile | None = None, licenses: list = [],
-                    background_tasks: BackgroundTasks = BackgroundTasks()):
+                    background_tasks: BackgroundTasks = BackgroundTasks(),
+                    download_handler: DownloadHandler = Depends(get_download_handler)):
     if not file:
-        return {"message": "No upload file sent."}
+        raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
-        if db_client._check_download_exists(file.filename):
+        if download_handler._check_download_exists(file.filename):
             raise HTTPException(status_code=400,
                                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
                                 "before attempting to start a new download.")
@@ -36,7 +36,7 @@ def submit_download(file: UploadFile | None = None, licenses: list = [],
             background_tasks.add_task(start_processing_config, dest, licenses)
             return {"message": f"file '{file.filename}' saved at '{dest}' successfully."}
         except Exception:
-            return {"message": f"Failed to save file '{file.filename}'."}
+            raise HTTPException(status_code=500, detail=f"Failed to save file '{file.filename}'.")
 
 
 # Can check the current status of the submitted config.
@@ -61,8 +61,8 @@ async def get_downloads(client_name: str | None = None):
 
 # Get status of particular download
 @router.get("/{config_name}")
-async def get_download(config_name: str):
-    if not db_client._check_download_exists(config_name):
+async def get_download(config_name: str, download_handler: DownloadHandler = Depends(get_download_handler)):
+    if not download_handler._check_download_exists(config_name):
         raise HTTPException(status_code=404, detail="Download config not found in weather-dl v2.")
 
     # Get this kind of response by querying fake_manifest_db.
@@ -73,10 +73,12 @@ async def get_download(config_name: str):
 
 # Stop & remove the execution of the config.
 @router.delete("/{config_name}")
-async def delete_download(config_name: str):
-    if not db_client._check_download_exists(config_name):
+async def delete_download(config_name: str,
+                          download_handler: DownloadHandler = Depends(get_download_handler),
+                          queue_handler: QueueHandler = Depends(get_queue_handler)):
+    if not download_handler._check_download_exists(config_name):
         raise HTTPException(status_code=404, detail="No such download config to stop & remove.")
 
-    db_client._stop_download(config_name)
-    db_client._update_queues_on_stop_download(config_name)
+    download_handler._stop_download(config_name)
+    queue_handler._update_queues_on_stop_download(config_name)
     return {"config_name": config_name, "message": "Download config stopped & removed successfully."}

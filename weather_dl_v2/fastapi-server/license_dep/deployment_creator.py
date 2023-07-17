@@ -1,6 +1,5 @@
 from os import path
 import yaml
-import uuid
 from kubernetes import client, config
 
 
@@ -11,8 +10,8 @@ def create_license_deployment(license_id: str) -> str:
     with open(path.join(path.dirname(__file__), "license_deployment.yaml")) as f:
         deployment_manifest = yaml.safe_load(f)
         deployment_name = f"weather-dl-v2-license-dep-{license_id}".lower()
-        
-        # Update the deployment name with a unique identifier 
+
+        # Update the deployment name with a unique identifier
         deployment_manifest["metadata"]["name"] = deployment_name
         deployment_manifest["spec"]["template"]["spec"]["containers"][0]["args"] = ["--license", license_id]
 

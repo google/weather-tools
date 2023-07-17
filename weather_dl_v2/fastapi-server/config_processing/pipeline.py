@@ -3,10 +3,11 @@ import os
 from .parsers import process_config
 from .partition import PartitionConfig
 from .manifest import FirestoreManifest
-from db_service.database import FirestoreClient
+from database.download_handler import get_download_handler
+from database.queue_handler import get_queue_handler
 
-db_client = FirestoreClient()
-
+download_handler = get_download_handler()
+queue_handler = get_queue_handler()
 
 def start_processing_config(config_file, licenses):
     config = {}
@@ -29,5 +30,5 @@ def start_processing_config(config_file, licenses):
             partition_obj.update_manifest_collection(partition)
 
     # Make entry in 'download' & 'queues' collection.
-    db_client._start_download(config_name, config.client)
-    db_client._update_queues_on_start_download(config_name, licenses)
+    download_handler._start_download(config_name, config.client)
+    queue_handler._update_queues_on_start_download(config_name, licenses)
