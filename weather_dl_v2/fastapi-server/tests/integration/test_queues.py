@@ -99,3 +99,47 @@ def test_modify_license_queue_wrong_license_id():
     expected = {"detail": "License's priority not found."}
 
     _modify_license_queue(headers, license_id, priority_list, code, expected)
+
+def _modify_config_priority_in_license(headers, license_id, query, code, expected):
+    response = client.put(f"/queues/priority/{license_id}", params=query)
+
+    print(f"response {response.json()}")
+
+    assert response.status_code == code
+    assert response.json() == expected
+
+def test_modify_config_priority_in_license_basic():
+    headers = {}
+    license_id = "L1"
+    query = {
+        "config_name": "example.cfg",
+        "priority": 0
+    }
+    code = 200
+    expected = {'message': f"'{license_id}' license 'example.cfg' priority updated successfully."}
+
+    _modify_config_priority_in_license(headers, license_id, query, code, expected)
+
+def test_modify_config_priority_in_license_wrong_license():
+    headers = {}
+    license_id = "no_exists"
+    query = {
+        "config_name": "example.cfg",
+        "priority": 0
+    }
+    code = 404
+    expected = {'detail': "License's priority not found."}
+
+    _modify_config_priority_in_license(headers, license_id, query, code, expected)
+
+def test_modify_config_priority_in_license_wrong_config():
+    headers = {}
+    license_id = "no_exists"
+    query = {
+        "config_name": "wrong.cfg",
+        "priority": 0
+    }
+    code = 404
+    expected = {'detail': "License's priority not found."}
+
+    _modify_config_priority_in_license(headers, license_id, query, code, expected)
