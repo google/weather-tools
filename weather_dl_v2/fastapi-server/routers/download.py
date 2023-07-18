@@ -49,8 +49,8 @@ def submit_download(file: UploadFile | None = None, licenses: list = [],
             # Start processing config.
             background_tasks.add_task(start_processing_config, dest, licenses)
             return {"message": f"file '{file.filename}' saved at '{dest}' successfully."}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to save file '{file.filename}'. {e}")
+        except Exception:
+            raise HTTPException(status_code=500, detail=f"Failed to save file '{file.filename}'.")
 
 
 # Can check the current status of the submitted config.
