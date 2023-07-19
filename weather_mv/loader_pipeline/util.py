@@ -28,7 +28,7 @@ import typing as t
 import uuid
 from functools import partial
 from urllib.parse import urlparse
-
+from datetime import timezone
 import apache_beam as beam
 import numpy as np
 import pandas as pd
@@ -134,6 +134,10 @@ def _check_for_coords_vars(ds_data_var: str, target_var: str) -> bool:
     specified by the user."""
     return ds_data_var.endswith('_'+target_var) or ds_data_var.startswith(target_var+'_')
 
+def get_utc_timestamp():
+    dt = datetime.datetime.now(timezone.utc)
+    utc_time = dt.replace(tzinfo=timezone.utc)
+    return utc_time.isoformat() 
 
 def _only_target_coordinate_vars(ds: xr.Dataset, data_vars: t.List[str]) -> t.List[str]:
     """If the user specifies target fields in the dataset, get all the matching coords & data vars."""

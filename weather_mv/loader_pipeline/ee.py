@@ -37,7 +37,7 @@ from google.auth.transport import requests
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
-from .util import make_attrs_ee_compatible, RateLimit, validate_region
+from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +432,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
+        job_start_time = get_utc_timestamp()
+
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
@@ -497,6 +499,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     tmp_df.seek(0)
                     with FileSystems().create(target_path) as dst:
                         shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+
+            # Adding job_start_time to properites.
+            attrs["job_start_time"] = job_start_time
 
             asset_data = AssetData(
                 name=asset_name,
@@ -601,6 +606,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     def start_ingestion(self, asset_request: t.Dict) -> str:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
+
+        asset_request['properties']['ingestion_time'] = get_utc_timestamp()
 
         try:
             if self.ee_asset_type == 'IMAGE':
