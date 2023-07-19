@@ -134,7 +134,7 @@ def _check_for_coords_vars(ds_data_var: str, target_var: str) -> bool:
     specified by the user."""
     return ds_data_var.endswith('_'+target_var) or ds_data_var.startswith(target_var+'_')
 
-def get_utc_timestamp():
+def get_utc_timestamp() -> str:
     """Returns the current UTC Timestamp as ISO datetime string."""
     dt = datetime.datetime.now(timezone.utc)
     utc_time = dt.replace(tzinfo=timezone.utc)
