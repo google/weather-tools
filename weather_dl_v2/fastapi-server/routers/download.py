@@ -3,6 +3,7 @@ from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 import shutil
+import os
 
 router = APIRouter(
     prefix="/download",
@@ -11,18 +12,31 @@ router = APIRouter(
 )
 
 
-def upload(file: UploadFile):
-    dest = f"./config_files/{file.filename}"
-    with open(dest, "wb+") as dest_:
-        shutil.copyfileobj(file.file, dest_)
-    return dest
+
+
+def get_upload():
+    def upload(file: UploadFile):
+        dest = f"./config_files/{file.filename}"
+        with open(dest, "wb+") as dest_:
+            shutil.copyfileobj(file.file, dest_)
+        return dest
+
+    return upload
+
+def get_upload_mock():
+    def upload(file: UploadFile):
+        return f"{os.getcwd()}/tests/test_data/{file.filename}"
+    
+    return upload
 
 
 # Can submit a config to the server.
 @router.post("/")
 def submit_download(file: UploadFile | None = None, licenses: list = [],
                     background_tasks: BackgroundTasks = BackgroundTasks(),
-                    download_handler: DownloadHandler = Depends(get_download_handler)):
+                    download_handler: DownloadHandler = Depends(get_download_handler),
+                    upload = Depends(get_upload)
+                    ):
     if not file:
         raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
