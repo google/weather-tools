@@ -449,6 +449,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                                    ('start_time', 'end_time', 'is_normalized'))
             dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
             attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+            # Adding job_start_time to properites.
+            attrs["job_start_time"] = job_start_time
             # Make attrs EE ingestable.
             attrs = make_attrs_ee_compatible(attrs)
 
@@ -499,9 +501,6 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     tmp_df.seek(0)
                     with FileSystems().create(target_path) as dst:
                         shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
-
-            # Adding job_start_time to properites.
-            attrs["job_start_time"] = job_start_time
 
             asset_data = AssetData(
                 name=asset_name,
