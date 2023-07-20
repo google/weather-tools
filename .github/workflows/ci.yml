@@ -118,6 +118,6 @@ jobs:
           activate-environment: weather-tools
       - name: Install weather-tools[test]
         run: |
-          pip install -e .[test] --use-deprecated=legacy-resolver
+          conda run -n weather-tools pip install -e .[test] --use-deprecated=legacy-resolver
       - name: Run type checker
-        run: pytype
+        run: conda run -n weather-tools pytype
