@@ -53,11 +53,6 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --metadata-form-file=startup-script=vm-startup.sh
 ```
 
-## To get the weather-dl-v2 cli docker-image id in VM
-```
-docker images
-```
-
 ## Use the cli after doing ssh in the above created VM
 ```
 weather-dl-v2 --help
