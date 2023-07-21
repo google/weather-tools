@@ -50,10 +50,7 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --no-shielded-secure-boot \
     --shielded-vtpm \
     --labels=goog-ec-src=vm_add-gcloud,container-vm=cos-stable-105-17412-101-24 \
-    --metadata=startup-script='#! /bin/bash
-    command="docker exec -it \\\$(docker ps -qf name=weather-dl-v2-cli) /bin/bash"
-    sudo sh -c "echo \"$command\" >> /etc/profile"
-    '
+    --metadata-form-file=startup-script=vm-startup.sh
 ```
 
 ## To get the weather-dl-v2 cli docker-image id in VM
