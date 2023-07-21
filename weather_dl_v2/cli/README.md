@@ -50,7 +50,7 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --no-shielded-secure-boot \
     --shielded-vtpm \
     --labels=goog-ec-src=vm_add-gcloud,container-vm=cos-stable-105-17412-101-24 \
-    --metadata-form-file=startup-script=vm-startup.sh
+    --metadata-from-file=startup-script=vm-startup.sh
 ```
 
 ## Use the cli after doing ssh in the above created VM
