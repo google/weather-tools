@@ -28,7 +28,6 @@ import typing as t
 import uuid
 from functools import partial
 from urllib.parse import urlparse
-from datetime import timezone
 import apache_beam as beam
 import numpy as np
 import pandas as pd
