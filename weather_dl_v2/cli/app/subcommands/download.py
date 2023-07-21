@@ -21,10 +21,10 @@ def get_downloads(
             client_name = data['client_name']
         except Exception as e:
             print(f"filter error: {e}")
-            return 
-        
+            return
+
         print(download_service._list_all_downloads_by_client_name(client_name))
-        return 
+        return
 
     print(download_service._list_all_downloads())
 
@@ -36,7 +36,7 @@ def submit_download(
     if len(license) == 0:
         print("No licenses mentioned. Please specify licenese Id.")
         return
-    
+
     print(download_service._add_new_download(file_path, license))
 
 @app.command("get", help="Get a particular config.")

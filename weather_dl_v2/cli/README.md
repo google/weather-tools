@@ -46,19 +46,14 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --boot-disk-device-name=weather-dl-v2-cli \
     --container-image=$IMAGE_PATH \
     --container-restart-policy=on-failure \
+    --container-tty \
     --no-shielded-secure-boot \
     --shielded-vtpm \
-    --shielded-integrity-monitoring \
-    --labels=goog-ec-src=vm_add-gcloud,container-vm=cos-stable-105-17412-101-24
-```
-
-## To get the weather-dl-v2 cli docker-image id in VM
-```
-docker images
+    --labels=goog-ec-src=vm_add-gcloud,container-vm=cos-stable-105-17412-101-24 \
+    --metadata-from-file=startup-script=vm-startup.sh
 ```
 
 ## Use the cli after doing ssh in the above created VM
 ```
-docker run -it <image-id>
 weather-dl-v2 --help
 ```
