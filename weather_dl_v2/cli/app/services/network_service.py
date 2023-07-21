@@ -26,7 +26,7 @@ class NetworkService:
             return
 
         return json.dumps(parsed, indent=3)
-        
+
     @timeit
     def get(self, uri, header, query=None, payload=None):
         try:
@@ -35,7 +35,7 @@ class NetworkService:
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
-        
+
     @timeit
     def post(self, uri, header, query=None, payload=None, file=None):
         try:
@@ -44,7 +44,7 @@ class NetworkService:
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
-        
+
     @timeit
     def put(self, uri, header, query=None, payload=None, file=None):
         try:
@@ -54,7 +54,7 @@ class NetworkService:
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
-        
+
     @timeit
     def delete(self, uri, header, query=None):
         try:
@@ -63,5 +63,5 @@ class NetworkService:
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
-        
+
 network_service = NetworkService()

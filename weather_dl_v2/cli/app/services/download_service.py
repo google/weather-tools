@@ -7,7 +7,7 @@ from app.config import Config
 logger = logging.getLogger(__name__)
 
 class DownloadService(abc.ABC):
-    
+
     @abc.abstractmethod
     def _list_all_downloads(self):
         pass
@@ -37,33 +37,33 @@ class DownloadServiceNetwork(DownloadService):
             uri = self.endpoint,
             header = {"accept": "application/json"}
         )
-    
+
     def _list_all_downloads_by_client_name(self, client_name: str):
         return network_service.get(
             uri = self.endpoint,
             header = {"accept": "application/json"},
             query = {"client_name": client_name}
         )
-    
+
     def _get_download_by_config(self, config_name: str):
         return network_service.get(
             uri = f"{self.endpoint}/download{config_name}",
             header = {"accept": "application/json"}
         )
-    
+
     def _add_new_download(self, file_path: str, licenses: t.List[str]):
         try:
             file = {"file" : open(file_path, 'rb')}
         except FileNotFoundError:
             return "File not found."
-        
+
         return network_service.post(
             uri=self.endpoint,
             header = {"accept": "application/json"},
             file = file,
             payload = {"licenses": licenses}
         )
-    
+
     def _remove_download(self, config_name: str):
         return network_service.delete(
             uri=f"{self.endpoint}/{config_name}",

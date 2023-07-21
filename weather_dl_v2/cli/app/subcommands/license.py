@@ -22,10 +22,10 @@ def get_all_license(
         except Exception as e:
             print(f"filter error: {e}")
             return
-        
+
         print(license_service._get_all_license_by_client_name(client_name))
         return
-    
+
     print(license_service._get_all_license())
 
 @app.command("get", help="Get a particular license by ID.")
@@ -36,7 +36,7 @@ def get_license(
 
 @app.command("add", help="Add new license.")
 def add_license(
-        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')],
+        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')], #noqa
     ):
     validator = LicenseValidator(
         valid_keys=[
@@ -51,7 +51,7 @@ def add_license(
     except Exception as e:
         print(f"payload error: {e}")
         return
-    
+
     print(license_service._add_license(license_dict))
 
 @app.command("remove", help="Remove a license.")
@@ -63,7 +63,7 @@ def remove_license(
 @app.command("update", help="Update existing license.")
 def update_license(
         license: Annotated[str, typer.Argument(help="License ID.")],
-        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for updated license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')]
+        file_path: Annotated[str, typer.Argument(help='''Input json file. Example json for updated license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}''')] #noqa
     ):
     validator = LicenseValidator(
         valid_keys=[
