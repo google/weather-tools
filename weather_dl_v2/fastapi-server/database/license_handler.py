@@ -50,6 +50,10 @@ class LicenseHandler(abc.ABC):
     def _remove_license_queue(self, license_id: str) -> None:
         pass
 
+    @abc.abstractmethod
+    def _get_license_without_deployment(self) -> list:
+        pass
+
 class LicenseHandlerMock(LicenseHandler):
     def __init__(self):
         pass
@@ -108,6 +112,9 @@ class LicenseHandlerMock(LicenseHandler):
     def _remove_license_queue(self, license_id: str) -> None:
         logger.info("Removed L1 queue in 'queues' collection. Update_time: 00000.")
 
+    def _get_license_without_deployment(self) -> list:
+        return []
+
 class LicenseHandlerFirestore(LicenseHandler):
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
@@ -162,3 +169,10 @@ class LicenseHandlerFirestore(LicenseHandler):
     def _remove_license_queue(self, license_id: str) -> None:
         timestamp = self.db.collection('queues').document(license_id).delete()
         logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
+
+    def _get_license_without_deployment(self) -> list:
+        snapshot_list = self.db.collection(self.collection).where('k8s_deployment_id', '==', '').get()
+        result = []
+        for snapshot in snapshot_list:
+            result.append(snapshot.to_dict()['license_id'])
+        return result
