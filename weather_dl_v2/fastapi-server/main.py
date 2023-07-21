@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from routers import license, download, queues
 from database.license_handler import get_license_handler
 from license_dep.deployment_creator import create_license_deployment
+from routers.license import get_create_deployment
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,12 +17,13 @@ logger = logging.getLogger(__name__)
 def create_pending_license_deployments():
     """Creates license deployments for Licenses whose deployments does not exist."""
     license_handler = get_license_handler()
+    create_deployment = get_create_deployment()
     license_list = license_handler._get_license_without_deployment()
 
     for license in license_list:
         try:
             logger.info(f"Creating license deployment for {license}")
-            create_license_deployment(license)
+            create_deployment(license)
         except Exception as e:
             logger.error(f"License deployment failed for {license}. Exception: {e}")
 
