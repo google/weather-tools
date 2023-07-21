@@ -50,6 +50,14 @@ class QueueHandler(abc.ABC):
     def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
         pass
 
+    @abc.abstractmethod
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        pass
+
+    @abc.abstractmethod
+    def _remove_license_queue(self, license_id: str) -> None:
+        pass
+
 class QueueHandlerMock(QueueHandler):
     def __init__(self):
         pass
@@ -98,6 +106,12 @@ class QueueHandlerMock(QueueHandler):
 
     def _update_config_priority_in_license(self, license_id: str, config_name: str, priority: int) -> None:
         print(f"Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
+
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        logger.info("Added L1 queue in 'queues' collection. Update_time: 00000.")
+
+    def _remove_license_queue(self, license_id: str) -> None:
+        logger.info("Removed L1 queue in 'queues' collection. Update_time: 00000.")
 
 class QueueHandlerFirestore(QueueHandler):
     def __init__(self, db: firestore.firestore.Client, collection: str = "queues"):
@@ -164,3 +178,13 @@ class QueueHandlerFirestore(QueueHandler):
             {'queue': new_priority_list}
         )
         print(f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}.")
+
+    def _create_license_queue(self, license_id: str, client_name: str) -> None:
+        result: WriteResult = self.db.collection('queues').document(license_id).set(
+            {"license_id": license_id, "client_name": client_name, "queue": []}
+        )
+        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
+
+    def _remove_license_queue(self, license_id: str) -> None:
+        timestamp = self.db.collection('queues').document(license_id).delete()
+        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")

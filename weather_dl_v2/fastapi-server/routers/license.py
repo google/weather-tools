@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
 from database.license_handler import LicenseHandler, get_license_handler
+from database.queue_handler import QueueHandler, get_queue_handler
 
 
 # TODO: Make use of google secret manager.
@@ -97,11 +98,12 @@ def update_license_internal(license_id: str,
 async def add_license(license: License,
                       background_tasks: BackgroundTasks = BackgroundTasks(),
                       license_handler: LicenseHandler = Depends(get_license_handler),
+                      queue_handler: QueueHandler = Depends(get_queue_handler),
                       create_deployment = Depends(get_create_deployment)):
     license_dict = license.dict()
     license_dict['k8s_deployment_id'] = ""
     license_id = license_handler._add_license(license_dict)
-    license_handler._create_license_queue(license_id, license_dict['client_name'])
+    queue_handler._create_license_queue(license_id, license_dict['client_name'])
     background_tasks.add_task(create_deployment, license_id)
     return {"license_id": license_id, "message": "License added successfully."}
 
@@ -111,11 +113,12 @@ async def add_license(license: License,
 async def delete_license(license_id: str,
                          background_tasks: BackgroundTasks = BackgroundTasks(),
                          license_handler: LicenseHandler = Depends(get_license_handler),
+                         queue_handler: QueueHandler = Depends(get_queue_handler),
                          terminate_license_deployment = Depends(get_terminate_license_deployment)
                          ):
     if not license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to delete.")
     license_handler._delete_license(license_id)
-    license_handler._remove_license_queue(license_id)
+    queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
