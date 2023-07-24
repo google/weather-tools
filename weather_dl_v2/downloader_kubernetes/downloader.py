@@ -52,4 +52,4 @@ def main(config_name, dataset, selection, user_id, url, target_path) -> None:
     os.unlink(temp_name)
 
 if __name__ == '__main__':
-    main(*sys.argv)
+    main(*sys.argv[1:])
