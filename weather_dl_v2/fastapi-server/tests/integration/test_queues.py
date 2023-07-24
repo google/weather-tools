@@ -13,38 +13,29 @@ app.dependency_overrides[get_download_handler] = get_mock_download_handler
 app.dependency_overrides[get_license_handler] = get_mock_license_handler
 app.dependency_overrides[get_queue_handler] = get_mock_queue_handler
 
+
 def _get_all_queue(headers, query, code, expected):
     response = client.get("/queues", headers=headers, params=query)
 
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_get_all_queues():
     headers = {}
     query = {}
     code = 200
-    expected = [
-            {
-                "client_name": "dummy_client",
-                "license_id": "L1",
-                "queue": []
-            }
-        ]
+    expected = [{"client_name": "dummy_client", "license_id": "L1", "queue": []}]
 
     _get_all_queue(headers, query, code, expected)
+
 
 def test_get_client_queues():
     headers = {}
     client_name = "dummy_client"
     query = {"client_name": client_name}
     code = 200
-    expected = [
-        {
-            "client_name": client_name,
-            "license_id": "L1",
-            "queue": []
-        }
-    ]
+    expected = [{"client_name": client_name, "license_id": "L1", "queue": []}]
 
     _get_all_queue(headers, query, code, expected)
 
@@ -55,17 +46,15 @@ def _get_queue_by_license(headers, license_id, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_get_queue_by_license_basic():
     headers = {}
     license_id = "L1"
     code = 200
-    expected = {
-                "client_name": "dummy_client",
-                "license_id": license_id,
-                "queue": []
-            }
+    expected = {"client_name": "dummy_client", "license_id": license_id, "queue": []}
 
     _get_queue_by_license(headers, license_id, code, expected)
+
 
 def test_get_queue_by_license_wrong_license():
     headers = {}
@@ -82,6 +71,7 @@ def _modify_license_queue(headers, license_id, priority_list, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_modify_license_queue_basic():
     headers = {}
     license_id = "L1"
@@ -90,6 +80,7 @@ def test_modify_license_queue_basic():
     expected = {"message": f"'{license_id}' license priority updated successfully."}
 
     _modify_license_queue(headers, license_id, priority_list, code, expected)
+
 
 def test_modify_license_queue_wrong_license_id():
     headers = {}
@@ -100,6 +91,7 @@ def test_modify_license_queue_wrong_license_id():
 
     _modify_license_queue(headers, license_id, priority_list, code, expected)
 
+
 def _modify_config_priority_in_license(headers, license_id, query, code, expected):
     response = client.put(f"/queues/priority/{license_id}", params=query)
 
@@ -108,38 +100,34 @@ def _modify_config_priority_in_license(headers, license_id, query, code, expecte
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_modify_config_priority_in_license_basic():
     headers = {}
     license_id = "L1"
-    query = {
-        "config_name": "example.cfg",
-        "priority": 0
-    }
+    query = {"config_name": "example.cfg", "priority": 0}
     code = 200
-    expected = {'message': f"'{license_id}' license 'example.cfg' priority updated successfully."}
+    expected = {
+        "message": f"'{license_id}' license 'example.cfg' priority updated successfully."
+    }
 
     _modify_config_priority_in_license(headers, license_id, query, code, expected)
+
 
 def test_modify_config_priority_in_license_wrong_license():
     headers = {}
     license_id = "no_exists"
-    query = {
-        "config_name": "example.cfg",
-        "priority": 0
-    }
+    query = {"config_name": "example.cfg", "priority": 0}
     code = 404
-    expected = {'detail': "License's priority not found."}
+    expected = {"detail": "License's priority not found."}
 
     _modify_config_priority_in_license(headers, license_id, query, code, expected)
+
 
 def test_modify_config_priority_in_license_wrong_config():
     headers = {}
     license_id = "no_exists"
-    query = {
-        "config_name": "wrong.cfg",
-        "priority": 0
-    }
+    query = {"config_name": "wrong.cfg", "priority": 0}
     code = 404
-    expected = {'detail': "License's priority not found."}
+    expected = {"detail": "License's priority not found."}
 
     _modify_config_priority_in_license(headers, license_id, query, code, expected)

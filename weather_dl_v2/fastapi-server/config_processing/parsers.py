@@ -12,7 +12,7 @@ import numpy as np
 from collections import OrderedDict
 from .config import Config
 
-CLIENTS = ['cds', 'mars', 'ecpublic']
+CLIENTS = ["cds", "mars", "ecpublic"]
 
 
 def date(candidate: str) -> datetime.date:
@@ -34,7 +34,7 @@ def date(candidate: str) -> datetime.date:
     converted = None
 
     # Parse relative day value.
-    if candidate.startswith('-'):
+    if candidate.startswith("-"):
         return datetime.date.today() + datetime.timedelta(days=int(candidate))
 
     accepted_formats = ["%Y-%m-%d", "%Y%m%d", "%Y-%j"]
@@ -81,9 +81,7 @@ def time(candidate: str) -> datetime.time:
             pass
 
     if converted is None:
-        raise ValueError(
-            f"Not a valid time: '{candidate}'. Please use valid format."
-        )
+        raise ValueError(f"Not a valid time: '{candidate}'. Please use valid format.")
 
     return converted
 
@@ -93,7 +91,7 @@ def day_month_year(candidate: t.Any) -> int:
     try:
         if isinstance(candidate, str) or isinstance(candidate, int):
             return int(candidate)
-        raise ValueError('must be a str or int.')
+        raise ValueError("must be a str or int.")
     except ValueError as e:
         raise ValueError(
             f"Not a valid day, month, or year value: {candidate}. Please use valid value."
@@ -121,11 +119,11 @@ def validate(key: str, value: int) -> None:
 def typecast(key: str, value: t.Any) -> t.Any:
     """Type the value to its appropriate datatype."""
     SWITCHER = {
-        'date': date,
-        'time': time,
-        'day': day_month_year,
-        'month': day_month_year,
-        'year': day_month_year,
+        "date": date,
+        "time": time,
+        "day": day_month_year,
+        "month": day_month_year,
+        "year": day_month_year,
     }
     converted = SWITCHER.get(key, parse_literal)(value)
     validate(key, converted)
@@ -177,7 +175,9 @@ def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
     try:
         return float(token)
     except ValueError:
-        raise ValueError("Token string must be an 'int', 'float', or 'datetime.date()'.")
+        raise ValueError(
+            "Token string must be an 'int', 'float', or 'datetime.date()'."
+        )
 
 
 def mars_increment_value(token: str) -> t.Union[int, float]:
@@ -220,24 +220,24 @@ def parse_mars_syntax(block: str) -> t.List[str]:
     """
 
     # Split into tokens, omitting empty strings.
-    tokens = [b.strip() for b in block.split('/') if b != '']
+    tokens = [b.strip() for b in block.split("/") if b != ""]
 
     # Return list if no range operators are present.
-    if 'to' not in tokens and 'by' not in tokens:
+    if "to" not in tokens and "by" not in tokens:
         return tokens
 
     # Parse range values, honoring 'to' and 'by' operators.
     try:
-        to_idx = tokens.index('to')
+        to_idx = tokens.index("to")
         assert to_idx != 0, "There must be a start token."
         start_token, end_token = tokens[to_idx - 1], tokens[to_idx + 1]
         start, end = mars_range_value(start_token), mars_range_value(end_token)
 
         # Parse increment token, or choose default increment.
-        increment_token = '1'
+        increment_token = "1"
         increment = 1
-        if 'by' in tokens:
-            increment_token = tokens[tokens.index('by') + 1]
+        if "by" in tokens:
+            increment_token = tokens[tokens.index("by") + 1]
             increment = mars_increment_value(increment_token)
     except (AssertionError, IndexError, ValueError):
         raise SyntaxError(f"Improper range syntax in '{block}'.")
@@ -249,15 +249,22 @@ def parse_mars_syntax(block: str) -> t.List[str]:
                 f"Increments on a date range must be integer number of days, '{increment_token}' is invalid."
             )
         return [d.strftime("%Y-%m-%d") for d in date_range(start, end, increment)]
-    elif (isinstance(start, float) or isinstance(end, float)) and not isinstance(increment, datetime.date):
+    elif (isinstance(start, float) or isinstance(end, float)) and not isinstance(
+        increment, datetime.date
+    ):
         # Increment can be either an int or a float.
         _round_places = 4
-        return [str(round(x, _round_places)).zfill(len(start_token))
-                for x in np.arange(start, end + increment, increment)]
+        return [
+            str(round(x, _round_places)).zfill(len(start_token))
+            for x in np.arange(start, end + increment, increment)
+        ]
     elif isinstance(start, int) and isinstance(end, int) and isinstance(increment, int):
         # Honor leading zeros.
         offset = 1 if start <= end else -1
-        return [str(x).zfill(len(start_token)) for x in range(start, end + offset, increment)]
+        return [
+            str(x).zfill(len(start_token))
+            for x in range(start, end + offset, increment)
+        ]
     else:
         raise ValueError(
             f"Range tokens (start='{start_token}', end='{end_token}', increment='{increment_token}')"
@@ -265,22 +272,27 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         )
 
 
-def date_range(start: datetime.date, end: datetime.date, increment: int = 1) -> t.Iterable[datetime.date]:
+def date_range(
+    start: datetime.date, end: datetime.date, increment: int = 1
+) -> t.Iterable[datetime.date]:
     """Gets a range of dates, inclusive."""
     offset = 1 if start <= end else -1
-    return (start + datetime.timedelta(days=x) for x in range(0, (end - start).days + offset, increment))
+    return (
+        start + datetime.timedelta(days=x)
+        for x in range(0, (end - start).days + offset, increment)
+    )
 
 
-def _parse_lists(config: dict, section: str = '') -> t.Dict:
+def _parse_lists(config: dict, section: str = "") -> t.Dict:
     """Parses multiline blocks in *.cfg and *.json files as lists."""
     for key, val in config.items():
         # Checks str type for backward compatibility since it also support "padding": 0 in json config
         if not isinstance(val, str):
             continue
 
-        if '/' in val and 'parameters' not in section:
+        if "/" in val and "parameters" not in section:
             config[key] = parse_mars_syntax(val)
-        elif '\n' in val:
+        elif "\n" in val:
             config[key] = _splitlines(val)
 
     return config
@@ -288,7 +300,7 @@ def _parse_lists(config: dict, section: str = '') -> t.Dict:
 
 def _number_of_replacements(s: t.Text):
     format_names = [v[1] for v in string.Formatter().parse(s) if v[1] is not None]
-    num_empty_names = len([empty for empty in format_names if empty == ''])
+    num_empty_names = len([empty for empty in format_names if empty == ""])
     if num_empty_names != 0:
         num_empty_names -= 1
     return len(set(format_names)) + num_empty_names
@@ -298,7 +310,7 @@ def parse_subsections(config: t.Dict) -> t.Dict:
     """Interprets [section.subsection] as nested dictionaries in `.cfg` files."""
     copy = cp.deepcopy(config)
     for key, val in copy.items():
-        path = key.split('.')
+        path = key.split(".")
         runner = copy
         parent = {}
         p = None
@@ -309,13 +321,15 @@ def parse_subsections(config: t.Dict) -> t.Dict:
             runner = runner[p]
         parent[p] = val
 
-    for_cleanup = [key for key, _ in copy.items() if '.' in key]
+    for_cleanup = [key for key, _ in copy.items() if "." in key]
     for target in for_cleanup:
         del copy[target]
     return copy
 
 
-def require(condition: bool, message: str, error_type: t.Type[Exception] = ValueError) -> None:
+def require(
+    condition: bool, message: str, error_type: t.Type[Exception] = ValueError
+) -> None:
     """A assert-like helper that wraps text and throws an error."""
     if not condition:
         raise error_type(textwrap.dedent(message))
@@ -326,86 +340,112 @@ def process_config(file: t.IO, config_name: str) -> Config:
     config = parse_config(file)
 
     require(bool(config), "Unable to parse configuration file.")
-    require('parameters' in config,
-            """
+    require(
+        "parameters" in config,
+        """
             'parameters' section required in configuration file.
 
             The 'parameters' section specifies the 'client', 'dataset', 'target_path', and
             'partition_key' for the API client.
 
-            Please consult the documentation for more information.""")
+            Please consult the documentation for more information.""",
+    )
 
-    params = config.get('parameters', {})
-    require('target_template' not in params,
-            """
+    params = config.get("parameters", {})
+    require(
+        "target_template" not in params,
+        """
             'target_template' is deprecated, use 'target_path' instead.
 
-            Please consult the documentation for more information.""")
-    require('target_path' in params,
-            """
+            Please consult the documentation for more information.""",
+    )
+    require(
+        "target_path" in params,
+        """
             'parameters' section requires a 'target_path' key.
 
             The 'target_path' is used to format the name of the output files. It
             accepts Python 3.5+ string format symbols (e.g. '{}'). The number of symbols
             should match the length of the 'partition_keys', as the 'partition_keys' args
-            are used to create the templates.""")
-    require('client' in params,
-            """
+            are used to create the templates.""",
+    )
+    require(
+        "client" in params,
+        """
             'parameters' section requires a 'client' key.
 
             Supported clients are {}
-            """.format(str(CLIENTS)))
-    require(params.get('client') in CLIENTS,
-            """
+            """.format(
+            str(CLIENTS)
+        ),
+    )
+    require(
+        params.get("client") in CLIENTS,
+        """
             Invalid 'client' parameter.
 
             Supported clients are {}
-            """.format(str(CLIENTS)))
-    require('append_date_dirs' not in params,
-            """
+            """.format(
+            str(CLIENTS)
+        ),
+    )
+    require(
+        "append_date_dirs" not in params,
+        """
             The current version of 'google-weather-tools' no longer supports 'append_date_dirs'!
 
             Please refer to documentation for creating date-based directory hierarchy :
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#"""
-            """creating-a-date-based-directory-hierarchy.""",
-            NotImplementedError)
-    require('target_filename' not in params,
-            """
+        """creating-a-date-based-directory-hierarchy.""",
+        NotImplementedError,
+    )
+    require(
+        "target_filename" not in params,
+        """
             The current version of 'google-weather-tools' no longer supports 'target_filename'!
 
             Please refer to documentation :
             https://weather-tools.readthedocs.io/en/latest/Configuration.html#parameters-section.""",
-            NotImplementedError)
+        NotImplementedError,
+    )
 
-    partition_keys = params.get('partition_keys', list())
+    partition_keys = params.get("partition_keys", list())
     if isinstance(partition_keys, str):
         partition_keys = [partition_keys.strip()]
 
-    selection = config.get('selection', dict())
-    require(all((key in selection for key in partition_keys)),
-            """
+    selection = config.get("selection", dict())
+    require(
+        all((key in selection for key in partition_keys)),
+        """
             All 'partition_keys' must appear in the 'selection' section.
 
             'partition_keys' specify how to split data for workers. Please consult
-            documentation for more information.""")
+            documentation for more information.""",
+    )
 
-    num_template_replacements = _number_of_replacements(params['target_path'])
+    num_template_replacements = _number_of_replacements(params["target_path"])
     num_partition_keys = len(partition_keys)
 
-    require(num_template_replacements == num_partition_keys,
-            """
+    require(
+        num_template_replacements == num_partition_keys,
+        """
             'target_path' has {0} replacements. Expected {1}, since there are {1}
             partition keys.
-            """.format(num_template_replacements, num_partition_keys))
+            """.format(
+            num_template_replacements, num_partition_keys
+        ),
+    )
 
-    if 'day' in partition_keys:
-        require(selection['day'] != 'all',
-                """If 'all' is used for a selection value, it cannot appear as a partition key.""")
+    if "day" in partition_keys:
+        require(
+            selection["day"] != "all",
+            """If 'all' is used for a selection value, it cannot appear as a partition key.""",
+        )
 
     # Ensure consistent lookup.
-    config['parameters']['partition_keys'] = partition_keys
+    config["parameters"]["partition_keys"] = partition_keys
     # Add config file name.
-    config['parameters']['config_name'] = config_name
+    config["parameters"]["config_name"] = config_name
 
     # Ensure the cartesian-cross can be taken on singleton values for the partition.
     for key in partition_keys:
@@ -417,7 +457,9 @@ def process_config(file: t.IO, config_name: str) -> Config:
 
 def prepare_target_name(config: Config) -> str:
     """Returns name of target location."""
-    partition_dict = OrderedDict((key, typecast(key, config.selection[key][0])) for key in config.partition_keys)
+    partition_dict = OrderedDict(
+        (key, typecast(key, config.selection[key][0])) for key in config.partition_keys
+    )
     target = config.target_path.format(*partition_dict.values(), **partition_dict)
 
     return target
@@ -444,5 +486,8 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
       api_url=UUUUU3
     ```
     """
-    return [(name, params) for name, params in config.kwargs.items()
-            if isinstance(params, dict)] or [('default', {})]
+    return [
+        (name, params)
+        for name, params in config.kwargs.items()
+        if isinstance(params, dict)
+    ] or [("default", {})]

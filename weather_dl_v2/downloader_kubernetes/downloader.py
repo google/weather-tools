@@ -8,6 +8,7 @@ from manifest import FirestoreManifest, Stage
 from util import copy, download_with_aria2
 import datetime
 
+
 def download(url: str, path: str) -> None:
     """Download data from client, with retries."""
     if path:
@@ -32,24 +33,25 @@ def main(config_name, dataset, selection, user_id, url, target_path) -> None:
             precise_download_start_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
             manifest.prev_stage_precise_start_time = precise_download_start_time
-            print(f'Downloading data for {target_path!r}.')
+            print(f"Downloading data for {target_path!r}.")
             download(url, temp_name)
-            print(f'Download completed for {target_path!r}.')
+            print(f"Download completed for {target_path!r}.")
 
             manifest.set_stage(Stage.UPLOAD)
             precise_upload_start_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
             manifest.prev_stage_precise_start_time = precise_upload_start_time
-            print(f'Uploading to store for {target_path!r}.')
+            print(f"Uploading to store for {target_path!r}.")
             copy(temp_name, target_path)
-            print(f'Upload to store complete for {target_path!r}.')
+            print(f"Upload to store complete for {target_path!r}.")
     os.unlink(temp_name)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main(*sys.argv[1:])

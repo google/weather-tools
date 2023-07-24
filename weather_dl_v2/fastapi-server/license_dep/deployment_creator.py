@@ -13,12 +13,17 @@ def create_license_deployment(license_id: str) -> str:
 
         # Update the deployment name with a unique identifier
         deployment_manifest["metadata"]["name"] = deployment_name
-        deployment_manifest["spec"]["template"]["spec"]["containers"][0]["args"] = ["--license", license_id]
+        deployment_manifest["spec"]["template"]["spec"]["containers"][0]["args"] = [
+            "--license",
+            license_id,
+        ]
 
         # Create an instance of the Kubernetes API client
         api_instance = client.AppsV1Api()
         # Create the deployment in the specified namespace
-        response = api_instance.create_namespaced_deployment(body=deployment_manifest, namespace='default')
+        response = api_instance.create_namespaced_deployment(
+            body=deployment_manifest, namespace="default"
+        )
 
         print("Deployment created successfully:", response.metadata.name)
         return deployment_name

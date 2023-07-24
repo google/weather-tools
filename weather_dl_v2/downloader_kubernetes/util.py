@@ -22,7 +22,9 @@ LONGITUDE_RANGE = (-180, 180)
 GLOBAL_COVERAGE_AREA = [90, -180, -90, 180]
 
 
-def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exception) -> bool:
+def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(
+    exception,
+) -> bool:
     if isinstance(exception, socket.timeout):
         return True
     if isinstance(exception, TimeoutError):
@@ -34,6 +36,7 @@ def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(exceptio
 
 
 class _FakeClock:
+
     def sleep(self, value):
         pass
 
@@ -43,7 +46,7 @@ def retry_with_exponential_backoff(fun):
     clock = retry.Clock()
 
     # Use a fake clock only during test time...
-    if 'unittest' in sys.modules.keys():
+    if "unittest" in sys.modules.keys():
         clock = _FakeClock()
 
     return retry.with_exponential_backoff(
@@ -70,9 +73,11 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil cp`."""
     try:
-        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
+        subprocess.run(["gsutil", "cp", src, dst], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        print(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
+        print(
+            f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}'
+        )
         raise
 
 
@@ -80,7 +85,7 @@ def copy(src: str, dst: str) -> None:
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.
-    print('Serializing to JSON')
+    print("Serializing to JSON")
 
     if pd.isna(value) or value is None:
         return None
@@ -89,7 +94,11 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     elif type(value) == np.ndarray:
         # Will return a scaler if array is of size 1, else will return a list.
         return value.tolist()
-    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+    elif (
+        type(value) == datetime.datetime
+        or type(value) == str
+        or type(value) == np.datetime64
+    ):
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
@@ -112,7 +121,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
     elif type(value) == np.timedelta64:
         # Return time delta in seconds.
-        return float(value / np.timedelta64(1, 's'))
+        return float(value / np.timedelta64(1, "s"))
     # This check must happen after processing np.timedelta64 and np.datetime64.
     elif np.issubdtype(type(value), np.integer):
         return int(value)
@@ -125,13 +134,13 @@ def fetch_geo_polygon(area: t.Union[list, str]) -> str:
     # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=151520973
     if isinstance(area, str):
         # European area
-        if area == 'E':
+        if area == "E":
             area = [73.5, -27, 33, 45]
         # Global area
-        elif area == 'G':
+        elif area == "G":
             area = GLOBAL_COVERAGE_AREA
         else:
-            raise RuntimeError(f'Not a valid value for area in config: {area}.')
+            raise RuntimeError(f"Not a valid value for area in config: {area}.")
 
     n, w, s, e = [float(x) for x in area]
     if s < LATITUDE_RANGE[0]:
@@ -153,22 +162,24 @@ def fetch_geo_polygon(area: t.Union[list, str]) -> str:
 
 def get_file_size(path: str) -> float:
     parsed_gcs_path = urlparse(path)
-    if parsed_gcs_path.scheme != 'gs' or parsed_gcs_path.netloc == '':
-        return os.stat(path).st_size / (1024 ** 3) if os.path.exists(path) else 0
+    if parsed_gcs_path.scheme != "gs" or parsed_gcs_path.netloc == "":
+        return os.stat(path).st_size / (1024**3) if os.path.exists(path) else 0
     else:
-        return gcsio.GcsIO().size(path) / (1024 ** 3) if gcsio.GcsIO().exists(path) else 0
+        return (
+            gcsio.GcsIO().size(path) / (1024**3) if gcsio.GcsIO().exists(path) else 0
+        )
 
 
 def get_wait_interval(num_retries: int = 0) -> float:
     """Returns next wait interval in seconds, using an exponential backoff algorithm."""
     if 0 == num_retries:
         return 0
-    return 2 ** num_retries
+    return 2**num_retries
 
 
 def generate_md5_hash(input: str) -> str:
     """Generates md5 hash for the input string."""
-    return hashlib.md5(input.encode('utf-8')).hexdigest()
+    return hashlib.md5(input.encode("utf-8")).hexdigest()
 
 
 def download_with_aria2(url: str, path: str) -> None:
@@ -177,9 +188,24 @@ def download_with_aria2(url: str, path: str) -> None:
     dir_path, file_name = os.path.split(path)
     try:
         subprocess.run(
-            ['aria2c', '-x', '16', '-s', '16', url, '-d', dir_path, '-o', file_name, '--allow-overwrite'],
+            [
+                "aria2c",
+                "-x",
+                "16",
+                "-s",
+                "16",
+                url,
+                "-d",
+                dir_path,
+                "-o",
+                file_name,
+                "--allow-overwrite",
+            ],
             check=True,
-            capture_output=True)
+            capture_output=True,
+        )
     except subprocess.CalledProcessError as e:
-        print(f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}')
+        print(
+            f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}'
+        )
         raise

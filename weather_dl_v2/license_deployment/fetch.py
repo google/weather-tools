@@ -14,38 +14,49 @@ from util import exceptionit
 
 db_client = FirestoreClient()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
-    
+
 logger = logging.getLogger(__name__)
+
 
 def create_job(request, result):
     res = {
-          'config_name': request['config_name'],
-          'dataset': request['dataset'],
-          'selection': json.loads(request['selection']),
-          'user_id': request['username'],
-          'url': result['href'],
-          'target_path': request['location']
-          }
+        "config_name": request["config_name"],
+        "dataset": request["dataset"],
+        "selection": json.loads(request["selection"]),
+        "user_id": request["username"],
+        "url": result["href"],
+        "target_path": request["location"],
+    }
 
     data_str = json.dumps(res)
     logger.info(f"Creating download job for res: {data_str}")
     create_download_job(data_str)
 
+
 @exceptionit
 def make_fetch_request(request):
-    client = CLIENTS[client_name](request['dataset'])
+    client = CLIENTS[client_name](request["dataset"])
     manifest = FirestoreManifest()
-    logger.info(f'By using {client_name} datasets, '
-            f'users agree to the terms and conditions specified in {client.license_url!r}')
+    logger.info(
+        f"By using {client_name} datasets, "
+        f"users agree to the terms and conditions specified in {client.license_url!r}"
+    )
 
-    target = request['location']
-    selection = json.loads(request['selection'])
+    target = request["location"]
+    selection = json.loads(request["selection"])
 
-    logger.info(f'Fetching data for {target!r}.')
-    with manifest.transact(request['config_name'], request['dataset'], selection, target, request['username']):
-        result = client.retrieve(request['dataset'], selection, manifest)
+    logger.info(f"Fetching data for {target!r}.")
+    with manifest.transact(
+        request["config_name"],
+        request["dataset"],
+        selection,
+        target,
+        request["username"],
+    ):
+        result = client.retrieve(request["dataset"], selection, manifest)
 
     create_job(request, result)
+
 
 def fetch_request_from_db():
     request = None
@@ -72,7 +83,7 @@ def main():
 
             # Check if the maximum concurrency level has been reached
             # If so, wait for a slot to become available
-            while executor._work_queue.qsize()>=concurrency_limit:
+            while executor._work_queue.qsize() >= concurrency_limit:
                 time.sleep(1)
 
 
@@ -81,17 +92,19 @@ def boot_up(license: str) -> None:
 
     result = db_client._initialize_license_deployment(license)
     license_id = license
-    client_name = result['client_name']
-    concurrency_limit = result['number_of_requests']
+    client_name = result["client_name"]
+    concurrency_limit = result["number_of_requests"]
 
-    response = secretmanager_client.access_secret_version(request={"name": result['secret_id']})
+    response = secretmanager_client.access_secret_version(
+        request={"name": result["secret_id"]}
+    )
     payload = response.payload.data.decode("UTF-8")
     secret_dict = json.loads(payload)
 
-    os.environ.setdefault('CLIENT_URL', secret_dict.get('api_url', ""))
-    os.environ.setdefault('CLIENT_KEY', secret_dict.get('api_key', ""))
-    os.environ.setdefault('CLIENT_EMAIL', secret_dict.get('api_email', ""))
- 
+    os.environ.setdefault("CLIENT_URL", secret_dict.get("api_url", ""))
+    os.environ.setdefault("CLIENT_KEY", secret_dict.get("api_key", ""))
+    os.environ.setdefault("CLIENT_EMAIL", secret_dict.get("api_email", ""))
+
 
 if __name__ == "__main__":
     license = sys.argv[2]

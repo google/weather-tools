@@ -8,10 +8,13 @@ from config_processing.util import get_wait_interval
 
 logger = logging.getLogger(__name__)
 
+
 class Database(abc.ABC):
+
     @abc.abstractmethod
     def _get_db(self):
         pass
+
 
 def get_db() -> firestore.firestore.Client:
     """Acquire a firestore client, initializing the firebase app if necessary.
@@ -31,10 +34,12 @@ def get_db() -> firestore.firestore.Client:
             cred = credentials.ApplicationDefault()
 
             firebase_admin.initialize_app(cred)
-            logger.info('Initialized Firebase App.')
+            logger.info("Initialized Firebase App.")
 
             if attempts > 4:
-                raise RuntimeError('Exceeded number of retries to get firestore client.') from e
+                raise RuntimeError(
+                    "Exceeded number of retries to get firestore client."
+                ) from e
 
         time.sleep(get_wait_interval(attempts))
 

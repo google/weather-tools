@@ -5,17 +5,20 @@ from time import time
 
 logger = logging.getLogger(__name__)
 
+
 def timeit(func):
     def wrap_func(*args, **kwargs):
         t1 = time()
         result = func(*args, **kwargs)
         t2 = time()
-        print(f'[executed in {(t2-t1):.4f}s.]')
+        print(f"[executed in {(t2-t1):.4f}s.]")
         return result
+
     return wrap_func
 
 
 class NetworkService:
+
     def parse_response(self, response: requests.Response):
         try:
             parsed = json.loads(response.text)
@@ -39,7 +42,9 @@ class NetworkService:
     @timeit
     def post(self, uri, header, query=None, payload=None, file=None):
         try:
-            x = requests.post(uri, params=query, headers=header, data=payload, files=file)
+            x = requests.post(
+                uri, params=query, headers=header, data=payload, files=file
+            )
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
@@ -48,7 +53,9 @@ class NetworkService:
     @timeit
     def put(self, uri, header, query=None, payload=None, file=None):
         try:
-            x = requests.put(uri, params=query, headers=header, data=payload, files=file)
+            x = requests.put(
+                uri, params=query, headers=header, data=payload, files=file
+            )
 
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
@@ -58,10 +65,11 @@ class NetworkService:
     @timeit
     def delete(self, uri, header, query=None):
         try:
-            x =  requests.delete(uri, params=query, headers=header)
+            x = requests.delete(uri, params=query, headers=header)
             return self.parse_response(x)
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
+
 
 network_service = NetworkService()

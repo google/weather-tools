@@ -16,7 +16,7 @@ from util import (
     get_file_size,
     get_wait_interval,
     generate_md5_hash,
-    GLOBAL_COVERAGE_AREA
+    GLOBAL_COVERAGE_AREA,
 )
 
 import firebase_admin
@@ -26,11 +26,12 @@ from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
 """An implementation-dependent Manifest URI."""
-Location = t.NewType('Location', str)
+Location = t.NewType("Location", str)
 
 
 class ManifestException(Exception):
     """Errors that occur in Manifest Clients."""
+
     pass
 
 
@@ -46,10 +47,11 @@ class Stage(enum.Enum):
     retrieve : In case of clients where there is no proper separation of fetch & download stages (eg. CDS client),
         request will be in the retrieve stage i.e. fetch + download.
     """
-    RETRIEVE = 'retrieve'
-    FETCH = 'fetch'
-    DOWNLOAD = 'download'
-    UPLOAD = 'upload'
+
+    RETRIEVE = "retrieve"
+    FETCH = "fetch"
+    DOWNLOAD = "download"
+    UPLOAD = "upload"
 
 
 class Status(enum.Enum):
@@ -62,14 +64,15 @@ class Status(enum.Enum):
     success : This represents the request state execution completed successfully without any error.
     failure : This represents the request state execution failed.
     """
-    SCHEDULED = 'scheduled'
-    IN_PROGRESS = 'in-progress'
-    SUCCESS = 'success'
-    FAILURE = 'failure'
+
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in-progress"
+    SUCCESS = "success"
+    FAILURE = "failure"
 
 
 @dataclasses.dataclass
-class DownloadStatus():
+class DownloadStatus:
     """Data recorded in `Manifest`s reflecting the status of a download."""
 
     """The name of the config file associated with the request."""
@@ -130,13 +133,13 @@ class DownloadStatus():
     upload_end_time: t.Optional[str] = ""
 
     @classmethod
-    def from_dict(cls, download_status: t.Dict) -> 'DownloadStatus':
+    def from_dict(cls, download_status: t.Dict) -> "DownloadStatus":
         """Instantiate DownloadStatus dataclass from dict."""
         download_status_instance = cls()
         for key, value in download_status.items():
-            if key == 'status':
+            if key == "status":
                 setattr(download_status_instance, key, Status(value))
-            elif key == 'stage' and value is not None:
+            elif key == "stage" and value is not None:
                 setattr(download_status_instance, key, Stage(value))
             else:
                 setattr(download_status_instance, key, value)
@@ -154,7 +157,7 @@ class DownloadStatus():
                 download_status_dict[key] = value.value
             elif isinstance(value, pd.Timestamp):
                 download_status_dict[key] = value.isoformat()
-            elif key == 'selection' and value is not None:
+            elif key == "selection" and value is not None:
                 download_status_dict[key] = json.dumps(value)
             else:
                 download_status_dict[key] = value
@@ -205,76 +208,107 @@ class Manifest(abc.ABC):
         """Initialize the manifest."""
         pass
 
-    def schedule(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
+    def schedule(
+        self,
+        config_name: str,
+        dataset: str,
+        selection: t.Dict,
+        location: str,
+        user: str,
+    ) -> None:
         """Indicate that a job has been scheduled for download.
 
         'scheduled' jobs occur before 'in-progress', 'success' or 'finished'.
         """
-        scheduled_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat(timespec='seconds')
+        scheduled_time = (
+            datetime.datetime.utcnow()
+            .replace(tzinfo=datetime.timezone.utc)
+            .isoformat(timespec="seconds")
+        )
         self.status = DownloadStatus(
-                config_name=config_name,
-                dataset=dataset if dataset else None,
-                selection=selection,
-                location=location,
-                area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
-                username=user,
-                stage=None,
-                status=Status.SCHEDULED,
-                error=None,
-                size=None,
-                scheduled_time=scheduled_time,
-                retrieve_start_time=None,
-                retrieve_end_time=None,
-                fetch_start_time=None,
-                fetch_end_time=None,
-                download_start_time=None,
-                download_end_time=None,
-                upload_start_time=None,
-                upload_end_time=None,
-            )
+            config_name=config_name,
+            dataset=dataset if dataset else None,
+            selection=selection,
+            location=location,
+            area=fetch_geo_polygon(selection.get("area", GLOBAL_COVERAGE_AREA)),
+            username=user,
+            stage=None,
+            status=Status.SCHEDULED,
+            error=None,
+            size=None,
+            scheduled_time=scheduled_time,
+            retrieve_start_time=None,
+            retrieve_end_time=None,
+            fetch_start_time=None,
+            fetch_end_time=None,
+            download_start_time=None,
+            download_end_time=None,
+            upload_start_time=None,
+            upload_end_time=None,
+        )
         self._update(self.status)
 
-    def skip(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
+    def skip(
+        self,
+        config_name: str,
+        dataset: str,
+        selection: t.Dict,
+        location: str,
+        user: str,
+    ) -> None:
         """Updates the manifest to mark the shards that were skipped in the current job
         as 'upload' stage and 'success' status, indicating that they have already been downloaded.
         """
         old_status = self._read(location)
         # The manifest needs to be updated for a skipped shard if its entry is not present, or
         # if the stage is not 'upload', or if the stage is 'upload' but the status is not 'success'.
-        if old_status.location != location or old_status.stage != Stage.UPLOAD or old_status.status != Status.SUCCESS:
+        if (
+            old_status.location != location
+            or old_status.stage != Stage.UPLOAD
+            or old_status.status != Status.SUCCESS
+        ):
             current_utc_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
 
             size = get_file_size(location)
 
             status = DownloadStatus(
-                    config_name=config_name,
-                    dataset=dataset if dataset else None,
-                    selection=selection,
-                    location=location,
-                    area=fetch_geo_polygon(selection.get('area', GLOBAL_COVERAGE_AREA)),
-                    username=user,
-                    stage=Stage.UPLOAD,
-                    status=Status.SUCCESS,
-                    error=None,
-                    size=size,
-                    scheduled_time=None,
-                    retrieve_start_time=None,
-                    retrieve_end_time=None,
-                    fetch_start_time=None,
-                    fetch_end_time=None,
-                    download_start_time=None,
-                    download_end_time=None,
-                    upload_start_time=current_utc_time,
-                    upload_end_time=current_utc_time,
-                )
+                config_name=config_name,
+                dataset=dataset if dataset else None,
+                selection=selection,
+                location=location,
+                area=fetch_geo_polygon(selection.get("area", GLOBAL_COVERAGE_AREA)),
+                username=user,
+                stage=Stage.UPLOAD,
+                status=Status.SUCCESS,
+                error=None,
+                size=size,
+                scheduled_time=None,
+                retrieve_start_time=None,
+                retrieve_end_time=None,
+                fetch_start_time=None,
+                fetch_end_time=None,
+                download_start_time=None,
+                download_end_time=None,
+                upload_start_time=current_utc_time,
+                upload_end_time=current_utc_time,
+            )
             self._update(status)
-            print(f'Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}.')
+            print(
+                f"Manifest updated for skipped shard: {location!r} -- {DownloadStatus.to_dict(status)!r}."
+            )
 
-    def _set_for_transaction(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> None:
+    def _set_for_transaction(
+        self,
+        config_name: str,
+        dataset: str,
+        selection: t.Dict,
+        location: str,
+        user: str,
+    ) -> None:
         """Reset Manifest state in preparation for a new transaction."""
         self.status = dataclasses.replace(self._read(location))
         self.status.config_name = config_name
@@ -294,7 +328,7 @@ class Manifest(abc.ABC):
         else:
             status = Status.FAILURE
             # For explanation, see https://docs.python.org/3/library/traceback.html#traceback.format_exception
-            error = '\n'.join(traceback.format_exception(exc_type, exc_inst, exc_tb))
+            error = "\n".join(traceback.format_exception(exc_type, exc_inst, exc_tb))
 
         new_status = dataclasses.replace(self.status)
         new_status.error = error
@@ -302,7 +336,7 @@ class Manifest(abc.ABC):
         current_utc_time = (
             datetime.datetime.utcnow()
             .replace(tzinfo=datetime.timezone.utc)
-            .isoformat(timespec='seconds')
+            .isoformat(timespec="seconds")
         )
 
         # This is necessary for setting the precise start time of the previous stage
@@ -326,7 +360,14 @@ class Manifest(abc.ABC):
 
         self._update(self.status)
 
-    def transact(self, config_name: str, dataset: str, selection: t.Dict, location: str, user: str) -> 'Manifest':
+    def transact(
+        self,
+        config_name: str,
+        dataset: str,
+        selection: t.Dict,
+        location: str,
+        user: str,
+    ) -> "Manifest":
         """Create a download transaction."""
         self._set_for_transaction(config_name, dataset, selection, location, user)
         return self
@@ -339,7 +380,7 @@ class Manifest(abc.ABC):
         current_utc_time = (
             datetime.datetime.utcnow()
             .replace(tzinfo=datetime.timezone.utc)
-            .isoformat(timespec='seconds')
+            .isoformat(timespec="seconds")
         )
 
         if stage == Stage.DOWNLOAD:
@@ -389,10 +430,12 @@ class FirestoreManifest(Manifest):
                 cred = credentials.ApplicationDefault()
 
                 firebase_admin.initialize_app(cred)
-                print('Initialized Firebase App.')
+                print("Initialized Firebase App.")
 
                 if attempts > 4:
-                    raise ManifestException('Exceeded number of retries to get firestore client.') from e
+                    raise ManifestException(
+                        "Exceeded number of retries to get firestore client."
+                    ) from e
 
             time.sleep(get_wait_interval(attempts))
 
@@ -406,9 +449,7 @@ class FirestoreManifest(Manifest):
         doc_id = generate_md5_hash(location)
 
         # Update document with download status
-        download_doc_ref = (
-            self.root_document_for_store(doc_id)
-        )
+        download_doc_ref = self.root_document_for_store(doc_id)
 
         result = download_doc_ref.get()
         row = {}
@@ -419,24 +460,24 @@ class FirestoreManifest(Manifest):
 
     def _update(self, download_status: DownloadStatus) -> None:
         """Update or create a download status record."""
-        print('Updating Firestore Manifest.')
+        print("Updating Firestore Manifest.")
 
         status = DownloadStatus.to_dict(download_status)
-        doc_id = generate_md5_hash(status['location'])
+        doc_id = generate_md5_hash(status["location"])
 
         # Update document with download status
-        download_doc_ref = (
-            self.root_document_for_store(doc_id)
-        )
+        download_doc_ref = self.root_document_for_store(doc_id)
 
         result: WriteResult = download_doc_ref.set(status)
 
-        print(f'Firestore manifest updated. '
-              f'update_time={result.update_time}, '
-              f'filename={download_status.location}.')
+        print(
+            f"Firestore manifest updated. "
+            f"update_time={result.update_time}, "
+            f"filename={download_status.location}."
+        )
 
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""
         # TODO: Get user-defined collection for manifest.
-        root_collection = 'test_manifest'
+        root_collection = "test_manifest"
         return self._get_db().collection(root_collection).document(store_scheme)

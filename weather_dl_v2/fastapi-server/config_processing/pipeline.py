@@ -9,11 +9,12 @@ from database.queue_handler import get_queue_handler
 download_handler = get_download_handler()
 queue_handler = get_queue_handler()
 
+
 def start_processing_config(config_file, licenses):
     config = {}
     manifest = FirestoreManifest()
 
-    with open(config_file, 'r', encoding='utf-8') as f:
+    with open(config_file, "r", encoding="utf-8") as f:
         # configs/example.cfg -> example.cfg
         config_name = os.path.split(config_file)[1]
         config = process_config(f, config_name)

@@ -11,8 +11,9 @@ from routers.license import get_create_deployment
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # set up logger.
-logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
+logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
+
 
 def create_pending_license_deployments():
     """Creates license deployments for Licenses whose deployments does not exist."""
@@ -27,17 +28,19 @@ def create_pending_license_deployments():
         except Exception as e:
             logger.error(f"License deployment failed for {license}. Exception: {e}")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Started FastAPI server")
     # Boot up
     # TODO: Replace hard-coded collection name by read a server config.
-    
+
     # Retrieve license information & create license deployment if needed.
     create_pending_license_deployments()
-    
+
     yield
     # Clean up
+
 
 app = FastAPI(lifespan=lifespan)
 
