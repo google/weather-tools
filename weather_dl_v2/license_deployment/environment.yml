@@ -8,6 +8,7 @@ dependencies:
   - ecmwf-api-client=1.6.3
   - pip=22.3
   - pip:
+    - git+https://github.com/google/pyink
     - kubernetes
     - google-cloud-secret-manager
     - aiohttp

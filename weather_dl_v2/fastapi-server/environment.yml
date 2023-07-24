@@ -8,6 +8,7 @@ dependencies:
   - pip=22.3
   - google-cloud-sdk=410.0.0
   - pip:
+    - git+https://github.com/google/pyink
     - kubernetes
     - fastapi[all]
     - python-multipart

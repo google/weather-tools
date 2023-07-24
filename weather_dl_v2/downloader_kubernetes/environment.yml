@@ -10,6 +10,7 @@ dependencies:
   - google-apitools
   - pip=22.3
   - pip:
+    - git+https://github.com/google/pyink
     - apache_beam[gcp]==2.40.0
     - firebase-admin
     - google-cloud-pubsub
