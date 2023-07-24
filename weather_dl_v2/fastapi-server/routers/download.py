@@ -12,8 +12,6 @@ router = APIRouter(
 )
 
 
-
-
 def get_upload():
     def upload(file: UploadFile):
         dest = f"./config_files/{file.filename}"

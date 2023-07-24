@@ -43,11 +43,7 @@ class LicenseHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _create_license_queue(self, license_id: str, client_name: str) -> None:
-        pass
-
-    @abc.abstractmethod
-    def _remove_license_queue(self, license_id: str) -> None:
+    def _get_license_without_deployment(self) -> list:
         pass
 
 class LicenseHandlerMock(LicenseHandler):
@@ -102,11 +98,8 @@ class LicenseHandlerMock(LicenseHandler):
             }
         ]
 
-    def _create_license_queue(self, license_id: str, client_name: str) -> None:
-        logger.info("Added L1 queue in 'queues' collection. Update_time: 00000.")
-
-    def _remove_license_queue(self, license_id: str) -> None:
-        logger.info("Removed L1 queue in 'queues' collection. Update_time: 00000.")
+    def _get_license_without_deployment(self) -> list:
+        return []
 
 class LicenseHandlerFirestore(LicenseHandler):
     def __init__(self, db: firestore.firestore.Client):
@@ -153,12 +146,9 @@ class LicenseHandlerFirestore(LicenseHandler):
             result.append(self.db.collection(self.collection).document(snapshot.id).get().to_dict())
         return result
 
-    def _create_license_queue(self, license_id: str, client_name: str) -> None:
-        result: WriteResult = self.db.collection('queues').document(license_id).set(
-            {"license_id": license_id, "client_name": client_name, "queue": []}
-        )
-        logger.info(f"Added {license_id} queue in 'queues' collection. Update_time: {result.update_time}.")
-
-    def _remove_license_queue(self, license_id: str) -> None:
-        timestamp = self.db.collection('queues').document(license_id).delete()
-        logger.info(f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}.")
+    def _get_license_without_deployment(self) -> list:
+        snapshot_list = self.db.collection(self.collection).where('k8s_deployment_id', '==', '').get()
+        result = []
+        for snapshot in snapshot_list:
+            result.append(snapshot.to_dict()['license_id'])
+        return result
