@@ -12,11 +12,11 @@ from apache_beam.io.filesystems import FileSystems
 class Store(abc.ABC):
     """A interface to represent where downloads are stored.
 
-     Default implementation uses Apache Beam's Filesystems.
-     """
+    Default implementation uses Apache Beam's Filesystems.
+    """
 
     @abc.abstractmethod
-    def open(self, filename: str, mode: str = 'r') -> t.IO:
+    def open(self, filename: str, mode: str = "r") -> t.IO:
         pass
 
     @abc.abstractmethod
@@ -30,9 +30,9 @@ class InMemoryStore(Store):
     def __init__(self):
         self.store = {}
 
-    def open(self, filename: str, mode: str = 'r') -> t.IO:
+    def open(self, filename: str, mode: str = "r") -> t.IO:
         """Create or read in-memory data."""
-        if 'b' in mode:
+        if "b" in mode:
             file = io.BytesIO()
         else:
             file = io.StringIO()
@@ -53,7 +53,7 @@ class TempFileStore(Store):
         if self.dir and not os.path.exists(self.dir):
             os.makedirs(self.dir)
 
-    def open(self, filename: str, mode: str = 'r') -> t.IO:
+    def open(self, filename: str, mode: str = "r") -> t.IO:
         """Create a temporary file in the store directory."""
         return tempfile.TemporaryFile(mode, dir=self.dir)
 
@@ -71,7 +71,7 @@ class LocalFileStore(Store):
         if self.dir and not os.path.exists(self.dir):
             os.makedirs(self.dir)
 
-    def open(self, filename: str, mode: str = 'r') -> t.IO:
+    def open(self, filename: str, mode: str = "r") -> t.IO:
         """Open a local file from the store directory."""
         return open(os.sep.join([self.dir, filename]), mode)
 
@@ -83,7 +83,7 @@ class LocalFileStore(Store):
 class FSStore(Store):
     """Store data into any store supported by Apache Beam's FileSystems."""
 
-    def open(self, filename: str, mode: str = 'r') -> t.IO:
+    def open(self, filename: str, mode: str = "r") -> t.IO:
         """Open object in cloud bucket (or local file system) as a read or write channel.
 
         To work with cloud storage systems, only a read or write channel can be openend
@@ -92,10 +92,10 @@ class FSStore(Store):
         Further, append operations, or writes on existing objects, are dissallowed (the
         error thrown will depend on the implementation of the underlying cloud provider).
         """
-        if 'r' in mode and 'w' not in mode:
+        if "r" in mode and "w" not in mode:
             return FileSystems().open(filename)
 
-        if 'w' in mode and 'r' not in mode:
+        if "w" in mode and "r" not in mode:
             return FileSystems().create(filename)
 
         raise ValueError(

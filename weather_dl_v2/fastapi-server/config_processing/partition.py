@@ -11,8 +11,9 @@ from .stores import Store, FSStore
 
 logger = logging.getLogger(__name__)
 
+
 @dataclasses.dataclass
-class PartitionConfig():
+class PartitionConfig:
     """Partition a config into multiple data requests.
 
     Partitioning involves four main operations: First, we fan-out shards based on
@@ -63,8 +64,14 @@ class PartitionConfig():
 
         target = prepare_target_name(config)
         if self.store.exists(target):
-            logger.info(f'file {target} found, skipping.')
-            self.manifest.skip(config.config_name, config.dataset, config.selection, target, config.user_id)
+            logger.info(f"file {target} found, skipping.")
+            self.manifest.skip(
+                config.config_name,
+                config.dataset,
+                config.selection,
+                target,
+                config.user_id,
+            )
             return True
 
         return False
@@ -81,7 +88,9 @@ class PartitionConfig():
         Returns:
             An iterator of `Config`s.
         """
-        for option in itertools.product(*[self.config.selection[key] for key in self.config.partition_keys]):
+        for option in itertools.product(
+            *[self.config.selection[key] for key in self.config.partition_keys]
+        ):
             yield self._create_partition_config(option)
 
     def new_downloads_only(self, candidate: Config) -> bool:
@@ -95,6 +104,11 @@ class PartitionConfig():
     def update_manifest_collection(self, partition: Config) -> Config:
         """Updates the DB."""
         location = prepare_target_name(partition)
-        self.manifest.schedule(partition.config_name, partition.dataset,
-                               partition.selection, location, partition.user_id)
-        logger.info(f'Created partition {location!r}.')
+        self.manifest.schedule(
+            partition.config_name,
+            partition.dataset,
+            partition.selection,
+            location,
+            partition.user_id,
+        )
+        logger.info(f"Created partition {location!r}.")

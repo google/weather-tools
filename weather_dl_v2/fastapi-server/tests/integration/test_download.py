@@ -23,6 +23,7 @@ def _get_download(headers, query, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_get_downloads_basic():
     headers = {}
     query = {}
@@ -34,7 +35,7 @@ def test_get_downloads_basic():
             "total_shards": 10000,
             "scheduled_shards": 4990,
             "downloaded_shards": 5000,
-            "failed_shards": 0
+            "failed_shards": 0,
         },
         {
             "config_name": "config_2",
@@ -42,7 +43,7 @@ def test_get_downloads_basic():
             "total_shards": 10000,
             "scheduled_shards": 4990,
             "downloaded_shards": 5000,
-            "failed_shards": 0
+            "failed_shards": 0,
         },
         {
             "config_name": "config_3",
@@ -50,8 +51,8 @@ def test_get_downloads_basic():
             "total_shards": 10000,
             "scheduled_shards": 4990,
             "downloaded_shards": 5000,
-            "failed_shards": 0
-        }
+            "failed_shards": 0,
+        },
     ]
 
     _get_download(headers, query, code, expected)
@@ -60,11 +61,11 @@ def test_get_downloads_basic():
 def _submit_download(headers, file_path, licenses, code, expected):
     file = None
     try:
-        file = {"file" : open(file_path, 'rb')}
+        file = {"file": open(file_path, "rb")}
     except FileNotFoundError:
         print("file not found.")
 
-    payload = {"licenses" : licenses}
+    payload = {"licenses": licenses}
 
     response = client.post("/download", headers=headers, files=file, data=payload)
 
@@ -73,6 +74,7 @@ def _submit_download(headers, file_path, licenses, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_submit_download_basic():
     header = {
         "accept": "application/json",
@@ -80,9 +82,13 @@ def test_submit_download_basic():
     file_path = os.path.join(ROOT_DIR, "tests/test_data/no_exist.cfg")
     licenses = ["L1"]
     code = 200
-    expected = {'message': f"file 'no_exist.cfg' saved at '{os.getcwd()}/tests/test_data/no_exist.cfg' "'successfully.'}
+    expected = {
+        "message": f"file 'no_exist.cfg' saved at '{os.getcwd()}/tests/test_data/no_exist.cfg' "
+        "successfully."
+    }
 
     _submit_download(header, file_path, licenses, code, expected)
+
 
 def test_submit_download_file_not_uploaded():
     header = {
@@ -95,6 +101,7 @@ def test_submit_download_file_not_uploaded():
 
     _submit_download(header, file_path, licenses, code, expected)
 
+
 def test_submit_download_file_alreadys_exist():
     header = {
         "accept": "application/json",
@@ -103,8 +110,8 @@ def test_submit_download_file_alreadys_exist():
     licenses = ["L1"]
     code = 400
     expected = {
-        "detail": "Please stop the ongoing download of the config file 'example.cfg' before attempting to start a new download." # noqa: E501
-        }
+        "detail": "Please stop the ongoing download of the config file 'example.cfg' before attempting to start a new download."  # noqa: E501
+    }
 
     _submit_download(header, file_path, licenses, code, expected)
 
@@ -115,42 +122,55 @@ def _get_download_by_config(headers, config_name, code, expected):
     assert response.status_code == code
     assert response.json() == expected
 
+
 def test_get_download_by_config_basic():
     headers = {}
     config_name = "dummy_config"
     code = 200
-    expected = {"config_name": config_name, "client_name": "MARS", "total_shards": 10000, "scheduled_shards": 4990,
-              "downloaded_shards": 5000, "failed_shards": 0}
+    expected = {
+        "config_name": config_name,
+        "client_name": "MARS",
+        "total_shards": 10000,
+        "scheduled_shards": 4990,
+        "downloaded_shards": 5000,
+        "failed_shards": 0,
+    }
 
     _get_download_by_config(headers, config_name, code, expected)
+
 
 def test_get_download_by_config_wrong_config():
     headers = {}
     config_name = "no_exist"
     code = 404
-    expected = {'detail': 'Download config not found in weather-dl v2.'}
+    expected = {"detail": "Download config not found in weather-dl v2."}
 
     _get_download_by_config(headers, config_name, code, expected)
 
 
 def _delete_download_by_config(headers, config_name, code, expected):
-    response = client.delete(f"/download/{config_name}",headers=headers)
+    response = client.delete(f"/download/{config_name}", headers=headers)
 
     assert response.status_code == code
     assert response.json() == expected
+
 
 def test_delete_download_by_config_basic():
     headers = {}
     config_name = "dummy_config"
     code = 200
-    expected = {'config_name': 'dummy_config', 'message': 'Download config stopped & removed successfully.'}
+    expected = {
+        "config_name": "dummy_config",
+        "message": "Download config stopped & removed successfully.",
+    }
 
     _delete_download_by_config(headers, config_name, code, expected)
+
 
 def test_delete_download_by_config_wrong_config():
     headers = {}
     config_name = "no_exist"
     code = 404
-    expected = {'detail': 'No such download config to stop & remove.'}
+    expected = {"detail": "No such download config to stop & remove."}
 
     _delete_download_by_config(headers, config_name, code, expected)

@@ -20,8 +20,7 @@ from config import optimize_selection_partition
 from manifest import Manifest, Stage
 from util import download_with_aria2, retry_with_exponential_backoff
 
-warnings.simplefilter(
-    "ignore", category=urllib3.connectionpool.InsecureRequestWarning)
+warnings.simplefilter("ignore", category=urllib3.connectionpool.InsecureRequestWarning)
 
 
 class Client(abc.ABC):
@@ -38,11 +37,13 @@ class Client(abc.ABC):
     def __init__(self, dataset: str, level: int = logging.INFO) -> None:
         """Clients are initialized with the general CLI configuration."""
         self.dataset = dataset
-        self.logger = logging.getLogger(f'{__name__}.{type(self).__name__}')
+        self.logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         self.logger.setLevel(level)
 
     @abc.abstractmethod
-    def retrieve(self, dataset: str, selection: t.Dict, output: str, manifest: Manifest) -> None:
+    def retrieve(
+        self, dataset: str, selection: t.Dict, output: str, manifest: Manifest
+    ) -> None:
         """Download from data source."""
         pass
 
@@ -61,6 +62,7 @@ class Client(abc.ABC):
 
 class SplitCDSRequest(cds_api.Client):
     """Extended CDS class that separates fetch and download stage."""
+
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
         self.info("Downloading %s to %s (%s)", url, path, cds_api.bytes_to_string(size))
@@ -74,7 +76,7 @@ class SplitCDSRequest(cds_api.Client):
 
     def fetch(self, request: t.Dict, dataset: str) -> t.Dict:
         result = self.retrieve(dataset, request)
-        return {'href': result.location, 'size': result.content_length}
+        return {"href": result.location, "size": result.content_length}
 
     def download(self, result: cds_api.Result, target: t.Optional[str] = None) -> None:
         if target:
@@ -107,12 +109,12 @@ class CdsClient(Client):
     """
 
     """Name patterns of datasets that are hosted internally on CDS servers."""
-    cds_hosted_datasets = {'reanalysis-era'}
+    cds_hosted_datasets = {"reanalysis-era"}
 
     def retrieve(self, dataset: str, selection: t.Dict, manifest: Manifest) -> None:
         c = CDSClientExtended(
-            url=os.environ.get('CLIENT_URL'),
-            key=os.environ.get('CLIENT_KEY'),
+            url=os.environ.get("CLIENT_URL"),
+            key=os.environ.get("CLIENT_KEY"),
             debug_callback=self.logger.debug,
             info_callback=self.logger.info,
             warning_callback=self.logger.warning,
@@ -124,7 +126,7 @@ class CdsClient(Client):
             precise_fetch_start_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(selection_, dataset)
@@ -132,7 +134,7 @@ class CdsClient(Client):
 
     @property
     def license_url(self):
-        return 'https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
+        return "https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
@@ -183,11 +185,10 @@ class StdoutLogger(io.StringIO):
 
 class SplitMARSRequest(api.APIRequest):
     """Extended MARS APIRequest class that separates fetch and download stage."""
+
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
-        self.log(
-            "Transferring %s into %s" % (self._bytename(size), path)
-        )
+        self.log("Transferring %s into %s" % (self._bytename(size), path))
         self.log("From %s" % (url,))
 
         download_with_aria2(url, path)
@@ -239,12 +240,14 @@ class SplitRequestMixin:
 
 class CDSClientExtended(SplitRequestMixin):
     """Extended CDS Client class that separates fetch and download stage."""
+
     def __init__(self, *args, **kwargs):
         self.c = SplitCDSRequest(*args, **kwargs)
 
 
 class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
     """Extended MARS ECMFService class that separates fetch and download stage."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.c = SplitMARSRequest(
@@ -259,7 +262,8 @@ class MARSECMWFServiceExtended(api.ECMWFService, SplitRequestMixin):
 
 
 class PublicECMWFServerExtended(api.ECMWFDataServer, SplitRequestMixin):
-    def __init__(self, *args, dataset='', **kwargs):
+
+    def __init__(self, *args, dataset="", **kwargs):
         super().__init__(*args, **kwargs)
         self.c = SplitMARSRequest(
             self.url,
@@ -290,6 +294,7 @@ class MarsClient(Client):
         config: A config that contains pipeline parameters, such as API keys.
         level: Default log level for the client.
     """
+
     def retrieve(self, dataset: str, selection: t.Dict, manifest: Manifest) -> None:
         c = MARSECMWFServiceExtended(
             "mars",
@@ -305,7 +310,7 @@ class MarsClient(Client):
             precise_fetch_start_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(req=selection_)
@@ -313,7 +318,7 @@ class MarsClient(Client):
 
     @property
     def license_url(self):
-        return 'https://apps.ecmwf.int/datasets/licences/general/'
+        return "https://apps.ecmwf.int/datasets/licences/general/"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:
@@ -333,6 +338,7 @@ class MarsClient(Client):
 
 class ECMWFPublicClient(Client):
     """A client for ECMWF's public datasets, like TIGGE."""
+
     def retrieve(self, dataset: str, selection: t.Dict, manifest: Manifest) -> None:
         c = PublicECMWFServerExtended(
             url=os.environ.get("CLIENT_URL"),
@@ -348,7 +354,7 @@ class ECMWFPublicClient(Client):
             precise_fetch_start_time = (
                 datetime.datetime.utcnow()
                 .replace(tzinfo=datetime.timezone.utc)
-                .isoformat(timespec='seconds')
+                .isoformat(timespec="seconds")
             )
             manifest.prev_stage_precise_start_time = precise_fetch_start_time
             result = c.fetch(req=selection_)
@@ -362,8 +368,8 @@ class ECMWFPublicClient(Client):
     @property
     def license_url(self):
         if not self.dataset:
-            raise ValueError('must specify a dataset for this client!')
-        return f'https://apps.ecmwf.int/datasets/data/{self.dataset.lower()}/licence/'
+            raise ValueError("must specify a dataset for this client!")
+        return f"https://apps.ecmwf.int/datasets/data/{self.dataset.lower()}/licence/"
 
 
 class FakeClient(Client):
@@ -374,14 +380,14 @@ class FakeClient(Client):
         precise_retrieve_start_time = (
             datetime.datetime.utcnow()
             .replace(tzinfo=datetime.timezone.utc)
-            .isoformat(timespec='seconds')
+            .isoformat(timespec="seconds")
         )
         manifest.prev_stage_precise_start_time = precise_retrieve_start_time
-        self.logger.debug(f'Downloading {dataset}.')
+        self.logger.debug(f"Downloading {dataset}.")
 
     @property
     def license_url(self):
-        return 'lorem ipsum'
+        return "lorem ipsum"
 
     @classmethod
     def num_requests_per_key(cls, dataset: str) -> int:

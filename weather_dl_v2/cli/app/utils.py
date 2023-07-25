@@ -6,9 +6,9 @@ import json
 
 logger = logging.getLogger(__name__)
 
+
 @dataclasses.dataclass
 class Validator(abc.ABC):
-
     valid_keys: t.List[str]
 
     def validate(self, filters: t.List[str], show_valid_filters=True):
@@ -17,7 +17,7 @@ class Validator(abc.ABC):
         for filter in filters:
             _filter = filter.split("=")
 
-            if(len(_filter)!=2):
+            if len(_filter) != 2:
                 if show_valid_filters:
                     logger.info(f"valid filters are: {self.valid_keys}.")
                 raise ValueError("Incorrect Filter. Please Try again.")

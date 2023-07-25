@@ -3,7 +3,7 @@ import copy
 import dataclasses
 import typing as t
 
-Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
+Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
 
 @dataclasses.dataclass
@@ -49,7 +49,7 @@ class Config:
     selection: t.Dict[str, Values] = dataclasses.field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, config: t.Dict) -> 'Config':
+    def from_dict(cls, config: t.Dict) -> "Config":
         config_instance = cls()
         for section_key, section_value in config.items():
             if section_key == "parameters":
@@ -70,32 +70,36 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
     """
     selection_ = copy.deepcopy(selection)
 
-    if 'day' in selection_.keys() and selection_['day'] == 'all':
-        year, month = selection_['year'], selection_['month']
+    if "day" in selection_.keys() and selection_["day"] == "all":
+        year, month = selection_["year"], selection_["month"]
 
-        multiples_error = "Cannot use keyword 'all' on selections with multiple '{type}'s."
+        multiples_error = (
+            "Cannot use keyword 'all' on selections with multiple '{type}'s."
+        )
 
         if isinstance(year, list):
-            assert len(year) == 1, multiples_error.format(type='year')
+            assert len(year) == 1, multiples_error.format(type="year")
             year = year[0]
 
         if isinstance(month, list):
-            assert len(month) == 1, multiples_error.format(type='month')
+            assert len(month) == 1, multiples_error.format(type="month")
             month = month[0]
 
         if isinstance(year, str):
-            assert '/' not in year, multiples_error.format(type='year')
+            assert "/" not in year, multiples_error.format(type="year")
 
         if isinstance(month, str):
-            assert '/' not in month, multiples_error.format(type='month')
+            assert "/" not in month, multiples_error.format(type="month")
 
         year, month = int(year), int(month)
 
         _, n_days_in_month = calendar.monthrange(year, month)
 
-        selection_['date'] = f'{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{n_days_in_month:02d}'
-        del selection_['day']
-        del selection_['month']
-        del selection_['year']
+        selection_[
+            "date"
+        ] = f"{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{n_days_in_month:02d}"
+        del selection_["day"]
+        del selection_["month"]
+        del selection_["year"]
 
     return selection_
