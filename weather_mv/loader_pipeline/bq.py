@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import typing as t
 from pprint import pformat
 
@@ -139,6 +140,12 @@ class ToBigQuery(ToDataSink):
         pipeline_options = PipelineOptions(pipeline_args)
         pipeline_options_dict = pipeline_options.get_all_options()
 
+        if known_args.output_table:
+            # checking if the output table is in format (<project>.<dataset>.<table>).
+            output_table_pattern = r'^[\w-]+\.[\w-]+\.[\w-]+$'
+            if not bool(re.match(output_table_pattern, known_args.output_table)):
+                raise RuntimeError("output_table is not in correct format (<project>.<dataset_id>.<table_id>). ")
+
         if known_args.area:
             assert len(known_args.area) == 4, 'Must specify exactly 4 lat/long values for area: N, W, S, E boundaries.'
 
@@ -158,10 +165,20 @@ class ToBigQuery(ToDataSink):
             logger.info('Region validation completed successfully.')
 
     def __post_init__(self):
-        """Initializes Sink by creating a BigQuery table based on user input."""
+        """Initializes BigQuery table based on user input."""
+        self.project, self.dataset_id, self.table_id = self.output_table.split('.')
+        self.table = None
+
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
-        with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
+
+    def create_bq_table(self, uri: str) -> str:
+        """Create a big query table for the first uri. After table is created, subsequent uris are returned."""
+        # Skip table creation.
+        if self.table:
+            return uri
+
+        with open_dataset(uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
                           is_zarr=self.zarr) as open_ds:
 
@@ -200,12 +217,13 @@ class ToBigQuery(ToDataSink):
         if self.dry_run:
             logger.debug('Created the BigQuery table with schema...')
             logger.debug(f'\n{pformat(table_schema)}')
-            return
+            return uri
 
         # Create the table in BigQuery
         try:
             table = bigquery.Table(self.output_table, schema=table_schema)
             self.table = bigquery.Client().create_table(table, exists_ok=True)
+            return uri
         except Exception as e:
             logger.error(f'Unable to create table in BigQuery: {e}')
             raise
@@ -282,6 +300,7 @@ class ToBigQuery(ToDataSink):
         """Extract rows of variables from data paths into a BigQuery table."""
         extracted_rows = (
                 paths
+                | 'CreateTable' >> beam.Map(self.create_bq_table)
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
@@ -291,9 +310,9 @@ class ToBigQuery(ToDataSink):
             (
                     extracted_rows
                     | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
+                        project=self.project,
+                        dataset=self.dataset_id,
+                        table=self.table_id,
                         write_disposition=BigQueryDisposition.WRITE_APPEND,
                         create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
