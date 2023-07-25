@@ -6,7 +6,6 @@ dependencies:
   - pip=23.0.1
   - typer=0.9.0
   - pip:
-    - git+https://github.com/google/pyink
     - requests
     - ruff
     - pytype
