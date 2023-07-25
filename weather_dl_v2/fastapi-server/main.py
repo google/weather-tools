@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from routers import license, download, queues
 from database.license_handler import get_license_handler
-from license_dep.deployment_creator import create_license_deployment
 from routers.license import get_create_deployment
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,12 +20,12 @@ def create_pending_license_deployments():
     create_deployment = get_create_deployment()
     license_list = license_handler._get_license_without_deployment()
 
-    for license in license_list:
+    for license_id in license_list:
         try:
-            logger.info(f"Creating license deployment for {license}")
-            create_deployment(license)
+            logger.info(f"Creating license deployment for {license_id}")
+            create_deployment(license_id)
         except Exception as e:
-            logger.error(f"License deployment failed for {license}. Exception: {e}")
+            logger.error(f"License deployment failed for {license_id}. Exception: {e}")
 
 
 @asynccontextmanager

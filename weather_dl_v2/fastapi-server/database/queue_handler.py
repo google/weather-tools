@@ -113,7 +113,7 @@ class QueueHandlerMock(QueueHandler):
     def _update_config_priority_in_license(
         self, license_id: str, config_name: str, priority: int
     ) -> None:
-        print(f"Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
+        print("Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         logger.info("Added L1 queue in 'queues' collection. Update_time: 00000.")

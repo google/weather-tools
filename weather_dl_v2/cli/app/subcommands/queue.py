@@ -41,7 +41,8 @@ def get_license_queue(
 
 @app.command(
     "edit",
-    help="Edit existing license queue. Queue can edited via a priority file or my moving a single config to a given priority.",
+    help="Edit existing license queue. Queue can edited via a priority"
+    "file or my moving a single config to a given priority.",
 )  # noqa
 def modify_license_queue(
     license: Annotated[str, typer.Argument(help="License ID.")],
@@ -61,7 +62,8 @@ def modify_license_queue(
         typer.Option(
             "--priority",
             "-p",
-            help="Absolute priority for the config in a license queue. Priority increases in ascending order with 0 having highest priority.",
+            help="Absolute priority for the config in a license queue."
+            "Priority increases in ascending order with 0 having highest priority.",
         ),
     ] = None,  # noqa
 ):

@@ -42,7 +42,8 @@ def add_license(
     file_path: Annotated[
         str,
         typer.Argument(
-            help="""Input json file. Example json for new license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            help="""Input json file. Example json for new license-"""
+            """{"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
         ),
     ],  # noqa
 ):
@@ -70,7 +71,8 @@ def update_license(
     file_path: Annotated[
         str,
         typer.Argument(
-            help="""Input json file. Example json for updated license- {"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            help="""Input json file. Example json for updated license- """
+            """{"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
         ),
     ],  # noqa
 ):

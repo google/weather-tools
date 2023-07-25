@@ -69,5 +69,5 @@ def modify_config_priority_in_license(
         return {
             "message": f"'{license_id}' license '{config_name}' priority updated successfully."
         }
-    except Exception as e:
+    except Exception:
         return {"message": f"Failed to update '{license_id}' license priority."}
