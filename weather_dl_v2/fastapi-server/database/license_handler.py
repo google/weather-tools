@@ -4,6 +4,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_db
+from server_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class LicenseHandlerFirestore(LicenseHandler):
 
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = "license"
+        self.collection = get_config().LICENSE_COLLECTION
 
     # TODO: find alternative way to create license_id
     def _add_license(self, license_dict: dict) -> str:

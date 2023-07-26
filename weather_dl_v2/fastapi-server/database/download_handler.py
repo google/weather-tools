@@ -4,6 +4,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_db
+from server_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +60,11 @@ class DownloadHandlerFirestore(DownloadHandler):
 
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = "download"
+        self.collection = get_config().DOWNLOAD_COLLECTION
 
     def _start_download(self, config_name: str, client_name: str) -> None:
         result: WriteResult = (
-            self.db.collection("download")
+            self.db.collection(self.collection)
             .document(config_name)
             .set({"config_name": config_name, "client_name": client_name})
         )
@@ -73,13 +74,13 @@ class DownloadHandlerFirestore(DownloadHandler):
         )
 
     def _stop_download(self, config_name: str) -> None:
-        timestamp = self.db.collection("download").document(config_name).delete()
+        timestamp = self.db.collection(self.collection).document(config_name).delete()
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: {timestamp}."
         )
 
     def _check_download_exists(self, config_name: str) -> bool:
         result: DocumentSnapshot = (
-            self.db.collection("download").document(config_name).get()
+            self.db.collection(self.collection).document(config_name).get()
         )
         return result.exists
