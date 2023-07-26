@@ -26,15 +26,15 @@ router = APIRouter(
 
 
 def get_create_deployment():
-    def create_deployment(license_id: str):
+    def create_deployment(license_id: str, license_handler: LicenseHandler):
         k8s_deployment_id = create_license_deployment(license_id)
-        update_license_internal(license_id, k8s_deployment_id)
+        update_license_internal(license_id, k8s_deployment_id, license_handler)
 
     return create_deployment
 
 
 def get_create_deployment_mock():
-    def create_deployment_mock(license_id: str):
+    def create_deployment_mock(license_id: str, license_handler: LicenseHandler):
         print("create deployment mocked")
 
     return create_deployment_mock
@@ -91,7 +91,7 @@ async def update_license(
     license_handler._update_license(license_id, license_dict)
 
     terminate_license_deployment(license_id)
-    create_deployment(license_id)
+    create_deployment(license_id, license_handler)
     return {"license_id": license_id, "name": "License updated successfully."}
 
 
@@ -99,7 +99,7 @@ async def update_license(
 def update_license_internal(
     license_id: str,
     k8s_deployment_id: str,
-    license_handler: LicenseHandler = Depends(get_license_handler),
+    license_handler: LicenseHandler,
 ):
     if not license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
@@ -122,7 +122,7 @@ async def add_license(
     license_dict["k8s_deployment_id"] = ""
     license_id = license_handler._add_license(license_dict)
     queue_handler._create_license_queue(license_id, license_dict["client_name"])
-    background_tasks.add_task(create_deployment, license_id)
+    background_tasks.add_task(create_deployment, license_id, license_handler)
     return {"license_id": license_id, "message": "License added successfully."}
 
 
