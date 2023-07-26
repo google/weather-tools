@@ -23,7 +23,7 @@ def create_pending_license_deployments():
     for license_id in license_list:
         try:
             logger.info(f"Creating license deployment for {license_id}")
-            create_deployment(license_id)
+            create_deployment(license_id, license_handler)
         except Exception as e:
             logger.error(f"License deployment failed for {license_id}. Exception: {e}")
 
