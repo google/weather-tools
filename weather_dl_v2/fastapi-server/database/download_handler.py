@@ -62,20 +62,12 @@ class DownloadHandlerMock(DownloadHandler):
             return False
         else:
             return True
-        
+
     def _get_downloads(self, client_name: str) -> list:
-        return [
-            {
-                "config_name": "example.cfg",
-                "client_name": "client"
-            }
-        ]
-    
+        return [{"config_name": "example.cfg", "client_name": "client"}]
+
     def _get_download_by_config_name(self, config_name: str) -> dict:
-        return {
-                "config_name": "example.cfg",
-                "client_name": "client"
-            }
+        return {"config_name": "example.cfg", "client_name": "client"}
 
 
 class DownloadHandlerFirestore(DownloadHandler):
@@ -106,11 +98,15 @@ class DownloadHandlerFirestore(DownloadHandler):
             self.db.collection(self.collection).document(config_name).get()
         )
         return result.exists
-    
+
     def _get_downloads(self, client_name: str) -> list:
         snapshot_list = None
-        if(client_name):
-            snapshot_list = self.db.collection(self.collection).where("client_name", "==", client_name).get()
+        if client_name:
+            snapshot_list = (
+                self.db.collection(self.collection)
+                .where("client_name", "==", client_name)
+                .get()
+            )
         else:
             snapshot_list = self.db.collection(self.collection).get()
         result = []
@@ -122,7 +118,7 @@ class DownloadHandlerFirestore(DownloadHandler):
                 .to_dict()
             )
         return result
-    
+
     def _get_download_by_config_name(self, config_name: str) -> dict:
         result: DocumentSnapshot = (
             self.db.collection(self.collection).document(config_name).get()

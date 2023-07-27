@@ -29,16 +29,14 @@ def test_get_downloads_basic():
     headers = {}
     query = {}
     code = 200
-    expected = [
-        {
-            "config_name": "example.cfg",
-            "client_name": "client",
-            "success": 0,
-            "scheduled": 0,
-            "failure": 0,
-            "in-progress": 0,
-        }
-    ]
+    expected = [{
+        "config_name": "example.cfg",
+        "client_name": "client",
+        "success": 0,
+        "scheduled": 0,
+        "failure": 0,
+        "in-progress": 0,
+    }]
 
     _get_download(headers, query, code, expected)
 
