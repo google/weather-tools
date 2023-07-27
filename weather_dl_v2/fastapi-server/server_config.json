@@ -1,0 +1,5 @@
+{
+    "download_collection": "download",
+    "queues_collection": "queues",
+    "license_collection": "license"
+}
