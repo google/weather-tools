@@ -4,6 +4,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_db
+from server_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -124,9 +125,9 @@ class QueueHandlerMock(QueueHandler):
 
 class QueueHandlerFirestore(QueueHandler):
 
-    def __init__(self, db: firestore.firestore.Client, collection: str = "queues"):
+    def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = collection
+        self.collection = get_config().queues_collection
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = (
