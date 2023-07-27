@@ -32,10 +32,11 @@ def test_get_downloads_basic():
     expected = [{
         "config_name": "example.cfg",
         "client_name": "client",
-        "success": 0,
-        "scheduled": 0,
-        "failure": 0,
-        "in-progress": 0,
+        "downloaded_shards": 0,
+        "scheduled_shards": 0,
+        "failed_shards": 0,
+        "in-progress_shards": 0,
+        "total_shards": 0
     }]
 
     _get_download(headers, query, code, expected)
@@ -113,10 +114,11 @@ def test_get_download_by_config_basic():
     expected = {
         "config_name": config_name,
         "client_name": "client",
-        "success": 0,
-        "scheduled": 0,
-        "failure": 0,
-        "in-progress": 0,
+        "downloaded_shards": 0,
+        "scheduled_shards": 0,
+        "failed_shards": 0,
+        "in-progress_shards": 0,
+        "total_shards": 0
     }
 
     _get_download_by_config(headers, config_name, code, expected)

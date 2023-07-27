@@ -32,21 +32,26 @@ def fetch_config_stats(
         inprogress_count_future = executor.submit(
             manifest_handler._get_download_inprogress_count, config_name
         )
+        total_count_future = executor.submit(
+            manifest_handler._get_download_total_count, config_name
+        )
 
         concurrent.futures.wait([
             success_count_future,
             scheduled_count_future,
             failure_count_future,
             inprogress_count_future,
+            total_count_future
         ])
 
         return {
             "config_name": config_name,
             "client_name": client_name,
-            "success": success_count_future.result(),
-            "scheduled": scheduled_count_future.result(),
-            "failure": failure_count_future.result(),
-            "in-progress": inprogress_count_future.result(),
+            "downloaded_shards": success_count_future.result(),
+            "scheduled_shards": scheduled_count_future.result(),
+            "failed_shards": failure_count_future.result(),
+            "in-progress_shards": inprogress_count_future.result(),
+            "total_shards":total_count_future.result()
         }
 
 
@@ -61,10 +66,11 @@ def get_fetch_config_stats_mock():
         return {
             "config_name": config_name,
             "client_name": client_name,
-            "success": 0,
-            "scheduled": 0,
-            "failure": 0,
-            "in-progress": 0,
+            "downloaded_shards": 0,
+            "scheduled_shards": 0,
+            "failed_shards": 0,
+            "in-progress_shards": 0,
+            "total_shards": 0
         }
 
     return fetch_config_stats
