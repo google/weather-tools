@@ -61,7 +61,7 @@ def submit_download(
                 status_code=500, detail=f"Failed to save file '{file.filename}'."
             )
 
-def get_config_stats(config_name: str, manifest_handler: ManifestHandler):
+def get_config_stats(config_name: str, client_name: str, manifest_handler: ManifestHandler):
     """Get all the config stats parallely."""
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -79,81 +79,50 @@ def get_config_stats(config_name: str, manifest_handler: ManifestHandler):
             ])
         
         return {
+            "config_name": config_name,
+            "client_name": client_name,
             "success": success_count_future.result(),
             "scheduled": scheduled_count_future.result(),
             "failure": failure_count_future.result(),
-            "inprogress": inprogress_count_future.result(),
+            "in-progress": inprogress_count_future.result(),
         }
 
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
-async def get_downloads(client_name: str | None = None, manifest_handler: ManifestHandler = Depends(get_manifest_handler)):
-    # Get this kind of response by querying download collection + manifest collection.
+async def get_downloads(client_name: str | None = None,
+                        download_handler: DownloadHandler = Depends(get_download_handler),
+                        manifest_handler: ManifestHandler = Depends(get_manifest_handler)):
+    downloads = download_handler._get_downloads(client_name)
+    config_stats = None
 
-    stats = get_config_stats("no_exist.cfg", manifest_handler)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures  = []
 
-    return stats
+        for download in downloads:
+            future = executor.submit(get_config_stats, download['config_name'], download['client_name'], manifest_handler)
+            futures.append(future)
 
-    if client_name:
-        result = {
-            "config_name": "config_3",
-            "client_name": client_name,
-            "total_shards": 10000,
-            "scheduled_shards": 4990,
-            "downloaded_shards": 5000,
-            "failed_shards": 0,
-        }
-    else:
-        result = [
-            {
-                "config_name": "config_1",
-                "client_name": "MARS",
-                "total_shards": 10000,
-                "scheduled_shards": 4990,
-                "downloaded_shards": 5000,
-                "failed_shards": 0,
-            },
-            {
-                "config_name": "config_2",
-                "client_name": "MARS",
-                "total_shards": 10000,
-                "scheduled_shards": 4990,
-                "downloaded_shards": 5000,
-                "failed_shards": 0,
-            },
-            {
-                "config_name": "config_3",
-                "client_name": "CDS",
-                "total_shards": 10000,
-                "scheduled_shards": 4990,
-                "downloaded_shards": 5000,
-                "failed_shards": 0,
-            },
-        ]
-    return result
+        concurrent.futures.wait(futures)
+        config_stats = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+    return config_stats
 
 
 # Get status of particular download
 @router.get("/{config_name}")
-async def get_download(
-    config_name: str, download_handler: DownloadHandler = Depends(get_download_handler)
+async def get_download_by_config_name(
+    config_name: str,
+    download_handler: DownloadHandler = Depends(get_download_handler),
+    manifest_handler: ManifestHandler = Depends(get_manifest_handler)
 ):
     if not download_handler._check_download_exists(config_name):
         raise HTTPException(
             status_code=404, detail="Download config not found in weather-dl v2."
         )
-
-    # Get this kind of response by querying fake_manifest_db.
-    result = {
-        "config_name": config_name,
-        "client_name": "MARS",
-        "total_shards": 10000,
-        "scheduled_shards": 4990,
-        "downloaded_shards": 5000,
-        "failed_shards": 0,
-    }
-    return result
+    
+    config = download_handler._get_download_by_config_name(config_name)
+    return get_config_stats(config['config_name'], config['client_name'], manifest_handler)
 
 
 # Stop & remove the execution of the config.

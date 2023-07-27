@@ -30,6 +30,14 @@ class DownloadHandler(abc.ABC):
     def _check_download_exists(self, config_name: str) -> bool:
         pass
 
+    @abc.abstractmethod
+    def _get_downloads(self, client_name: str) -> list:
+        pass
+
+    @abc.abstractmethod
+    def _get_download_by_config_name(self, config_name: str) -> dict:
+        pass
+
 
 class DownloadHandlerMock(DownloadHandler):
 
@@ -83,3 +91,25 @@ class DownloadHandlerFirestore(DownloadHandler):
             self.db.collection("download").document(config_name).get()
         )
         return result.exists
+    
+    def _get_downloads(self, client_name: str) -> list:
+        snapshot_list = None
+        if(client_name):
+            snapshot_list = self.db.collection(self.collection).where("client_name", "==", client_name).get()
+        else:
+            snapshot_list = self.db.collection(self.collection).get()
+        result = []
+        for snapshot in snapshot_list:
+            result.append(
+                self.db.collection(self.collection)
+                .document(snapshot.id)
+                .get()
+                .to_dict()
+            )
+        return result
+    
+    def _get_download_by_config_name(self, config_name: str) -> dict:
+        result: DocumentSnapshot = (
+            self.db.collection(self.collection).document(config_name).get()
+        )
+        return result.to_dict()
