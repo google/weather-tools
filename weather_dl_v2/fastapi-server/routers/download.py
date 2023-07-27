@@ -41,7 +41,7 @@ def fetch_config_stats(
             scheduled_count_future,
             failure_count_future,
             inprogress_count_future,
-            total_count_future
+            total_count_future,
         ])
 
         return {
@@ -51,7 +51,7 @@ def fetch_config_stats(
             "scheduled_shards": scheduled_count_future.result(),
             "failed_shards": failure_count_future.result(),
             "in-progress_shards": inprogress_count_future.result(),
-            "total_shards":total_count_future.result()
+            "total_shards": total_count_future.result(),
         }
 
 
@@ -70,7 +70,7 @@ def get_fetch_config_stats_mock():
             "scheduled_shards": 0,
             "failed_shards": 0,
             "in-progress_shards": 0,
-            "total_shards": 0
+            "total_shards": 0,
         }
 
     return fetch_config_stats
@@ -170,7 +170,7 @@ async def get_download_by_config_name(
         raise HTTPException(
             status_code=404, detail="Download config not found in weather-dl v2."
         )
-    
+
     return fetch_config_stats(
         config["config_name"], config["client_name"], manifest_handler
     )

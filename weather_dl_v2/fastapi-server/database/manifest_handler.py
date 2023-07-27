@@ -52,7 +52,7 @@ class ManifestHandlerMock(ManifestHandler):
 
     def _get_download_success_count(self, config_name: str) -> int:
         return 0
-    
+
     def _get_download_total_count(self, config_name: str) -> int:
         return 0
 
@@ -123,7 +123,7 @@ class ManifestHandlerFirestore(ManifestHandler):
         count = result[0][0].value
 
         return count
-    
+
     def _get_download_total_count(self, config_name: str) -> int:
         result = (
             self.db.collection(self.collection)

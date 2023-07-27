@@ -36,7 +36,7 @@ def test_get_downloads_basic():
         "scheduled_shards": 0,
         "failed_shards": 0,
         "in-progress_shards": 0,
-        "total_shards": 0
+        "total_shards": 0,
     }]
 
     _get_download(headers, query, code, expected)
@@ -118,7 +118,7 @@ def test_get_download_by_config_basic():
         "scheduled_shards": 0,
         "failed_shards": 0,
         "in-progress_shards": 0,
-        "total_shards": 0
+        "total_shards": 0,
     }
 
     _get_download_by_config(headers, config_name, code, expected)
