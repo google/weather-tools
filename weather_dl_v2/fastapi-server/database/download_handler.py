@@ -36,7 +36,7 @@ class DownloadHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _get_download_by_config_name(self, config_name: str) -> dict:
+    def _get_download_by_config_name(self, config_name: str):
         pass
 
 
@@ -66,7 +66,7 @@ class DownloadHandlerMock(DownloadHandler):
     def _get_downloads(self, client_name: str) -> list:
         return [{"config_name": "example.cfg", "client_name": "client"}]
 
-    def _get_download_by_config_name(self, config_name: str) -> dict:
+    def _get_download_by_config_name(self, config_name: str):
         return {"config_name": "example.cfg", "client_name": "client"}
 
 
@@ -119,8 +119,11 @@ class DownloadHandlerFirestore(DownloadHandler):
             )
         return result
 
-    def _get_download_by_config_name(self, config_name: str) -> dict:
+    def _get_download_by_config_name(self, config_name: str):
         result: DocumentSnapshot = (
             self.db.collection(self.collection).document(config_name).get()
         )
-        return result.to_dict()
+        if result.exists:
+            return result.to_dict()
+        else:
+            return None

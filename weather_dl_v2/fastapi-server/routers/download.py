@@ -164,12 +164,13 @@ async def get_download_by_config_name(
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     fetch_config_stats=Depends(get_fetch_config_stats),
 ):
-    if not download_handler._check_download_exists(config_name):
+    config = download_handler._get_download_by_config_name(config_name)
+
+    if config is None:
         raise HTTPException(
             status_code=404, detail="Download config not found in weather-dl v2."
         )
-
-    config = download_handler._get_download_by_config_name(config_name)
+    
     return fetch_config_stats(
         config["config_name"], config["client_name"], manifest_handler
     )
