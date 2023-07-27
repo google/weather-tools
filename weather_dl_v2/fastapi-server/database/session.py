@@ -15,13 +15,14 @@ class Database(abc.ABC):
     def _get_db(self):
         pass
 
+db = None
 
 def get_db() -> firestore.firestore.Client:
     """Acquire a firestore client, initializing the firebase app if necessary.
     Will attempt to get the db client five times. If it's still unsuccessful, a
     `ManifestException` will be raised.
     """
-    db = None
+    global db
     attempts = 0
 
     while db is None:

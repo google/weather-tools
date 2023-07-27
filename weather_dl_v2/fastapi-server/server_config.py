@@ -27,6 +27,12 @@ firestore_dict = {
     "LICENSE_COLLECTION": "license",
 }
 
+server_config = None
 
 def get_config():
-    return ServerConfig.from_dict(firestore_dict)
+    global server_config
+
+    if(server_config is None):
+        server_config = ServerConfig.from_dict(firestore_dict)
+
+    return server_config
