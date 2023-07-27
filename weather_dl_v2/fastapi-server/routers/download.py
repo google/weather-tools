@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depen
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
+from database.manifest_handler import ManifestHandler, get_manifest_handler
+import concurrent.futures
 import shutil
 import os
 
@@ -59,12 +61,40 @@ def submit_download(
                 status_code=500, detail=f"Failed to save file '{file.filename}'."
             )
 
+def get_config_stats(config_name: str, manifest_handler: ManifestHandler):
+    """Get all the config stats parallely."""
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+
+        success_count_future = executor.submit(manifest_handler._get_download_success_count, config_name)
+        scheduled_count_future = executor.submit(manifest_handler._get_download_scheduled_count, config_name)
+        failure_count_future = executor.submit(manifest_handler._get_download_failure_count, config_name)
+        inprogress_count_future = executor.submit(manifest_handler._get_download_inprogress_count, config_name)
+
+        concurrent.futures.wait([
+            success_count_future,
+            scheduled_count_future,
+            failure_count_future,
+            inprogress_count_future
+            ])
+        
+        return {
+            "success": success_count_future.result(),
+            "scheduled": scheduled_count_future.result(),
+            "failure": failure_count_future.result(),
+            "inprogress": inprogress_count_future.result(),
+        }
 
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
-async def get_downloads(client_name: str | None = None):
+async def get_downloads(client_name: str | None = None, manifest_handler: ManifestHandler = Depends(get_manifest_handler)):
     # Get this kind of response by querying download collection + manifest collection.
+
+    stats = get_config_stats("no_exist.cfg", manifest_handler)
+
+    return stats
+
     if client_name:
         result = {
             "config_name": "config_3",
