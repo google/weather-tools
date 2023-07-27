@@ -9,6 +9,7 @@ class ServerConfig:
     download_collection: str = ""
     queues_collection: str = ""
     license_collection: str = ""
+    manifest_collection: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
