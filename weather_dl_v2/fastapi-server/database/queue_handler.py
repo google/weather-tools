@@ -127,7 +127,7 @@ class QueueHandlerFirestore(QueueHandler):
 
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = get_config().QUEUES_COLLECTION
+        self.collection = get_config().queues_collection
 
     def _create_license_queue(self, license_id: str, client_name: str) -> None:
         result: WriteResult = (

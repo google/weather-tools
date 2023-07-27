@@ -115,7 +115,7 @@ class LicenseHandlerFirestore(LicenseHandler):
 
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = get_config().LICENSE_COLLECTION
+        self.collection = get_config().license_collection
 
     # TODO: find alternative way to create license_id
     def _add_license(self, license_dict: dict) -> str:

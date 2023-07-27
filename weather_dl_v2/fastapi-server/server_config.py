@@ -6,9 +6,9 @@ Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]
 
 @dataclasses.dataclass
 class ServerConfig:
-    DOWNLOAD_COLLECTION: str = ""
-    QUEUES_COLLECTION: str = ""
-    LICENSE_COLLECTION: str = ""
+    download_collection: str = ""
+    queues_collection: str = ""
+    license_collection: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod

@@ -60,7 +60,7 @@ class DownloadHandlerFirestore(DownloadHandler):
 
     def __init__(self, db: firestore.firestore.Client):
         self.db = db
-        self.collection = get_config().DOWNLOAD_COLLECTION
+        self.collection = get_config().download_collection
 
     def _start_download(self, config_name: str, client_name: str) -> None:
         result: WriteResult = (

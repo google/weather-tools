@@ -1,5 +1,5 @@
 {
-    "DOWNLOAD_COLLECTION": "download",
-    "QUEUES_COLLECTION": "queues",
-    "LICENSE_COLLECTION": "license"
+    "download_collection": "download",
+    "queues_collection": "queues",
+    "license_collection": "license"
 }
