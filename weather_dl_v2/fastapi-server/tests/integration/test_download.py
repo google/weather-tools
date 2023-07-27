@@ -5,7 +5,7 @@ from main import app, ROOT_DIR
 from database.download_handler import get_download_handler, get_mock_download_handler
 from database.license_handler import get_license_handler, get_mock_license_handler
 from database.queue_handler import get_queue_handler, get_mock_queue_handler
-from routers.download import get_upload, get_upload_mock
+from routers.download import get_upload, get_upload_mock, get_fetch_config_stats, get_fetch_config_stats_mock
 
 client = TestClient(app)
 
@@ -15,6 +15,7 @@ app.dependency_overrides[get_download_handler] = get_mock_download_handler
 app.dependency_overrides[get_license_handler] = get_mock_license_handler
 app.dependency_overrides[get_queue_handler] = get_mock_queue_handler
 app.dependency_overrides[get_upload] = get_upload_mock
+app.dependency_overrides[get_fetch_config_stats] = get_fetch_config_stats_mock
 
 
 def _get_download(headers, query, code, expected):
@@ -30,29 +31,13 @@ def test_get_downloads_basic():
     code = 200
     expected = [
         {
-            "config_name": "config_1",
-            "client_name": "MARS",
-            "total_shards": 10000,
-            "scheduled_shards": 4990,
-            "downloaded_shards": 5000,
-            "failed_shards": 0,
-        },
-        {
-            "config_name": "config_2",
-            "client_name": "MARS",
-            "total_shards": 10000,
-            "scheduled_shards": 4990,
-            "downloaded_shards": 5000,
-            "failed_shards": 0,
-        },
-        {
-            "config_name": "config_3",
-            "client_name": "CDS",
-            "total_shards": 10000,
-            "scheduled_shards": 4990,
-            "downloaded_shards": 5000,
-            "failed_shards": 0,
-        },
+            "config_name": "example.cfg",
+            "client_name": "client",
+            "success": 0,
+            "scheduled": 0,
+            "failure": 0,
+            "in-progress": 0,
+        }
     ]
 
     _get_download(headers, query, code, expected)
@@ -125,15 +110,15 @@ def _get_download_by_config(headers, config_name, code, expected):
 
 def test_get_download_by_config_basic():
     headers = {}
-    config_name = "dummy_config"
+    config_name = "example.cfg"
     code = 200
     expected = {
         "config_name": config_name,
-        "client_name": "MARS",
-        "total_shards": 10000,
-        "scheduled_shards": 4990,
-        "downloaded_shards": 5000,
-        "failed_shards": 0,
+        "client_name": "client",
+        "success": 0,
+        "scheduled": 0,
+        "failure": 0,
+        "in-progress": 0,
     }
 
     _get_download_by_config(headers, config_name, code, expected)

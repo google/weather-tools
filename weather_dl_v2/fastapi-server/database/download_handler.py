@@ -61,6 +61,20 @@ class DownloadHandlerMock(DownloadHandler):
             return False
         else:
             return True
+        
+    def _get_downloads(self, client_name: str) -> list:
+        return [
+            {
+                "config_name": "example.cfg",
+                "client_name": "client"
+            }
+        ]
+    
+    def _get_download_by_config_name(self, config_name: str) -> dict:
+        return {
+                "config_name": "example.cfg",
+                "client_name": "client"
+            }
 
 
 class DownloadHandlerFirestore(DownloadHandler):

@@ -31,7 +31,18 @@ class ManifestHandler(abc.ABC):
         pass
 
 class ManifestHandlerMock(ManifestHandler):
-    pass
+    
+    def _get_download_failure_count(self, config_name: str) -> int:
+        return 0
+    
+    def _get_download_inprogress_count(self, config_name: str) -> int:
+        return 0
+    
+    def _get_download_scheduled_count(self, config_name: str) -> int:
+        return 0
+    
+    def _get_download_success_count(self, config_name: str) -> int:
+        return 0
 
 class ManifestHandlerFirestore(ManifestHandler):
     def __init__(self, db: firestore.firestore.Client):

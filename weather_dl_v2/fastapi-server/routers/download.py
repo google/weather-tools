@@ -13,6 +13,46 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+def fetch_config_stats(config_name: str, client_name: str, manifest_handler: ManifestHandler):
+    """Get all the config stats parallely."""
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+
+        success_count_future = executor.submit(manifest_handler._get_download_success_count, config_name)
+        scheduled_count_future = executor.submit(manifest_handler._get_download_scheduled_count, config_name)
+        failure_count_future = executor.submit(manifest_handler._get_download_failure_count, config_name)
+        inprogress_count_future = executor.submit(manifest_handler._get_download_inprogress_count, config_name)
+
+        concurrent.futures.wait([
+            success_count_future,
+            scheduled_count_future,
+            failure_count_future,
+            inprogress_count_future
+            ])
+        
+        return {
+            "config_name": config_name,
+            "client_name": client_name,
+            "success": success_count_future.result(),
+            "scheduled": scheduled_count_future.result(),
+            "failure": failure_count_future.result(),
+            "in-progress": inprogress_count_future.result(),
+        }
+
+def get_fetch_config_stats():
+    return fetch_config_stats
+
+def get_fetch_config_stats_mock():
+    def fetch_config_stats(config_name: str, client_name: str, manifest_handler: ManifestHandler):
+        return {
+            "config_name": config_name,
+            "client_name": client_name,
+            "success": 0,
+            "scheduled": 0,
+            "failure": 0,
+            "in-progress": 0,
+        }
+    return fetch_config_stats
 
 def get_upload():
     def upload(file: UploadFile):
@@ -61,38 +101,15 @@ def submit_download(
                 status_code=500, detail=f"Failed to save file '{file.filename}'."
             )
 
-def get_config_stats(config_name: str, client_name: str, manifest_handler: ManifestHandler):
-    """Get all the config stats parallely."""
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-
-        success_count_future = executor.submit(manifest_handler._get_download_success_count, config_name)
-        scheduled_count_future = executor.submit(manifest_handler._get_download_scheduled_count, config_name)
-        failure_count_future = executor.submit(manifest_handler._get_download_failure_count, config_name)
-        inprogress_count_future = executor.submit(manifest_handler._get_download_inprogress_count, config_name)
-
-        concurrent.futures.wait([
-            success_count_future,
-            scheduled_count_future,
-            failure_count_future,
-            inprogress_count_future
-            ])
-        
-        return {
-            "config_name": config_name,
-            "client_name": client_name,
-            "success": success_count_future.result(),
-            "scheduled": scheduled_count_future.result(),
-            "failure": failure_count_future.result(),
-            "in-progress": inprogress_count_future.result(),
-        }
 
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
 async def get_downloads(client_name: str | None = None,
                         download_handler: DownloadHandler = Depends(get_download_handler),
-                        manifest_handler: ManifestHandler = Depends(get_manifest_handler)):
+                        manifest_handler: ManifestHandler = Depends(get_manifest_handler),
+                        fetch_config_stats = Depends(get_fetch_config_stats)):
     downloads = download_handler._get_downloads(client_name)
     config_stats = None
 
@@ -100,7 +117,7 @@ async def get_downloads(client_name: str | None = None,
         futures  = []
 
         for download in downloads:
-            future = executor.submit(get_config_stats, download['config_name'], download['client_name'], manifest_handler)
+            future = executor.submit(fetch_config_stats, download['config_name'], download['client_name'], manifest_handler)
             futures.append(future)
 
         concurrent.futures.wait(futures)
@@ -114,7 +131,8 @@ async def get_downloads(client_name: str | None = None,
 async def get_download_by_config_name(
     config_name: str,
     download_handler: DownloadHandler = Depends(get_download_handler),
-    manifest_handler: ManifestHandler = Depends(get_manifest_handler)
+    manifest_handler: ManifestHandler = Depends(get_manifest_handler),
+    fetch_config_stats = Depends(get_fetch_config_stats)
 ):
     if not download_handler._check_download_exists(config_name):
         raise HTTPException(
@@ -122,7 +140,7 @@ async def get_download_by_config_name(
         )
     
     config = download_handler._get_download_by_config_name(config_name)
-    return get_config_stats(config['config_name'], config['client_name'], manifest_handler)
+    return fetch_config_stats(config['config_name'], config['client_name'], manifest_handler)
 
 
 # Stop & remove the execution of the config.
