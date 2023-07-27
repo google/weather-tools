@@ -2,11 +2,14 @@ import dataclasses
 import typing as t
 import json
 
+Values = t.Union[t.List['Values'], t.Dict[str, 'Values'], bool, int, float, str]  # pytype: disable=not-supported-yet
+
 @dataclasses.dataclass
 class ServerConfig:
     DOWNLOAD_COLLECTION: str = ""
     QUEUES_COLLECTION: str = ""
     LICENSE_COLLECTION: str = ""
+    kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, config: t.Dict):
