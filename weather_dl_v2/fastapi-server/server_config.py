@@ -1,6 +1,6 @@
 import dataclasses
 import typing as t
-
+import json
 
 @dataclasses.dataclass
 class ServerConfig:
@@ -20,19 +20,15 @@ class ServerConfig:
 
         return config_instance
 
-
-firestore_dict = {
-    "DOWNLOAD_COLLECTION": "download",
-    "QUEUES_COLLECTION": "queues",
-    "LICENSE_COLLECTION": "license",
-}
-
 server_config = None
 
 def get_config():
     global server_config
+    server_config_json = "server_config.json"
 
     if(server_config is None):
-        server_config = ServerConfig.from_dict(firestore_dict)
+        with open(server_config_json) as file:
+            firestore_dict = json.load(file)
+            server_config = ServerConfig.from_dict(firestore_dict)
 
     return server_config
