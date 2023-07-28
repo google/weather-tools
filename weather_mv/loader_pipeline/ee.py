@@ -15,6 +15,7 @@ import argparse
 import dataclasses
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -51,6 +52,7 @@ ASSET_TYPE_TO_EXTENSION_MAPPING = {
     'IMAGE': '.tiff',
     'TABLE': '.csv'
 }
+ROWS_PER_WRITE = 10_000  # Number of rows per feature collection write.
 
 
 def is_compute_engine() -> bool:
@@ -486,21 +488,42 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 channel_names = []
                 file_name = f'{asset_name}.csv'
 
-                df = xr.Dataset.to_dataframe(ds)
-                df = df.reset_index()
-                # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
-                # fillna fills in NaNs, NULLs, and NaTs but we have to exclude NaTs.
-                non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
-                df[non_nat.columns] = non_nat.fillna(-9999)
+                shape = math.prod(list(ds.dims.values()))
+                _dims = list(ds.dims)
+                _coords = [c for c in list(ds.coords) if c not in _dims]
+                _vars = list(ds.data_vars)
+
+                vars_data = [ds[var].data.flatten() for var in _vars]
+                coords_data = [np.full((shape,), ds[coord].data) for coord in _coords]
+                dims_data = [v.flatten() for v in np.meshgrid(*([ds[dim].data for dim in list(ds.dims)][::-1]))[::-1]]
+
+                header = _dims + _coords + _vars
+                data = dims_data + coords_data + vars_data
 
                 # Copy in-memory dataframe to gcs.
                 target_path = os.path.join(self.asset_location, file_name)
-                with tempfile.NamedTemporaryFile() as tmp_df:
-                    df.to_csv(tmp_df.name, index=False)
-                    tmp_df.flush()
-                    tmp_df.seek(0)
+                with tempfile.NamedTemporaryFile() as temp:
+
+                    with open(temp.name, 'a') as f:
+                        f.write(",".join(header) + "\n")
+                        for i in range(0, shape, ROWS_PER_WRITE):
+                            f.write(
+                                "\n".join(
+                                    [
+                                        ",".join(map(str, i))
+                                        for i in zip(
+                                            *[
+                                                d[i:i + ROWS_PER_WRITE]
+                                                for d in data
+                                            ]
+                                        )
+                                    ]
+                                ).replace("NULL", "-9999")
+                                + "\n"
+                            )  # Create rows...
+
                     with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+                        shutil.copyfileobj(temp, dst, WRITE_CHUNK_SIZE)
 
             asset_data = AssetData(
                 name=asset_name,
