@@ -205,7 +205,7 @@ secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
 secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
 ```
 
-Note: here, secret_key is the [secret-manager](https://cloud.google.com/secret-manager) key with value likes this: {"api_url": "URL", "api_key": "KEY"}
+Note: Here, secret_key is the [secret-manager](https://cloud.google.com/secret-manager) key with value like this: {"api_url": "URL", "api_key": "KEY"}
 
 ## `selection` Section
 
