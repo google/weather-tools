@@ -23,6 +23,7 @@ import textwrap
 import typing as t
 import numpy as np
 from collections import OrderedDict
+from google.cloud import secretmanager
 from urllib.parse import urlparse
 
 from .clients import CLIENTS
@@ -460,6 +461,23 @@ def prepare_target_name(config: Config) -> str:
     return target
 
 
+def get_secret(api_key: str) -> dict:
+    """Retrieve the secret value from the Google Cloud Secret Manager.
+
+    Parameters:
+        api_key (str): The name or identifier of the secret in the Google
+                        Cloud Secret Manager.
+
+    Returns:
+        dict: A dictionary containing the retrieved secret data.
+    """
+    client = secretmanager.SecretManagerServiceClient()
+    response = client.access_secret_version(request={"name": api_key})
+    payload = response.payload.data.decode("UTF-8")
+    secret_dict = json.loads(payload)
+    return secret_dict
+
+
 def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
     """Collect parameter subsections from main configuration.
 
@@ -471,18 +489,20 @@ def get_subsections(config: Config) -> t.List[t.Tuple[str, t.Dict]]:
     For example:
     ```
       [parameters.alice]
-      api_key=KKKKK1
-      api_url=UUUUU1
+      secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
       [parameters.bob]
-      api_key=KKKKK2
-      api_url=UUUUU2
+      secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
       [parameters.eve]
-      api_key=KKKKK3
-      api_url=UUUUU3
+      secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
     ```
     """
-    return [(name, params) for name, params in config.kwargs.items()
+    config_licences = [(name, params) for name, params in config.kwargs.items()
             if isinstance(params, dict)] or [('default', {})]
+
+    actual_licences = []
+    for d in config_licences:
+        actual_licences.append( (d[0], get_secret(d[1]['secret_key'])) if d[1] else d )
+    return actual_licences
 
 
 def all_equal(iterator):
