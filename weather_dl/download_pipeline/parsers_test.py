@@ -552,17 +552,17 @@ class ParseConfigTest(unittest.TestCase):
         mock_secretmanager.return_value.access_secret_version.return_value = (
             mock_response)
 
-        api_key = "projects/my-project/secrets/my-secret/versions/latest"
-        result = get_secret(api_key)
+        secret_key = "projects/my-project/secrets/my-secret/versions/latest"
+        result = get_secret(secret_key)
         self.assertEqual(result, secret_data)
 
     @patch("weather_dl.download_pipeline.parsers.secretmanager.SecretManagerServiceClient")
     def test_get_secret_failure(self, mock_secretmanager):
         mock_secretmanager.return_value.access_secret_version.side_effect = (
             Exception("Error retrieving secret"))
-        api_key = "projects/my-project/secrets/my-secret/versions/latest"
+        secret_key = "projects/my-project/secrets/my-secret/versions/latest"
         with self.assertRaises(Exception):
-            get_secret(api_key)
+            get_secret(secret_key)
 
 
 class HelpersTest(unittest.TestCase):
