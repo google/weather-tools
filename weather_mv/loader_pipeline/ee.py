@@ -495,12 +495,18 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
 
                 vars_data = [ds[var].data.flatten() for var in _vars]
                 coords_data = [np.full((shape,), ds[coord].data) for coord in _coords]
-                dims_data = [
-                    v.flatten() for v in np.meshgrid(*([ds[dim].data for dim in list(ds.dims)]), indexing="ij")
-                ]
 
                 header = _dims + _coords + _vars
-                data = dims_data + coords_data + vars_data
+                data = coords_data + vars_data
+
+                dims_shape = [len(ds[dim].data) for dim in _dims]
+                dims_data = [ds[dim].data for dim in _dims]
+
+                def get_dims_data(index: int) -> t.List[t.Any]:
+                    """Returns dimensions for the flattened index."""
+                    return [
+                        dim[int(index / math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
+                    ]
 
                 # Copy in-memory dataframe to gcs.
                 target_path = os.path.join(self.asset_location, file_name)
@@ -515,7 +521,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                         ",".join(map(str, i))
                                         for i in zip(
                                             *[
-                                                d[i:i + ROWS_PER_WRITE]
+                                                [*get_dims_data(i), *d[i:i + ROWS_PER_WRITE]]
                                                 for d in data
                                             ]
                                         )
