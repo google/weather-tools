@@ -495,7 +495,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
 
                 vars_data = [ds[var].data.flatten() for var in _vars]
                 coords_data = [np.full((shape,), ds[coord].data) for coord in _coords]
-                dims_data = [v.flatten() for v in np.meshgrid(*([ds[dim].data for dim in list(ds.dims)][::-1]))[::-1]]
+                dims_data = [
+                    v.flatten() for v in np.meshgrid(*([ds[dim].data for dim in list(ds.dims)]), indexing="ij")
+                ]
 
                 header = _dims + _coords + _vars
                 data = dims_data + coords_data + vars_data
