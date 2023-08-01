@@ -489,46 +489,42 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 file_name = f'{asset_name}.csv'
 
                 shape = math.prod(list(ds.dims.values()))
-                _dims = list(ds.dims)
-                _coords = [c for c in list(ds.coords) if c not in _dims]
-                _vars = list(ds.data_vars)
+                # Names of dimesions, coordinates and data variables.
+                dims = list(ds.dims)
+                coords = [c for c in list(ds.coords) if c not in dims]
+                vars = list(ds.data_vars)
+                header = dims + coords + vars
 
-                vars_data = [ds[var].data.flatten() for var in _vars]
-                coords_data = [np.full((shape,), ds[coord].data) for coord in _coords]
-
-                header = _dims + _coords + _vars
+                # Data of dimesions, coordinates and data variables.
+                dims_data = [ds[dim].data for dim in dims]
+                coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
+                vars_data = [ds[var].data.flatten() for var in vars]
                 data = coords_data + vars_data
 
-                dims_shape = [len(ds[dim].data) for dim in _dims]
-                dims_data = [ds[dim].data for dim in _dims]
+                dims_shape = [len(ds[dim].data) for dim in dims]
 
                 def get_dims_data(index: int) -> t.List[t.Any]:
-                    """Returns dimensions for the flattened index."""
+                    """Returns dimensions for the given flattened index."""
                     return [
                         dim[int(index / math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
                     ]
 
-                # Copy in-memory dataframe to gcs.
+                # Copy CSV to gcs.
                 target_path = os.path.join(self.asset_location, file_name)
                 with tempfile.NamedTemporaryFile() as temp:
-
                     with open(temp.name, 'a') as f:
                         f.write(",".join(header) + "\n")
+                        # Write rows in batches.
                         for i in range(0, shape, ROWS_PER_WRITE):
                             f.write(
                                 "\n".join(
                                     [
                                         ",".join(map(str, i))
-                                        for i in zip(
-                                            *[
-                                                [*get_dims_data(i), *d[i:i + ROWS_PER_WRITE]]
-                                                for d in data
-                                            ]
-                                        )
+                                        for i in zip(*[[*get_dims_data(i), *d[i:i + ROWS_PER_WRITE]] for d in data])
                                     ]
                                 ).replace("NULL", "-9999")
                                 + "\n"
-                            )  # Create rows...
+                            )
 
                     with FileSystems().create(target_path) as dst:
                         shutil.copyfileobj(temp, dst, WRITE_CHUNK_SIZE)
