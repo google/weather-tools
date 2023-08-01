@@ -28,7 +28,6 @@ from multiprocessing import Process, Queue
 import apache_beam as beam
 import ee
 import numpy as np
-import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
