@@ -88,7 +88,9 @@ class DownloadHandlerFirestore(DownloadHandler):
         )
 
     async def _stop_download(self, config_name: str) -> None:
-        timestamp = await self.db.collection(self.collection).document(config_name).delete()
+        timestamp = (
+            await self.db.collection(self.collection).document(config_name).delete()
+        )
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: {timestamp}."
         )
@@ -109,7 +111,7 @@ class DownloadHandlerFirestore(DownloadHandler):
             )
         else:
             docs = self.db.collection(self.collection).stream()
-        
+
         return [doc.to_dict() async for doc in docs]
 
     async def _get_download_by_config_name(self, config_name: str):

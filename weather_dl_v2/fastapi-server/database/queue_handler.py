@@ -3,7 +3,7 @@ import logging
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
-from database.session import get_db, get_async_client
+from database.session import get_async_client
 from server_config import get_config
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,6 @@ class QueueHandler(abc.ABC):
         pass
 
 
-
 class QueueHandlerMock(QueueHandler):
 
     def __init__(self):
@@ -110,7 +109,6 @@ class QueueHandlerMock(QueueHandler):
         print("Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
 
 
-
 class QueueHandlerFirestore(QueueHandler):
 
     def __init__(self, db: firestore.firestore.Client):
@@ -128,7 +126,9 @@ class QueueHandlerFirestore(QueueHandler):
         )
 
     async def _remove_license_queue(self, license_id: str) -> None:
-        timestamp = await self.db.collection(self.collection).document(license_id).delete()
+        timestamp = (
+            await self.db.collection(self.collection).document(license_id).delete()
+        )
         logger.info(
             f"Removed {license_id} queue in 'queues' collection. Update_time: {timestamp}."
         )
@@ -190,7 +190,7 @@ class QueueHandlerFirestore(QueueHandler):
         self, license_id: str, config_name: str, priority: int
     ) -> None:
         snapshot: DocumentSnapshot = (
-            await self.db.collection("queues").document(license_id).get()
+            await self.db.collection(self.collection).document(license_id).get()
         )
         priority_list = snapshot.to_dict()["queue"]
         if config_name not in priority_list:
@@ -199,7 +199,7 @@ class QueueHandlerFirestore(QueueHandler):
         new_priority_list = [c for c in priority_list if c != config_name]
         new_priority_list.insert(priority, config_name)
         result: WriteResult = (
-            await self.db.collection("queues")
+            await self.db.collection(self.collection)
             .document(license_id)
             .update({"queue": new_priority_list})
         )

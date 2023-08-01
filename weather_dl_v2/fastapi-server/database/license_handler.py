@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_license_handler():
-    
     return LicenseHandlerFirestore(db=get_async_client())
 
 
@@ -125,7 +124,9 @@ class LicenseHandlerFirestore(LicenseHandler):
         license_id = f"L{license_count[0][0].value + 1}"
         license_dict["license_id"] = license_id
         result: WriteResult = (
-            await self.db.collection(self.collection).document(license_id).set(license_dict)
+            await self.db.collection(self.collection)
+            .document(license_id)
+            .set(license_dict)
         )
         logger.info(
             f"Added {license_id} in 'license' collection. Update_time: {result.update_time}."
@@ -133,7 +134,9 @@ class LicenseHandlerFirestore(LicenseHandler):
         return license_id
 
     async def _delete_license(self, license_id: str) -> None:
-        timestamp = await self.db.collection(self.collection).document(license_id).delete()
+        timestamp = (
+            await self.db.collection(self.collection).document(license_id).delete()
+        )
         logger.info(
             f"Removed {license_id} in 'license' collection. Update_time: {timestamp}."
         )
@@ -161,7 +164,7 @@ class LicenseHandlerFirestore(LicenseHandler):
         return result.to_dict()
 
     async def _get_license_by_client_name(self, client_name: str) -> list:
-        docs  = (
+        docs = (
             self.db.collection(self.collection)
             .where(filter=FieldFilter("client_name", "==", client_name))
             .stream()
@@ -173,7 +176,7 @@ class LicenseHandlerFirestore(LicenseHandler):
         return [doc.to_dict() async for doc in docs]
 
     async def _get_license_without_deployment(self) -> list:
-        docs  = (
+        docs = (
             self.db.collection(self.collection)
             .where(filter=FieldFilter("k8s_deployment_id", "==", ""))
             .stream()

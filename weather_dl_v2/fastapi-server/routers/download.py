@@ -25,17 +25,19 @@ async def fetch_config_stats(
     inprogress_coroutine = manifest_handler._get_download_inprogress_count(config_name)
     total_coroutine = manifest_handler._get_download_total_count(config_name)
 
-
-    (success_count,
-    scheduled_count,
-    failure_count,
-    inprogress_count,
-    total_count) = await asyncio.gather(
-                            success_coroutine, 
-                            scheduled_coroutine, 
-                            failure_coroutine, 
-                            inprogress_coroutine, 
-                            total_coroutine)
+    (
+        success_count,
+        scheduled_count,
+        failure_count,
+        inprogress_count,
+        total_count,
+    ) = await asyncio.gather(
+        success_coroutine,
+        scheduled_coroutine,
+        failure_coroutine,
+        inprogress_coroutine,
+        total_coroutine,
+    )
 
     return {
         "config_name": config_name,
@@ -128,10 +130,12 @@ async def get_downloads(
 ):
     downloads = await download_handler._get_downloads(client_name)
     coroutines = []
-    
+
     for download in downloads:
         coroutines.append(
-            fetch_config_stats(download["config_name"], download["client_name"], manifest_handler)
+            fetch_config_stats(
+                download["config_name"], download["client_name"], manifest_handler
+            )
         )
 
     return await asyncio.gather(*coroutines)
