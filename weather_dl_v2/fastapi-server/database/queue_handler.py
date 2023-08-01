@@ -1,7 +1,7 @@
 import abc
 import logging
 from firebase_admin import firestore
-from google.cloud.firestore_v1 import DocumentSnapshot
+from google.cloud.firestore_v1 import DocumentSnapshot, FieldFilter
 from google.cloud.firestore_v1.types import WriteResult
 from database.session import get_async_client
 from server_config import get_config
@@ -146,7 +146,7 @@ class QueueHandlerFirestore(QueueHandler):
     async def _get_queue_by_client_name(self, client_name: str) -> list:
         docs = (
             self.db.collection(self.collection)
-            .where("client_name", "==", client_name)
+            .where(filter=FieldFilter("client_name", "==", client_name))
             .stream()
         )
         return [doc.to_dict() async for doc in docs]

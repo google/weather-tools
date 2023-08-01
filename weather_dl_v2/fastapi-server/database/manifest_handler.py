@@ -66,9 +66,9 @@ class ManifestHandlerFirestore(ManifestHandler):
     async def _get_download_success_count(self, config_name: str) -> int:
         result = (
             await self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("stage", "==", "upload")
-            .where("status", "==", "success")
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("stage", "==", "upload"))
+            .where(filter=FieldFilter("status", "==", "success"))
             .count()
             .get()
         )
@@ -80,8 +80,8 @@ class ManifestHandlerFirestore(ManifestHandler):
     async def _get_download_failure_count(self, config_name: str) -> int:
         result = (
             await self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("status", "==", "failure")
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("status", "==", "failure"))
             .count()
             .get()
         )
@@ -93,8 +93,8 @@ class ManifestHandlerFirestore(ManifestHandler):
     async def _get_download_scheduled_count(self, config_name: str) -> int:
         result = (
             await self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("status", "==", "scheduled")
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("status", "==", "scheduled"))
             .count()
             .get()
         )
@@ -114,7 +114,7 @@ class ManifestHandlerFirestore(ManifestHandler):
 
         result = (
             await self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
+            .where(filter=FieldFilter("config_name", "==", config_name))
             .where(filter=or_filter)
             .count()
             .get()
@@ -127,7 +127,7 @@ class ManifestHandlerFirestore(ManifestHandler):
     async def _get_download_total_count(self, config_name: str) -> int:
         result = (
             await self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
+            .where(filter=FieldFilter("config_name", "==", config_name))
             .count()
             .get()
         )

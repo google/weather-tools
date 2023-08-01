@@ -25,10 +25,24 @@ router = APIRouter(
 )
 
 
+# Add/Update k8s deployment ID for existing license (intenally).
+async def update_license_internal(
+    license_id: str,
+    k8s_deployment_id: str,
+    license_handler: LicenseHandler,
+):
+    if not await license_handler._check_license_exists(license_id):
+        raise HTTPException(status_code=404, detail="No such license to update.")
+    license_dict = {"k8s_deployment_id": k8s_deployment_id}
+
+    await license_handler._update_license(license_id, license_dict)
+    return {"license_id": license_id, "message": "License updated successfully."}
+
+
 def get_create_deployment():
-    def create_deployment(license_id: str, license_handler: LicenseHandler):
+    async def create_deployment(license_id: str, license_handler: LicenseHandler):
         k8s_deployment_id = create_license_deployment(license_id)
-        update_license_internal(license_id, k8s_deployment_id, license_handler)
+        await update_license_internal(license_id, k8s_deployment_id, license_handler)
 
     return create_deployment
 
@@ -93,20 +107,6 @@ async def update_license(
     terminate_license_deployment(license_id)
     create_deployment(license_id, license_handler)
     return {"license_id": license_id, "name": "License updated successfully."}
-
-
-# Add/Update k8s deployment ID for existing license (intenally).
-async def update_license_internal(
-    license_id: str,
-    k8s_deployment_id: str,
-    license_handler: LicenseHandler,
-):
-    if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="No such license to update.")
-    license_dict = {"k8s_deployment_id": k8s_deployment_id}
-
-    license_handler._update_license(license_id, license_dict)
-    return {"license_id": license_id, "message": "License updated successfully."}
 
 
 # Add new license
