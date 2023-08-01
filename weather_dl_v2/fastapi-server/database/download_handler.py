@@ -3,14 +3,14 @@ import logging
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentSnapshot
 from google.cloud.firestore_v1.types import WriteResult
-from database.session import get_db
+from database.session import get_async_client
 from server_config import get_config
 
 logger = logging.getLogger(__name__)
 
 
 def get_download_handler():
-    return DownloadHandlerFirestore(db=get_db())
+    return DownloadHandlerFirestore(db=get_async_client())
 
 
 def get_mock_download_handler():
@@ -20,23 +20,23 @@ def get_mock_download_handler():
 class DownloadHandler(abc.ABC):
 
     @abc.abstractmethod
-    def _start_download(self, config_name: str, client_name: str) -> None:
+    async def _start_download(self, config_name: str, client_name: str) -> None:
         pass
 
     @abc.abstractmethod
-    def _stop_download(self, config_name: str) -> None:
+    async def _stop_download(self, config_name: str) -> None:
         pass
 
     @abc.abstractmethod
-    def _check_download_exists(self, config_name: str) -> bool:
+    async def _check_download_exists(self, config_name: str) -> bool:
         pass
 
     @abc.abstractmethod
-    def _get_downloads(self, client_name: str) -> list:
+    async def _get_downloads(self, client_name: str) -> list:
         pass
 
     @abc.abstractmethod
-    def _get_download_by_config_name(self, config_name: str):
+    async def _get_download_by_config_name(self, config_name: str):
         pass
 
 
@@ -45,17 +45,17 @@ class DownloadHandlerMock(DownloadHandler):
     def __init__(self):
         pass
 
-    def _start_download(self, config_name: str, client_name: str) -> None:
+    async def _start_download(self, config_name: str, client_name: str) -> None:
         logger.info(
             f"Added {config_name} in 'download' collection. Update_time: 000000."
         )
 
-    def _stop_download(self, config_name: str) -> None:
+    async def _stop_download(self, config_name: str) -> None:
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: 000000."
         )
 
-    def _check_download_exists(self, config_name: str) -> bool:
+    async def _check_download_exists(self, config_name: str) -> bool:
         if config_name == "no_exist":
             return False
         elif config_name == "no_exist.cfg":
@@ -63,10 +63,10 @@ class DownloadHandlerMock(DownloadHandler):
         else:
             return True
 
-    def _get_downloads(self, client_name: str) -> list:
+    async def _get_downloads(self, client_name: str) -> list:
         return [{"config_name": "example.cfg", "client_name": "client"}]
 
-    def _get_download_by_config_name(self, config_name: str):
+    async def _get_download_by_config_name(self, config_name: str):
         return {"config_name": "example.cfg", "client_name": "client"}
 
 
@@ -76,9 +76,9 @@ class DownloadHandlerFirestore(DownloadHandler):
         self.db = db
         self.collection = get_config().download_collection
 
-    def _start_download(self, config_name: str, client_name: str) -> None:
+    async def _start_download(self, config_name: str, client_name: str) -> None:
         result: WriteResult = (
-            self.db.collection(self.collection)
+            await self.db.collection(self.collection)
             .document(config_name)
             .set({"config_name": config_name, "client_name": client_name})
         )
@@ -87,41 +87,34 @@ class DownloadHandlerFirestore(DownloadHandler):
             f"Added {config_name} in 'download' collection. Update_time: {result.update_time}."
         )
 
-    def _stop_download(self, config_name: str) -> None:
-        timestamp = self.db.collection(self.collection).document(config_name).delete()
+    async def _stop_download(self, config_name: str) -> None:
+        timestamp = await self.db.collection(self.collection).document(config_name).delete()
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: {timestamp}."
         )
 
-    def _check_download_exists(self, config_name: str) -> bool:
+    async def _check_download_exists(self, config_name: str) -> bool:
         result: DocumentSnapshot = (
-            self.db.collection(self.collection).document(config_name).get()
+            await self.db.collection(self.collection).document(config_name).get()
         )
         return result.exists
 
-    def _get_downloads(self, client_name: str) -> list:
-        snapshot_list = None
+    async def _get_downloads(self, client_name: str) -> list:
+        docs = []
         if client_name:
-            snapshot_list = (
+            docs = (
                 self.db.collection(self.collection)
                 .where("client_name", "==", client_name)
-                .get()
+                .stream()
             )
         else:
-            snapshot_list = self.db.collection(self.collection).get()
-        result = []
-        for snapshot in snapshot_list:
-            result.append(
-                self.db.collection(self.collection)
-                .document(snapshot.id)
-                .get()
-                .to_dict()
-            )
-        return result
+            docs = self.db.collection(self.collection).stream()
+        
+        return [doc.to_dict() async for doc in docs]
 
-    def _get_download_by_config_name(self, config_name: str):
+    async def _get_download_by_config_name(self, config_name: str):
         result: DocumentSnapshot = (
-            self.db.collection(self.collection).document(config_name).get()
+            await self.db.collection(self.collection).document(config_name).get()
         )
         if result.exists:
             return result.to_dict()

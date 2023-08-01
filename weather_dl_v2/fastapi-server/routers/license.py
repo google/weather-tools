@@ -58,9 +58,9 @@ async def get_licenses(
     license_handler: LicenseHandler = Depends(get_license_handler),
 ):
     if client_name:
-        result = license_handler._get_license_by_client_name(client_name)
+        result = await license_handler._get_license_by_client_name(client_name)
     else:
-        result = license_handler._get_licenses()
+        result = await license_handler._get_licenses()
     return result
 
 
@@ -69,7 +69,7 @@ async def get_licenses(
 async def get_license_by_license_id(
     license_id: str, license_handler: LicenseHandler = Depends(get_license_handler)
 ):
-    result = license_handler._get_license_by_license_id(license_id)
+    result = await license_handler._get_license_by_license_id(license_id)
     if not result:
         raise HTTPException(status_code=404, detail="License not found.")
     return result
@@ -84,11 +84,11 @@ async def update_license(
     create_deployment=Depends(get_create_deployment),
     terminate_license_deployment=Depends(get_terminate_license_deployment),
 ):
-    if not license_handler._check_license_exists(license_id):
+    if not await license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
 
     license_dict = license.dict()
-    license_handler._update_license(license_id, license_dict)
+    await license_handler._update_license(license_id, license_dict)
 
     terminate_license_deployment(license_id)
     create_deployment(license_id, license_handler)
@@ -96,12 +96,12 @@ async def update_license(
 
 
 # Add/Update k8s deployment ID for existing license (intenally).
-def update_license_internal(
+async def update_license_internal(
     license_id: str,
     k8s_deployment_id: str,
     license_handler: LicenseHandler,
 ):
-    if not license_handler._check_license_exists(license_id):
+    if not await license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to update.")
     license_dict = {"k8s_deployment_id": k8s_deployment_id}
 
@@ -120,8 +120,8 @@ async def add_license(
 ):
     license_dict = license.dict()
     license_dict["k8s_deployment_id"] = ""
-    license_id = license_handler._add_license(license_dict)
-    queue_handler._create_license_queue(license_id, license_dict["client_name"])
+    license_id = await license_handler._add_license(license_dict)
+    await queue_handler._create_license_queue(license_id, license_dict["client_name"])
     background_tasks.add_task(create_deployment, license_id, license_handler)
     return {"license_id": license_id, "message": "License added successfully."}
 
@@ -135,9 +135,9 @@ async def delete_license(
     queue_handler: QueueHandler = Depends(get_queue_handler),
     terminate_license_deployment=Depends(get_terminate_license_deployment),
 ):
-    if not license_handler._check_license_exists(license_id):
+    if not await license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="No such license to delete.")
-    license_handler._delete_license(license_id)
-    queue_handler._remove_license_queue(license_id)
+    await license_handler._delete_license(license_id)
+    await queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}

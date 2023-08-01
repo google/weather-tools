@@ -17,9 +17,9 @@ async def get_all_license_queue(
     queue_handler: QueueHandler = Depends(get_queue_handler),
 ):
     if client_name:
-        result = queue_handler._get_queue_by_client_name(client_name)
+        result = await queue_handler._get_queue_by_client_name(client_name)
     else:
-        result = queue_handler._get_queues()
+        result = await queue_handler._get_queues()
     return result
 
 
@@ -28,7 +28,7 @@ async def get_all_license_queue(
 async def get_license_queue(
     license_id: str, queue_handler: QueueHandler = Depends(get_queue_handler)
 ):
-    result = queue_handler._get_queue_by_license_id(license_id)
+    result = await queue_handler._get_queue_by_license_id(license_id)
     if not result:
         raise HTTPException(status_code=404, detail="License's priority not found.")
     return result
@@ -36,16 +36,16 @@ async def get_license_queue(
 
 # Change priority queue of particular license
 @router.post("/{license_id}")
-def modify_license_queue(
+async def modify_license_queue(
     license_id: str,
     priority_list: list | None = [],
     queue_handler: QueueHandler = Depends(get_queue_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
 ):
-    if not license_handler._check_license_exists(license_id):
+    if not await license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="License's priority not found.")
     try:
-        queue_handler._update_license_queue(license_id, priority_list)
+        await queue_handler._update_license_queue(license_id, priority_list)
         return {"message": f"'{license_id}' license priority updated successfully."}
     except Exception:
         return {"message": f"Failed to update '{license_id}' license priority."}
@@ -53,17 +53,17 @@ def modify_license_queue(
 
 # Change config's priority in particular license
 @router.put("/priority/{license_id}")
-def modify_config_priority_in_license(
+async def modify_config_priority_in_license(
     license_id: str,
     config_name: str,
     priority: int,
     queue_handler: QueueHandler = Depends(get_queue_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
 ):
-    if not license_handler._check_license_exists(license_id):
+    if not await license_handler._check_license_exists(license_id):
         raise HTTPException(status_code=404, detail="License's priority not found.")
     try:
-        queue_handler._update_config_priority_in_license(
+        await queue_handler._update_config_priority_in_license(
             license_id, config_name, priority
         )
         return {

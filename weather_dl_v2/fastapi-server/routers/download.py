@@ -3,9 +3,9 @@ from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.manifest_handler import ManifestHandler, get_manifest_handler
-import concurrent.futures
 import shutil
 import os
+import asyncio
 
 router = APIRouter(
     prefix="/download",
@@ -14,45 +14,38 @@ router = APIRouter(
 )
 
 
-def fetch_config_stats(
+async def fetch_config_stats(
     config_name: str, client_name: str, manifest_handler: ManifestHandler
 ):
     """Get all the config stats parallely."""
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        success_count_future = executor.submit(
-            manifest_handler._get_download_success_count, config_name
-        )
-        scheduled_count_future = executor.submit(
-            manifest_handler._get_download_scheduled_count, config_name
-        )
-        failure_count_future = executor.submit(
-            manifest_handler._get_download_failure_count, config_name
-        )
-        inprogress_count_future = executor.submit(
-            manifest_handler._get_download_inprogress_count, config_name
-        )
-        total_count_future = executor.submit(
-            manifest_handler._get_download_total_count, config_name
-        )
+    success_coroutine = manifest_handler._get_download_success_count(config_name)
+    scheduled_coroutine = manifest_handler._get_download_scheduled_count(config_name)
+    failure_coroutine = manifest_handler._get_download_failure_count(config_name)
+    inprogress_coroutine = manifest_handler._get_download_inprogress_count(config_name)
+    total_coroutine = manifest_handler._get_download_total_count(config_name)
 
-        concurrent.futures.wait([
-            success_count_future,
-            scheduled_count_future,
-            failure_count_future,
-            inprogress_count_future,
-            total_count_future,
-        ])
 
-        return {
-            "config_name": config_name,
-            "client_name": client_name,
-            "downloaded_shards": success_count_future.result(),
-            "scheduled_shards": scheduled_count_future.result(),
-            "failed_shards": failure_count_future.result(),
-            "in-progress_shards": inprogress_count_future.result(),
-            "total_shards": total_count_future.result(),
-        }
+    (success_count,
+    scheduled_count,
+    failure_count,
+    inprogress_count,
+    total_count) = await asyncio.gather(
+                            success_coroutine, 
+                            scheduled_coroutine, 
+                            failure_coroutine, 
+                            inprogress_coroutine, 
+                            total_coroutine)
+
+    return {
+        "config_name": config_name,
+        "client_name": client_name,
+        "downloaded_shards": success_count,
+        "scheduled_shards": scheduled_count,
+        "failed_shards": failure_count,
+        "in-progress_shards": inprogress_count,
+        "total_shards": total_count,
+    }
 
 
 def get_fetch_config_stats():
@@ -95,7 +88,7 @@ def get_upload_mock():
 
 # Can submit a config to the server.
 @router.post("/")
-def submit_download(
+async def submit_download(
     file: UploadFile | None = None,
     licenses: list = [],
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -105,7 +98,7 @@ def submit_download(
     if not file:
         raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
-        if download_handler._check_download_exists(file.filename):
+        if await download_handler._check_download_exists(file.filename):
             raise HTTPException(
                 status_code=400,
                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
@@ -133,27 +126,15 @@ async def get_downloads(
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     fetch_config_stats=Depends(get_fetch_config_stats),
 ):
-    downloads = download_handler._get_downloads(client_name)
-    config_stats = None
+    downloads = await download_handler._get_downloads(client_name)
+    coroutines = []
+    
+    for download in downloads:
+        coroutines.append(
+            fetch_config_stats(download["config_name"], download["client_name"], manifest_handler)
+        )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
-
-        for download in downloads:
-            future = executor.submit(
-                fetch_config_stats,
-                download["config_name"],
-                download["client_name"],
-                manifest_handler,
-            )
-            futures.append(future)
-
-        concurrent.futures.wait(futures)
-        config_stats = [
-            future.result() for future in concurrent.futures.as_completed(futures)
-        ]
-
-    return config_stats
+    return await asyncio.gather(*coroutines)
 
 
 # Get status of particular download
@@ -164,14 +145,14 @@ async def get_download_by_config_name(
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     fetch_config_stats=Depends(get_fetch_config_stats),
 ):
-    config = download_handler._get_download_by_config_name(config_name)
+    config = await download_handler._get_download_by_config_name(config_name)
 
     if config is None:
         raise HTTPException(
             status_code=404, detail="Download config not found in weather-dl v2."
         )
 
-    return fetch_config_stats(
+    return await fetch_config_stats(
         config["config_name"], config["client_name"], manifest_handler
     )
 
@@ -183,13 +164,13 @@ async def delete_download(
     download_handler: DownloadHandler = Depends(get_download_handler),
     queue_handler: QueueHandler = Depends(get_queue_handler),
 ):
-    if not download_handler._check_download_exists(config_name):
+    if not await download_handler._check_download_exists(config_name):
         raise HTTPException(
             status_code=404, detail="No such download config to stop & remove."
         )
 
-    download_handler._stop_download(config_name)
-    queue_handler._update_queues_on_stop_download(config_name)
+    await download_handler._stop_download(config_name)
+    await queue_handler._update_queues_on_stop_download(config_name)
     return {
         "config_name": config_name,
         "message": "Download config stopped & removed successfully.",

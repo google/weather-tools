@@ -10,7 +10,7 @@ download_handler = get_download_handler()
 queue_handler = get_queue_handler()
 
 
-def start_processing_config(config_file, licenses):
+async def start_processing_config(config_file, licenses):
     config = {}
     manifest = FirestoreManifest()
 
@@ -31,5 +31,5 @@ def start_processing_config(config_file, licenses):
             partition_obj.update_manifest_collection(partition)
 
     # Make entry in 'download' & 'queues' collection.
-    download_handler._start_download(config_name, config.client)
-    queue_handler._update_queues_on_start_download(config_name, licenses)
+    await download_handler._start_download(config_name, config.client)
+    await queue_handler._update_queues_on_start_download(config_name, licenses)
