@@ -166,7 +166,7 @@ class QueueHandlerFirestore(QueueHandler):
     ) -> None:
         for license in licenses:
             result: WriteResult = (
-                self.db.collection(self.collection)
+                await self.db.collection(self.collection)
                 .document(license)
                 .update({"queue": firestore.ArrayUnion([config_name])})
             )
@@ -178,7 +178,7 @@ class QueueHandlerFirestore(QueueHandler):
         snapshot_list = self.db.collection(self.collection).get()
         for snapshot in snapshot_list:
             result: WriteResult = (
-                self.db.collection(self.collection)
+                await self.db.collection(self.collection)
                 .document(snapshot.id)
                 .update({"queue": firestore.ArrayRemove([config_name])})
             )
