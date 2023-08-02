@@ -73,7 +73,7 @@ def get_fetch_config_stats_mock():
 
 def get_upload():
     def upload(file: UploadFile):
-        dest = f"./config_files/{file.filename}"
+        dest = f"{os.getcwd()}/config_files/{file.filename}"
         with open(dest, "wb+") as dest_:
             shutil.copyfileobj(file.file, dest_)
         return dest
@@ -113,9 +113,9 @@ async def submit_download(
             return {
                 "message": f"file '{file.filename}' saved at '{dest}' successfully."
             }
-        except Exception:
+        except Exception as e:
             raise HTTPException(
-                status_code=500, detail=f"Failed to save file '{file.filename}'."
+                status_code=500, detail=f"Failed to save file '{file.filename} due to {e}'."
             )
 
 
