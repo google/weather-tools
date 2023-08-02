@@ -479,5 +479,5 @@ class FirestoreManifest(Manifest):
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""
         # TODO: Get user-defined collection for manifest.
-        root_collection = "test_manifest"
+        root_collection = "XXXXXXXXXX"
         return self._get_db().collection(root_collection).document(store_scheme)

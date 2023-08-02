@@ -1,7 +1,9 @@
+import logging
 from os import path
 import yaml
 from kubernetes import client, config
 
+logger = logging.getLogger(__name__)
 
 def create_license_deployment(license_id: str) -> str:
     """Creates a kubernetes workflow of type Job for downloading the data."""
@@ -25,7 +27,7 @@ def create_license_deployment(license_id: str) -> str:
             body=deployment_manifest, namespace="default"
         )
 
-        print("Deployment created successfully:", response.metadata.name)
+        logger.info(f"Deployment created successfully: {response.metadata.name}")
         return deployment_name
 
 
@@ -42,4 +44,4 @@ def terminate_license_deployment(license_id: str) -> None:
     # Delete the deployment
     api_instance.delete_namespaced_deployment(name=deployment_name, namespace="default")
 
-    print(f"Deployment '{deployment_name}' deleted successfully.")
+    logger.info(f"Deployment '{deployment_name}' deleted successfully.")

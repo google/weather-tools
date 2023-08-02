@@ -105,7 +105,7 @@ async def update_license(
     await license_handler._update_license(license_id, license_dict)
 
     terminate_license_deployment(license_id)
-    create_deployment(license_id, license_handler)
+    await create_deployment(license_id, license_handler)
     return {"license_id": license_id, "name": "License updated successfully."}
 
 

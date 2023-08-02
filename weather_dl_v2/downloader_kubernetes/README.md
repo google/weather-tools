@@ -9,15 +9,21 @@ We are not configuring any service account here hence make sure that compute eng
 * roles/bigquery.dataEditor
 * roles/bigquery.jobUser
 
-### Write the manifest location path
+### Add the manifest location path
 ```
 Please write down the manifest path at Line 43 of downloader.py.
 Eg: "fs://test_manifest?projectId=XXX"
 ```
 
+### Add manifest collection name in manifest.py
+```
+Please write down the manifest collection name at Line 482 of manifest.py.
+```
+
 ### Create docker image for downloader:
 ```
+export PROJECT_ID=<your-project-here>
 export REPO=<repo> eg:weather-tools
 
-gcloud builds submit Dockerfile --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-downloader" --timeout=79200 --machine-type=e2-highcpu-32
+gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-downloader" --timeout=79200 --machine-type=e2-highcpu-32
 ```

@@ -32,8 +32,6 @@ async def create_pending_license_deployments():
 async def lifespan(app: FastAPI):
     logger.info("Started FastAPI server")
     # Boot up
-    # TODO: Replace hard-coded collection name by read a server config.
-
     # Retrieve license information & create license deployment if needed.
     await create_pending_license_deployments()
 
