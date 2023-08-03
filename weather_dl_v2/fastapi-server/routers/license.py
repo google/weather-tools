@@ -1,9 +1,12 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
 from database.license_handler import LicenseHandler, get_license_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 
+logger = logging.getLogger(__name__)
 
 # TODO: Make use of google secret manager.
 # REF: https://cloud.google.com/secret-manager.
@@ -32,7 +35,8 @@ async def update_license_internal(
     license_handler: LicenseHandler,
 ):
     if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="No such license to update.")
+        logger.info(f"No such license {license_id} to update.")
+        raise HTTPException(status_code=404, detail=f"No such license {license_id} to update.")
     license_dict = {"k8s_deployment_id": k8s_deployment_id}
 
     await license_handler._update_license(license_id, license_dict)
@@ -85,7 +89,8 @@ async def get_license_by_license_id(
 ):
     result = await license_handler._get_license_by_license_id(license_id)
     if not result:
-        raise HTTPException(status_code=404, detail="License not found.")
+        logger.info(f"License {license_id} not found.")
+        raise HTTPException(status_code=404, detail=f"License {license_id} not found.")
     return result
 
 
@@ -99,7 +104,8 @@ async def update_license(
     terminate_license_deployment=Depends(get_terminate_license_deployment),
 ):
     if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="No such license to update.")
+        logger.error(f"No such license {license_id} to update.")
+        raise HTTPException(status_code=404, detail=f"No such license {license_id} to update.")
 
     license_dict = license.dict()
     await license_handler._update_license(license_id, license_dict)
@@ -136,7 +142,8 @@ async def delete_license(
     terminate_license_deployment=Depends(get_terminate_license_deployment),
 ):
     if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="No such license to delete.")
+        logger.error(f"No such license {license_id} to delete.")
+        raise HTTPException(status_code=404, detail=f"No such license {license_id} to delete.")
     await license_handler._delete_license(license_id)
     await queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)

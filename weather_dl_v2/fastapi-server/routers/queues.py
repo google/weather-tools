@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.license_handler import LicenseHandler, get_license_handler
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/queues",
@@ -30,7 +34,8 @@ async def get_license_queue(
 ):
     result = await queue_handler._get_queue_by_license_id(license_id)
     if not result:
-        raise HTTPException(status_code=404, detail="License's priority not found.")
+        logger.error(f"License priority for {license_id} not found.")
+        raise HTTPException(status_code=404, detail=f"License priority for {license_id} not found.")
     return result
 
 
@@ -43,12 +48,14 @@ async def modify_license_queue(
     license_handler: LicenseHandler = Depends(get_license_handler),
 ):
     if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="License's priority not found.")
+        logger.error(f"License {license_id} not found.")
+        raise HTTPException(status_code=404, detail=f"License {license_id} not found.")
     try:
         await queue_handler._update_license_queue(license_id, priority_list)
         return {"message": f"'{license_id}' license priority updated successfully."}
-    except Exception:
-        return {"message": f"Failed to update '{license_id}' license priority."}
+    except Exception as e:
+        logger.error(f"Failed to update '{license_id}' license priority due to {e}.")
+        raise HTTPException(status_code=404, detail=f"Failed to update '{license_id}' license priority.")
 
 
 # Change config's priority in particular license
@@ -61,13 +68,15 @@ async def modify_config_priority_in_license(
     license_handler: LicenseHandler = Depends(get_license_handler),
 ):
     if not await license_handler._check_license_exists(license_id):
-        raise HTTPException(status_code=404, detail="License's priority not found.")
+        logger.error(f"License {license_id} not found.")
+        raise HTTPException(status_code=404, detail=f"License {license_id} not found.")
     try:
         await queue_handler._update_config_priority_in_license(
             license_id, config_name, priority
         )
         return {
-            "message": f"'{license_id}' license '{config_name}' priority updated successfully."
+            "message": f"'{license_id}' license -- '{config_name}' priority updated successfully."
         }
-    except Exception:
-        return {"message": f"Failed to update '{license_id}' license priority."}
+    except Exception as e:
+        logger.error(f"Failed to update '{license_id}' license priority due to {e}.")
+        raise HTTPException(status_code=404, detail=f"Failed to update '{license_id}' license priority.")

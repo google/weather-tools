@@ -1,11 +1,15 @@
+import asyncio
+import logging
+import os
+import shutil
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.manifest_handler import ManifestHandler, get_manifest_handler
-import shutil
-import os
-import asyncio
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/download",
@@ -98,9 +102,12 @@ async def submit_download(
     upload=Depends(get_upload),
 ):
     if not file:
+        logger.error("No upload file sent.")
         raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
         if await download_handler._check_download_exists(file.filename):
+            logger.error(f"Please stop the ongoing download of the config file '{file.filename}' "
+                "before attempting to start a new download.")
             raise HTTPException(
                 status_code=400,
                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
@@ -114,8 +121,9 @@ async def submit_download(
                 "message": f"file '{file.filename}' saved at '{dest}' successfully."
             }
         except Exception as e:
+            logger.error(f"Failed to save file '{file.filename} due to {e}.")
             raise HTTPException(
-                status_code=500, detail=f"Failed to save file '{file.filename} due to {e}'."
+                status_code=500, detail=f"Failed to save file '{file.filename}'."
             )
 
 
@@ -152,6 +160,7 @@ async def get_download_by_config_name(
     config = await download_handler._get_download_by_config_name(config_name)
 
     if config is None:
+        logger.error(f"Download config {config_name} not found in weather-dl v2.")
         raise HTTPException(
             status_code=404, detail=f"Download config {config_name} not found in weather-dl v2."
         )
@@ -169,8 +178,9 @@ async def delete_download(
     queue_handler: QueueHandler = Depends(get_queue_handler),
 ):
     if not await download_handler._check_download_exists(config_name):
+        logger.error(f"No such download config {config_name} to stop & remove.")
         raise HTTPException(
-            status_code=404, detail="No such download config to stop & remove."
+            status_code=404, detail=f"No such download config {config_name} to stop & remove."
         )
 
     await download_handler._stop_download(config_name)
