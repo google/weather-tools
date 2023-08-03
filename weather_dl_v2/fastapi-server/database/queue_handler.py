@@ -175,7 +175,7 @@ class QueueHandlerFirestore(QueueHandler):
             )
 
     async def _update_queues_on_stop_download(self, config_name: str) -> None:
-        snapshot_list = self.db.collection(self.collection).get()
+        snapshot_list = await self.db.collection(self.collection).get()
         for snapshot in snapshot_list:
             result: WriteResult = (
                 await self.db.collection(self.collection)
