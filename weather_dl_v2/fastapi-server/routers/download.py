@@ -73,7 +73,7 @@ def get_fetch_config_stats_mock():
 
 def get_upload():
     def upload(file: UploadFile):
-        dest = f"{os.getcwd()}/config_files/{file.filename}"
+        dest = os.path.join(os.getcwd(), "config_files", file.filename)
         with open(dest, "wb+") as dest_:
             shutil.copyfileobj(file.file, dest_)
         return dest
@@ -153,7 +153,7 @@ async def get_download_by_config_name(
 
     if config is None:
         raise HTTPException(
-            status_code=404, detail="Download config not found in weather-dl v2."
+            status_code=404, detail=f"Download config {config_name} not found in weather-dl v2."
         )
 
     return await fetch_config_stats(

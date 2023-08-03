@@ -32,6 +32,8 @@ async def create_pending_license_deployments():
 async def lifespan(app: FastAPI):
     logger.info("Started FastAPI server")
     # Boot up
+    # Make directory to store the uploaded config files.
+    os.makedirs(os.path.join(os.getcwd(), "config_files"), exist_ok=True)
     # Retrieve license information & create license deployment if needed.
     await create_pending_license_deployments()
 
