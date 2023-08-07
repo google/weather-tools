@@ -95,7 +95,7 @@ def test_modify_license_queue_wrong_license_id():
 def _modify_config_priority_in_license(headers, license_id, query, code, expected):
     response = client.put(f"/queues/priority/{license_id}", params=query)
 
-    print(f"response {response.json()}")
+    logger.info(f"response {response.json()}")
 
     assert response.status_code == code
     assert response.json() == expected

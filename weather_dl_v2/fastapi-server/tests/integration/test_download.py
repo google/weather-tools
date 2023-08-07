@@ -47,13 +47,13 @@ def _submit_download(headers, file_path, licenses, code, expected):
     try:
         file = {"file": open(file_path, "rb")}
     except FileNotFoundError:
-        print("file not found.")
+        logger.info("file not found.")
 
     payload = {"licenses": licenses}
 
     response = client.post("/download", headers=headers, files=file, data=payload)
 
-    print(f"resp {response.json()}")
+    logger.info(f"resp {response.json()}")
 
     assert response.status_code == code
     assert response.json() == expected

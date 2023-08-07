@@ -2,7 +2,7 @@ import time
 import abc
 import logging
 import firebase_admin
-from firebase_admin import firestore
+from google.cloud import firestore
 from firebase_admin import credentials
 from config_processing.util import get_wait_interval
 
@@ -16,20 +16,16 @@ class Database(abc.ABC):
         pass
 
 
-db = None
+db: firestore.AsyncClient = None
 
 
-def get_db() -> firestore.firestore.Client:
-    """Acquire a firestore client, initializing the firebase app if necessary.
-    Will attempt to get the db client five times. If it's still unsuccessful, a
-    `ManifestException` will be raised.
-    """
+def get_async_client() -> firestore.AsyncClient:
     global db
     attempts = 0
 
     while db is None:
         try:
-            db = firestore.client()
+            db = firestore.AsyncClient()
         except ValueError as e:
             # The above call will fail with a value error when the firebase app is not initialized.
             # Initialize the app here, and try again.

@@ -21,7 +21,6 @@ export PROJECT_ID=<your-project-here>
 export REPO=<repo> eg:weather-tools
 
 gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-cli" --timeout=79200 --machine-type=e2-highcpu-32
-
 ```
 
 ## Create a VM using above created docker-image
@@ -34,7 +33,7 @@ gcloud compute instances create-with-container weather-dl-v2-cli \
     --project=$PROJECT_ID \
     --zone=$ZONE \
     --machine-type=e2-medium \
-    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --network-interface=network-tier=PREMIUM,subnet=default \
     --maintenance-policy=MIGRATE \
     --provisioning-model=STANDARD \
     --service-account=$SERVICE_ACCOUNT \

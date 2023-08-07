@@ -5,12 +5,20 @@ from .partition import PartitionConfig
 from .manifest import FirestoreManifest
 from database.download_handler import get_download_handler
 from database.queue_handler import get_queue_handler
+from fastapi.concurrency import run_in_threadpool
 
 download_handler = get_download_handler()
 queue_handler = get_queue_handler()
 
 
-def start_processing_config(config_file, licenses):
+def _do_partitions(partition_obj: PartitionConfig):
+    for partition in partition_obj.prepare_partitions():
+        # Skip existing downloads
+        if partition_obj.new_downloads_only(partition):
+            partition_obj.update_manifest_collection(partition)
+
+
+async def start_processing_config(config_file, licenses):
     config = {}
     manifest = FirestoreManifest()
 
@@ -25,11 +33,8 @@ def start_processing_config(config_file, licenses):
     partition_obj = PartitionConfig(config, None, manifest)
 
     # Prepare partitions
-    for partition in partition_obj.prepare_partitions():
-        # Skip existing downloads
-        if partition_obj.new_downloads_only(partition):
-            partition_obj.update_manifest_collection(partition)
+    await run_in_threadpool(_do_partitions, partition_obj)
 
     # Make entry in 'download' & 'queues' collection.
-    download_handler._start_download(config_name, config.client)
-    queue_handler._update_queues_on_start_download(config_name, licenses)
+    await download_handler._start_download(config_name, config.client)
+    await queue_handler._update_queues_on_start_download(config_name, licenses)

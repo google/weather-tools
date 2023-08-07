@@ -24,7 +24,7 @@ def ping():
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
 
-    logger.info(x.text)
+    print(x.text)
 
 
 if __name__ == "__main__":

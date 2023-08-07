@@ -49,7 +49,7 @@ class DownloadServiceNetwork(DownloadService):
 
     def _get_download_by_config(self, config_name: str):
         return network_service.get(
-            uri=f"{self.endpoint}/download{config_name}",
+            uri=f"{self.endpoint}/{config_name}",
             header={"accept": "application/json"},
         )
 

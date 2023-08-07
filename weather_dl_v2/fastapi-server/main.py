@@ -14,11 +14,11 @@ logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
-def create_pending_license_deployments():
+async def create_pending_license_deployments():
     """Creates license deployments for Licenses whose deployments does not exist."""
     license_handler = get_license_handler()
     create_deployment = get_create_deployment()
-    license_list = license_handler._get_license_without_deployment()
+    license_list = await license_handler._get_license_without_deployment()
 
     for license_id in license_list:
         try:
@@ -32,10 +32,10 @@ def create_pending_license_deployments():
 async def lifespan(app: FastAPI):
     logger.info("Started FastAPI server")
     # Boot up
-    # TODO: Replace hard-coded collection name by read a server config.
-
+    # Make directory to store the uploaded config files.
+    os.makedirs(os.path.join(os.getcwd(), "config_files"), exist_ok=True)
     # Retrieve license information & create license deployment if needed.
-    create_pending_license_deployments()
+    await create_pending_license_deployments()
 
     yield
     # Clean up

@@ -3,13 +3,13 @@ import logging
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or, And
 from server_config import get_config
-from database.session import get_db
+from database.session import get_async_client
 
 logger = logging.getLogger(__name__)
 
 
 def get_manifest_handler():
-    return ManifestHandlerFirestore(db=get_db())
+    return ManifestHandlerFirestore(db=get_async_client())
 
 
 def get_mock_manifest_handler():
@@ -19,41 +19,41 @@ def get_mock_manifest_handler():
 class ManifestHandler(abc.ABC):
 
     @abc.abstractmethod
-    def _get_download_success_count(self, config_name: str) -> int:
+    async def _get_download_success_count(self, config_name: str) -> int:
         pass
 
     @abc.abstractmethod
-    def _get_download_failure_count(self, config_name: str) -> int:
+    async def _get_download_failure_count(self, config_name: str) -> int:
         pass
 
     @abc.abstractmethod
-    def _get_download_scheduled_count(self, config_name: str) -> int:
+    async def _get_download_scheduled_count(self, config_name: str) -> int:
         pass
 
     @abc.abstractmethod
-    def _get_download_inprogress_count(self, config_name: str) -> int:
+    async def _get_download_inprogress_count(self, config_name: str) -> int:
         pass
 
     @abc.abstractmethod
-    def _get_download_total_count(self, config_name: str) -> int:
+    async def _get_download_total_count(self, config_name: str) -> int:
         pass
 
 
 class ManifestHandlerMock(ManifestHandler):
 
-    def _get_download_failure_count(self, config_name: str) -> int:
+    async def _get_download_failure_count(self, config_name: str) -> int:
         return 0
 
-    def _get_download_inprogress_count(self, config_name: str) -> int:
+    async def _get_download_inprogress_count(self, config_name: str) -> int:
         return 0
 
-    def _get_download_scheduled_count(self, config_name: str) -> int:
+    async def _get_download_scheduled_count(self, config_name: str) -> int:
         return 0
 
-    def _get_download_success_count(self, config_name: str) -> int:
+    async def _get_download_success_count(self, config_name: str) -> int:
         return 0
 
-    def _get_download_total_count(self, config_name: str) -> int:
+    async def _get_download_total_count(self, config_name: str) -> int:
         return 0
 
 
@@ -63,12 +63,12 @@ class ManifestHandlerFirestore(ManifestHandler):
         self.db = db
         self.collection = get_config().manifest_collection
 
-    def _get_download_success_count(self, config_name: str) -> int:
+    async def _get_download_success_count(self, config_name: str) -> int:
         result = (
-            self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("stage", "==", "upload")
-            .where("status", "==", "success")
+            await self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("stage", "==", "upload"))
+            .where(filter=FieldFilter("status", "==", "success"))
             .count()
             .get()
         )
@@ -77,11 +77,11 @@ class ManifestHandlerFirestore(ManifestHandler):
 
         return count
 
-    def _get_download_failure_count(self, config_name: str) -> int:
+    async def _get_download_failure_count(self, config_name: str) -> int:
         result = (
-            self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("status", "==", "failure")
+            await self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("status", "==", "failure"))
             .count()
             .get()
         )
@@ -90,11 +90,11 @@ class ManifestHandlerFirestore(ManifestHandler):
 
         return count
 
-    def _get_download_scheduled_count(self, config_name: str) -> int:
+    async def _get_download_scheduled_count(self, config_name: str) -> int:
         result = (
-            self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
-            .where("status", "==", "scheduled")
+            await self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("status", "==", "scheduled"))
             .count()
             .get()
         )
@@ -103,7 +103,7 @@ class ManifestHandlerFirestore(ManifestHandler):
 
         return count
 
-    def _get_download_inprogress_count(self, config_name: str) -> int:
+    async def _get_download_inprogress_count(self, config_name: str) -> int:
         and_filter = And(
             filters=[
                 FieldFilter("status", "==", "success"),
@@ -113,8 +113,8 @@ class ManifestHandlerFirestore(ManifestHandler):
         or_filter = Or(filters=[FieldFilter("status", "==", "in-progress"), and_filter])
 
         result = (
-            self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
+            await self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
             .where(filter=or_filter)
             .count()
             .get()
@@ -124,10 +124,10 @@ class ManifestHandlerFirestore(ManifestHandler):
 
         return count
 
-    def _get_download_total_count(self, config_name: str) -> int:
+    async def _get_download_total_count(self, config_name: str) -> int:
         result = (
-            self.db.collection(self.collection)
-            .where("config_name", "==", config_name)
+            await self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
             .count()
             .get()
         )

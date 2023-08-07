@@ -94,7 +94,7 @@ def test_add_license_basic():
 def _get_license_by_license_id(headers, license_id, code, expected):
     response = client.get(f"/license/{license_id}", headers=headers)
 
-    print(f"response {response.json()}")
+    logger.info(f"response {response.json()}")
     assert response.status_code == code
     assert response.json() == expected
 
