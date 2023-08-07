@@ -193,9 +193,6 @@ class QueueHandlerFirestore(QueueHandler):
             await self.db.collection(self.collection).document(license_id).get()
         )
         priority_list = snapshot.to_dict()["queue"]
-        if config_name not in priority_list:
-            print(f"'{config_name}' not in queue.")
-            raise
         new_priority_list = [c for c in priority_list if c != config_name]
         new_priority_list.insert(priority, config_name)
         result: WriteResult = (

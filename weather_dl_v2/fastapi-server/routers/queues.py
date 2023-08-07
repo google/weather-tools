@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.license_handler import LicenseHandler, get_license_handler
+from database.download_handler import DownloadHandler, get_download_handler
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,19 @@ async def modify_config_priority_in_license(
     priority: int,
     queue_handler: QueueHandler = Depends(get_queue_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
+    download_handler: DownloadHandler = Depends(get_download_handler)
 ):
     if not await license_handler._check_license_exists(license_id):
         logger.error(f"License {license_id} not found.")
         raise HTTPException(status_code=404, detail=f"License {license_id} not found.")
+    
+    config = await download_handler._get_download_by_config_name(config_name)
+    if config is None:
+        logger.error(f"Download config {config_name} not found in weather-dl v2.")
+        raise HTTPException(
+            status_code=404, detail=f"Download config {config_name} not found in weather-dl v2."
+        )
+
     try:
         await queue_handler._update_config_priority_in_license(
             license_id, config_name, priority
