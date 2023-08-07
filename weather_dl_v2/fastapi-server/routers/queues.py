@@ -36,7 +36,9 @@ async def get_license_queue(
     result = await queue_handler._get_queue_by_license_id(license_id)
     if not result:
         logger.error(f"License priority for {license_id} not found.")
-        raise HTTPException(status_code=404, detail=f"License priority for {license_id} not found.")
+        raise HTTPException(
+            status_code=404, detail=f"License priority for {license_id} not found."
+        )
     return result
 
 
@@ -56,7 +58,9 @@ async def modify_license_queue(
         return {"message": f"'{license_id}' license priority updated successfully."}
     except Exception as e:
         logger.error(f"Failed to update '{license_id}' license priority due to {e}.")
-        raise HTTPException(status_code=404, detail=f"Failed to update '{license_id}' license priority.")
+        raise HTTPException(
+            status_code=404, detail=f"Failed to update '{license_id}' license priority."
+        )
 
 
 # Change config's priority in particular license
@@ -67,17 +71,18 @@ async def modify_config_priority_in_license(
     priority: int,
     queue_handler: QueueHandler = Depends(get_queue_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
-    download_handler: DownloadHandler = Depends(get_download_handler)
+    download_handler: DownloadHandler = Depends(get_download_handler),
 ):
     if not await license_handler._check_license_exists(license_id):
         logger.error(f"License {license_id} not found.")
         raise HTTPException(status_code=404, detail=f"License {license_id} not found.")
-    
+
     config = await download_handler._get_download_by_config_name(config_name)
     if config is None:
         logger.error(f"Download config {config_name} not found in weather-dl v2.")
         raise HTTPException(
-            status_code=404, detail=f"Download config {config_name} not found in weather-dl v2."
+            status_code=404,
+            detail=f"Download config {config_name} not found in weather-dl v2.",
         )
 
     try:
@@ -89,4 +94,6 @@ async def modify_config_priority_in_license(
         }
     except Exception as e:
         logger.error(f"Failed to update '{license_id}' license priority due to {e}.")
-        raise HTTPException(status_code=404, detail=f"Failed to update '{license_id}' license priority.")
+        raise HTTPException(
+            status_code=404, detail=f"Failed to update '{license_id}' license priority."
+        )

@@ -5,6 +5,7 @@ from kubernetes import client, config
 
 logger = logging.getLogger(__name__)
 
+
 def create_license_deployment(license_id: str) -> str:
     """Creates a kubernetes workflow of type Job for downloading the data."""
     config.load_config()

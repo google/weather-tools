@@ -106,8 +106,10 @@ async def submit_download(
         raise HTTPException(status_code=404, detail="No upload file sent.")
     else:
         if await download_handler._check_download_exists(file.filename):
-            logger.error(f"Please stop the ongoing download of the config file '{file.filename}' "
-                "before attempting to start a new download.")
+            logger.error(
+                f"Please stop the ongoing download of the config file '{file.filename}' "
+                "before attempting to start a new download."
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
@@ -162,7 +164,8 @@ async def get_download_by_config_name(
     if config is None:
         logger.error(f"Download config {config_name} not found in weather-dl v2.")
         raise HTTPException(
-            status_code=404, detail=f"Download config {config_name} not found in weather-dl v2."
+            status_code=404,
+            detail=f"Download config {config_name} not found in weather-dl v2.",
         )
 
     return await fetch_config_stats(
@@ -180,7 +183,8 @@ async def delete_download(
     if not await download_handler._check_download_exists(config_name):
         logger.error(f"No such download config {config_name} to stop & remove.")
         raise HTTPException(
-            status_code=404, detail=f"No such download config {config_name} to stop & remove."
+            status_code=404,
+            detail=f"No such download config {config_name} to stop & remove.",
         )
 
     await download_handler._stop_download(config_name)

@@ -8,6 +8,7 @@ from database.queue_handler import QueueHandler, get_queue_handler
 
 logger = logging.getLogger(__name__)
 
+
 # TODO: Make use of google secret manager.
 # REF: https://cloud.google.com/secret-manager.
 class License(BaseModel):
@@ -36,7 +37,9 @@ async def update_license_internal(
 ):
     if not await license_handler._check_license_exists(license_id):
         logger.info(f"No such license {license_id} to update.")
-        raise HTTPException(status_code=404, detail=f"No such license {license_id} to update.")
+        raise HTTPException(
+            status_code=404, detail=f"No such license {license_id} to update."
+        )
     license_dict = {"k8s_deployment_id": k8s_deployment_id}
 
     await license_handler._update_license(license_id, license_dict)
@@ -105,7 +108,9 @@ async def update_license(
 ):
     if not await license_handler._check_license_exists(license_id):
         logger.error(f"No such license {license_id} to update.")
-        raise HTTPException(status_code=404, detail=f"No such license {license_id} to update.")
+        raise HTTPException(
+            status_code=404, detail=f"No such license {license_id} to update."
+        )
 
     license_dict = license.dict()
     await license_handler._update_license(license_id, license_dict)
@@ -143,7 +148,9 @@ async def delete_license(
 ):
     if not await license_handler._check_license_exists(license_id):
         logger.error(f"No such license {license_id} to delete.")
-        raise HTTPException(status_code=404, detail=f"No such license {license_id} to delete.")
+        raise HTTPException(
+            status_code=404, detail=f"No such license {license_id} to delete."
+        )
     await license_handler._delete_license(license_id)
     await queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)
