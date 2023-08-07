@@ -200,6 +200,6 @@ class QueueHandlerFirestore(QueueHandler):
             .document(license_id)
             .update({"queue": new_priority_list})
         )
-        print(
+        logger.info(
             f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}."
         )
