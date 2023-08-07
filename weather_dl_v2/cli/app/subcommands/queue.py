@@ -71,11 +71,11 @@ def modify_license_queue(
         print("Priority file or config name with absolute priority must be passed.")
         return
 
-    if file and (config or priority):
+    if file is not None and (config is not None or priority is not None):
         print("--config & --priority can't be used along with --file argument.")
         return
 
-    if file:
+    if file is not None:
         validator = QueueValidator(valid_keys=["priority"])
 
         try:
@@ -86,7 +86,7 @@ def modify_license_queue(
             return
         print(queue_service._edit_license_queue(license, priority_list))
         return
-    elif config and priority:
+    elif config is not None and priority is not None:
         if priority < 0:
             print("Priority can not be negative.")
             return
