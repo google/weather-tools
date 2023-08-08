@@ -40,13 +40,16 @@ def submit_download(
     ],
     license: Annotated[
         List[str], typer.Option("--license", "-l", help="License ID.")
-    ] = [],
+    ],
+    force_download: Annotated[
+        bool, typer.Option(
+            "-f", "--force-download",
+            help="Force redownload of partitions that were previously downloaded."
+            )
+    ] = False,
 ):
-    if len(license) == 0:
-        print("No licenses mentioned. Please specify licenese Id.")
-        return
 
-    print(download_service._add_new_download(file_path, license))
+    print(download_service._add_new_download(file_path, license, force_download))
 
 
 @app.command("get", help="Get a particular config.")

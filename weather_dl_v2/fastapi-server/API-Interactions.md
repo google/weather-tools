@@ -3,7 +3,7 @@
 |---|---|---|
 | `weather-dl-v2 ping` | `get` | `/`
 | Download  |   |   |
-| `weather-dl-v2 download add <path> –l <license_id>` | `post` | `/download/` |
+| `weather-dl-v2 download add <path> –l <license_id> [--force-download]` | `post` | `/download?force_download={value}` |
 | `weather-dl-v2 download list` | `get` | `/download/` |
 | `weather-dl-v2 download list --filter client_name=<name>` | `get` | `/download?client_name={name}` |
 | `weather-dl-v2 download get <config_name>` | `get` | `/download/{config_name}` |

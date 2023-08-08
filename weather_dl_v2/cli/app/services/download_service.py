@@ -22,7 +22,8 @@ class DownloadService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _add_new_download(self, file_path: str, licenses: t.List[str]):
+    def _add_new_download(self, file_path: str, licenses: t.List[str],
+                          force_download: bool):
         pass
 
     @abc.abstractmethod
@@ -53,7 +54,8 @@ class DownloadServiceNetwork(DownloadService):
             header={"accept": "application/json"},
         )
 
-    def _add_new_download(self, file_path: str, licenses: t.List[str]):
+    def _add_new_download(self, file_path: str, licenses: t.List[str],
+                          force_download: bool):
         try:
             file = {"file": open(file_path, "rb")}
         except FileNotFoundError:
@@ -64,6 +66,7 @@ class DownloadServiceNetwork(DownloadService):
             header={"accept": "application/json"},
             file=file,
             payload={"licenses": licenses},
+            query={"force_download": force_download},
         )
 
     def _remove_download(self, config_name: str):

@@ -34,11 +34,12 @@ Manage download configs.
 > `FILE_PATH` : Path to config file.
 
 ##### Options
-> `-l/--license` : License ID to which this download has to be added to.
+> `-l/--license` (Required): License ID to which this download has to be added to.
+> `-f/--force-download` : Force redownload of partitions that were previously downloaded.
 
 ##### Usage
 ```
-weather-dl-v2 download add /path/to/example.cfg –l L1 -l L2
+weather-dl-v2 download add /path/to/example.cfg –l L1 -l L2 [--force-download]
 ```
 </details>
 

@@ -18,7 +18,7 @@ def _do_partitions(partition_obj: PartitionConfig):
             partition_obj.update_manifest_collection(partition)
 
 
-async def start_processing_config(config_file, licenses):
+async def start_processing_config(config_file, licenses, force_download):
     config = {}
     manifest = FirestoreManifest()
 
@@ -27,7 +27,7 @@ async def start_processing_config(config_file, licenses):
         config_name = os.path.split(config_file)[1]
         config = process_config(f, config_name)
 
-    config.force_download = True
+    config.force_download = force_download
     config.user_id = getpass.getuser()
 
     partition_obj = PartitionConfig(config, None, manifest)

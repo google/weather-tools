@@ -97,6 +97,7 @@ def get_upload_mock():
 async def submit_download(
     file: UploadFile | None = None,
     licenses: list = [],
+    force_download: bool = False,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
     upload=Depends(get_upload),
@@ -118,7 +119,7 @@ async def submit_download(
         try:
             dest = upload(file)
             # Start processing config.
-            background_tasks.add_task(start_processing_config, dest, licenses)
+            background_tasks.add_task(start_processing_config, dest, licenses, force_download)
             return {
                 "message": f"file '{file.filename}' saved at '{dest}' successfully."
             }
