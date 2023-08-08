@@ -16,6 +16,7 @@ import abc
 import itertools
 import logging
 import os
+import re
 import shutil
 import string
 import subprocess
@@ -158,6 +159,10 @@ class GribSplitterV2(GribSplitter):
     See https://confluence.ecmwf.int/display/ECC/grib_copy.
     """
 
+    def replace_non_numeric_bracket(self, match: re.Match) -> str:
+        value = match.group(1)
+        return f"[{value}]" if not value.isdigit() else "{" + value + "}"
+
     def split_data(self) -> None:
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
@@ -172,7 +177,10 @@ class GribSplitterV2(GribSplitter):
         unformatted_output_path = self.output_info.unformatted_output_path()
         prefix, _ = os.path.split(next(iter(string.Formatter().parse(unformatted_output_path)))[0])
         _, tail = unformatted_output_path.split(prefix)
-        output_template = tail.replace('{', '[').replace('}', ']')
+
+        # Replace { with [ and } with ] only for non-numeric values inside {} of tail
+        output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
+        output_template = output_str.format(*self.output_info.template_folders)
 
         slash = '/'
         delimiter = 'DELIMITER'
