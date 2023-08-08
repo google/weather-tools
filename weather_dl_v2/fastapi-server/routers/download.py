@@ -19,7 +19,7 @@ router = APIRouter(
 
 
 async def fetch_config_stats(
-    config_name: str, client_name: str, manifest_handler: ManifestHandler
+    config_name: str, client_name: str, status: str, manifest_handler: ManifestHandler
 ):
     """Get all the config stats parallely."""
 
@@ -46,6 +46,7 @@ async def fetch_config_stats(
     return {
         "config_name": config_name,
         "client_name": client_name,
+        "partitioning_status": status,
         "downloaded_shards": success_count,
         "scheduled_shards": scheduled_count,
         "failed_shards": failure_count,
@@ -145,7 +146,7 @@ async def get_downloads(
     for download in downloads:
         coroutines.append(
             fetch_config_stats(
-                download["config_name"], download["client_name"], manifest_handler
+                download["config_name"], download["client_name"], download['status'], manifest_handler
             )
         )
 
@@ -160,9 +161,9 @@ async def get_download_by_config_name(
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     fetch_config_stats=Depends(get_fetch_config_stats),
 ):
-    config = await download_handler._get_download_by_config_name(config_name)
+    download = await download_handler._get_download_by_config_name(config_name)
 
-    if config is None:
+    if download is None:
         logger.error(f"Download config {config_name} not found in weather-dl v2.")
         raise HTTPException(
             status_code=404,
@@ -170,7 +171,7 @@ async def get_download_by_config_name(
         )
 
     return await fetch_config_stats(
-        config["config_name"], config["client_name"], manifest_handler
+        download["config_name"], download["client_name"], download['status'], manifest_handler
     )
 
 

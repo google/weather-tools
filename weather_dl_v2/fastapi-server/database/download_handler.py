@@ -26,6 +26,10 @@ class DownloadHandler(abc.ABC):
     @abc.abstractmethod
     async def _stop_download(self, config_name: str) -> None:
         pass
+    
+    @abc.abstractmethod
+    async def _mark_partitioning_status(self, config_name: str, status: str) -> None:
+        pass
 
     @abc.abstractmethod
     async def _check_download_exists(self, config_name: str) -> bool:
@@ -53,6 +57,11 @@ class DownloadHandlerMock(DownloadHandler):
     async def _stop_download(self, config_name: str) -> None:
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: 000000."
+        )
+
+    async def _mark_partitioning_status(self, config_name: str, status: str) -> None:
+        logger.info(
+            f"Updated {config_name} in 'download' collection. Update_time: 000000."
         )
 
     async def _check_download_exists(self, config_name: str) -> bool:
@@ -93,6 +102,16 @@ class DownloadHandlerFirestore(DownloadHandler):
         )
         logger.info(
             f"Removed {config_name} in 'download' collection. Update_time: {timestamp}."
+        )
+
+    async def _mark_partitioning_status(self, config_name: str, status: str) -> None:
+        timestamp = (
+            await self.db.collection(self.collection)
+            .document(config_name)
+            .update({"status": status})
+        )
+        logger.info(
+            f"Updated {config_name} in 'download' collection. Update_time: {timestamp}."
         )
 
     async def _check_download_exists(self, config_name: str) -> bool:
