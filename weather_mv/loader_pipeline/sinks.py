@@ -326,6 +326,11 @@ def __open_dataset_file(filename: str,
         False)
 
 
+def upload(src: str, dst: str) -> None:
+    """Uploads a file to the specified GCS bucket destination."""
+    subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
+
+
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
     errors: t.List[subprocess.CalledProcessError] = []

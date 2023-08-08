@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import csv
 import dataclasses
 import json
 import logging
@@ -36,7 +37,7 @@ from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
 
 logger = logging.getLogger(__name__)
@@ -511,22 +512,16 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 # Copy CSV to gcs.
                 target_path = os.path.join(self.asset_location, file_name)
                 with tempfile.NamedTemporaryFile() as temp:
-                    with open(temp.name, 'a') as f:
-                        f.write(",".join(header) + "\n")
+                    with open(temp.name, 'w', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerows([header])
                         # Write rows in batches.
                         for i in range(0, shape, ROWS_PER_WRITE):
-                            f.write(
-                                "\n".join(
-                                    [
-                                        ",".join(map(str, i))
-                                        for i in zip(*[[*get_dims_data(i), *d[i:i + ROWS_PER_WRITE]] for d in data])
-                                    ]
-                                ).replace("NULL", "-9999")
-                                + "\n"
+                            writer.writerows(
+                                [get_dims_data(i) + list(row) for row in zip(*[d[i:i + ROWS_PER_WRITE] for d in data])]
                             )
 
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(temp, dst, WRITE_CHUNK_SIZE)
+                    upload(temp.name, target_path)
 
             asset_data = AssetData(
                 name=asset_name,
