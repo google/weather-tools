@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depen
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
+from database.license_handler import LicenseHandler, get_license_handler
 from database.manifest_handler import ManifestHandler, get_manifest_handler
 from config_processing.manifest import FirestoreManifest, Manifest
 from fastapi.concurrency import run_in_threadpool
@@ -157,6 +158,7 @@ async def submit_download(
     force_download: bool = False,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
+    license_handler: LicenseHandler = Depends(get_license_handler),
     upload=Depends(get_upload),
 ):
     if not file:
@@ -173,6 +175,13 @@ async def submit_download(
                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
                 "before attempting to start a new download.",
             )
+        
+        for license_id in licenses:
+            if not await license_handler._check_license_exists(license_id):
+                logger.info(f"No such license {license_id}.")
+                raise HTTPException(
+                    status_code=404, detail=f"No such license {license_id}."
+                )
         try:
             dest = upload(file)
             # Start processing config.
@@ -269,6 +278,7 @@ async def retry_config(
     download_handler: DownloadHandler = Depends(get_download_handler),
     queue_handler: QueueHandler = Depends(get_queue_handler),
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
+    license_handler: LicenseHandler = Depends(get_license_handler),
     reschedule_partitions=Depends(get_reschedule_partitions),
 ):
     if not await download_handler._check_download_exists(config_name):
@@ -277,6 +287,13 @@ async def retry_config(
             status_code=404,
             detail=f"No such download config {config_name} to stop & remove.",
         )
+    
+    for license_id in licenses:
+        if not await license_handler._check_license_exists(license_id):
+            logger.info(f"No such license {license_id}.")
+            raise HTTPException(
+                status_code=404, detail=f"No such license {license_id}."
+            )
 
     background_tasks.add_task(
         reschedule_partitions,
