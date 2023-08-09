@@ -2,12 +2,15 @@ import asyncio
 import logging
 import os
 import shutil
+import json
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.manifest_handler import ManifestHandler, get_manifest_handler
+from config_processing.manifest import FirestoreManifest, Manifest
+from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,59 @@ def get_upload_mock():
     return upload
 
 
+def get_reschedule_partitions():
+    def invoke_manifest_schedule(partition_list: list, manifest: Manifest):
+        for partition in partition_list:
+            manifest.schedule(
+                partition["config_name"],
+                partition["dataset"],
+                json.loads(partition["selection"]),
+                partition["location"],
+                partition["username"],
+            )
+
+    async def reschedule_partitions(
+        config_name: str,
+        licenses: list,
+        manifest_handler: ManifestHandler,
+        download_handler: DownloadHandler,
+        queue_handler: QueueHandler,
+    ):
+        partition_list = await manifest_handler._get_non_successfull_downloads(
+            config_name
+        )
+        manifest = FirestoreManifest()
+        await download_handler._mark_partitioning_status(
+            config_name, "Partitioning in-progress."
+        )
+
+        try:
+            await run_in_threadpool(invoke_manifest_schedule, partition_list, manifest)
+            await download_handler._mark_partitioning_status(
+                config_name, "Partitioning completed."
+            )
+            await queue_handler._update_queues_on_start_download(config_name, licenses)
+        except Exception as e:
+            error_str = f"Partitioning failed for {config_name} due to {e}."
+            logger.error(error_str)
+            await download_handler._mark_partitioning_status(config_name, error_str)
+
+    return reschedule_partitions
+
+
+def get_reschedule_partitions_mock():
+    def reschedule_partitions(
+        config_name: str,
+        licenses: list,
+        manifest_handler: ManifestHandler,
+        download_handler: DownloadHandler,
+        queue_handler: QueueHandler,
+    ):
+        pass
+
+    return reschedule_partitions
+
+
 # Can submit a config to the server.
 @router.post("/")
 async def submit_download(
@@ -120,7 +176,9 @@ async def submit_download(
         try:
             dest = upload(file)
             # Start processing config.
-            background_tasks.add_task(start_processing_config, dest, licenses, force_download)
+            background_tasks.add_task(
+                start_processing_config, dest, licenses, force_download
+            )
             return {
                 "message": f"file '{file.filename}' saved at '{dest}' successfully."
             }
@@ -146,7 +204,10 @@ async def get_downloads(
     for download in downloads:
         coroutines.append(
             fetch_config_stats(
-                download["config_name"], download["client_name"], download['status'], manifest_handler
+                download["config_name"],
+                download["client_name"],
+                download["status"],
+                manifest_handler,
             )
         )
 
@@ -171,7 +232,10 @@ async def get_download_by_config_name(
         )
 
     return await fetch_config_stats(
-        download["config_name"], download["client_name"], download['status'], manifest_handler
+        download["config_name"],
+        download["client_name"],
+        download["status"],
+        manifest_handler,
     )
 
 
@@ -195,3 +259,32 @@ async def delete_download(
         "config_name": config_name,
         "message": "Download config stopped & removed successfully.",
     }
+
+
+@router.post("/retry/{config_name}")
+async def retry_config(
+    config_name: str,
+    licenses: list = [],
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    download_handler: DownloadHandler = Depends(get_download_handler),
+    queue_handler: QueueHandler = Depends(get_queue_handler),
+    manifest_handler: ManifestHandler = Depends(get_manifest_handler),
+    reschedule_partitions=Depends(get_reschedule_partitions),
+):
+    if not await download_handler._check_download_exists(config_name):
+        logger.error(f"No such download config {config_name} to stop & remove.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No such download config {config_name} to stop & remove.",
+        )
+
+    background_tasks.add_task(
+        reschedule_partitions,
+        config_name,
+        licenses,
+        manifest_handler,
+        download_handler,
+        queue_handler,
+    )
+
+    return {"msg": "Refetch initiated successfully."}

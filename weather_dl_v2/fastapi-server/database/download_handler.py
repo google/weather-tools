@@ -26,7 +26,7 @@ class DownloadHandler(abc.ABC):
     @abc.abstractmethod
     async def _stop_download(self, config_name: str) -> None:
         pass
-    
+
     @abc.abstractmethod
     async def _mark_partitioning_status(self, config_name: str, status: str) -> None:
         pass

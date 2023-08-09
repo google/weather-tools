@@ -106,7 +106,9 @@ class QueueHandlerMock(QueueHandler):
     async def _update_config_priority_in_license(
         self, license_id: str, config_name: str, priority: int
     ) -> None:
-        logger.info("Updated snapshot.id queue in 'queues' collection. Update_time: 00000.")
+        logger.info(
+            "Updated snapshot.id queue in 'queues' collection. Update_time: 00000."
+        )
 
 
 class QueueHandlerFirestore(QueueHandler):
