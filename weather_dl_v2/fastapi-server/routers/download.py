@@ -4,7 +4,7 @@ import os
 import shutil
 import json
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends, Body
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
@@ -264,7 +264,7 @@ async def delete_download(
 @router.post("/retry/{config_name}")
 async def retry_config(
     config_name: str,
-    licenses: list = [],
+    licenses: list = Body(embed=True),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
     queue_handler: QueueHandler = Depends(get_queue_handler),
