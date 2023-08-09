@@ -1,5 +1,6 @@
 import abc
 import logging
+import json
 import typing as t
 from app.services.network_service import network_service
 from app.config import Config
@@ -28,6 +29,10 @@ class DownloadService(abc.ABC):
 
     @abc.abstractmethod
     def _remove_download(self, config_name: str):
+        pass
+
+    @abc.abstractmethod
+    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str]):
         pass
 
 
@@ -72,6 +77,13 @@ class DownloadServiceNetwork(DownloadService):
     def _remove_download(self, config_name: str):
         return network_service.delete(
             uri=f"{self.endpoint}/{config_name}", header={"accept": "application/json"}
+        )
+    
+    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str]):
+        return network_service.post(
+            uri=f"{self.endpoint}/retry/{config_name}",
+            header={"accept": "application/json"},
+            payload=json.dumps({"licenses": licenses})
         )
 
 

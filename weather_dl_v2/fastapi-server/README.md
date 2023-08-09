@@ -45,11 +45,6 @@ conda activate weather-dl-v2-server
 Please make approriate changes in server config, if required.
 ```
 
-### Add manifest collection name in config_processing/manifest.py
-```
-Please write down the manifest collection name at Line 498 of manifest.py.
-```
-
 ### To run fastapi server:
 ```
 uvicorn main:app --reload

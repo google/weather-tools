@@ -37,11 +37,15 @@ async def start_processing_config(config_file, licenses, force_download):
 
     # Make entry in 'download' & 'queues' collection.
     await download_handler._start_download(config_name, config.client)
-    await download_handler._mark_partitioning_status(config_name, "Partitioning in-progress.")
+    await download_handler._mark_partitioning_status(
+        config_name, "Partitioning in-progress."
+    )
     try:
         # Prepare partitions
         await run_in_threadpool(_do_partitions, partition_obj)
-        await download_handler._mark_partitioning_status(config_name, "Partitioning completed.")
+        await download_handler._mark_partitioning_status(
+            config_name, "Partitioning completed."
+        )
         await queue_handler._update_queues_on_start_download(config_name, licenses)
     except Exception as e:
         error_str = f"Partitioning failed for {config_name} due to {e}."

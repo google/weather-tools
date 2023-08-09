@@ -64,3 +64,12 @@ def remove_download(
     config_name: Annotated[str, typer.Argument(help="Config file name.")]
 ):
     print(download_service._remove_download(config_name))
+
+@app.command("refetch", help="Reschedule all partitions of a config that are not successful.")
+def refetch_config(
+    config_name: Annotated[str, typer.Argument(help="Config file name.")],
+    license: Annotated[
+        List[str], typer.Option("--license", "-l", help="License ID.")
+    ],
+):
+    print(download_service._refetch_config_partitions(config_name, license))

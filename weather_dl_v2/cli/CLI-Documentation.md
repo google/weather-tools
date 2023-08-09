@@ -90,6 +90,23 @@ weather-dl-v2 download remove example.cfg
 ```
 </details>
 
+<details>
+ <summary><code>weather-dl-v2 download refetch</code> <br>
+ Refetch all non-successful partitions of a config.
+ </summary>
+
+##### Arguments
+> `CONFIG_NAME` : Name of the download config.
+
+##### Options
+> `-l/--license` (Required): License ID to which this download has to be added to.
+
+##### Usage
+```
+weather-dl-v2 download refetch example.cfg -l L1 -l L2
+```
+</details>
+
 <br>
 
 ## License
