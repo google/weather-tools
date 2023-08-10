@@ -6,6 +6,8 @@ spec:
   ttlSecondsAfterFinished: 0
   template:
     spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: downloader-pool
       containers:
       - name: downloader
         image: XXXXXXX
