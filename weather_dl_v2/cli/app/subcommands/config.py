@@ -18,7 +18,7 @@ def show_server_ip():
 
 @app.command("set-ip", help="Update the server IP address.")
 def update_server_ip(
-    NEW_IP: Annotated[
+    new_ip: Annotated[
         str, typer.Argument(help="New IP address. (Do not add port or protocol).")
     ],
 ):
@@ -41,4 +41,4 @@ def update_server_ip(
         print(f"payload error: {e}")
         return
 
-    print(f"Pod IP Updated {old_ip} -> {new_ip}")
+    print(f"Pod IP Updated {old_ip} -> {new_ip} .")
