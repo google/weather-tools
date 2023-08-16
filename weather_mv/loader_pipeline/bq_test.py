@@ -15,6 +15,7 @@ import datetime
 import json
 import logging
 import os
+import tempfile
 import typing as t
 import unittest
 
@@ -23,6 +24,8 @@ import numpy as np
 import pandas as pd
 import simplejson
 import xarray as xr
+from apache_beam.testing.test_pipeline import TestPipeline
+from apache_beam.testing.util import assert_that, is_not_empty
 from google.cloud.bigquery import SchemaField
 
 from .bq import (
@@ -205,13 +208,13 @@ class ExtractRowsTestBase(TestDataBase):
                 skip_creating_polygon: bool = False) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
-        op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
-                                    output_table='foo.bar.baz', variables=variables, area=area,
-                                    xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time,
-                                    infer_schema=False, tif_metadata_for_datetime=tif_metadata_for_datetime,
-                                    skip_region_validation=True,
-                                    disable_grib_schema_normalization=disable_grib_schema_normalization,
-                                    coordinate_chunk_size=1000, skip_creating_polygon=skip_creating_polygon)
+        op = ToBigQuery.from_kwargs(
+            first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
+            output_table='foo.bar.baz', variables=variables, area=area,
+            xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
+            tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
+            disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
+            skip_creating_polygon=skip_creating_polygon)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -735,6 +738,37 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
         }
         self.assertRowsEqual(actual, expected)
+
+
+class ExtractRowsFromZarrTest(ExtractRowsTestBase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.tmpdir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        self.tmpdir.cleanup()
+
+    def test_extracts_rows(self):
+        input_zarr = os.path.join(self.tmpdir.name, 'air_temp.zarr')
+
+        ds = (
+            xr.tutorial.open_dataset('air_temperature', cache_dir=self.test_data_folder)
+            .isel(time=slice(0, 4), lat=slice(0, 4), lon=slice(0, 4))
+            .rename(dict(lon='longitude', lat='latitude'))
+        )
+        ds.to_zarr(input_zarr)
+
+        op = ToBigQuery.from_kwargs(
+            first_uri=input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
+            variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
+            tif_metadata_for_datetime=None, skip_region_validation=True, disable_grib_schema_normalization=False,
+        )
+
+        with TestPipeline() as p:
+            result = p | op
+            assert_that(result, is_not_empty())
 
 
 if __name__ == '__main__':

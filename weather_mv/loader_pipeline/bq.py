@@ -24,8 +24,10 @@ import apache_beam as beam
 import geojson
 import numpy as np
 import xarray as xr
+import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.transforms import window
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
@@ -236,72 +238,89 @@ class ToBigQuery(ToDataSink):
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
                           self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
+            yield from self.to_rows(coordinates, data_ds, uri)
 
-            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values,
-                                                                np.ndarray) else data_ds.time.values
-            first_time_step = to_json_serializable_type(first_ts_raw)
+    def to_rows(self, coordinates: t.Iterable[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
+        first_ts_raw = (
+            ds.time[0].values if isinstance(ds.time.values, np.ndarray)
+            else ds.time.values
+        )
+        first_time_step = to_json_serializable_type(first_ts_raw)
+        for it in coordinates:
+            # Use those index values to select a Dataset containing one row of data.
+            row_ds = ds.loc[it]
 
-            for it in coordinates:
-                # Use those index values to select a Dataset containing one row of data.
-                row_ds = data_ds.loc[it]
+            # Create a Name-Value map for data columns. Result looks like:
+            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                   for n, v in row_ds.data_vars.items()}
 
-                # Create a Name-Value map for data columns. Result looks like:
-                # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-                row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                       for n, v in row_ds.data_vars.items()}
+            # Serialize coordinates.
+            it = {k: to_json_serializable_type(v) for k, v in it.items()}
 
-                # Serialize coordinates.
-                it = {k: to_json_serializable_type(v) for k, v in it.items()}
+            # Add indexed coordinates.
+            row.update(it)
+            # Add un-indexed coordinates.
+            for c in row_ds.coords:
+                if c not in it and (not self.variables or c in self.variables):
+                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
 
-                # Add indexed coordinates.
-                row.update(it)
-                # Add un-indexed coordinates.
-                for c in row_ds.coords:
-                    if c not in it and (not self.variables or c in self.variables):
-                        row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+            # Add import metadata.
+            row[DATA_IMPORT_TIME_COLUMN] = self.import_time
+            row[DATA_URI_COLUMN] = uri
+            row[DATA_FIRST_STEP] = first_time_step
 
-                # Add import metadata.
-                row[DATA_IMPORT_TIME_COLUMN] = self.import_time
-                row[DATA_URI_COLUMN] = uri
-                row[DATA_FIRST_STEP] = first_time_step
+            longitude = ((row['longitude'] + 180) % 360) - 180
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
+            row[GEO_POLYGON_COLUMN] = (
+                fetch_geo_polygon(row["latitude"], longitude, self.lat_grid_resolution, self.lon_grid_resolution)
+                if not self.skip_creating_polygon
+                else None
+            )
+            # 'row' ends up looking like:
+            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            yield row
 
-                longitude = ((row['longitude'] + 180) % 360) - 180
-                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
-                row[GEO_POLYGON_COLUMN] = (
-                    fetch_geo_polygon(row["latitude"], longitude, self.lat_grid_resolution, self.lon_grid_resolution)
-                    if not self.skip_creating_polygon
-                    else None
-                )
-                # 'row' ends up looking like:
-                # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-                #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-                beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-                yield row
+    def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
+        uri = ds.attrs.get(DATA_URI_COLUMN, '')
+        # Re-calculate import time for streaming extractions.
+        if not self.import_time or self.zarr:
+            self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+        yield from self.to_rows(get_coordinates(ds, uri), ds, uri)
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
-        extracted_rows = (
+        if not self.zarr:
+            extracted_rows = (
                 paths
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
-        )
-
-        if not self.dry_run:
-            (
-                    extracted_rows
-                    | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
-                        write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
         else:
-            (
-                    extracted_rows
-                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
+            ds, chunks = xbeam.open_zarr(self.first_uri, **self.xarray_open_dataset_kwargs)
+            ds.attrs[DATA_URI_COLUMN] = self.first_uri
+            extracted_rows = (
+                paths
+                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
+                | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
+                | 'Window' >> beam.WindowInto(window.FixedWindows(60))
+                | 'AddTimestamp' >> beam.Map(timestamp_row)
             )
+
+        if self.dry_run:
+            return extracted_rows | 'Log Rows' >> beam.Map(logger.info)
+        return (
+            extracted_rows
+            | 'WriteToBigQuery' >> WriteToBigQuery(
+                project=self.table.project,
+                dataset=self.table.dataset_id,
+                table=self.table.table_id,
+                write_disposition=BigQueryDisposition.WRITE_APPEND,
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
+        )
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
@@ -341,6 +360,12 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'STRING', mode='NULLABLE'))
 
     return fields
+
+
+def timestamp_row(it: t.Dict) -> window.TimestampedValue:
+    """Associate an extracted row with the import_time timestamp."""
+    timestamp = it[DATA_IMPORT_TIME_COLUMN].timestamp()
+    return window.TimestampedValue(it, timestamp)
 
 
 def fetch_geo_point(lat: float, long: float) -> str:

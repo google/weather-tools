@@ -177,7 +177,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     datetime_value_ms = None
     try:
         datetime_value_s = (int(end_time.timestamp()) if end_time is not None
-                        else int(ds.attrs[tif_metadata_for_datetime]) / 1000.0)
+                            else int(ds.attrs[tif_metadata_for_datetime]) / 1000.0)
         ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
     except KeyError:
         raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
@@ -380,7 +380,7 @@ def open_dataset(uri: str,
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         if is_zarr:
-            ds: xr.Dataset = xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs)
+            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
