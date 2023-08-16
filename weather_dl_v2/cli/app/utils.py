@@ -12,7 +12,6 @@ from time import sleep
 logger = logging.getLogger(__name__)
 
 
-
 def timeit(func):
     def wrap_func(*args, **kwargs):
         t1 = time()
@@ -23,7 +22,9 @@ def timeit(func):
 
     return wrap_func
 
+
 class Loader:
+
     def __init__(self, desc="Loading...", end="", timeout=0.1):
         """
         A loader-like context manager

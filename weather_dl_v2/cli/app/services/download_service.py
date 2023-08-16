@@ -23,8 +23,9 @@ class DownloadService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _add_new_download(self, file_path: str, licenses: t.List[str],
-                          force_download: bool):
+    def _add_new_download(
+        self, file_path: str, licenses: t.List[str], force_download: bool
+    ):
         pass
 
     @abc.abstractmethod
@@ -59,8 +60,9 @@ class DownloadServiceNetwork(DownloadService):
             header={"accept": "application/json"},
         )
 
-    def _add_new_download(self, file_path: str, licenses: t.List[str],
-                          force_download: bool):
+    def _add_new_download(
+        self, file_path: str, licenses: t.List[str], force_download: bool
+    ):
         try:
             file = {"file": open(file_path, "rb")}
         except FileNotFoundError:
@@ -78,12 +80,12 @@ class DownloadServiceNetwork(DownloadService):
         return network_service.delete(
             uri=f"{self.endpoint}/{config_name}", header={"accept": "application/json"}
         )
-    
+
     def _refetch_config_partitions(self, config_name: str, licenses: t.List[str]):
         return network_service.post(
             uri=f"{self.endpoint}/retry/{config_name}",
             header={"accept": "application/json"},
-            payload=json.dumps({"licenses": licenses})
+            payload=json.dumps({"licenses": licenses}),
         )
 
 

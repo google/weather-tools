@@ -4,6 +4,7 @@ import json
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
+
 @dataclasses.dataclass
 class CliConfig:
     pod_ip: str = ""
@@ -14,8 +15,6 @@ class CliConfig:
         return f"http://{self.pod_ip}:{self.port}"
 
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
-
-
 
     @classmethod
     def from_dict(cls, config: t.Dict):
@@ -28,6 +27,7 @@ class CliConfig:
                 config_instance.kwargs[key] = value
 
         return config_instance
+
 
 cli_config = None
 

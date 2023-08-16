@@ -76,13 +76,19 @@ class FirestoreClient(Database, CRUDOperations):
 
     def _initialize_license_deployment(self, license_id: str) -> dict:
         result: DocumentSnapshot = (
-            self._get_db().collection(get_config().license_collection).document(license_id).get()
+            self._get_db()
+            .collection(get_config().license_collection)
+            .document(license_id)
+            .get()
         )
         return result.to_dict()
 
     def _get_config_from_queue_by_license_id(self, license_id: str) -> str | None:
         result: DocumentSnapshot = (
-            self._get_db().collection(get_config().queues_collection).document(license_id).get(["queue"])
+            self._get_db()
+            .collection(get_config().queues_collection)
+            .document(license_id)
+            .get(["queue"])
         )
         if result.exists:
             queue = result.to_dict()["queue"]
@@ -128,7 +134,9 @@ def get_partition_from_manifest(transaction, config_name: str) -> str | None:
         return None
 
     ref: DocumentReference = (
-        db_client._get_db().collection(get_config().manifest_collection).document(snapshot.id)
+        db_client._get_db()
+        .collection(get_config().manifest_collection)
+        .document(snapshot.id)
     )
     transaction.update(ref, {"status": "processing"})
 

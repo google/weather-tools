@@ -38,17 +38,16 @@ def submit_download(
     file_path: Annotated[
         str, typer.Argument(help="File path of config to be uploaded.")
     ],
-    license: Annotated[
-        List[str], typer.Option("--license", "-l", help="License ID.")
-    ],
+    license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")],
     force_download: Annotated[
-        bool, typer.Option(
-            "-f", "--force-download",
-            help="Force redownload of partitions that were previously downloaded."
-            )
+        bool,
+        typer.Option(
+            "-f",
+            "--force-download",
+            help="Force redownload of partitions that were previously downloaded.",
+        ),
     ] = False,
 ):
-
     print(download_service._add_new_download(file_path, license, force_download))
 
 
@@ -65,11 +64,12 @@ def remove_download(
 ):
     print(download_service._remove_download(config_name))
 
-@app.command("refetch", help="Reschedule all partitions of a config that are not successful.")
+
+@app.command(
+    "refetch", help="Reschedule all partitions of a config that are not successful."
+)
 def refetch_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")],
-    license: Annotated[
-        List[str], typer.Option("--license", "-l", help="License ID.")
-    ],
+    license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")],
 ):
     print(download_service._refetch_config_partitions(config_name, license))
