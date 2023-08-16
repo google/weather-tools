@@ -3,7 +3,7 @@ import logging
 import json
 import typing as t
 from app.services.network_service import network_service
-from app.config import Config
+from app.cli_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class QueueService(abc.ABC):
 class QueueServiceNetwork(QueueService):
 
     def __init__(self):
-        self.endpoint = f"{Config().BASE_URI}/queues"
+        self.endpoint = f"{get_config().BASE_URI}/queues"
 
     def _get_all_license_queues(self):
         return network_service.get(

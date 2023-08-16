@@ -3,7 +3,7 @@ import logging
 import json
 import typing as t
 from app.services.network_service import network_service
-from app.config import Config
+from app.cli_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class DownloadService(abc.ABC):
 class DownloadServiceNetwork(DownloadService):
 
     def __init__(self):
-        self.endpoint = f"{Config().BASE_URI}/download"
+        self.endpoint = f"{get_config().BASE_URI}/download"
 
     def _list_all_downloads(self):
         return network_service.get(

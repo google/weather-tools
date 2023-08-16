@@ -1,8 +1,9 @@
 import typer
 import logging
-from app.config import Config
+from app.cli_config import get_config
 import requests
 from app.subcommands import download, queue, license
+from app.utils import Loader
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +18,14 @@ app.add_typer(license.app, name="license", help="Manage licenses.")
 
 @app.command("ping", help="Check if FastAPI server is live and rechable.")
 def ping():
-    uri = f"{Config().BASE_URI}/"
-
+    uri = f"{get_config().BASE_URI}/"
+    print("uri ", uri)
     try:
-        x = requests.get(uri)
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
-
+        with Loader("Sending request..."):
+            x = requests.get(uri)
+    except Exception as e:
+        print(f"error {e}")
+        return
     print(x.text)
 
 
