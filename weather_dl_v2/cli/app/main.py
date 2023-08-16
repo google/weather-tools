@@ -20,7 +20,6 @@ app.add_typer(config.app, name="config", help="Configurations for cli.")
 @app.command("ping", help="Check if FastAPI server is live and rechable.")
 def ping():
     uri = f"{get_config().BASE_URI}/"
-    print("uri ", uri)
     try:
         with Loader("Sending request..."):
             x = requests.get(uri)
