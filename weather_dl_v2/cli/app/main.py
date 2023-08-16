@@ -2,7 +2,7 @@ import typer
 import logging
 from app.cli_config import get_config
 import requests
-from app.subcommands import download, queue, license
+from app.subcommands import download, queue, license, config
 from app.utils import Loader
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ app = typer.Typer(
 app.add_typer(download.app, name="download", help="Manage downloads.")
 app.add_typer(queue.app, name="queue", help="Manage queues.")
 app.add_typer(license.app, name="license", help="Manage licenses.")
+app.add_typer(config.app, name="config", help="Configurations for cli.")
 
 
 @app.command("ping", help="Check if FastAPI server is live and rechable.")

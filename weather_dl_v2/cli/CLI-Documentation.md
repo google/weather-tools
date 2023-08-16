@@ -266,3 +266,32 @@ weather-dl-v2 queue edit L1 --config example.cfg --priority 0
 </details>
 
 <br>
+
+## Config
+Configurations for cli.
+
+<details>
+ <summary><code>weather-dl-v2 config show-ip</code> <br>
+See the current server IP address.
+ </summary>
+
+##### Usage
+```
+weather-dl-v2 config show-ip
+```
+</details>
+
+<details>
+ <summary><code>weather-dl-v2 config set-ip</code> <br>
+See the current server IP address.
+ </summary>
+
+##### Arguments
+> `NEW_IP` : New IP address. (Do not add port or protocol).
+
+##### Usage
+```
+weather-dl-v2 config set-ip 127.0.0.1
+```
+</details>
+
