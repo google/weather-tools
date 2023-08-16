@@ -1,0 +1,6 @@
+{
+    "download_collection": "download",
+    "queues_collection": "queues",
+    "license_collection": "license",
+    "manifest_collection": "test_manifest"
+}
