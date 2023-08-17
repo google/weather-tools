@@ -2,7 +2,7 @@ import abc
 import logging
 import json
 from app.services.network_service import network_service
-from app.config import Config
+from app.cli_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class LicenseService(abc.ABC):
 class LicenseServiceNetwork(LicenseService):
 
     def __init__(self):
-        self.endpoint = f"{Config().BASE_URI}/license"
+        self.endpoint = f"{get_config().BASE_URI}/license"
 
     def _get_all_license(self):
         return network_service.get(

@@ -12,9 +12,9 @@ conda activate weather-dl-v2-license-dep
 Please write down the downloader's docker image path at Line 11 of downloader.yaml.
 ```
 
-### Add manifest collection name in manifest.py
+### Make changes in deployment config, if required
 ```
-Please write down the manifest collection name at Line 500 of manifest.py.
+Please make approriate changes in deployment_config.json, if required.
 ```
 
 ### Create docker image for license deployment

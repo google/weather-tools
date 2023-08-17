@@ -42,7 +42,7 @@ conda activate weather-dl-v2-server
 
 ### Make changes in server config, if required
 ```
-Please make approriate changes in server config, if required.
+Please make approriate changes in server_config.json, if required.
 ```
 
 ### To run fastapi server:

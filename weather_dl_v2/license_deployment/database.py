@@ -8,6 +8,7 @@ from google.cloud.firestore_v1 import DocumentSnapshot, DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 from google.cloud.firestore_v1.base_query import FieldFilter, And
 from util import get_wait_interval
+from deployment_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +76,19 @@ class FirestoreClient(Database, CRUDOperations):
 
     def _initialize_license_deployment(self, license_id: str) -> dict:
         result: DocumentSnapshot = (
-            self._get_db().collection("license").document(license_id).get()
+            self._get_db()
+            .collection(get_config().license_collection)
+            .document(license_id)
+            .get()
         )
         return result.to_dict()
 
     def _get_config_from_queue_by_license_id(self, license_id: str) -> str | None:
         result: DocumentSnapshot = (
-            self._get_db().collection("queues").document(license_id).get(["queue"])
+            self._get_db()
+            .collection(get_config().queues_collection)
+            .document(license_id)
+            .get(["queue"])
         )
         if result.exists:
             queue = result.to_dict()["queue"]
@@ -98,7 +105,7 @@ class FirestoreClient(Database, CRUDOperations):
     ) -> None:
         result: WriteResult = (
             self._get_db()
-            .collection("queues")
+            .collection(get_config().queues_collection)
             .document(license_id)
             .update({"queue": firestore.ArrayRemove([config_name])})
         )
@@ -116,7 +123,7 @@ def get_partition_from_manifest(transaction, config_name: str) -> str | None:
 
     snapshot = (
         db_client._get_db()
-        .collection("test_manifest")
+        .collection(get_config().manifest_collection)
         .where(filter=and_filter)
         .limit(1)
         .get(transaction=transaction)
@@ -127,7 +134,9 @@ def get_partition_from_manifest(transaction, config_name: str) -> str | None:
         return None
 
     ref: DocumentReference = (
-        db_client._get_db().collection("test_manifest").document(snapshot.id)
+        db_client._get_db()
+        .collection(get_config().manifest_collection)
+        .document(snapshot.id)
     )
     transaction.update(ref, {"status": "processing"})
 

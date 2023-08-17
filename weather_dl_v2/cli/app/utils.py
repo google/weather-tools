@@ -12,7 +12,6 @@ from time import sleep
 logger = logging.getLogger(__name__)
 
 
-
 def timeit(func):
     def wrap_func(*args, **kwargs):
         t1 = time()
@@ -23,8 +22,10 @@ def timeit(func):
 
     return wrap_func
 
+
 class Loader:
-    def __init__(self, desc="Loading...", end="Done!", timeout=0.1):
+
+    def __init__(self, desc="Loading...", end="", timeout=0.1):
         """
         A loader-like context manager
 
@@ -59,7 +60,6 @@ class Loader:
         self.done = True
         cols = get_terminal_size((80, 20)).columns
         print("\r" + " " * cols, end="", flush=True)
-        print(f"\r{self.end}", flush=True)
 
     def __exit__(self, exc_type, exc_value, tb):
         # handle exceptions with those variables ^

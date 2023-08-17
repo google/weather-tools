@@ -11,4 +11,12 @@ ARG CONDA_ENV_NAME=weather-dl-v2-cli
 RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
 
-ENV BASE_URI=http://<pod-ip>:8080
+RUN apt-get update -y
+RUN apt-get install nano -y
+RUN apt-get install vim -y
+RUN apt-get curl -y
+
+# TODO: Install gsutil 
+# RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-443.0.0-linux-arm.tar.gz
+# RUN tar -xf google-cloud-cli-443.0.0-linux-arm.tar.gz
+# RUN ./google-cloud-sdk/install.sh

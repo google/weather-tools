@@ -5,9 +5,9 @@ This is a command line interface for talking to the weather-dl-v2 FastAPI server
 while deploying our FastAPI server. Hence we need to deploy the CLI on a VM to interact
 through our fastapi server.
 
-Replace the FastAPI server pod's IP in Dockerfile (at line 8).
+Replace the FastAPI server pod's IP in cli_config.json.
 ```
-ENV BASE_URI=http://<pod-ip>:8080
+Please make approriate changes in cli_config.json, if required.
 ```
 > Note: Command to get the Pod IP : `kubectl get pods -o wide`.
 >
