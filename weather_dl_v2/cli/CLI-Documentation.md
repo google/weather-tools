@@ -120,11 +120,13 @@ Manage licenses.
 The json file should be in this format:
 ```
 {
+	"license_id: <license_id>
 	"client_name": <client_name>,
 	"number_of_requests": <number_of_request>,
 	"secret_id": <secret_manager_id>
 }
 ```
+NOTE: `license_id` is case insensitive and has to be unique for each license.
 
 
 ##### Arguments
