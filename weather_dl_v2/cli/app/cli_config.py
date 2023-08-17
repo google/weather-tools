@@ -1,6 +1,7 @@
 import dataclasses
 import typing as t
 import json
+import os
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -34,7 +35,7 @@ cli_config = None
 
 def get_config():
     global cli_config
-    cli_config_json = "./cli_config.json"
+    cli_config_json = os.path.join(os.getcwd(), "cli_config.json")
 
     if cli_config is None:
         with open(cli_config_json) as file:

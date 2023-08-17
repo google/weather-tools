@@ -1,5 +1,6 @@
 import typer
 import json
+import os
 from typing_extensions import Annotated
 from app.cli_config import get_config
 from app.utils import Validator
@@ -22,7 +23,7 @@ def update_server_ip(
         str, typer.Argument(help="New IP address. (Do not add port or protocol).")
     ],
 ):
-    file_path = "./cli_config.json"
+    file_path = os.path.join(os.getcwd(), "cli_config.json")
     cli_config = {}
     with open(file_path, "r") as file:
         cli_config = json.load(file)
