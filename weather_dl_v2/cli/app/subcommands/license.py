@@ -43,12 +43,13 @@ def add_license(
         str,
         typer.Argument(
             help="""Input json file. Example json for new license-"""
-            """{"client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            """{"license_id" : <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            """\nNOTE: license_id is case insensitive and has to be unique for each license."""
         ),
-    ],  # noqa
+    ],
 ):
     validator = LicenseValidator(
-        valid_keys=["client_name", "number_of_requests", "secret_id"]
+        valid_keys=["license_id", "client_name", "number_of_requests", "secret_id"]
     )
 
     try:
