@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # TODO: Make use of google secret manager.
 # REF: https://cloud.google.com/secret-manager.
 class License(BaseModel):
+    license_id: str
     client_name: str
     number_of_requests: int
     secret_id: str
@@ -129,6 +130,13 @@ async def add_license(
     queue_handler: QueueHandler = Depends(get_queue_handler),
     create_deployment=Depends(get_create_deployment),
 ):
+    license_id = license.license_id.lower()
+    if await license_handler._check_license_exists(license_id):
+        logger.error(f"License with license_id {license_id} already exist.")
+        raise HTTPException(
+            status_code=409, detail=f"License with license_id {license_id} already exist."
+        )
+
     license_dict = license.dict()
     license_dict["k8s_deployment_id"] = ""
     license_id = await license_handler._add_license(license_dict)
