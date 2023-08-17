@@ -119,8 +119,9 @@ class LicenseHandlerFirestore(LicenseHandler):
         self.collection = get_config().license_collection
 
     async def _add_license(self, license_dict: dict) -> str:
-        license_id = license_dict['license_id'].lower()
         license_dict['license_id'] = license_dict['license_id'].lower()
+        license_id = license_dict['license_id']
+        
         result: WriteResult = (
             await self.db.collection(self.collection)
             .document(license_id)
