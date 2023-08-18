@@ -1,5 +1,5 @@
 import logging
-
+import re
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from license_dep.deployment_creator import create_license_deployment, terminate_license_deployment
@@ -131,10 +131,27 @@ async def add_license(
     create_deployment=Depends(get_create_deployment),
 ):
     license_id = license.license_id.lower()
+
+    # Check if license id is in correct format.
+    LICENSE_REGEX = re.compile(
+        r"[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+    )
+    if not bool(LICENSE_REGEX.fullmatch(license_id)):
+        logger.error(
+            """Invalid format for license_id. License id must consist of lower case alphanumeric"""
+            """ characters, '-' or '.', and must start and end with an alphanumeric character"""
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="""Invalid format for license_id. License id must consist of lower case alphanumeric"""
+            """ characters, '-' or '.', and must start and end with an alphanumeric character"""
+        )
+
     if await license_handler._check_license_exists(license_id):
         logger.error(f"License with license_id {license_id} already exist.")
         raise HTTPException(
-            status_code=409, detail=f"License with license_id {license_id} already exist."
+            status_code=409,
+            detail=f"License with license_id {license_id} already exist.",
         )
 
     license_dict = license.dict()

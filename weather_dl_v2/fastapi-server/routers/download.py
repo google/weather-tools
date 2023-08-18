@@ -175,7 +175,7 @@ async def submit_download(
                 detail=f"Please stop the ongoing download of the config file '{file.filename}' "
                 "before attempting to start a new download.",
             )
-        
+
         for license_id in licenses:
             if not await license_handler._check_license_exists(license_id):
                 logger.info(f"No such license {license_id}.")
@@ -287,7 +287,7 @@ async def retry_config(
             status_code=404,
             detail=f"No such download config {config_name} to stop & remove.",
         )
-    
+
     for license_id in licenses:
         if not await license_handler._check_license_exists(license_id):
             logger.info(f"No such license {license_id}.")
