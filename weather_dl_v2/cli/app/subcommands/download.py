@@ -4,7 +4,7 @@ from app.services.download_service import download_service
 from app.utils import Validator
 from typing import List
 
-app = typer.Typer()
+app = typer.Typer(rich_markup_mode="markdown")
 
 
 class DowloadFilterValidator(Validator):
@@ -15,7 +15,11 @@ class DowloadFilterValidator(Validator):
 def get_downloads(
     filter: Annotated[
         List[str],
-        typer.Option(help="Filter by some value. Format: filter_key=filter_value."),
+        typer.Option(
+            help="""Filter by some value. Format: filter_key=filter_value. Available filters """
+            """[key: client_name, values: cds, mars, ecpublic] """
+            """[key: status, values: completed, failed, in-progress]"""
+        ),
     ] = []
 ):
     if len(filter) > 0:
