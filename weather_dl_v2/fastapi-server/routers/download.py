@@ -4,6 +4,7 @@ import os
 import shutil
 import json
 
+from enum import Enum
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends, Body
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
@@ -198,11 +199,18 @@ async def submit_download(
             )
 
 
+class DownloadStatus(str, Enum):
+    completed = "completed"
+    failed = "failed"
+    in_progress = "in-progress"
+
+
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
 @router.get("/")
 async def get_downloads(
     client_name: str | None = None,
+    status: DownloadStatus | None = None,
     download_handler: DownloadHandler = Depends(get_download_handler),
     manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     fetch_config_stats=Depends(get_fetch_config_stats),
@@ -220,7 +228,26 @@ async def get_downloads(
             )
         )
 
-    return await asyncio.gather(*coroutines)
+    config_details = await asyncio.gather(*coroutines)
+
+    if status is None:
+        return config_details
+
+    if status.value == "completed":
+        return list(
+            filter(
+                lambda detail: detail["downloaded_shards"] == detail["total_shards"],
+                config_details,
+            )
+        )
+    elif status.value == "failed":
+        return list(filter(lambda detail: detail["failed_shards"] > 0, config_details))
+    elif status.value == "in-progress":
+        return list(
+            filter(lambda detail: detail["in-progress_shards"] > 0, config_details)
+        )
+    else:
+        return config_details
 
 
 # Get status of particular download
