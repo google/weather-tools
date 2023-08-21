@@ -14,14 +14,14 @@ class DowloadFilterValidator(Validator):
 @app.command("list", help="List out all the configs.")
 def get_downloads(
     filter: Annotated[
-        str, typer.Option(help="Filter by some value. Format: filter_key=filter_value.")
-    ] = None
+        List[str], typer.Option(help="Filter by some value. Format: filter_key=filter_value.")
+    ] = []
 ):
-    if filter:
+    if len(filter) > 0:
         validator = DowloadFilterValidator(valid_keys=["client_name", "status"])
 
         try:
-            filter_dict = validator.validate(filters=[filter], allow_missing=True)
+            filter_dict = validator.validate(filters=filter, allow_missing=True)
         except Exception as e:
             print(f"filter error: {e}")
             return
