@@ -120,5 +120,5 @@ class Validator(abc.ABC):
 
         if allow_missing or data_set == valid_set:
             return True
-        
+
         return False

@@ -58,6 +58,10 @@ The list can also be filtered out by client_names.
 ```
 weather-dl-v2 download list
 weather-dl-v2 download list --filter client_name=cds
+weather-dl-v2 download list --filter status=success
+weather-dl-v2 download list --filter status=failed
+weather-dl-v2 download list --filter status=in-progress
+weather-dl-v2 download list --filter client_name=cds status=success
 ```
 </details>
 

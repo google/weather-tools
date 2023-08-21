@@ -200,9 +200,9 @@ async def submit_download(
 
 
 class DownloadStatus(str, Enum):
-    completed = "completed"
-    failed = "failed"
-    in_progress = "in-progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    IN_PROGRESS = "in-progress"
 
 
 # Can check the current status of the submitted config.
@@ -233,16 +233,16 @@ async def get_downloads(
     if status is None:
         return config_details
 
-    if status.value == "completed":
+    if status.value == DownloadStatus.COMPLETED:
         return list(
             filter(
                 lambda detail: detail["downloaded_shards"] == detail["total_shards"],
                 config_details,
             )
         )
-    elif status.value == "failed":
+    elif status.value == DownloadStatus.FAILED:
         return list(filter(lambda detail: detail["failed_shards"] > 0, config_details))
-    elif status.value == "in-progress":
+    elif status.value == DownloadStatus.IN_PROGRESS:
         return list(
             filter(lambda detail: detail["in-progress_shards"] > 0, config_details)
         )
