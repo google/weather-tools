@@ -109,9 +109,6 @@ class Validator(abc.ABC):
             raise FileNotFoundError
 
     def _validate_keys(self, data_set: set, valid_set: set, allow_missing: bool):
-        if allow_missing or data_set == valid_set:
-            return True
-
         missing_keys = valid_set.difference(data_set)
         invalid_keys = data_set.difference(valid_set)
 
@@ -121,4 +118,7 @@ class Validator(abc.ABC):
         if len(invalid_keys) > 0:
             raise ValueError(f"keys {invalid_keys} are invalid keys.")
 
+        if allow_missing or data_set == valid_set:
+            return True
+        
         return False
