@@ -14,7 +14,8 @@ class DowloadFilterValidator(Validator):
 @app.command("list", help="List out all the configs.")
 def get_downloads(
     filter: Annotated[
-        List[str], typer.Option(help="Filter by some value. Format: filter_key=filter_value.")
+        List[str],
+        typer.Option(help="Filter by some value. Format: filter_key=filter_value."),
     ] = []
 ):
     if len(filter) > 0:

@@ -244,7 +244,10 @@ async def get_downloads(
         return list(filter(lambda detail: detail["failed_shards"] > 0, config_details))
     elif status.value == DownloadStatus.IN_PROGRESS:
         return list(
-            filter(lambda detail: detail["in-progress_shards"] > 0, config_details)
+            filter(
+                lambda detail: detail["downloaded_shards"] != detail["total_shards"],
+                config_details,
+            )
         )
     else:
         return config_details
