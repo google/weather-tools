@@ -18,16 +18,15 @@ def get_downloads(
     ] = None
 ):
     if filter:
-        validator = DowloadFilterValidator(valid_keys=["client_name"])
+        validator = DowloadFilterValidator(valid_keys=["client_name", "status"])
 
         try:
-            data = validator.validate(filters=[filter])
-            client_name = data["client_name"]
+            filter_dict = validator.validate(filters=[filter], allow_missing=True)
         except Exception as e:
             print(f"filter error: {e}")
             return
 
-        print(download_service._list_all_downloads_by_client_name(client_name))
+        print(download_service._list_all_downloads_by_filter(filter_dict))
         return
 
     print(download_service._list_all_downloads())

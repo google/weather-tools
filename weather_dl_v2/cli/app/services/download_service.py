@@ -19,6 +19,10 @@ class DownloadService(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _list_all_downloads_by_filter(self, filter_dict: dict):
+        pass
+
+    @abc.abstractmethod
     def _get_download_by_config(self, config_name: str):
         pass
 
@@ -52,6 +56,13 @@ class DownloadServiceNetwork(DownloadService):
             uri=self.endpoint,
             header={"accept": "application/json"},
             query={"client_name": client_name},
+        )
+
+    def _list_all_downloads_by_filter(self, filter_dict: dict):
+        return network_service.get(
+            uri=self.endpoint,
+            header={"accept": "application/json"},
+            query=filter_dict,
         )
 
     def _get_download_by_config(self, config_name: str):
