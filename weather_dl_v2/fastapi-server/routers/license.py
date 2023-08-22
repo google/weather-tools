@@ -144,7 +144,7 @@ async def add_license(
         raise HTTPException(
             status_code=400,
             detail="""Invalid format for license_id. License id must consist of lower case alphanumeric"""
-            """ characters, '-' or '.', and must start and end with an alphanumeric character"""
+            """ characters, '-' or '.', and must start and end with an alphanumeric character""",
         )
 
     if await license_handler._check_license_exists(license_id):

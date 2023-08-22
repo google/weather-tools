@@ -21,7 +21,9 @@ def create_license_deployment(license_id: str) -> str:
             "--license",
             license_id,
         ]
-        deployment_manifest["spec"]["template"]["spec"]["containers"][0]["image"] = get_config().license_deployment_image
+        deployment_manifest["spec"]["template"]["spec"]["containers"][0][
+            "image"
+        ] = get_config().license_deployment_image
 
         # Create an instance of the Kubernetes API client
         api_instance = client.AppsV1Api()

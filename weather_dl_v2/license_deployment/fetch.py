@@ -26,7 +26,7 @@ def create_job(request, result):
         "user_id": request["username"],
         "url": result["href"],
         "target_path": request["location"],
-        "license_id": license_id
+        "license_id": license_id,
     }
 
     data_str = json.dumps(res)
