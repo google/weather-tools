@@ -2,5 +2,6 @@
     "download_collection": "download",
     "queues_collection": "queues",
     "license_collection": "license",
-    "manifest_collection": "manifest"
+    "manifest_collection": "manifest",
+    "license_deployment_image": "XXXXXXXX"
 }
