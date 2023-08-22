@@ -49,7 +49,10 @@ weather-dl-v2 download add /path/to/example.cfg –l L1 -l L2 [--force-download]
  List all the active downloads.
  </summary>
 
-The list can also be filtered out by client_names.
+The list can also be filtered out by client_names.  
+Available filters:  
+[key: client_name, values: cds, mars, ecpublic]  
+[key: status, values: completed, failed, in-progress]  
 
 ##### Options
 > `--filter` : Filter the list by some key and value. Format of filter filter_key=filter_value
@@ -58,6 +61,10 @@ The list can also be filtered out by client_names.
 ```
 weather-dl-v2 download list
 weather-dl-v2 download list --filter client_name=cds
+weather-dl-v2 download list --filter status=success
+weather-dl-v2 download list --filter status=failed
+weather-dl-v2 download list --filter status=in-progress
+weather-dl-v2 download list --filter client_name=cds --filter status=success
 ```
 </details>
 

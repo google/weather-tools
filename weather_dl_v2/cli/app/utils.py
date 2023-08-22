@@ -70,7 +70,9 @@ class Loader:
 class Validator(abc.ABC):
     valid_keys: t.List[str]
 
-    def validate(self, filters: t.List[str], show_valid_filters=True):
+    def validate(
+        self, filters: t.List[str], show_valid_filters=True, allow_missing: bool = False
+    ):
         filter_dict = {}
 
         for filter in filters:
@@ -87,7 +89,7 @@ class Validator(abc.ABC):
         data_set = set(filter_dict.keys())
         valid_set = set(self.valid_keys)
 
-        if self._validate_keys(data_set, valid_set):
+        if self._validate_keys(data_set, valid_set, allow_missing):
             return filter_dict
 
     def validate_json(self, file_path):
@@ -106,17 +108,17 @@ class Validator(abc.ABC):
             logger.info("file not found.")
             raise FileNotFoundError
 
-    def _validate_keys(self, data_set: set, valid_set: set):
-        if data_set == valid_set:
-            return True
-
+    def _validate_keys(self, data_set: set, valid_set: set, allow_missing: bool):
         missing_keys = valid_set.difference(data_set)
         invalid_keys = data_set.difference(valid_set)
 
-        if len(missing_keys) > 0:
+        if not allow_missing and len(missing_keys) > 0:
             raise ValueError(f"keys {missing_keys} are missing in file.")
 
         if len(invalid_keys) > 0:
             raise ValueError(f"keys {invalid_keys} are invalid keys.")
+
+        if allow_missing or data_set == valid_set:
+            return True
 
         return False

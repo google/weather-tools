@@ -4,7 +4,7 @@ from app.services.download_service import download_service
 from app.utils import Validator
 from typing import List
 
-app = typer.Typer()
+app = typer.Typer(rich_markup_mode="markdown")
 
 
 class DowloadFilterValidator(Validator):
@@ -14,20 +14,24 @@ class DowloadFilterValidator(Validator):
 @app.command("list", help="List out all the configs.")
 def get_downloads(
     filter: Annotated[
-        str, typer.Option(help="Filter by some value. Format: filter_key=filter_value.")
-    ] = None
+        List[str],
+        typer.Option(
+            help="""Filter by some value. Format: filter_key=filter_value. Available filters """
+            """[key: client_name, values: cds, mars, ecpublic] """
+            """[key: status, values: completed, failed, in-progress]"""
+        ),
+    ] = []
 ):
-    if filter:
-        validator = DowloadFilterValidator(valid_keys=["client_name"])
+    if len(filter) > 0:
+        validator = DowloadFilterValidator(valid_keys=["client_name", "status"])
 
         try:
-            data = validator.validate(filters=[filter])
-            client_name = data["client_name"]
+            filter_dict = validator.validate(filters=filter, allow_missing=True)
         except Exception as e:
             print(f"filter error: {e}")
             return
 
-        print(download_service._list_all_downloads_by_client_name(client_name))
+        print(download_service._list_all_downloads_by_filter(filter_dict))
         return
 
     print(download_service._list_all_downloads())
