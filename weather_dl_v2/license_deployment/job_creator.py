@@ -3,7 +3,7 @@ import yaml
 import json
 import uuid
 from kubernetes import client, config
-
+from deployment_config import get_config
 
 def create_download_job(message):
     """Creates a kubernetes workflow of type Job for downloading the data."""
@@ -28,5 +28,6 @@ def create_download_job(message):
             url,
             target_path,
         ]
+        dep["spec"]["template"]["spec"]["containers"][0]["image"] = get_config().downloader_k8_image
         batch_api = client.BatchV1Api()
         batch_api.create_namespaced_job(body=dep, namespace="default")

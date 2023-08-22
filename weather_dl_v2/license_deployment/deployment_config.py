@@ -11,6 +11,7 @@ class DeploymentConfig:
     queues_collection: str = ""
     license_collection: str = ""
     manifest_collection: str = ""
+    downloader_k8_image: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
