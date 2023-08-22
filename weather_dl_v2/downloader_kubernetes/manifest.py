@@ -24,6 +24,7 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
+from downloader_config import get_config
 
 """An implementation-dependent Manifest URI."""
 Location = t.NewType("Location", str)
@@ -478,6 +479,4 @@ class FirestoreManifest(Manifest):
 
     def root_document_for_store(self, store_scheme: str) -> DocumentReference:
         """Get the root manifest document given the user's config and current document's storage location."""
-        # TODO: Get user-defined collection for manifest.
-        root_collection = "XXXXXXXXXX"
-        return self._get_db().collection(root_collection).document(store_scheme)
+        return self._get_db().collection(get_config().manifest_collection).document(store_scheme)
