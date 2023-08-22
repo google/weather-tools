@@ -8,7 +8,7 @@ from deployment_config import get_config
 def create_download_job(message):
     """Creates a kubernetes workflow of type Job for downloading the data."""
     parsed_message = json.loads(message)
-    config_name, dataset, selection, user_id, url, target_path = parsed_message.values()
+    config_name, dataset, selection, user_id, url, target_path, license_id = parsed_message.values()
     selection = str(selection).replace(" ", "")
     config.load_config()
 
@@ -27,6 +27,7 @@ def create_download_job(message):
             user_id,
             url,
             target_path,
+            license_id
         ]
         dep["spec"]["template"]["spec"]["containers"][0]["image"] = get_config().downloader_k8_image
         batch_api = client.BatchV1Api()

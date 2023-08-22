@@ -201,6 +201,7 @@ class Manifest(abc.ABC):
 
     # To reduce the impact of _read() and _update() calls
     # on the start time of the stage.
+    license_id: str = ""
     prev_stage_precise_start_time: t.Optional[str] = None
     status: t.Optional[DownloadStatus] = None
 
@@ -329,7 +330,8 @@ class Manifest(abc.ABC):
         else:
             status = Status.FAILURE
             # For explanation, see https://docs.python.org/3/library/traceback.html#traceback.format_exception
-            error = "\n".join(traceback.format_exception(exc_type, exc_inst, exc_tb))
+            error = f"license_id: {self.license_id} "
+            error += "\n".join(traceback.format_exception(exc_type, exc_inst, exc_tb))
 
         new_status = dataclasses.replace(self.status)
         new_status.error = error
