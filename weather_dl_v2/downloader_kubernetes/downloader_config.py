@@ -23,16 +23,16 @@ class DownloaderConfig:
         return config_instance
 
 
-deployment_config = None
+downloader_config = None
 
 
 def get_config():
-    global deployment_config
-    deployment_config_json = "downloader_config.json"
+    global downloader_config
+    downloader_config_json = "downloader_config.json"
 
-    if deployment_config is None:
-        with open(deployment_config_json) as file:
+    if downloader_config is None:
+        with open(downloader_config_json) as file:
             firestore_dict = json.load(file)
-            deployment_config = DownloaderConfig.from_dict(firestore_dict)
+            downloader_config = DownloaderConfig.from_dict(firestore_dict)
 
-    return deployment_config
+    return downloader_config
