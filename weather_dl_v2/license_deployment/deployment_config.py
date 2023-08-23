@@ -36,7 +36,7 @@ def get_config():
 
     if deployment_config is None:
         with open(deployment_config_json) as file:
-            firestore_dict = json.load(file)
-            deployment_config = DeploymentConfig.from_dict(firestore_dict)
+            config_dict = json.load(file)
+            deployment_config = DeploymentConfig.from_dict(config_dict)
 
     return deployment_config

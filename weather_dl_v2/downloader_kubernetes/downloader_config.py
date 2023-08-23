@@ -32,7 +32,7 @@ def get_config():
 
     if downloader_config is None:
         with open(downloader_config_json) as file:
-            firestore_dict = json.load(file)
-            downloader_config = DownloaderConfig.from_dict(firestore_dict)
+            config_dict = json.load(file)
+            downloader_config = DownloaderConfig.from_dict(config_dict)
 
     return downloader_config
