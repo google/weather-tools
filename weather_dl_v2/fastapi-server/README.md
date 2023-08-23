@@ -53,11 +53,6 @@ uvicorn main:app --reload
 * Open your browser at http://127.0.0.1:8000.
 
 
-### Add path of created license deployment image in license_dep/license_deployment.yaml:
-```
-Please write down the license deployment's docker image path at Line 22 of license_deployment.yaml.
-```
-
 ### Create docker image for server:
 ```
 export PROJECT_ID=<your-project-here>

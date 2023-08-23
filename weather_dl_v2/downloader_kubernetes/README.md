@@ -9,15 +9,9 @@ We are not configuring any service account here hence make sure that compute eng
 * roles/bigquery.dataEditor
 * roles/bigquery.jobUser
 
-### Add the manifest location path
+### Make changes in downloader config, if required
 ```
-Please write down the manifest path at Line 43 of downloader.py.
-Eg: "fs://test_manifest?projectId=XXX"
-```
-
-### Add manifest collection name in manifest.py
-```
-Please write down the manifest collection name at Line 482 of manifest.py.
+Please make approriate changes in downloader_config.json, if required.
 ```
 
 ### Create docker image for downloader:

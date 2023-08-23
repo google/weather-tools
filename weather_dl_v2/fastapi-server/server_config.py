@@ -11,6 +11,7 @@ class ServerConfig:
     queues_collection: str = ""
     license_collection: str = ""
     manifest_collection: str = ""
+    license_deployment_image: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
@@ -35,7 +36,7 @@ def get_config():
 
     if server_config is None:
         with open(server_config_json) as file:
-            firestore_dict = json.load(file)
-            server_config = ServerConfig.from_dict(firestore_dict)
+            config_dict = json.load(file)
+            server_config = ServerConfig.from_dict(config_dict)
 
     return server_config

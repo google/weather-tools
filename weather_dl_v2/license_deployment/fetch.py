@@ -26,6 +26,7 @@ def create_job(request, result):
         "user_id": request["username"],
         "url": result["href"],
         "target_path": request["location"],
+        "license_id": license_id,
     }
 
     data_str = json.dumps(res)
@@ -36,7 +37,7 @@ def create_job(request, result):
 @exceptionit
 def make_fetch_request(request):
     client = CLIENTS[client_name](request["dataset"])
-    manifest = FirestoreManifest()
+    manifest = FirestoreManifest(license_id=license_id)
     logger.info(
         f"By using {client_name} datasets, "
         f"users agree to the terms and conditions specified in {client.license_url!r}"

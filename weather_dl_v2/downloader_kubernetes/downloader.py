@@ -20,11 +20,12 @@ def download(url: str, path: str) -> None:
         download_with_aria2(url, path)
 
 
-def main(config_name, dataset, selection, user_id, url, target_path) -> None:
+def main(
+    config_name, dataset, selection, user_id, url, target_path, license_id
+) -> None:
     """Download data from a client to a temp file."""
 
-    manifest_location = "XXXXXXXXXX"
-    manifest = FirestoreManifest(manifest_location)
+    manifest = FirestoreManifest(license_id=license_id)
     temp_name = ""
     with manifest.transact(config_name, dataset, selection, target_path, user_id):
         with tempfile.NamedTemporaryFile(delete=False) as temp:

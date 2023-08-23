@@ -6,12 +6,8 @@ Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]
 
 
 @dataclasses.dataclass
-class DeploymentConfig:
-    download_collection: str = ""
-    queues_collection: str = ""
-    license_collection: str = ""
+class DownloaderConfig:
     manifest_collection: str = ""
-    downloader_k8_image: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
@@ -27,16 +23,16 @@ class DeploymentConfig:
         return config_instance
 
 
-deployment_config = None
+downloader_config = None
 
 
 def get_config():
-    global deployment_config
-    deployment_config_json = "deployment_config.json"
+    global downloader_config
+    downloader_config_json = "downloader_config.json"
 
-    if deployment_config is None:
-        with open(deployment_config_json) as file:
+    if downloader_config is None:
+        with open(downloader_config_json) as file:
             config_dict = json.load(file)
-            deployment_config = DeploymentConfig.from_dict(config_dict)
+            downloader_config = DownloaderConfig.from_dict(config_dict)
 
-    return deployment_config
+    return downloader_config
