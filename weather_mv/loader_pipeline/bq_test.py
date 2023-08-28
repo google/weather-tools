@@ -204,7 +204,7 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
-                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None,
+                tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, zarr: bool = False, zarr_kwargs=None,
                 skip_creating_polygon: bool = False) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
@@ -212,7 +212,8 @@ class ExtractRowsTestBase(TestDataBase):
             first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
             output_table='foo.bar.baz', variables=variables, area=area,
             xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
-            tif_metadata_for_datetime=tif_metadata_for_datetime, skip_region_validation=True,
+            tif_metadata_for_start_time=tif_metadata_for_start_time,
+            tif_metadata_for_end_time=tif_metadata_for_end_time, skip_region_validation=True,
             disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
             skip_creating_polygon=skip_creating_polygon)
         coords = op.prepare_coordinates(data_path)
@@ -472,10 +473,13 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.test_data_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+        self.test_data_path = f'{self.test_data_folder}/test_data_tif_time.tif'
 
     def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path, tif_metadata_for_datetime='start_time'))
+        actual = next(
+            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time',
+                            tif_metadata_for_end_time='end_time')
+        )
         expected = {
             'dewpoint_temperature_2m': 281.09349060058594,
             'temperature_2m': 296.8329772949219,
@@ -485,6 +489,7 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
             'latitude': 42.09783344918844,
             'longitude': -123.66686981141397,
             'time': '2020-07-01T00:00:00+00:00',
+            'valid_time': '2020-07-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
                         (-123.669853, 42.095605), (-123.669853, 42.100066),
@@ -763,7 +768,8 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
         op = ToBigQuery.from_kwargs(
             first_uri=input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
-            tif_metadata_for_datetime=None, skip_region_validation=True, disable_grib_schema_normalization=False,
+            tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
+            disable_grib_schema_normalization=False,
         )
 
         with TestPipeline() as p:
