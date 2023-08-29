@@ -17,7 +17,10 @@ class NetworkService:
             logger.info(f"Response {response.text}")
             return
 
-        return json.dumps(parsed, indent=3)
+        if isinstance(parsed, list):
+            print(f"[Total {len(parsed)} items.]")
+
+        json.dumps(parsed, indent=3)
 
     @timeit
     def get(self, uri, header, query=None, payload=None):

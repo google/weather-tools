@@ -20,7 +20,8 @@ async def create_pending_license_deployments():
     create_deployment = get_create_deployment()
     license_list = await license_handler._get_license_without_deployment()
 
-    for license_id in license_list:
+    for license in license_list:
+        license_id = license["license_id"]
         try:
             logger.info(f"Creating license deployment for {license_id}")
             await create_deployment(license_id, license_handler)
