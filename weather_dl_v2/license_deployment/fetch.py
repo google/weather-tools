@@ -63,9 +63,12 @@ def fetch_request_from_db():
     request = None
     config_name = db_client._get_config_from_queue_by_license_id(license_id)
     if config_name:
-        request = db_client._get_partition_from_manifest(config_name)
-        if not request:
-            db_client._remove_config_from_license_queue(license_id, config_name)
+        try:
+            request = db_client._get_partition_from_manifest(config_name)
+            if not request:
+                db_client._remove_config_from_license_queue(license_id, config_name)
+        except Exception as e:
+            logger.error(f"Error in fetch_request_from_db. error: {e}.")
     return request
 
 

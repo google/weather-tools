@@ -101,6 +101,7 @@ def get_upload_mock():
 def get_reschedule_partitions():
     def invoke_manifest_schedule(partition_list: list, manifest: Manifest):
         for partition in partition_list:
+            logger.info(f"Rescheduling partition {partition}.")
             manifest.schedule(
                 partition["config_name"],
                 partition["dataset"],
