@@ -152,10 +152,8 @@ class ToBigQuery(ToDataSink):
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
-        if (uri_extension in ['.tif', '.tiff'] and not (known_args.tif_metadata_for_start_time
-            and known_args.tif_metadata_for_end_time)):
-            raise RuntimeError("'--tif_metadata_for_start_time' and "
-                               "'--tif_metadata_for_end_time' is required for tif files.")
+        if (uri_extension in ['.tif', '.tiff'] and not known_args.tif_metadata_for_start_time):
+            raise RuntimeError("'--tif_metadata_for_start_time' and is required for tif files.")
         elif (uri_extension not in ['.tif', '.tiff'] and (known_args.tif_metadata_for_start_time
                 or known_args.tif_metadata_for_end_time)):
             raise RuntimeError("'--tif_metadata_for_start_time' and "

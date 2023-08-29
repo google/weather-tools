@@ -178,29 +178,32 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: 
 
     init_time = None
     forecast_time = None
+    coords = {}
     try:
         # if start_time/end_time is in integer milliseconds
         init_time = (int(start_time.timestamp()) if start_time is not None
                         else int(ds.attrs[tif_metadata_for_start_time]) / 1000.0)
-        forecast_time = (int(end_time.timestamp()) if end_time is not None
-                        else int(ds.attrs[tif_metadata_for_end_time]) / 1000.0)
-        ds = ds.assign_coords(
-            {
-                'time': datetime.datetime.utcfromtimestamp(init_time),
-                'valid_time': datetime.datetime.utcfromtimestamp(forecast_time)
-            }
-        )
+        coords['time'] = datetime.datetime.utcfromtimestamp(init_time)
+
+        if tif_metadata_for_end_time:
+            forecast_time = (int(end_time.timestamp()) if end_time is not None
+                            else int(ds.attrs[tif_metadata_for_end_time]) / 1000.0)
+            coords['valid_time'] = datetime.datetime.utcfromtimestamp(forecast_time)
+
+        ds = ds.assign_coords(coords)
     except KeyError as e:
         raise RuntimeError(f"Invalid datetime metadata of tif: {e}.")
     except ValueError:
         try:
-            # if start_time/end_time is in UTC format
-            ds = ds.assign_coords(
-                {
-                    'time': datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time], '%Y-%m-%dT%H:%M:%SZ'),
-                    'valid_time': datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time], '%Y-%m-%dT%H:%M:%SZ')
-                }
-            )
+            # if start_time/end_time is in UTC string format
+            init_time = datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time], '%Y-%m-%dT%H:%M:%SZ')
+            coords['time'] = init_time
+
+            if tif_metadata_for_end_time:
+                forecast_time = datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time], '%Y-%m-%dT%H:%M:%SZ')
+                coords['valid_time'] = forecast_time
+
+            ds = ds.assign_coords(coords)
         except ValueError as e:
             raise RuntimeError(f"Invalid datetime value in tif's metadata: {e}.")
 
