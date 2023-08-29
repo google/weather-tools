@@ -20,52 +20,51 @@ class NetworkService:
         if isinstance(parsed, list):
             print(f"[Total {len(parsed)} items.]")
 
-        json.dumps(parsed, indent=3)
+        return json.dumps(parsed, indent=3)
 
     @timeit
     def get(self, uri, header, query=None, payload=None):
-        with Loader("Sending request..."):
-            try:
+        try:
+            with Loader("Sending request..."):
                 x = requests.get(uri, params=query, headers=header, data=payload)
-                return self.parse_response(x)
-            except requests.exceptions.RequestException as e:
-                logger.error(f"request error: {e}")
-                raise SystemExit(e)
+            return self.parse_response(x)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
+            raise SystemExit(e)
 
     @timeit
     def post(self, uri, header, query=None, payload=None, file=None):
-        with Loader("Sending request..."):
-            try:
+        try:
+            with Loader("Sending request..."):
                 x = requests.post(
                     uri, params=query, headers=header, data=payload, files=file
                 )
-                return self.parse_response(x)
-            except requests.exceptions.RequestException as e:
-                logger.error(f"request error: {e}")
-                raise SystemExit(e)
+            return self.parse_response(x)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
+            raise SystemExit(e)
 
     @timeit
     def put(self, uri, header, query=None, payload=None, file=None):
-        with Loader("Sending request..."):
-            try:
+        try:
+            with Loader("Sending request..."):
                 x = requests.put(
                     uri, params=query, headers=header, data=payload, files=file
                 )
-
-                return self.parse_response(x)
-            except requests.exceptions.RequestException as e:
-                logger.error(f"request error: {e}")
-                raise SystemExit(e)
+            return self.parse_response(x)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
+            raise SystemExit(e)
 
     @timeit
     def delete(self, uri, header, query=None):
-        with Loader("Sending request..."):
-            try:
+        try:
+            with Loader("Sending request..."):
                 x = requests.delete(uri, params=query, headers=header)
-                return self.parse_response(x)
-            except requests.exceptions.RequestException as e:
-                logger.error(f"request error: {e}")
-                raise SystemExit(e)
+            return self.parse_response(x)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
+            raise SystemExit(e)
 
 
 network_service = NetworkService()
