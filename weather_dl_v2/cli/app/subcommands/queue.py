@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from app.services.queue_service import queue_service
-from app.utils import Validator
+from app.utils import Validator, as_table
 
 app = typer.Typer()
 
@@ -26,17 +26,15 @@ def get_all_license_queue(
             print(f"filter error: {e}")
             return
 
-        print(queue_service._get_license_queue_by_client_name(client_name))
+        print(as_table(queue_service._get_license_queue_by_client_name(client_name)))
         return
 
-    print(queue_service._get_all_license_queues())
+    print(as_table(queue_service._get_all_license_queues()))
 
 
 @app.command("get", help="Get queue of particular license.")
-def get_license_queue(
-    license: Annotated[str, typer.Argument(help="License ID")],
-):
-    print(queue_service._get_queue_by_license(license))
+def get_license_queue(license: Annotated[str, typer.Argument(help="License ID")]):
+    print(as_table(queue_service._get_queue_by_license(license)))
 
 
 @app.command(

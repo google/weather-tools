@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from app.services.license_service import license_service
-from app.utils import Validator
+from app.utils import Validator, as_table
 
 app = typer.Typer()
 
@@ -26,15 +26,15 @@ def get_all_license(
             print(f"filter error: {e}")
             return
 
-        print(license_service._get_all_license_by_client_name(client_name))
+        print(as_table(license_service._get_all_license_by_client_name(client_name)))
         return
 
-    print(license_service._get_all_license())
+    print(as_table(license_service._get_all_license()))
 
 
 @app.command("get", help="Get a particular license by ID.")
 def get_license(license: Annotated[str, typer.Argument(help="License ID.")]):
-    print(license_service._get_license_by_license_id(license))
+    print(as_table(license_service._get_license_by_license_id(license)))
 
 
 @app.command("add", help="Add new license.")

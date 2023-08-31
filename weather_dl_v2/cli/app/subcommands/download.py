@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from app.services.download_service import download_service
-from app.utils import Validator
+from app.utils import Validator, as_table
 from typing import List
 
 app = typer.Typer(rich_markup_mode="markdown")
@@ -31,10 +31,10 @@ def get_downloads(
             print(f"filter error: {e}")
             return
 
-        print(download_service._list_all_downloads_by_filter(filter_dict))
+        print(as_table(download_service._list_all_downloads_by_filter(filter_dict)))
         return
 
-    print(download_service._list_all_downloads())
+    print(as_table(download_service._list_all_downloads()))
 
 
 @app.command("add", help="Submit new config to download.")
@@ -59,7 +59,7 @@ def submit_download(
 def get_download_by_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")]
 ):
-    print(download_service._get_download_by_config(config_name))
+    print(as_table(download_service._get_download_by_config(config_name)))
 
 
 @app.command("remove", help="Remove existing config.")
