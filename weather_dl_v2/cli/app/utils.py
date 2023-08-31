@@ -8,6 +8,7 @@ from itertools import cycle
 from shutil import get_terminal_size
 from threading import Thread
 from time import sleep
+from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,29 @@ def timeit(func):
         return result
 
     return wrap_func
+
+
+def as_table(data: t.List[dict]):
+    header = data[0].keys()
+    # if any column has lists, convert that to a string.
+    rows = [
+        [",\n".join(val) if isinstance(val, list) else val for val in x.values()]
+        for x in data
+    ]
+    rows.insert(0, list(header))
+    return tabulate(
+        rows, showindex=True, tablefmt="grid", maxcolwidths=[16] * len(header)
+    )
+
+
+def parse_output(response: str, table=False) -> str:
+    if table:
+        obj = json.loads(response)
+        if not isinstance(obj, list):
+            # convert response to list if not a list.
+            obj = [obj]
+        response = as_table(obj)
+    return response
 
 
 class Loader:

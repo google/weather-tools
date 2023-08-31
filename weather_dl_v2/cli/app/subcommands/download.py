@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from app.services.download_service import download_service
-from app.utils import Validator
+from app.utils import Validator, parse_output
 from typing import List
 
 app = typer.Typer(rich_markup_mode="markdown")
@@ -20,7 +20,10 @@ def get_downloads(
             """[key: client_name, values: cds, mars, ecpublic] """
             """[key: status, values: completed, failed, in-progress]"""
         ),
-    ] = []
+    ] = [],
+    table: Annotated[
+        bool, typer.Option("--table", "-t", help="Show the data as a table.")
+    ] = False,
 ):
     if len(filter) > 0:
         validator = DowloadFilterValidator(valid_keys=["client_name", "status"])
@@ -31,10 +34,14 @@ def get_downloads(
             print(f"filter error: {e}")
             return
 
-        print(download_service._list_all_downloads_by_filter(filter_dict))
+        print(
+            parse_output(
+                download_service._list_all_downloads_by_filter(filter_dict), table=table
+            )
+        )
         return
 
-    print(download_service._list_all_downloads())
+    print(parse_output(download_service._list_all_downloads(), table=table))
 
 
 @app.command("add", help="Submit new config to download.")
@@ -57,9 +64,14 @@ def submit_download(
 
 @app.command("get", help="Get a particular config.")
 def get_download_by_config(
-    config_name: Annotated[str, typer.Argument(help="Config file name.")]
+    config_name: Annotated[str, typer.Argument(help="Config file name.")],
+    table: Annotated[
+        bool, typer.Option("--table", "-t", help="Show the data as a table.")
+    ] = False,
 ):
-    print(download_service._get_download_by_config(config_name))
+    print(
+        parse_output(download_service._get_download_by_config(config_name), table=table)
+    )
 
 
 @app.command("remove", help="Remove existing config.")
