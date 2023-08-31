@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from app.services.license_service import license_service
-from app.utils import Validator, parse_output
+from app.utils import Validator, as_table
 
 app = typer.Typer()
 
@@ -14,10 +14,7 @@ class LicenseValidator(Validator):
 def get_all_license(
     filter: Annotated[
         str, typer.Option(help="Filter by some value. Format: filter_key=filter_value")
-    ] = None,
-    table: Annotated[
-        bool, typer.Option("--table", "-t", help="Show the data as a table.")
-    ] = False,
+    ] = None
 ):
     if filter:
         validator = LicenseValidator(valid_keys=["client_name"])
@@ -29,27 +26,15 @@ def get_all_license(
             print(f"filter error: {e}")
             return
 
-        print(
-            parse_output(
-                license_service._get_all_license_by_client_name(client_name),
-                table=table,
-            )
-        )
+        print(as_table(license_service._get_all_license_by_client_name(client_name)))
         return
 
-    print(parse_output(license_service._get_all_license(), table=table))
+    print(as_table(license_service._get_all_license()))
 
 
 @app.command("get", help="Get a particular license by ID.")
-def get_license(
-    license: Annotated[str, typer.Argument(help="License ID.")],
-    table: Annotated[
-        bool, typer.Option("--table", "-t", help="Show the data as a table.")
-    ] = False,
-):
-    print(
-        parse_output(license_service._get_license_by_license_id(license), table=table)
-    )
+def get_license(license: Annotated[str, typer.Argument(help="License ID.")]):
+    print(as_table(license_service._get_license_by_license_id(license)))
 
 
 @app.command("add", help="Add new license.")

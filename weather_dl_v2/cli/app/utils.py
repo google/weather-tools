@@ -24,7 +24,13 @@ def timeit(func):
     return wrap_func
 
 
-def as_table(data: t.List[dict]):
+def as_table(response: str):
+    data = json.loads(response)
+
+    if not isinstance(data, list):
+        # convert response to list if not a list.
+        data = [data]
+
     header = data[0].keys()
     # if any column has lists, convert that to a string.
     rows = [
@@ -35,16 +41,6 @@ def as_table(data: t.List[dict]):
     return tabulate(
         rows, showindex=True, tablefmt="grid", maxcolwidths=[16] * len(header)
     )
-
-
-def parse_output(response: str, table=False) -> str:
-    if table:
-        obj = json.loads(response)
-        if not isinstance(obj, list):
-            # convert response to list if not a list.
-            obj = [obj]
-        response = as_table(obj)
-    return response
 
 
 class Loader:
