@@ -116,7 +116,7 @@ class Validator(abc.ABC):
         if self._validate_keys(data_set, valid_set, allow_missing):
             return filter_dict
 
-    def validate_json(self, file_path):
+    def validate_json(self, file_path, allow_missing: bool = False):
         try:
             with open(file_path) as f:
                 data: dict = json.load(f)
@@ -125,7 +125,7 @@ class Validator(abc.ABC):
                 data_set = set(data_keys)
                 valid_set = set(self.valid_keys)
 
-                if self._validate_keys(data_set, valid_set):
+                if self._validate_keys(data_set, valid_set, allow_missing):
                     return data
 
         except FileNotFoundError:
