@@ -475,7 +475,7 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_tif_time.tif'
 
-    def test_extract_rows(self):
+    def test_extract_rows_with_end_time(self):
         actual = next(
             self.extract(self.test_data_path, tif_metadata_for_start_time='start_time',
                             tif_metadata_for_end_time='end_time')
@@ -490,6 +490,27 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
             'longitude': -123.66686981141397,
             'time': '2020-07-01T00:00:00+00:00',
             'valid_time': '2020-07-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833))),
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (-123.669853, 42.095605), (-123.669853, 42.100066),
+                        (-123.663885, 42.100066), (-123.663885, 42.095605),
+                        (-123.669853, 42.095605)]))
+        }
+        self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows_without_end_time(self):
+        actual = next(
+            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time')
+        )
+        expected = {
+            'dewpoint_temperature_2m': 281.09349060058594,
+            'temperature_2m': 296.8329772949219,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2020-07-01T00:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 42.09783344918844,
+            'longitude': -123.66686981141397,
+            'time': '2020-07-01T00:00:00+00:00',
             'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833))),
             'geo_polygon': geojson.dumps(geojson.Polygon([
                         (-123.669853, 42.095605), (-123.669853, 42.100066),

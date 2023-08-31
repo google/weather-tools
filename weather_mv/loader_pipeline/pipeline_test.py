@@ -30,7 +30,7 @@ class CLITests(unittest.TestCase):
         ).split()
         self.tif_base_cli_args = (
             'weather-mv bq '
-            f'-i {self.test_data_folder}/test_data_tif_start_time.tif '
+            f'-i {self.test_data_folder}/test_data_tif_time.tif '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
