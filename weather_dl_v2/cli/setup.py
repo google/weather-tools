@@ -1,6 +1,6 @@
 from setuptools import setup
 
-requirements = ["typer", "requests"]
+requirements = ["typer", "requests", "tabulate"]
 
 setup(
     name="weather-dl-v2",
