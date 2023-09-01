@@ -196,11 +196,13 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: 
     except ValueError:
         try:
             # if start_time/end_time is in UTC string format
-            init_time = datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time], '%Y-%m-%dT%H:%M:%SZ')
+            init_time = (int(start_time.timestamp()) if start_time is not None
+                        else datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time], '%Y-%m-%dT%H:%M:%SZ'))
             coords['time'] = init_time
 
             if tif_metadata_for_end_time:
-                forecast_time = datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time], '%Y-%m-%dT%H:%M:%SZ')
+                forecast_time = (int(end_time.timestamp()) if end_time is not None
+                        else datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time], '%Y-%m-%dT%H:%M:%SZ'))
                 coords['valid_time'] = forecast_time
 
             ds = ds.assign_coords(coords)

@@ -78,7 +78,7 @@ class ToBigQuery(ToDataSink):
           read all its variables, and generate a BigQuery schema.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         tif_metadata_for_start_time: If the input is a .tif file, parse the tif metadata at
-          this location for a start time.
+          this location for a start time / initialization time.
         tif_metadata_for_end_time: If the input is a .tif file, parse the tif metadata at
           this location for a end/forecast time.
         skip_region_validation: Turn off validation that checks if all Cloud resources
@@ -129,7 +129,7 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
         subparser.add_argument('--tif_metadata_for_start_time', type=str, default=None,
-                               help='Metadata that contains tif file\'s start time. '
+                               help='Metadata that contains tif file\'s start/initialization time. '
                                     'Applicable only for tif files.')
         subparser.add_argument('--tif_metadata_for_end_time', type=str, default=None,
                                help='Metadata that contains tif file\'s end/forecast time. '

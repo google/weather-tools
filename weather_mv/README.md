@@ -81,7 +81,7 @@ _Command options_:
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. Used to
   tune parallel uploads.
-* `--tif_metadata_for_start_time` : Metadata that contains tif file's start time. Applicable only for tif files.
+* `--tif_metadata_for_start_time` : Metadata that contains tif file's start/initialization time. Applicable only for tif files.
 * `--tif_metadata_for_end_time` : Metadata that contains tif file's end/forecast time. Applicable only for tif files (optional).
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 * `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
