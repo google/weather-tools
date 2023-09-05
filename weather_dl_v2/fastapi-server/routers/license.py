@@ -104,6 +104,7 @@ async def update_license(
     license_id: str,
     license: License,
     license_handler: LicenseHandler = Depends(get_license_handler),
+    queue_handler: QueueHandler = Depends(get_queue_handler),
     create_deployment=Depends(get_create_deployment),
     terminate_license_deployment=Depends(get_terminate_license_deployment),
 ):
@@ -115,6 +116,9 @@ async def update_license(
 
     license_dict = license.dict()
     await license_handler._update_license(license_id, license_dict)
+    await queue_handler._update_queue_client_name(
+        license_id, license_dict["client_name"]
+    )
 
     terminate_license_deployment(license_id)
     await create_deployment(license_id, license_handler)
