@@ -59,6 +59,12 @@ class QueueHandler(abc.ABC):
     ) -> None:
         pass
 
+    @abc.abstractmethod
+    async def _update_client_name_in_license_queue(
+        self, license_id: str, client_name: str
+    ) -> None:
+        pass
+
 
 class QueueHandlerMock(QueueHandler):
 
@@ -105,6 +111,13 @@ class QueueHandlerMock(QueueHandler):
 
     async def _update_config_priority_in_license(
         self, license_id: str, config_name: str, priority: int
+    ) -> None:
+        logger.info(
+            "Updated snapshot.id queue in 'queues' collection. Update_time: 00000."
+        )
+
+    async def _update_client_name_in_license_queue(
+        self, license_id: str, client_name: str
     ) -> None:
         logger.info(
             "Updated snapshot.id queue in 'queues' collection. Update_time: 00000."
@@ -204,4 +217,16 @@ class QueueHandlerFirestore(QueueHandler):
         )
         logger.info(
             f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}."
+        )
+
+    async def _update_client_name_in_license_queue(
+        self, license_id: str, client_name: str
+    ) -> None:
+        result: WriteResult = (
+            await self.db.collection(self.collection)
+            .document(license_id)
+            .update({"client_name": client_name})
+        )
+        logger.info(
+            f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}."
         )
