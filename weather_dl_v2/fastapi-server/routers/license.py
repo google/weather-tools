@@ -116,7 +116,7 @@ async def update_license(
 
     license_dict = license.dict()
     await license_handler._update_license(license_id, license_dict)
-    await queue_handler._update_queue_client_name(
+    await queue_handler._update_client_name_in_license_queue(
         license_id, license_dict["client_name"]
     )
 

@@ -60,7 +60,7 @@ class QueueHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def _update_queue_client_name(
+    async def _update_client_name_in_license_queue(
         self, license_id: str, client_name: str
     ) -> None:
         pass
@@ -116,7 +116,7 @@ class QueueHandlerMock(QueueHandler):
             "Updated snapshot.id queue in 'queues' collection. Update_time: 00000."
         )
 
-    async def _update_queue_client_name(
+    async def _update_client_name_in_license_queue(
         self, license_id: str, client_name: str
     ) -> None:
         logger.info(
@@ -219,7 +219,7 @@ class QueueHandlerFirestore(QueueHandler):
             f"Updated {snapshot.id} queue in 'queues' collection. Update_time: {result.update_time}."
         )
 
-    async def _update_queue_client_name(
+    async def _update_client_name_in_license_queue(
         self, license_id: str, client_name: str
     ) -> None:
         result: WriteResult = (
