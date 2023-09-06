@@ -15,9 +15,6 @@ from util import exceptionit
 db_client = FirestoreClient()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
 
-logger = logging.getLogger(__name__)
-
-
 def create_job(request, result):
     res = {
         "config_name": request["config_name"],
@@ -113,7 +110,10 @@ def boot_up(license: str) -> None:
 
 if __name__ == "__main__":
     license = sys.argv[2]
-    logging.basicConfig(format=f'[{license}] %(levelname)s - %(message)s')
+    global logger
+    logging.basicConfig(level=logging.INFO, format=f'[{license}] %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+
     logger.info(f"Deployment for license: {license}.")
     boot_up(license)
     main()
