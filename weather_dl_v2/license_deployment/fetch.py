@@ -15,9 +15,6 @@ from util import exceptionit
 db_client = FirestoreClient()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
 
-logger = logging.getLogger(__name__)
-
-
 def create_job(request, result):
     res = {
         "config_name": request["config_name"],
@@ -64,11 +61,12 @@ def fetch_request_from_db():
     config_name = db_client._get_config_from_queue_by_license_id(license_id)
     if config_name:
         try:
+            logger.info(f"Fetching partition for {config_name}")
             request = db_client._get_partition_from_manifest(config_name)
             if not request:
                 db_client._remove_config_from_license_queue(license_id, config_name)
         except Exception as e:
-            logger.error(f"Error in fetch_request_from_db. error: {e}.")
+            logger.error(f"Error in fetch_request_from_db for {config_name}. error: {e}.")
     return request
 
 
@@ -112,6 +110,10 @@ def boot_up(license: str) -> None:
 
 if __name__ == "__main__":
     license = sys.argv[2]
+    global logger
+    logging.basicConfig(level=logging.INFO, format=f'[{license}] %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+
     logger.info(f"Deployment for license: {license}.")
     boot_up(license)
     main()
