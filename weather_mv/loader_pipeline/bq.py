@@ -392,13 +392,13 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
     The `get_lat_lon_range` function gives the `.` point and `bound_point` gives the `*` point.
     """
     lat_lon_bound = bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution)
-    polygon = geojson.dumps(geojson.Polygon([
+    polygon = geojson.dumps(geojson.Polygon([[
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
         (lat_lon_bound[1][0], lat_lon_bound[1][1]),  # upper_left
         (lat_lon_bound[2][0], lat_lon_bound[2][1]),  # upper_right
         (lat_lon_bound[3][0], lat_lon_bound[3][1]),  # lower_right
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
-    ]))
+    ]]))
     return polygon
 
 
