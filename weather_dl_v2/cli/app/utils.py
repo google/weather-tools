@@ -31,10 +31,14 @@ def as_table(response: str):
         # convert response to list if not a list.
         data = [data]
 
+    if len(data)==0:
+        return ""
+
     header = data[0].keys()
     # if any column has lists, convert that to a string.
     rows = [
-        [",\n".join(val) if isinstance(val, list) else val for val in x.values()]
+        [",\n".join([f"{i} {ele}" for i, ele in enumerate(val)]) 
+        if isinstance(val, list) else val for val in x.values()]
         for x in data
     ]
     rows.insert(0, list(header))
