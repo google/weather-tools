@@ -78,7 +78,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -94,7 +94,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -110,7 +110,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -126,7 +126,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -143,7 +143,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -160,7 +160,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -194,7 +194,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
 
         ]
         self.assertListEqual(schema, expected_schema)
