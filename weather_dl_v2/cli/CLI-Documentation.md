@@ -85,7 +85,7 @@ weather-dl-v2 download get example.cfg
 
 <details>
  <summary><code>weather-dl-v2 download show</code> <br>
- Get contents of a particular download by config name.
+ Get contents of a particular config by config name.
  </summary>
 
 ##### Arguments

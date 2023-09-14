@@ -233,10 +233,10 @@ async def show_download_config(
     storage_handler: StorageHandler = Depends(get_storage_handler),
 ):
     if not await download_handler._check_download_exists(config_name):
-        logger.error(f"No such download config {config_name} to show")
+        logger.error(f"No such download config {config_name} to show.")
         raise HTTPException(
             status_code=404,
-            detail=f"No such download config {config_name} to show",
+            detail=f"No such download config {config_name} to show.",
         )
 
     contents = None
