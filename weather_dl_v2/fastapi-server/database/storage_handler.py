@@ -18,11 +18,11 @@ def get_storage_handler():
 class StorageHandler(abc.ABC):
 
     @abc.abstractmethod
-    def _upload_file(self, bucket_name, file_path) -> str:
+    def _upload_file(self, file_path) -> str:
         pass
 
     @abc.abstractmethod
-    def _open_local(self, bucket_name, file_name) -> t.Iterator[str]:
+    def _open_local(self, file_name) -> t.Iterator[str]:
         pass
 
 class StorageHandlerMock(StorageHandler):
@@ -30,10 +30,10 @@ class StorageHandlerMock(StorageHandler):
     def __init__(self) -> None:
         pass
 
-    def _upload_file(self, bucket_name, file_path) -> None:
+    def _upload_file(self, file_path) -> None:
         pass
 
-    def _open_local(self, bucket_name, file_name) -> t.Iterator[str]:
+    def _open_local(self, file_name) -> t.Iterator[str]:
         pass
 
 
@@ -41,20 +41,20 @@ class StorageHandlerGCS(StorageHandler):
 
     def __init__(self, client: storage.Client) -> None:
         self.client = client
+        self.bucket = self.client.get_bucket(get_config().storage_bucket)
 
-    def _upload_file(self, bucket_name, file_path) -> str:
+    def _upload_file(self, file_path) -> str:
         filename = os.path.basename(file_path).split('/')[-1]
-        bucket = self.client.get_bucket(bucket_name)
-        blob = bucket.blob(filename)
+        
+        blob = self.bucket.blob(filename)
         blob.upload_from_filename(file_path)
 
-        logger.info(f"Uploaded {filename} to {bucket}.")
+        logger.info(f"Uploaded {filename} to {self.bucket}.")
         return blob.public_url
     
     @contextlib.contextmanager
-    def _open_local(self, bucket_name, file_name) -> t.Iterator[str]:
-        bucket = self.client.bucket(bucket_name)
-        blob = bucket.blob(file_name)
+    def _open_local(self, file_name) -> t.Iterator[str]:
+        blob = self.bucket.blob(file_name)
         with tempfile.NamedTemporaryFile() as dest_file:
             blob.download_to_filename(dest_file.name)
             yield dest_file.name

@@ -5,7 +5,8 @@ import shutil
 import json
 
 from enum import Enum
-from config_processing.parsers import parse_config
+from config_processing.parsers import parse_config, process_config
+from config_processing.config import Config
 from server_config import get_config
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends, Body
 from config_processing.pipeline import start_processing_config
@@ -92,7 +93,7 @@ def get_upload():
 
         logger.info(f"Uploading {file.filename} to gcs bucket.")
         storage_handler: StorageHandler = get_storage_handler()
-        storage_handler._upload_file(get_config().storage_bucket, dest)
+        storage_handler._upload_file(dest)
         return dest
 
     return upload
@@ -106,34 +107,44 @@ def get_upload_mock():
 
 
 def get_reschedule_partitions():
-    def invoke_manifest_schedule(partition_list: list, manifest: Manifest):
+    def invoke_manifest_schedule(partition_list: list, config: Config, manifest: Manifest):
         for partition in partition_list:
             logger.info(f"Rescheduling partition {partition}.")
             manifest.schedule(
-                partition["config_name"],
-                partition["dataset"],
+                config.config_name,
+                config.dataset,
                 json.loads(partition["selection"]),
                 partition["location"],
                 partition["username"],
             )
 
-    async def reschedule_partitions(
-        config_name: str,
-        licenses: list,
-        manifest_handler: ManifestHandler,
-        download_handler: DownloadHandler,
-        queue_handler: QueueHandler,
-    ):
+    async def reschedule_partitions(config_name: str, licenses: list):
+        manifest_handler: ManifestHandler = get_manifest_handler()
+        download_handler: DownloadHandler = get_download_handler()
+        queue_handler: QueueHandler = get_queue_handler()
+        storage_handler: StorageHandler = get_storage_handler()
+
         partition_list = await manifest_handler._get_non_successfull_downloads(
             config_name
         )
+
+        config = None
         manifest = FirestoreManifest()
+
+        with storage_handler._open_local(config_name) as local_path:
+            with open(local_path, "r", encoding="utf-8") as f:
+                config = process_config(f, config_name)
+
         await download_handler._mark_partitioning_status(
             config_name, "Partitioning in-progress."
         )
 
         try:
-            await run_in_threadpool(invoke_manifest_schedule, partition_list, manifest)
+            if config is None:
+                logger.error(f"Failed reschedule_partitions. Could not open {config_name}.")
+                raise FileNotFoundError(f"Failed reschedule_partitions. Could not open {config_name}.")
+
+            await run_in_threadpool(invoke_manifest_schedule, partition_list, config, manifest)
             await download_handler._mark_partitioning_status(
                 config_name, "Partitioning completed."
             )
@@ -149,10 +160,7 @@ def get_reschedule_partitions():
 def get_reschedule_partitions_mock():
     def reschedule_partitions(
         config_name: str,
-        licenses: list,
-        manifest_handler: ManifestHandler,
-        download_handler: DownloadHandler,
-        queue_handler: QueueHandler,
+        licenses: list
     ):
         pass
 
@@ -220,15 +228,15 @@ async def show_download_config(
     storage_handler:StorageHandler = Depends(get_storage_handler)
 ):
     if not await download_handler._check_download_exists(config_name):
-        logger.error(f"No such download config {config_name} to stop & remove.")
+        logger.error(f"No such download config {config_name} to show")
         raise HTTPException(
             status_code=404,
-            detail=f"No such download config {config_name} to stop & remove.",
+            detail=f"No such download config {config_name} to show",
         )
     
     contents = None
     
-    with storage_handler._open_file(get_config().storage_bucket, config_name) as local_path:
+    with storage_handler._open_local(config_name) as local_path:
         with open(local_path, "r", encoding="utf-8") as f:
             contents = parse_config(f)
             logger.info(f"Contents of {config_name}: {contents}")
@@ -339,16 +347,14 @@ async def retry_config(
     licenses: list = Body(embed=True),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
-    queue_handler: QueueHandler = Depends(get_queue_handler),
-    manifest_handler: ManifestHandler = Depends(get_manifest_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
     reschedule_partitions=Depends(get_reschedule_partitions),
 ):
     if not await download_handler._check_download_exists(config_name):
-        logger.error(f"No such download config {config_name} to stop & remove.")
+        logger.error(f"No such download config {config_name} to retry.")
         raise HTTPException(
             status_code=404,
-            detail=f"No such download config {config_name} to stop & remove.",
+            detail=f"No such download config {config_name} to retry.",
         )
 
     for license_id in licenses:
@@ -358,13 +364,6 @@ async def retry_config(
                 status_code=404, detail=f"No such license {license_id}."
             )
 
-    background_tasks.add_task(
-        reschedule_partitions,
-        config_name,
-        licenses,
-        manifest_handler,
-        download_handler,
-        queue_handler,
-    )
+    background_tasks.add_task(reschedule_partitions, config_name, licenses)
 
     return {"msg": "Refetch initiated successfully."}
