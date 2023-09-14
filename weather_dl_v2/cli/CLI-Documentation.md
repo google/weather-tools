@@ -9,7 +9,6 @@ weather-dl-v2
 ## Ping
 Ping the FastAPI server and check if it’s live and reachable.
 
-<details>
  <summary><code>weather-dl-v2 ping</code></summary>
 
 ##### Usage
@@ -17,14 +16,14 @@ Ping the FastAPI server and check if it’s live and reachable.
 weather-dl-v2 ping
 ```
 
-</details>
 
 <br>
 
 ## Download
 Manage download configs.
 
-<details>
+
+### Add Downloads
  <summary><code>weather-dl-v2 download add</code> <br>
  Adds a new download config to specific licenses.  
  </summary>
@@ -41,18 +40,21 @@ Manage download configs.
 ```
 weather-dl-v2 download add /path/to/example.cfg –l L1 -l L2 [--force-download]
 ```
-</details>
 
-
-<details>
+### List Downloads
  <summary><code>weather-dl-v2 download list</code> <br>
  List all the active downloads.
  </summary>
 
 The list can also be filtered out by client_names.  
-Available filters:  
-[key: client_name, values: cds, mars, ecpublic]  
-[key: status, values: completed, failed, in-progress]  
+Available filters:
+```
+Filter Key: client_name
+Values: cds, mars, ecpublic
+
+Filter Key: status
+Values: completed, failed, in-progress
+``` 
 
 ##### Options
 > `--filter` : Filter the list by some key and value. Format of filter filter_key=filter_value
@@ -66,10 +68,8 @@ weather-dl-v2 download list --filter status=failed
 weather-dl-v2 download list --filter status=in-progress
 weather-dl-v2 download list --filter client_name=cds --filter status=success
 ```
-</details>
 
-
-<details>
+### Download Get
  <summary><code>weather-dl-v2 download get</code> <br>
  Get a particular download by config name.
  </summary>
@@ -81,9 +81,8 @@ weather-dl-v2 download list --filter client_name=cds --filter status=success
 ```
 weather-dl-v2 download get example.cfg
 ```
-</details>
 
-<details>
+### Download Show
  <summary><code>weather-dl-v2 download show</code> <br>
  Get contents of a particular config by config name.
  </summary>
@@ -95,9 +94,8 @@ weather-dl-v2 download get example.cfg
 ```
 weather-dl-v2 download show example.cfg
 ```
-</details>
 
-<details>
+### Download Remove
  <summary><code>weather-dl-v2 download remove</code> <br>
  Remove a download by config name.
  </summary>
@@ -109,9 +107,8 @@ weather-dl-v2 download show example.cfg
 ```
 weather-dl-v2 download remove example.cfg
 ```
-</details>
 
-<details>
+### Download Refetch
  <summary><code>weather-dl-v2 download refetch</code> <br>
  Refetch all non-successful partitions of a config.
  </summary>
@@ -126,14 +123,13 @@ weather-dl-v2 download remove example.cfg
 ```
 weather-dl-v2 download refetch example.cfg -l L1 -l L2
 ```
-</details>
 
 <br>
 
 ## License
 Manage licenses.
 
-<details>
+### License Add
  <summary><code>weather-dl-v2 license add</code> <br>
  Add a new license. New licenses are added using a json file.
  </summary>
@@ -157,9 +153,8 @@ NOTE: `license_id` is case insensitive and has to be unique for each license.
 ```
 weather-dl-v2 license add /path/to/new-license.json
 ```
-</details>
 
-<details>
+### License Get
  <summary><code>weather-dl-v2 license get</code> <br>
  Get a particular license by license ID.
  </summary>
@@ -171,9 +166,8 @@ weather-dl-v2 license add /path/to/new-license.json
 ```
 weather-dl-v2 license get L1
 ```
-</details>
 
-<details>
+### License Remove
  <summary><code>weather-dl-v2 license remove</code> <br>
  Remove a particular license by license ID.
  </summary>
@@ -185,9 +179,8 @@ weather-dl-v2 license get L1
 ```
 weather-dl-v2 license remove L1
 ```
-</details>
 
-<details>
+### License List
  <summary><code>weather-dl-v2 license list</code> <br>
  List all the licenses available. 
  </summary>
@@ -202,9 +195,8 @@ weather-dl-v2 license remove L1
 weather-dl-v2 license list
 weather-dl-v2 license list --filter client_name=cds
 ```
-</details>
 
-<details>
+### License Update
  <summary><code>weather-dl-v2 license update</code> <br>
  Update an existing license using License ID and a license json.
  </summary>
@@ -219,14 +211,13 @@ weather-dl-v2 license list --filter client_name=cds
 ```
 weather-dl-v2 license update L1 /path/to/license.json
 ```
-</details>
 
 <br>
 
 ## Queue
 Manage all the license queue.
 
-<details>
+### Queue List
  <summary><code>weather-dl-v2 queue list</code> <br>
  List all the queues.
  </summary>
@@ -241,9 +232,8 @@ Manage all the license queue.
 weather-dl-v2 queue list
 weather-dl-v2 queue list --filter client_name=cds
 ```
-</details>
 
-<details>
+### Queue Get
  <summary><code>weather-dl-v2 queue get</code> <br>
  Get a queue by license ID.
  </summary>
@@ -257,9 +247,8 @@ weather-dl-v2 queue list --filter client_name=cds
 ```
 weather-dl-v2 queue get L1
 ```
-</details>
 
-<details>
+### Queue Edit
  <summary><code>weather-dl-v2 queue edit</code> <br>
  Edit the priority of configs inside queues using edit.
  </summary>
@@ -286,14 +275,13 @@ Priority can be edited in two ways:
 weather-dl-v2 queue edit L1 --file /path/to/priority.json
 weather-dl-v2 queue edit L1 --config example.cfg --priority 0
 ```
-</details>
 
 <br>
 
 ## Config
 Configurations for cli.
 
-<details>
+### Config Show IP
  <summary><code>weather-dl-v2 config show-ip</code> <br>
 See the current server IP address.
  </summary>
@@ -302,9 +290,8 @@ See the current server IP address.
 ```
 weather-dl-v2 config show-ip
 ```
-</details>
 
-<details>
+### Config Set IP
  <summary><code>weather-dl-v2 config set-ip</code> <br>
 See the current server IP address.
  </summary>
@@ -316,5 +303,4 @@ See the current server IP address.
 ```
 weather-dl-v2 config set-ip 127.0.0.1
 ```
-</details>
 
