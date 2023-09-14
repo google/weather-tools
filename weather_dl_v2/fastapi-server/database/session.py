@@ -5,6 +5,8 @@ import firebase_admin
 from google.cloud import firestore
 from firebase_admin import credentials
 from config_processing.util import get_wait_interval
+from server_config import get_config
+from gcloud import storage
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,7 @@ class Database(abc.ABC):
 
 
 db: firestore.AsyncClient = None
+gcs: storage.Client = None
 
 
 def get_async_client() -> firestore.AsyncClient:
@@ -45,3 +48,16 @@ def get_async_client() -> firestore.AsyncClient:
         attempts += 1
 
     return db
+
+def get_gcs_client() -> storage.Client:
+    global gcs
+
+    if gcs:
+        return gcs
+
+    try:
+        gcs = storage.Client(project=get_config().gcs_project)
+    except ValueError as e:
+        logger.error(f"error {e}")
+
+    return gcs

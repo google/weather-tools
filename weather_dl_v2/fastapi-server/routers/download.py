@@ -5,12 +5,15 @@ import shutil
 import json
 
 from enum import Enum
+from config_processing.parsers import parse_config
+from server_config import get_config
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends, Body
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler
 from database.queue_handler import QueueHandler, get_queue_handler
 from database.license_handler import LicenseHandler, get_license_handler
 from database.manifest_handler import ManifestHandler, get_manifest_handler
+from database.storage_handler import StorageHandler, get_storage_handler
 from config_processing.manifest import FirestoreManifest, Manifest
 from fastapi.concurrency import run_in_threadpool
 
@@ -86,6 +89,10 @@ def get_upload():
         dest = os.path.join(os.getcwd(), "config_files", file.filename)
         with open(dest, "wb+") as dest_:
             shutil.copyfileobj(file.file, dest_)
+
+        logger.info(f"Uploading {file.filename} to gcs bucket.")
+        storage_handler: StorageHandler = get_storage_handler()
+        storage_handler._upload_file(get_config().storage_bucket, dest)
         return dest
 
     return upload
@@ -205,6 +212,31 @@ class DownloadStatus(str, Enum):
     FAILED = "failed"
     IN_PROGRESS = "in-progress"
 
+
+@router.get("/show/{config_name}")
+async def show_download_config(
+    config_name: str,
+    download_handler: DownloadHandler = Depends(get_download_handler),
+    storage_handler:StorageHandler = Depends(get_storage_handler)
+):
+    if not await download_handler._check_download_exists(config_name):
+        logger.error(f"No such download config {config_name} to stop & remove.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No such download config {config_name} to stop & remove.",
+        )
+    
+    contents = None
+    
+    with storage_handler._open_file(get_config().storage_bucket, config_name) as local_path:
+        with open(local_path, "r", encoding="utf-8") as f:
+            contents = parse_config(f)
+            logger.info(f"Contents of {config_name}: {contents}")
+
+    return {
+        "config_name": config_name,
+        "contents": contents
+    }
 
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters
