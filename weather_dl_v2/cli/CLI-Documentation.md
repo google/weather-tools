@@ -84,6 +84,20 @@ weather-dl-v2 download get example.cfg
 </details>
 
 <details>
+ <summary><code>weather-dl-v2 download show</code> <br>
+ Get contents of a particular download by config name.
+ </summary>
+
+##### Arguments
+> `CONFIG_NAME` : Name of the download config.
+
+##### Usage
+```
+weather-dl-v2 download show example.cfg
+```
+</details>
+
+<details>
  <summary><code>weather-dl-v2 download remove</code> <br>
  Remove a download by config name.
  </summary>

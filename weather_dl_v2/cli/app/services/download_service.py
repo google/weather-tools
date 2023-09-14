@@ -21,6 +21,10 @@ class DownloadService(abc.ABC):
     @abc.abstractmethod
     def _get_download_by_config(self, config_name: str):
         pass
+    
+    @abc.abstractmethod
+    def _show_config_content(self, config_name: str):
+        pass
 
     @abc.abstractmethod
     def _add_new_download(
@@ -57,6 +61,12 @@ class DownloadServiceNetwork(DownloadService):
     def _get_download_by_config(self, config_name: str):
         return network_service.get(
             uri=f"{self.endpoint}/{config_name}",
+            header={"accept": "application/json"},
+        )
+    
+    def _show_config_content(self, config_name: str):
+        return network_service.get(
+            uri=f"{self.endpoint}/show/{config_name}",
             header={"accept": "application/json"},
         )
 

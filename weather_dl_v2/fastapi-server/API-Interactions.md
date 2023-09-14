@@ -7,6 +7,7 @@
 | `weather-dl-v2 download list` | `get` | `/download/` |
 | `weather-dl-v2 download list --filter client_name=<name>` | `get` | `/download?client_name={name}` |
 | `weather-dl-v2 download get <config_name>` | `get` | `/download/{config_name}` |
+| `weather-dl-v2 download show <config_name>` | `get` | `/download/show/{config_name}` |
 | `weather-dl-v2 download remove <config_name>` | `delete` | `/download/{config_name}` |
 | `weather-dl-v2 download refetch <config_name> -l <license_id>` | `post` | `/download/refetch/{config_name}` |
 |  License |   |   |

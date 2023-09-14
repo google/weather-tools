@@ -61,6 +61,12 @@ def get_download_by_config(
 ):
     print(as_table(download_service._get_download_by_config(config_name)))
 
+@app.command("show", help="Show contents of a particular config.")
+def get_download_by_config(
+    config_name: Annotated[str, typer.Argument(help="Config file name.")]
+):
+    print(download_service._show_config_content(config_name))
+
 
 @app.command("remove", help="Remove existing config.")
 def remove_download(
