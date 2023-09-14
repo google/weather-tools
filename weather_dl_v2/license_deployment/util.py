@@ -30,7 +30,7 @@ def exceptionit(func):
         try:
             func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"exception in {func.__name__}  {e.__class__.__name__} {e}")
+            logger.error(f"exception in {func.__name__}  {e.__class__.__name__} {e}.")
 
     return inner_function
 
@@ -89,7 +89,7 @@ def copy(src: str, dst: str) -> None:
         subprocess.run(["gsutil", "cp", src, dst], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         logger.info(
-            f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}'
+            f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}.'
         )
         raise
 
@@ -98,7 +98,7 @@ def copy(src: str, dst: str) -> None:
 def to_json_serializable_type(value: t.Any) -> t.Any:
     """Returns the value with a type serializable to JSON"""
     # Note: The order of processing is significant.
-    logger.info("Serializing to JSON")
+    logger.info("Serializing to JSON.")
 
     if pd.isna(value) or value is None:
         return None
@@ -219,6 +219,6 @@ def download_with_aria2(url: str, path: str) -> None:
         )
     except subprocess.CalledProcessError as e:
         logger.info(
-            f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}'
+            f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}.'
         )
         raise

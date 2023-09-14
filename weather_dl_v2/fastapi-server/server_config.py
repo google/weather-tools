@@ -11,6 +11,8 @@ class ServerConfig:
     queues_collection: str = ""
     license_collection: str = ""
     manifest_collection: str = ""
+    storage_bucket: str = ""
+    gcs_project: str = ""
     license_deployment_image: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
