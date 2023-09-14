@@ -11,6 +11,7 @@ from server_config import get_config
 
 logger = logging.getLogger(__name__)
 
+
 def get_storage_handler():
     return StorageHandlerGCS(client=get_gcs_client())
 
@@ -24,6 +25,7 @@ class StorageHandler(abc.ABC):
     @abc.abstractmethod
     def _open_local(self, file_name) -> t.Iterator[str]:
         pass
+
 
 class StorageHandlerMock(StorageHandler):
 
@@ -44,14 +46,14 @@ class StorageHandlerGCS(StorageHandler):
         self.bucket = self.client.get_bucket(get_config().storage_bucket)
 
     def _upload_file(self, file_path) -> str:
-        filename = os.path.basename(file_path).split('/')[-1]
-        
+        filename = os.path.basename(file_path).split("/")[-1]
+
         blob = self.bucket.blob(filename)
         blob.upload_from_filename(file_path)
 
         logger.info(f"Uploaded {filename} to {self.bucket}.")
         return blob.public_url
-    
+
     @contextlib.contextmanager
     def _open_local(self, file_name) -> t.Iterator[str]:
         blob = self.bucket.blob(file_name)

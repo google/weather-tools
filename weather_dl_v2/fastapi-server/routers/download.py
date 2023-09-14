@@ -107,7 +107,9 @@ def get_upload_mock():
 
 
 def get_reschedule_partitions():
-    def invoke_manifest_schedule(partition_list: list, config: Config, manifest: Manifest):
+    def invoke_manifest_schedule(
+        partition_list: list, config: Config, manifest: Manifest
+    ):
         for partition in partition_list:
             logger.info(f"Rescheduling partition {partition}.")
             manifest.schedule(
@@ -141,10 +143,16 @@ def get_reschedule_partitions():
 
         try:
             if config is None:
-                logger.error(f"Failed reschedule_partitions. Could not open {config_name}.")
-                raise FileNotFoundError(f"Failed reschedule_partitions. Could not open {config_name}.")
+                logger.error(
+                    f"Failed reschedule_partitions. Could not open {config_name}."
+                )
+                raise FileNotFoundError(
+                    f"Failed reschedule_partitions. Could not open {config_name}."
+                )
 
-            await run_in_threadpool(invoke_manifest_schedule, partition_list, config, manifest)
+            await run_in_threadpool(
+                invoke_manifest_schedule, partition_list, config, manifest
+            )
             await download_handler._mark_partitioning_status(
                 config_name, "Partitioning completed."
             )
@@ -158,10 +166,7 @@ def get_reschedule_partitions():
 
 
 def get_reschedule_partitions_mock():
-    def reschedule_partitions(
-        config_name: str,
-        licenses: list
-    ):
+    def reschedule_partitions(config_name: str, licenses: list):
         pass
 
     return reschedule_partitions
@@ -225,7 +230,7 @@ class DownloadStatus(str, Enum):
 async def show_download_config(
     config_name: str,
     download_handler: DownloadHandler = Depends(get_download_handler),
-    storage_handler:StorageHandler = Depends(get_storage_handler)
+    storage_handler: StorageHandler = Depends(get_storage_handler),
 ):
     if not await download_handler._check_download_exists(config_name):
         logger.error(f"No such download config {config_name} to show")
@@ -233,18 +238,16 @@ async def show_download_config(
             status_code=404,
             detail=f"No such download config {config_name} to show",
         )
-    
+
     contents = None
-    
+
     with storage_handler._open_local(config_name) as local_path:
         with open(local_path, "r", encoding="utf-8") as f:
             contents = parse_config(f)
             logger.info(f"Contents of {config_name}: {contents}")
 
-    return {
-        "config_name": config_name,
-        "contents": contents
-    }
+    return {"config_name": config_name, "contents": contents}
+
 
 # Can check the current status of the submitted config.
 # List status for all the downloads + handle filters

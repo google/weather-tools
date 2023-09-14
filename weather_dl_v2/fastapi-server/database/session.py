@@ -49,6 +49,7 @@ def get_async_client() -> firestore.AsyncClient:
 
     return db
 
+
 def get_gcs_client() -> storage.Client:
     global gcs
 
