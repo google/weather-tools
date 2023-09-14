@@ -34,7 +34,7 @@ Manage download configs.
 > `FILE_PATH` : Path to config file.
 
 ##### Options
-> `-l/--license` (Required): License ID to which this download has to be added to.
+> `-l/--license` (Required): License ID to which this download has to be added to.  
 > `-f/--force-download` : Force redownload of partitions that were previously downloaded.
 
 ##### Usage
@@ -217,7 +217,7 @@ weather-dl-v2 license list --filter client_name=cds
 
 ##### Usage
 ```
-weather-dl-v2 license edit L1 /path/to/license.json
+weather-dl-v2 license update L1 /path/to/license.json
 ```
 </details>
 

@@ -25,7 +25,7 @@ gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-cli" --time
 
 ## Create a VM using above created docker-image
 ```
-export ZONE=<zone> eg: us-cental1-a
+export ZONE=<zone> eg: us-west1-a
 export SERVICE_ACCOUNT=<service account> # Let's keep this as Compute Engine Default Service Account
 export IMAGE_PATH=<container-image-path> # The above created image-path
 
