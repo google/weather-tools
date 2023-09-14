@@ -244,7 +244,7 @@ async def show_download_config(
     with storage_handler._open_local(config_name) as local_path:
         with open(local_path, "r", encoding="utf-8") as f:
             contents = parse_config(f)
-            logger.info(f"Contents of {config_name}: {contents}")
+            logger.info(f"Contents of {config_name}: {contents}.")
 
     return {"config_name": config_name, "contents": contents}
 

@@ -61,7 +61,7 @@ def fetch_request_from_db():
     config_name = db_client._get_config_from_queue_by_license_id(license_id)
     if config_name:
         try:
-            logger.info(f"Fetching partition for {config_name}")
+            logger.info(f"Fetching partition for {config_name}.")
             request = db_client._get_partition_from_manifest(config_name)
             if not request:
                 db_client._remove_config_from_license_queue(license_id, config_name)

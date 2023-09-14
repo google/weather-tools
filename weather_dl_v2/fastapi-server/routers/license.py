@@ -57,7 +57,7 @@ def get_create_deployment():
 
 def get_create_deployment_mock():
     def create_deployment_mock(license_id: str, license_handler: LicenseHandler):
-        logger.info("create deployment mocked")
+        logger.info("create deployment mock.")
 
     return create_deployment_mock
 
@@ -68,7 +68,7 @@ def get_terminate_license_deployment():
 
 def get_terminate_license_deployment_mock():
     def get_terminate_license_deployment_mock(license_id):
-        logger.info(f"terminating license deployment for {license_id}")
+        logger.info(f"terminating license deployment for {license_id}.")
 
     return get_terminate_license_deployment_mock
 

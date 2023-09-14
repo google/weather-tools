@@ -32,7 +32,7 @@ def create_license_deployment(license_id: str) -> str:
             body=deployment_manifest, namespace="default"
         )
 
-        logger.info(f"Deployment created successfully: {response.metadata.name}")
+        logger.info(f"Deployment created successfully: {response.metadata.name}.")
         return deployment_name
 
 

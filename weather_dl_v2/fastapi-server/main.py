@@ -23,15 +23,15 @@ async def create_pending_license_deployments():
     for license in license_list:
         license_id = license["license_id"]
         try:
-            logger.info(f"Creating license deployment for {license_id}")
+            logger.info(f"Creating license deployment for {license_id}.")
             await create_deployment(license_id, license_handler)
         except Exception as e:
-            logger.error(f"License deployment failed for {license_id}. Exception: {e}")
+            logger.error(f"License deployment failed for {license_id}. Exception: {e}.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Started FastAPI server")
+    logger.info("Started FastAPI server.")
     # Boot up
     # Make directory to store the uploaded config files.
     os.makedirs(os.path.join(os.getcwd(), "config_files"), exist_ok=True)

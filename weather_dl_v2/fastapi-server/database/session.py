@@ -59,6 +59,6 @@ def get_gcs_client() -> storage.Client:
     try:
         gcs = storage.Client(project=get_config().gcs_project)
     except ValueError as e:
-        logger.error(f"error {e}")
+        logger.error(f"Error initializing GCS client: {e}.")
 
     return gcs
