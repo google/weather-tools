@@ -43,6 +43,13 @@ spec:
           ports:
             - containerPort: 8080
           imagePullPolicy: Always
+          volumeMounts:
+            - name: config-volume
+              mountPath: ./config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: dl-v2-config
           # resources:
           #   # You must specify requests for CPU to autoscale
           #   # based on CPU utilization

@@ -21,6 +21,8 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /data
+        - name: config-volume
+          mountPath: ./downloader_config
       restartPolicy: Never
       volumes:
       - name: data
