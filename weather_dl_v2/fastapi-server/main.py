@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from routers import license, download, queues
 from database.license_handler import get_license_handler
 from routers.license import get_create_deployment
+from server_config import get_config
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -51,4 +52,4 @@ app.include_router(queues.router)
 
 @app.get("/")
 async def main():
-    return {"msg": "Greetings from weather-dl v2 !!"}
+    return {"msg": get_config().welcome_message}

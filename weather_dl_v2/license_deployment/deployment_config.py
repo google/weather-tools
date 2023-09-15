@@ -32,7 +32,7 @@ deployment_config = None
 
 def get_config():
     global deployment_config
-    deployment_config_json = "deployment_config.json"
+    deployment_config_json = "config/config.json"
 
     if deployment_config is None:
         with open(deployment_config_json) as file:

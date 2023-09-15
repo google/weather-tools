@@ -1,7 +1,0 @@
-{
-    "download_collection": "download",
-    "queues_collection": "queues",
-    "license_collection": "license",
-    "manifest_collection": "manifest",
-    "downloader_k8_image": "XXXXX"
-}

@@ -28,7 +28,7 @@ downloader_config = None
 
 def get_config():
     global downloader_config
-    downloader_config_json = "downloader_config.json"
+    downloader_config_json = "config/config.json"
 
     if downloader_config is None:
         with open(downloader_config_json) as file:

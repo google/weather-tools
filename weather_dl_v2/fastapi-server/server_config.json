@@ -1,9 +1,0 @@
-{
-    "download_collection": "download",
-    "queues_collection": "queues",
-    "license_collection": "license",
-    "manifest_collection": "manifest",
-    "storage_bucket": "XXXXXXXX",
-    "gcs_project": "XXXXXXXX",
-    "license_deployment_image": "XXXXXXXX"
-}

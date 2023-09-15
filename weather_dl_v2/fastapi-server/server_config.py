@@ -14,6 +14,7 @@ class ServerConfig:
     storage_bucket: str = ""
     gcs_project: str = ""
     license_deployment_image: str = ""
+    welcome_message: str = ""
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)
 
     @classmethod
@@ -34,7 +35,7 @@ server_config = None
 
 def get_config():
     global server_config
-    server_config_json = "server_config.json"
+    server_config_json = "config/config.json"
 
     if server_config is None:
         with open(server_config_json) as file:
