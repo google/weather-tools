@@ -1,8 +1,8 @@
 {
-    "download_collection": "test_download",
-    "queues_collection": "test_queues",
-    "license_collection": "test_license",
-    "manifest_collection": "test_manifest",
+    "download_collection": "download",
+    "queues_collection": "queues",
+    "license_collection": "license",
+    "manifest_collection": "manifest",
     "storage_bucket": "XXXXXXX",
     "gcs_project": "XXXXXXX",
     "license_deployment_image": "XXXXXXX",

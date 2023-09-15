@@ -3,9 +3,5 @@
     "queues_collection": "test_queues",
     "license_collection": "test_license",
     "manifest_collection": "test_manifest",
-    "storage_bucket": "XXXXXXXX",
-    "gcs_project": "XXXXXXXX",
-    "license_deployment_image": "XXXXXXXX",
-    "downloader_k8_image": "XXXXXXX",
-    "welcome_message": "Greetings from weather-dl v2 [Local]!"
+    "downloader_k8_image": "XXXXXXX_local_license_dep"
 }
