@@ -7,9 +7,9 @@ conda env create --name weather-dl-v2-license-dep --file=environment.yml
 conda activate weather-dl-v2-license-dep
 ```
 
-### Make changes in deployment config, if required
+### Make changes in config/config.json, if required [for running locally]
 ```
-Please make approriate changes in deployment_config.json, if required.
+Please make approriate changes in config/config.json, if required.
 ```
 
 ### Create docker image for license deployment

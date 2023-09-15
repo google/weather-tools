@@ -9,9 +9,9 @@ We are not configuring any service account here hence make sure that compute eng
 * roles/bigquery.dataEditor
 * roles/bigquery.jobUser
 
-### Make changes in downloader config, if required
+### Make changes in config/config.json, if required [for running locally]
 ```
-Please make approriate changes in downloader_config.json, if required.
+Please make approriate changes in config/config.json, if required.
 ```
 
 ### Create docker image for downloader:

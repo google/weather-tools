@@ -40,9 +40,9 @@ conda env create --name weather-dl-v2-server --file=environment.yml
 conda activate weather-dl-v2-server
 ```
 
-### Make changes in server config, if required
+### Make changes in config/config.json, if required [for running locally]
 ```
-Please make approriate changes in server_config.json, if required.
+Please make approriate changes in config/config.json, if required.
 ```
 
 ### To run fastapi server:
