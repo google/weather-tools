@@ -29,6 +29,7 @@ import typing as t
 import apache_beam as beam
 import cfgrib
 import numpy as np
+import pandas as pd
 import rasterio
 import rioxarray
 import xarray as xr
@@ -406,7 +407,15 @@ def open_dataset(uri: str,
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
         if is_zarr:
+            start_date = end_date = None
+            if 'start_date' in open_dataset_kwargs:
+                start_date = open_dataset_kwargs['start_date']; del open_dataset_kwargs['start_date']
+            if 'end_date' in open_dataset_kwargs:
+                end_date = open_dataset_kwargs['end_date']; del open_dataset_kwargs['end_date']
             ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
+            if start_date != None and end_date != None:
+                timedelta = pd.date_range(start_date,end_date,periods=25,inclusive='left')
+                ds = ds.sel(time=timedelta)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
