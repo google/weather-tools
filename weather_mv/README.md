@@ -61,7 +61,8 @@ usage: weather-mv bigquery [-h] -i URIS [--topic TOPIC] [--window_size WINDOW_SI
                            -o OUTPUT_TABLE [-v variables [variables ...]] [-a area [area ...]]
                            [--import_time IMPORT_TIME] [--infer_schema]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS]
-                           [--tif_metadata_for_datetime TIF_METADATA_FOR_DATETIME] [-s]
+                           [--tif_metadata_for_start_time TIF_METADATA_FOR_START_TIME]
+                           [--tif_metadata_for_end_time TIF_METADATA_FOR_END_TIME] [-s]
                            [--coordinate_chunk_size COORDINATE_CHUNK_SIZE] ['--skip_creating_polygon']
 ```
 
@@ -80,7 +81,8 @@ _Command options_:
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
 * `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. Used to
   tune parallel uploads.
-* `--tif_metadata_for_datetime` : Metadata that contains tif file's timestamp. Applicable only for tif files.
+* `--tif_metadata_for_start_time` : Metadata that contains tif file's start/initialization time. Applicable only for tif files.
+* `--tif_metadata_for_end_time` : Metadata that contains tif file's end/forecast time. Applicable only for tif files (optional).
 * `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
 * `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
 * `--skip_creating_polygon` : Not ingest grid points as polygons in BigQuery. Default: Ingest grid points as Polygon in 
@@ -139,7 +141,8 @@ weather-mv bq --uris "gs://your-bucket/*.tif" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --temp_location "gs://$BUCKET/tmp" \  # Needed for batch writes to BigQuery
            --direct_num_workers 2 \
-           --tif_metadata_for_datetime start_time
+           --tif_metadata_for_start_time start_time \
+           --tif_metadata_for_end_time end_time
 ```
 
 Upload only a subset of variables:

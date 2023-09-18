@@ -77,8 +77,10 @@ class ToBigQuery(ToDataSink):
         infer_schema: If true, this sink will attempt to read in an example data file
           read all its variables, and generate a BigQuery schema.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
-          this location for a timestamp.
+        tif_metadata_for_start_time: If the input is a .tif file, parse the tif metadata at
+          this location for a start time / initialization time.
+        tif_metadata_for_end_time: If the input is a .tif file, parse the tif metadata at
+          this location for a end/forecast time.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
         disable_grib_schema_normalization: Turn off grib's schema normalization; Default: normalization enabled.
@@ -94,7 +96,8 @@ class ToBigQuery(ToDataSink):
     import_time: t.Optional[datetime.datetime]
     infer_schema: bool
     xarray_open_dataset_kwargs: t.Dict
-    tif_metadata_for_datetime: t.Optional[str]
+    tif_metadata_for_start_time: t.Optional[str]
+    tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
     coordinate_chunk_size: int = 10_000
@@ -125,8 +128,11 @@ class ToBigQuery(ToDataSink):
                                     'off')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
-        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
-                               help='Metadata that contains tif file\'s timestamp. '
+        subparser.add_argument('--tif_metadata_for_start_time', type=str, default=None,
+                               help='Metadata that contains tif file\'s start/initialization time. '
+                                    'Applicable only for tif files.')
+        subparser.add_argument('--tif_metadata_for_end_time', type=str, default=None,
+                               help='Metadata that contains tif file\'s end/forecast time. '
                                     'Applicable only for tif files.')
         subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
@@ -146,10 +152,12 @@ class ToBigQuery(ToDataSink):
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
-        if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
-            raise RuntimeError("'--tif_metadata_for_datetime' is required for tif files.")
-        elif uri_extension != '.tif' and known_args.tif_metadata_for_datetime:
-            raise RuntimeError("'--tif_metadata_for_datetime' can be specified only for tif files.")
+        if (uri_extension in ['.tif', '.tiff'] and not known_args.tif_metadata_for_start_time):
+            raise RuntimeError("'--tif_metadata_for_start_time' is required for tif files.")
+        elif (uri_extension not in ['.tif', '.tiff'] and (known_args.tif_metadata_for_start_time
+                or known_args.tif_metadata_for_end_time)):
+            raise RuntimeError("'--tif_metadata_for_start_time' and "
+                               "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
@@ -164,8 +172,8 @@ class ToBigQuery(ToDataSink):
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
-                          is_zarr=self.zarr) as open_ds:
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
+                          self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
 
             if not self.skip_creating_polygon:
                 logger.warning("Assumes that equal distance between consecutive points of latitude "
@@ -217,7 +225,7 @@ class ToBigQuery(ToDataSink):
         logger.info(f'Preparing coordinates for: {uri!r}.')
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
-                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+                          self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             if self.area:
                 n, w, s, e = self.area
@@ -236,7 +244,7 @@ class ToBigQuery(ToDataSink):
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
-                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+                          self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             yield from self.to_rows(coordinates, data_ds, uri)
 

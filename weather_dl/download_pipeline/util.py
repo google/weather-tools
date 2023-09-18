@@ -105,7 +105,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
     elif type(value) == np.ndarray:
         # Will return a scaler if array is of size 1, else will return a list.
         return value.tolist()
-    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+    elif isinstance(value, datetime.datetime) or isinstance(value, str) or isinstance(value, np.datetime64):
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
