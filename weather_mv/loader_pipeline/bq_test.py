@@ -78,7 +78,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -94,7 +94,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -110,7 +110,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -126,7 +126,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -143,7 +143,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -160,7 +160,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -194,7 +194,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
 
         ]
         self.assertListEqual(schema, expected_schema)
@@ -402,18 +402,18 @@ class ExtractRowsTest(ExtractRowsTestBase):
         valid_lat_long = [[-90, 0], [-90, -180], [-45, -180], [-45, 180], [0, 0], [90, 180], [45, -180], [-90, 180],
                           [90, 1], [0, 180], [1, -180], [90, -180]]
         actual_val = [
-            '{"type": "Polygon", "coordinates": [[-1, 89], [-1, -89], [1, -89], [1, 89], [-1, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]}',
-            '{"type": "Polygon", "coordinates": [[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]}',
-            '{"type": "Polygon", "coordinates": [[-1, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, 44], [179, 46], [-179, 46], [-179, 44], [179, 44]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[0, 89], [0, -89], [2, -89], [2, 89], [0, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, -1], [179, 1], [-179, 1], [-179, -1], [179, -1]]}',
-            '{"type": "Polygon", "coordinates": [[179, 0], [179, 2], [-179, 2], [-179, 0], [179, 0]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}'
+            '{"type": "Polygon", "coordinates": [[[-1, 89], [-1, -89], [1, -89], [1, 89], [-1, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]]}',
+            '{"type": "Polygon", "coordinates": [[[-1, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 44], [179, 46], [-179, 46], [-179, 44], [179, 44]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[0, 89], [0, -89], [2, -89], [2, 89], [0, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -1], [179, 1], [-179, 1], [-179, -1], [179, -1]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 0], [179, 2], [-179, 2], [-179, 0], [179, 0]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}'
         ]
         lat_grid_resolution = 1
         lon_grid_resolution = 1
