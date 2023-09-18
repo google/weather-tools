@@ -413,15 +413,15 @@ def open_dataset(uri: str,
             if 'start_date' in open_dataset_kwargs:
                 start_date = open_dataset_kwargs['start_date']
                 if open_dataset_kwargs is not None:
-                    del open_dataset_kwargs['start_date']
+                    open_dataset_kwargs.pop('start_date', None)
             if 'end_date' in open_dataset_kwargs:
                 end_date = open_dataset_kwargs['end_date']
                 if open_dataset_kwargs is not None:
-                    del open_dataset_kwargs['end_date']
+                    open_dataset_kwargs.pop('end_date', None)
             ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
             if start_date is not None and end_date is not None:
-                timedelta = pd.date_range(start_date, end_date, periods=25, inclusive='left')
-                ds = ds.sel(time=timedelta)
+                time_range = pd.date_range(start_date, end_date, periods=25, inclusive='left')
+                ds = ds.sel(time=time_range)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
