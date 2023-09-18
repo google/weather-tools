@@ -183,12 +183,12 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: 
     try:
         # if start_time/end_time is in integer milliseconds
         init_time = (int(start_time.timestamp()) if start_time is not None
-                        else int(ds.attrs[tif_metadata_for_start_time]) / 1000.0)
+                     else int(ds.attrs[tif_metadata_for_start_time]) / 1000.0)
         coords['time'] = datetime.datetime.utcfromtimestamp(init_time)
 
         if tif_metadata_for_end_time:
             forecast_time = (int(end_time.timestamp()) if end_time is not None
-                            else int(ds.attrs[tif_metadata_for_end_time]) / 1000.0)
+                             else int(ds.attrs[tif_metadata_for_end_time]) / 1000.0)
             coords['valid_time'] = datetime.datetime.utcfromtimestamp(forecast_time)
 
         ds = ds.assign_coords(coords)
@@ -198,12 +198,14 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: 
         try:
             # if start_time/end_time is in UTC string format
             init_time = (int(start_time.timestamp()) if start_time is not None
-                        else datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time], '%Y-%m-%dT%H:%M:%SZ'))
+                         else datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time],
+                                                         '%Y-%m-%dT%H:%M:%SZ'))
             coords['time'] = init_time
 
             if tif_metadata_for_end_time:
                 forecast_time = (int(end_time.timestamp()) if end_time is not None
-                        else datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time], '%Y-%m-%dT%H:%M:%SZ'))
+                                 else datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time],
+                                                                 '%Y-%m-%dT%H:%M:%SZ'))
                 coords['valid_time'] = forecast_time
 
             ds = ds.assign_coords(coords)
@@ -409,12 +411,16 @@ def open_dataset(uri: str,
         if is_zarr:
             start_date = end_date = None
             if 'start_date' in open_dataset_kwargs:
-                start_date = open_dataset_kwargs['start_date']; del open_dataset_kwargs['start_date']
+                start_date = open_dataset_kwargs['start_date']
+                if open_dataset_kwargs is not None:
+                    del open_dataset_kwargs['start_date']
             if 'end_date' in open_dataset_kwargs:
-                end_date = open_dataset_kwargs['end_date']; del open_dataset_kwargs['end_date']
+                end_date = open_dataset_kwargs['end_date']
+                if open_dataset_kwargs is not None:
+                    del open_dataset_kwargs['end_date']
             ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
-            if start_date != None and end_date != None:
-                timedelta = pd.date_range(start_date,end_date,periods=25,inclusive='left')
+            if start_date is not None and end_date is not None:
+                timedelta = pd.date_range(start_date, end_date, periods=25, inclusive='left')
                 ds = ds.sel(time=timedelta)
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
