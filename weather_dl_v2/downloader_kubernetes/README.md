@@ -9,9 +9,9 @@ We are not configuring any service account here hence make sure that compute eng
 * roles/bigquery.dataEditor
 * roles/bigquery.jobUser
 
-### Make changes in config/config.json, if required [for running locally]
+### Make changes in weather_dl_v2/config.json, if required [for running locally]
 ```
-Please make approriate changes in config/config.json, if required.
+export CONFIG_PATH=/path/to/weather_dl_v2/config.json
 ```
 
 ### Create docker image for downloader:
