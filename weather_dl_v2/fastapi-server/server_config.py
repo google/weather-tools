@@ -1,6 +1,10 @@
 import dataclasses
 import typing as t
 import json
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -35,11 +39,19 @@ server_config = None
 
 def get_config():
     global server_config
-    server_config_json = "config/config.json"
+    if server_config:
+        return server_config
 
-    if server_config is None:
-        with open(server_config_json) as file:
-            config_dict = json.load(file)
-            server_config = ServerConfig.from_dict(config_dict)
+    server_config_json = "config/config.json"
+    if not os.path.exists(server_config_json):
+        server_config_json = os.environ.get('CONFIG_PATH', None)
+    
+    if server_config_json is None:
+        logger.error(f"Couldn't load config file for fastAPI server.")
+        raise FileNotFoundError("Couldn't load config file for fastAPI server.")
+
+    with open(server_config_json) as file:
+        config_dict = json.load(file)
+        server_config = ServerConfig.from_dict(config_dict)
 
     return server_config
