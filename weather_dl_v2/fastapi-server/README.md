@@ -40,9 +40,9 @@ conda env create --name weather-dl-v2-server --file=environment.yml
 conda activate weather-dl-v2-server
 ```
 
-### Make changes in server config, if required
+### Make changes in weather_dl_v2/config.json, if required [for running locally]
 ```
-Please make approriate changes in server_config.json, if required.
+export CONFIG_PATH=/path/to/weather_dl_v2/config.json
 ```
 
 ### To run fastapi server:
@@ -64,6 +64,15 @@ gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-server" --t
 ### Add path of created server image in server.yaml:
 ```
 Please write down the fastAPI server's docker image path at Line 42 of server.yaml.
+```
+
+### Create ConfigMap of common configurations for services:
+Make necessary changes to weather_dl_v2/config.json and run following command.  
+ConfigMap is used for:
+- Having a common configuration file for all services.
+- Decoupling docker image and config files.
+```
+kubectl create configmap dl-v2-config --from-file=/path/to/weather_dl_v2/config.json
 ```
 
 ### Deploy fastapi server on kubernetes:

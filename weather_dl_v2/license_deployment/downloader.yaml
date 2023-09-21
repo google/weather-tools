@@ -21,8 +21,13 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /data
+        - name: config-volume
+          mountPath: ./config
       restartPolicy: Never
       volumes:
       - name: data
         emptyDir:
           sizeLimit: 100Gi
+      - name: config-volume
+        configMap:
+          name: dl-v2-config

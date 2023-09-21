@@ -1,0 +1,11 @@
+{
+    "download_collection": "download",
+    "queues_collection": "queues",
+    "license_collection": "license",
+    "manifest_collection": "manifest",
+    "storage_bucket": "XXXXXXX",
+    "gcs_project": "XXXXXXX",
+    "license_deployment_image": "XXXXXXX",
+    "downloader_k8_image": "XXXXXXX",
+    "welcome_message": "Greetings from weather-dl v2!"
+}

@@ -1,6 +1,10 @@
 import dataclasses
 import typing as t
 import json
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -32,11 +36,19 @@ deployment_config = None
 
 def get_config():
     global deployment_config
-    deployment_config_json = "deployment_config.json"
+    if deployment_config:
+        return deployment_config
 
-    if deployment_config is None:
-        with open(deployment_config_json) as file:
-            config_dict = json.load(file)
-            deployment_config = DeploymentConfig.from_dict(config_dict)
+    deployment_config_json = "config/config.json"
+    if not os.path.exists(deployment_config_json):
+        deployment_config_json = os.environ.get('CONFIG_PATH', None)
+
+    if deployment_config_json is None:
+        logger.error(f"Couldn't load config file for license deployment.")
+        raise FileNotFoundError("Couldn't load config file for license deployment.")
+
+    with open(deployment_config_json) as file:
+        config_dict = json.load(file)
+        deployment_config = DeploymentConfig.from_dict(config_dict)
 
     return deployment_config

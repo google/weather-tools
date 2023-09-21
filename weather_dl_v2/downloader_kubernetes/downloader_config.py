@@ -1,6 +1,10 @@
 import dataclasses
 import typing as t
 import json
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -28,11 +32,19 @@ downloader_config = None
 
 def get_config():
     global downloader_config
-    downloader_config_json = "downloader_config.json"
+    if downloader_config:
+        return downloader_config
 
-    if downloader_config is None:
-        with open(downloader_config_json) as file:
-            config_dict = json.load(file)
-            downloader_config = DownloaderConfig.from_dict(config_dict)
+    downloader_config_json = "config/config.json"
+    if not os.path.exists(downloader_config_json):
+        downloader_config_json = os.environ.get('CONFIG_PATH', None)
+
+    if downloader_config_json is None:
+        logger.error(f"Couldn't load config file for downloader.")
+        raise FileNotFoundError("Couldn't load config file for downloader.")
+
+    with open(downloader_config_json) as file:
+        config_dict = json.load(file)
+        downloader_config = DownloaderConfig.from_dict(config_dict)
 
     return downloader_config
