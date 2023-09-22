@@ -787,7 +787,7 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
         ds.to_zarr(input_zarr)
 
         op = ToBigQuery.from_kwargs(
-            first_uri=input_zarr, zarr_kwargs=dict(), dry_run=True, zarr=True, output_table='foo.bar.baz',
+            first_uri=input_zarr, zarr_kwargs=dict(chunks = None, consolidated = True), dry_run=True, zarr=True, output_table='foo.bar.baz',
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
             tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
             disable_grib_schema_normalization=False,
