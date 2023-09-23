@@ -145,6 +145,10 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     if known_args.zarr_kwargs and not known_args.zarr:
         raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
 
+    if known_args.zarr:
+        known_args.zarr_kwargs['chunks'] = known_args.zarr_kwargs.get('chunks', None)
+        known_args.zarr_kwargs['consolidated'] = known_args.zarr_kwargs.get('consolidated', True)
+
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':
         ToBigQuery.validate_arguments(known_args, pipeline_args)
