@@ -157,7 +157,12 @@ class SetupEarthEngine(RateLimit):
     def check_setup(self):
         """Ensures that setup has been called."""
         if not self._has_setup:
-            self.setup()
+            try:
+                # This throws an exception if ee is not initialized.
+                ee.data.getAlgorithms()
+                self._has_setup = True
+            except ee.EEException:
+                self.setup()
 
     def process(self, *args, **kwargs):
         """Checks that setup has been called then call the process implementation."""
