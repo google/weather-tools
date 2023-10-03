@@ -156,8 +156,10 @@ class ToBigQuery(ToDataSink):
         _, uri_extension = os.path.splitext(known_args.uris)
         if (uri_extension in ['.tif', '.tiff'] and not known_args.tif_metadata_for_start_time):
             raise RuntimeError("'--tif_metadata_for_start_time' is required for tif files.")
-        elif (uri_extension not in ['.tif', '.tiff'] and (known_args.tif_metadata_for_start_time
-                                                          or known_args.tif_metadata_for_end_time)):
+        elif uri_extension not in ['.tif', '.tiff'] and (
+            known_args.tif_metadata_for_start_time
+            or known_args.tif_metadata_for_end_time
+        ):
             raise RuntimeError("'--tif_metadata_for_start_time' and "
                                "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
@@ -173,8 +175,8 @@ class ToBigQuery(ToDataSink):
         """Initializes Sink by creating a BigQuery table based on user input."""
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
-            self.start_date = self.zarr_kwargs.get('start_date', None)
-            self.end_date = self.zarr_kwargs.get('end_date', None)
+            self.start_date = self.zarr_kwargs.get('start_date')
+            self.end_date = self.zarr_kwargs.get('end_date')
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
                           self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
