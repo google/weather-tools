@@ -104,8 +104,8 @@ class ToBigQuery(ToDataSink):
     skip_creating_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
-    start_date: str = None
-    end_date: str = None
+    start_date: t.Optional[str] = None
+    end_date: t.Optional[str] = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
