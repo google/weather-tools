@@ -145,6 +145,10 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     if known_args.zarr_kwargs and not known_args.zarr:
         raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
 
+    if known_args.zarr_kwargs:
+        if not known_args.zarr_kwargs['start_date'] or not known_args.zarr_kwargs['end_date']:
+            raise ValueError('`--zarr_kwargs` must be contains both `start_date` and `end_date`.')
+
     if known_args.zarr:
         known_args.zarr_kwargs['chunks'] = known_args.zarr_kwargs.get('chunks', None)
         known_args.zarr_kwargs['consolidated'] = known_args.zarr_kwargs.get('consolidated', True)

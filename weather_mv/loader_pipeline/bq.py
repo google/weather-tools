@@ -104,6 +104,8 @@ class ToBigQuery(ToDataSink):
     skip_creating_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
+    start_date: str = None
+    end_date: str = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -155,7 +157,7 @@ class ToBigQuery(ToDataSink):
         if (uri_extension in ['.tif', '.tiff'] and not known_args.tif_metadata_for_start_time):
             raise RuntimeError("'--tif_metadata_for_start_time' is required for tif files.")
         elif (uri_extension not in ['.tif', '.tiff'] and (known_args.tif_metadata_for_start_time
-                or known_args.tif_metadata_for_end_time)):
+                                                          or known_args.tif_metadata_for_end_time)):
             raise RuntimeError("'--tif_metadata_for_start_time' and "
                                "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
@@ -171,6 +173,8 @@ class ToBigQuery(ToDataSink):
         """Initializes Sink by creating a BigQuery table based on user input."""
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
+            self.start_date = self.zarr_kwargs.get('start_date', None)
+            self.end_date = self.zarr_kwargs.get('end_date', None)
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
                           self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
@@ -311,6 +315,10 @@ class ToBigQuery(ToDataSink):
             xarray_open_dataset_kwargs = self.xarray_open_dataset_kwargs.copy()
             xarray_open_dataset_kwargs.pop('chunks')
             ds, chunks = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
+
+            if self.start_date is not None and self.end_date is not None:
+                ds = ds.sel(time=slice(self.start_date, self.end_date))
+
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
