@@ -188,6 +188,16 @@ weather-mv bq --uris "gs://your-bucket/*.zarr" \
            --direct_num_workers 2
 ```
 
+Upload a specific date range's data from the file:
+
+```bash
+weather-mv bq --uris "gs://your-bucket/*.nc" \
+           --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
+           --temp_location "gs://$BUCKET/tmp" \
+           --use-local-code \
+           --xarray_open_dataset_kwargs '{"start_date": "2021-07-18", "end_date": "2021-07-19"}' \
+```
+
 Control how weather data is opened with XArray:
 
 ```bash

@@ -104,8 +104,6 @@ class ToBigQuery(ToDataSink):
     skip_creating_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
-    start_date: t.Optional[str] = None
-    end_date: t.Optional[str] = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -175,8 +173,6 @@ class ToBigQuery(ToDataSink):
         """Initializes Sink by creating a BigQuery table based on user input."""
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
-            self.start_date = self.zarr_kwargs.get('start_date')
-            self.end_date = self.zarr_kwargs.get('end_date')
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
                           self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
@@ -316,10 +312,12 @@ class ToBigQuery(ToDataSink):
         else:
             xarray_open_dataset_kwargs = self.xarray_open_dataset_kwargs.copy()
             xarray_open_dataset_kwargs.pop('chunks')
+            start_date = xarray_open_dataset_kwargs.pop('start_date', None)
+            end_date = xarray_open_dataset_kwargs.pop('end_date', None)
             ds, chunks = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
 
-            if self.start_date is not None and self.end_date is not None:
-                ds = ds.sel(time=slice(self.start_date, self.end_date))
+            if start_date is not None and end_date is not None:
+                ds = ds.sel(time=slice(start_date, end_date))
 
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
