@@ -59,7 +59,7 @@ weather_mv_requirements = [
     "gdal",  # requires separate binary installation!
     "xarray-beam==0.6.2",
     "gcsfs==2022.11.0",
-    "zarr==2.15.0",
+    "zarr==2.16.0",
 ]
 
 weather_sp_requirements = [
