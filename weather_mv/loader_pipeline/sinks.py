@@ -407,11 +407,15 @@ def open_dataset(uri: str,
                  is_zarr: bool = False) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
+        local_open_dataset_kwargs = start_date = end_date = None
+        if open_dataset_kwargs is not None:
+            local_open_dataset_kwargs = open_dataset_kwargs.copy()
+            start_date = local_open_dataset_kwargs.pop('start_date', None)
+            end_date = local_open_dataset_kwargs.pop('end_date', None)
+
         if is_zarr:
-            if open_dataset_kwargs is not None:
-                start_date = open_dataset_kwargs.pop('start_date', None)
-                end_date = open_dataset_kwargs.pop('end_date', None)
-            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs), False)
+            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr',
+                                                                     **local_open_dataset_kwargs), False)
             if start_date is not None and end_date is not None:
                 ds = ds.sel(time=slice(start_date, end_date))
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
@@ -423,7 +427,9 @@ def open_dataset(uri: str,
             xr_dataset: xr.Dataset = __open_dataset_file(local_path,
                                                          uri_extension,
                                                          disable_grib_schema_normalization,
-                                                         open_dataset_kwargs)
+                                                         local_open_dataset_kwargs)
+            if start_date is not None and end_date is not None:
+                xr_dataset = xr_dataset.sel(time=slice(start_date, end_date))
             if uri_extension in ['.tif', '.tiff']:
                 xr_dataset = _preprocess_tif(xr_dataset,
                                              local_path,
