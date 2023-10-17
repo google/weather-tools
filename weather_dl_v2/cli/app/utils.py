@@ -116,6 +116,7 @@ class Validator(abc.ABC):
     def validate(
         self, filters: t.List[str], show_valid_filters=True, allow_missing: bool = False
     ):
+        """Validate keys of filter list."""
         filter_dict = {}
 
         for filter in filters:
@@ -136,6 +137,7 @@ class Validator(abc.ABC):
             return filter_dict
 
     def validate_json(self, file_path, allow_missing: bool = False):
+        """Validate keys in a json file."""
         try:
             with open(file_path) as f:
                 data: dict = json.load(f)
@@ -152,6 +154,7 @@ class Validator(abc.ABC):
             raise FileNotFoundError
 
     def _validate_keys(self, data_set: set, valid_set: set, allow_missing: bool):
+        """Function that validates if keys match the valid set."""
         missing_keys = valid_set.difference(data_set)
         invalid_keys = data_set.difference(valid_set)
 
