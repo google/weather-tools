@@ -138,8 +138,9 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
     return datetime.datetime(*time_list)
 
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: str, uri: str,
-                    band_names_dict: t.Dict, initialization_time_regex: str, forecast_time_regex: str) -> xr.Dataset:
+def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: str,
+                    tif_metadata_for_end_time: str, uri: str, band_names_dict: t.Dict,
+                    initialization_time_regex: str, forecast_time_regex: str) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -162,6 +163,7 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
     ds = _replace_dataarray_names_with_long_names(ds)
 
     end_time = None
+    start_time = None
     if initialization_time_regex and forecast_time_regex:
         try:
             start_time = match_datetime(uri, initialization_time_regex)
@@ -174,15 +176,40 @@ def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_datetime: st
         ds.attrs['start_time'] = start_time
         ds.attrs['end_time'] = end_time
 
-    datetime_value_ms = None
+    init_time = None
+    forecast_time = None
+    coords = {}
     try:
-        datetime_value_s = (int(end_time.timestamp()) if end_time is not None
-                        else int(ds.attrs[tif_metadata_for_datetime]) / 1000.0)
-        ds = ds.assign_coords({'time': datetime.datetime.utcfromtimestamp(datetime_value_s)})
-    except KeyError:
-        raise RuntimeError(f"Invalid datetime metadata of tif: {tif_metadata_for_datetime}.")
+        # if start_time/end_time is in integer milliseconds
+        init_time = (int(start_time.timestamp()) if start_time is not None
+                     else int(ds.attrs[tif_metadata_for_start_time]) / 1000.0)
+        coords['time'] = datetime.datetime.utcfromtimestamp(init_time)
+
+        if tif_metadata_for_end_time:
+            forecast_time = (int(end_time.timestamp()) if end_time is not None
+                             else int(ds.attrs[tif_metadata_for_end_time]) / 1000.0)
+            coords['valid_time'] = datetime.datetime.utcfromtimestamp(forecast_time)
+
+        ds = ds.assign_coords(coords)
+    except KeyError as e:
+        raise RuntimeError(f"Invalid datetime metadata of tif: {e}.")
     except ValueError:
-        raise RuntimeError(f"Invalid datetime value in tif's metadata: {datetime_value_ms}.")
+        try:
+            # if start_time/end_time is in UTC string format
+            init_time = (int(start_time.timestamp()) if start_time is not None
+                         else datetime.datetime.strptime(ds.attrs[tif_metadata_for_start_time],
+                                                         '%Y-%m-%dT%H:%M:%SZ'))
+            coords['time'] = init_time
+
+            if tif_metadata_for_end_time:
+                forecast_time = (int(end_time.timestamp()) if end_time is not None
+                                 else datetime.datetime.strptime(ds.attrs[tif_metadata_for_end_time],
+                                                                 '%Y-%m-%dT%H:%M:%SZ'))
+                coords['valid_time'] = forecast_time
+
+            ds = ds.assign_coords(coords)
+        except ValueError as e:
+            raise RuntimeError(f"Invalid datetime value in tif's metadata: {e}.")
 
     return ds
 
@@ -349,6 +376,11 @@ def __open_dataset_file(filename: str,
         False)
 
 
+def upload(src: str, dst: str) -> None:
+    """Uploads a file to the specified GCS bucket destination."""
+    subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
+
+
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
     errors: t.List[subprocess.CalledProcessError] = []
@@ -390,16 +422,26 @@ def open_local(uri: str) -> t.Iterator[str]:
 def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
-                 tif_metadata_for_datetime: t.Optional[str] = None,
                  group_common_hypercubes: t.Optional[bool] = False,
+                 tif_metadata_for_start_time: t.Optional[str] = None,
+                 tif_metadata_for_end_time: t.Optional[str] = None,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
                  forecast_time_regex: t.Optional[str] = None,
                  is_zarr: bool = False) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:
+        local_open_dataset_kwargs = start_date = end_date = None
+        if open_dataset_kwargs is not None:
+            local_open_dataset_kwargs = open_dataset_kwargs.copy()
+            start_date = local_open_dataset_kwargs.pop('start_date', None)
+            end_date = local_open_dataset_kwargs.pop('end_date', None)
+
         if is_zarr:
-            ds: xr.Dataset = xr.open_dataset(uri, engine='zarr', **open_dataset_kwargs)
+            ds: xr.Dataset = _add_is_normalized_attr(xr.open_dataset(uri, engine='zarr',
+                                                                     **local_open_dataset_kwargs), False)
+            if start_date is not None and end_date is not None:
+                ds = ds.sel(time=slice(start_date, end_date))
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
             yield ds
             ds.close()
@@ -409,7 +451,7 @@ def open_dataset(uri: str,
             xr_datasets: xr.Dataset = __open_dataset_file(local_path,
                                                           uri_extension,
                                                           disable_grib_schema_normalization,
-                                                          open_dataset_kwargs,
+                                                          local_open_dataset_kwargs,
                                                           group_common_hypercubes)
             # Extracting dtype, crs and transform from the dataset.
             try:
@@ -427,16 +469,20 @@ def open_dataset(uri: str,
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
             else:
+                if start_date is not None and end_date is not None:
+                    xr_dataset = xr_datasets.sel(time=slice(start_date, end_date))
                 if uri_extension in ['.tif', '.tiff']:
-                    xr_dataset = _preprocess_tif(xr_datasets,
-                                                local_path,
-                                                tif_metadata_for_datetime,
-                                                uri,
-                                                band_names_dict,
-                                                initialization_time_regex,
-                                                forecast_time_regex)
+                    xr_dataset = _preprocess_tif(xr_dataset,
+                                                 local_path,
+                                                 tif_metadata_for_start_time,
+                                                 tif_metadata_for_end_time,
+                                                 uri,
+                                                 band_names_dict,
+                                                 initialization_time_regex,
+                                                 forecast_time_regex)
                 else:
                     xr_dataset = xr_datasets
+                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 

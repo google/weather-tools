@@ -30,7 +30,7 @@ class CLITests(unittest.TestCase):
         ).split()
         self.tif_base_cli_args = (
             'weather-mv bq '
-            f'-i {self.test_data_folder}/test_data_tif_start_time.tif '
+            f'-i {self.test_data_folder}/test_data_tif_time.tif '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
@@ -62,10 +62,13 @@ class CLITests(unittest.TestCase):
             'xarray_open_dataset_kwargs': {},
             'coordinate_chunk_size': 10_000,
             'disable_grib_schema_normalization': False,
-            'tif_metadata_for_datetime': None,
+            'tif_metadata_for_start_time': None,
+            'tif_metadata_for_end_time': None,
             'zarr': False,
             'zarr_kwargs': {},
             'log_level': 2,
+            'use_local_code': False,
+            'skip_creating_polygon': False,
         }
 
 
@@ -81,7 +84,8 @@ class TestCLI(CLITests):
 
     def test_tif_metadata_for_datetime_raise_error_for_non_tif_file(self):
         with self.assertRaisesRegex(RuntimeError, 'can be specified only for tif files.'):
-            run(self.base_cli_args + '--tif_metadata_for_datetime start_time'.split())
+            run(self.base_cli_args + '--tif_metadata_for_start_time start_time '
+                '--tif_metadata_for_end_time end_time'.split())
 
     def test_tif_metadata_for_datetime_raise_error_if_flag_is_absent(self):
         with self.assertRaisesRegex(RuntimeError, 'is required for tif files.'):

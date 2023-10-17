@@ -24,8 +24,10 @@ import apache_beam as beam
 import geojson
 import numpy as np
 import xarray as xr
+import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.transforms import window
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
@@ -45,7 +47,9 @@ DATA_IMPORT_TIME_COLUMN = 'data_import_time'
 DATA_URI_COLUMN = 'data_uri'
 DATA_FIRST_STEP = 'data_first_step'
 GEO_POINT_COLUMN = 'geo_point'
+GEO_POLYGON_COLUMN = 'geo_polygon'
 LATITUDE_RANGE = (-90, 90)
+LONGITUDE_RANGE = (-180, 180)
 
 
 @dataclasses.dataclass
@@ -73,8 +77,10 @@ class ToBigQuery(ToDataSink):
         infer_schema: If true, this sink will attempt to read in an example data file
           read all its variables, and generate a BigQuery schema.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
-        tif_metadata_for_datetime: If the input is a .tif file, parse the tif metadata at
-          this location for a timestamp.
+        tif_metadata_for_start_time: If the input is a .tif file, parse the tif metadata at
+          this location for a start time / initialization time.
+        tif_metadata_for_end_time: If the input is a .tif file, parse the tif metadata at
+          this location for a end/forecast time.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
         disable_grib_schema_normalization: Turn off grib's schema normalization; Default: normalization enabled.
@@ -90,10 +96,14 @@ class ToBigQuery(ToDataSink):
     import_time: t.Optional[datetime.datetime]
     infer_schema: bool
     xarray_open_dataset_kwargs: t.Dict
-    tif_metadata_for_datetime: t.Optional[str]
+    tif_metadata_for_start_time: t.Optional[str]
+    tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
     coordinate_chunk_size: int = 10_000
+    skip_creating_polygon: bool = False
+    lat_grid_resolution: t.Optional[float] = None
+    lon_grid_resolution: t.Optional[float] = None
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -105,6 +115,11 @@ class ToBigQuery(ToDataSink):
                                     'all data variables as columns.')
         subparser.add_argument('-a', '--area', metavar='area', type=float, nargs='+', default=list(),
                                help='Target area in [N, W, S, E]. Default: Will include all available area.')
+        subparser.add_argument('--skip_creating_polygon', action='store_true',
+                               help='Not ingest grid points as polygons in BigQuery. Default: Ingest grid points as '
+                                    'Polygon in BigQuery. Note: This feature relies on the assumption that the '
+                                    'provided grid has an equal distance between consecutive points of latitude and '
+                                    'longitude.')
         subparser.add_argument('--import_time', type=str, default=datetime.datetime.utcnow().isoformat(),
                                help=("When writing data to BigQuery, record that data import occurred at this "
                                      "time (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC."))
@@ -113,8 +128,11 @@ class ToBigQuery(ToDataSink):
                                     'off')
         subparser.add_argument('--xarray_open_dataset_kwargs', type=json.loads, default='{}',
                                help='Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.')
-        subparser.add_argument('--tif_metadata_for_datetime', type=str, default=None,
-                               help='Metadata that contains tif file\'s timestamp. '
+        subparser.add_argument('--tif_metadata_for_start_time', type=str, default=None,
+                               help='Metadata that contains tif file\'s start/initialization time. '
+                                    'Applicable only for tif files.')
+        subparser.add_argument('--tif_metadata_for_end_time', type=str, default=None,
+                               help='Metadata that contains tif file\'s end/forecast time. '
                                     'Applicable only for tif files.')
         subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
@@ -138,10 +156,14 @@ class ToBigQuery(ToDataSink):
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
-        if uri_extension == '.tif' and not known_args.tif_metadata_for_datetime:
-            raise RuntimeError("'--tif_metadata_for_datetime' is required for tif files.")
-        elif uri_extension != '.tif' and known_args.tif_metadata_for_datetime:
-            raise RuntimeError("'--tif_metadata_for_datetime' can be specified only for tif files.")
+        if (uri_extension in ['.tif', '.tiff'] and not known_args.tif_metadata_for_start_time):
+            raise RuntimeError("'--tif_metadata_for_start_time' is required for tif files.")
+        elif uri_extension not in ['.tif', '.tiff'] and (
+            known_args.tif_metadata_for_start_time
+            or known_args.tif_metadata_for_end_time
+        ):
+            raise RuntimeError("'--tif_metadata_for_start_time' and "
+                               "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
@@ -156,8 +178,29 @@ class ToBigQuery(ToDataSink):
         if self.zarr:
             self.xarray_open_dataset_kwargs = self.zarr_kwargs
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
-                          self.disable_grib_schema_normalization, self.tif_metadata_for_datetime,
-                          is_zarr=self.zarr) as open_ds:
+                          self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
+                          self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
+
+            if not self.skip_creating_polygon:
+                logger.warning("Assumes that equal distance between consecutive points of latitude "
+                               "and longitude for the entire grid.")
+                # Find the grid_resolution.
+                if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
+                    latitude_length = len(open_ds['latitude'])
+                    longitude_length = len(open_ds['longitude'])
+
+                    latitude_range = np.ptp(open_ds["latitude"].values)
+                    longitude_range = np.ptp(open_ds["longitude"].values)
+
+                    self.lat_grid_resolution = abs(latitude_range / latitude_length) / 2
+                    self.lon_grid_resolution = abs(longitude_range / longitude_length) / 2
+
+                else:
+                    self.skip_creating_polygon = True
+                    logger.warning("Polygon can't be genereated as provided dataset has a only single grid point.")
+            else:
+                logger.info("Polygon is not created as '--skip_creating_polygon' flag passed.")
+
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
                 logger.info('Creating schema from input variables.')
@@ -188,7 +231,7 @@ class ToBigQuery(ToDataSink):
         logger.info(f'Preparing coordinates for: {uri!r}.')
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
-                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+                          self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             if self.area:
                 n, w, s, e = self.area
@@ -207,68 +250,99 @@ class ToBigQuery(ToDataSink):
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
-                          self.tif_metadata_for_datetime, is_zarr=self.zarr) as ds:
+                          self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
+            yield from self.to_rows(coordinates, data_ds, uri)
 
-            first_ts_raw = data_ds.time[0].values if isinstance(data_ds.time.values,
-                                                                np.ndarray) else data_ds.time.values
-            first_time_step = to_json_serializable_type(first_ts_raw)
+    def to_rows(self, coordinates: t.Iterable[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
+        first_ts_raw = (
+            ds.time[0].values if isinstance(ds.time.values, np.ndarray)
+            else ds.time.values
+        )
+        first_time_step = to_json_serializable_type(first_ts_raw)
+        for it in coordinates:
+            # Use those index values to select a Dataset containing one row of data.
+            row_ds = ds.loc[it]
 
-            for it in coordinates:
-                # Use those index values to select a Dataset containing one row of data.
-                row_ds = data_ds.loc[it]
+            # Create a Name-Value map for data columns. Result looks like:
+            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
+            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
+                   for n, v in row_ds.data_vars.items()}
 
-                # Create a Name-Value map for data columns. Result looks like:
-                # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-                row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                       for n, v in row_ds.data_vars.items()}
+            # Serialize coordinates.
+            it = {k: to_json_serializable_type(v) for k, v in it.items()}
 
-                # Serialize coordinates.
-                it = {k: to_json_serializable_type(v) for k, v in it.items()}
+            # Add indexed coordinates.
+            row.update(it)
+            # Add un-indexed coordinates.
+            for c in row_ds.coords:
+                if c not in it and (not self.variables or c in self.variables):
+                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
 
-                # Add indexed coordinates.
-                row.update(it)
-                # Add un-indexed coordinates.
-                for c in row_ds.coords:
-                    if c not in it and (not self.variables or c in self.variables):
-                        row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+            # Add import metadata.
+            row[DATA_IMPORT_TIME_COLUMN] = self.import_time
+            row[DATA_URI_COLUMN] = uri
+            row[DATA_FIRST_STEP] = first_time_step
 
-                # Add import metadata.
-                row[DATA_IMPORT_TIME_COLUMN] = self.import_time
-                row[DATA_URI_COLUMN] = uri
-                row[DATA_FIRST_STEP] = first_time_step
-                row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], row['longitude'])
+            longitude = ((row['longitude'] + 180) % 360) - 180
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
+            row[GEO_POLYGON_COLUMN] = (
+                fetch_geo_polygon(row["latitude"], longitude, self.lat_grid_resolution, self.lon_grid_resolution)
+                if not self.skip_creating_polygon
+                else None
+            )
+            # 'row' ends up looking like:
+            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            yield row
 
-                # 'row' ends up looking like:
-                # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-                #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-                beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
-                yield row
+    def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
+        uri = ds.attrs.get(DATA_URI_COLUMN, '')
+        # Re-calculate import time for streaming extractions.
+        if not self.import_time or self.zarr:
+            self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+        yield from self.to_rows(get_coordinates(ds, uri), ds, uri)
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
-        extracted_rows = (
+        if not self.zarr:
+            extracted_rows = (
                 paths
                 | 'PrepareCoordinates' >> beam.FlatMap(self.prepare_coordinates)
                 | beam.Reshuffle()
                 | 'ExtractRows' >> beam.FlatMapTuple(self.extract_rows)
-        )
-
-        if not self.dry_run:
-            (
-                    extracted_rows
-                    | 'WriteToBigQuery' >> WriteToBigQuery(
-                        project=self.table.project,
-                        dataset=self.table.dataset_id,
-                        table=self.table.table_id,
-                        write_disposition=BigQueryDisposition.WRITE_APPEND,
-                        create_disposition=BigQueryDisposition.CREATE_NEVER)
             )
         else:
-            (
-                    extracted_rows
-                    | 'Log Extracted Rows' >> beam.Map(logger.debug)
+            xarray_open_dataset_kwargs = self.xarray_open_dataset_kwargs.copy()
+            xarray_open_dataset_kwargs.pop('chunks')
+            start_date = xarray_open_dataset_kwargs.pop('start_date', None)
+            end_date = xarray_open_dataset_kwargs.pop('end_date', None)
+            ds, chunks = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
+
+            if start_date is not None and end_date is not None:
+                ds = ds.sel(time=slice(start_date, end_date))
+
+            ds.attrs[DATA_URI_COLUMN] = self.first_uri
+            extracted_rows = (
+                paths
+                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
+                | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
+                | 'Window' >> beam.WindowInto(window.FixedWindows(60))
+                | 'AddTimestamp' >> beam.Map(timestamp_row)
             )
+
+        if self.dry_run:
+            return extracted_rows | 'Log Rows' >> beam.Map(logger.info)
+        return (
+            extracted_rows
+            | 'WriteToBigQuery' >> WriteToBigQuery(
+                project=self.table.project,
+                dataset=self.table.dataset_id,
+                table=self.table.table_id,
+                write_disposition=BigQueryDisposition.WRITE_APPEND,
+                create_disposition=BigQueryDisposition.CREATE_NEVER)
+        )
 
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
@@ -305,14 +379,95 @@ def to_table_schema(columns: t.List[t.Tuple[str, str]]) -> t.List[bigquery.Schem
     fields.append(bigquery.SchemaField(DATA_URI_COLUMN, 'STRING', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(DATA_FIRST_STEP, 'TIMESTAMP', mode='NULLABLE'))
     fields.append(bigquery.SchemaField(GEO_POINT_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
+    fields.append(bigquery.SchemaField(GEO_POLYGON_COLUMN, 'GEOGRAPHY', mode='NULLABLE'))
 
     return fields
+
+
+def timestamp_row(it: t.Dict) -> window.TimestampedValue:
+    """Associate an extracted row with the import_time timestamp."""
+    timestamp = it[DATA_IMPORT_TIME_COLUMN].timestamp()
+    return window.TimestampedValue(it, timestamp)
 
 
 def fetch_geo_point(lat: float, long: float) -> str:
     """Calculates a geography point from an input latitude and longitude."""
     if lat > LATITUDE_RANGE[1] or lat < LATITUDE_RANGE[0]:
         raise ValueError(f"Invalid latitude value '{lat}'")
-    long = ((long + 180) % 360) - 180
+    if long > LONGITUDE_RANGE[1] or long < LONGITUDE_RANGE[0]:
+        raise ValueError(f"Invalid longitude value '{long}'")
     point = geojson.dumps(geojson.Point((long, lat)))
     return point
+
+
+def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> str:
+    """Create a Polygon based on latitude, longitude and resolution.
+
+    Example ::
+        * - . - *
+        |       |
+        .   •   .
+        |       |
+        * - . - *
+    In order to create the polygon, we require the `*` point as indicated in the above example.
+    To determine the position of the `*` point, we find the `.` point.
+    The `get_lat_lon_range` function gives the `.` point and `bound_point` gives the `*` point.
+    """
+    lat_lon_bound = bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution)
+    polygon = geojson.dumps(geojson.Polygon([[
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
+        (lat_lon_bound[1][0], lat_lon_bound[1][1]),  # upper_left
+        (lat_lon_bound[2][0], lat_lon_bound[2][1]),  # upper_right
+        (lat_lon_bound[3][0], lat_lon_bound[3][1]),  # lower_right
+        (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
+    ]]))
+    return polygon
+
+
+def bound_point(latitude: float, longitude: float, lat_grid_resolution: float, lon_grid_resolution: float) -> t.List:
+    """Calculate the bound point based on latitude, longitude and grid resolution.
+
+    Example ::
+        * - . - *
+        |       |
+        .   •   .
+        |       |
+        * - . - *
+    This function gives the `*` point in the above example.
+    """
+    lat_in_bound = latitude in [90.0, -90.0]
+    lon_in_bound = longitude in [-180.0, 180.0]
+
+    lat_range = get_lat_lon_range(latitude, "latitude", lat_in_bound,
+                                  lat_grid_resolution, lon_grid_resolution)
+    lon_range = get_lat_lon_range(longitude, "longitude", lon_in_bound,
+                                  lat_grid_resolution, lon_grid_resolution)
+    lower_left = [lon_range[1], lat_range[1]]
+    upper_left = [lon_range[1], lat_range[0]]
+    upper_right = [lon_range[0], lat_range[0]]
+    lower_right = [lon_range[0], lat_range[1]]
+    return [lower_left, upper_left, upper_right, lower_right]
+
+
+def get_lat_lon_range(value: float, lat_lon: str, is_point_out_of_bound: bool,
+                      lat_grid_resolution: float, lon_grid_resolution: float) -> t.List:
+    """Calculate the latitude, longitude point range point latitude, longitude and grid resolution.
+
+    Example ::
+        * - . - *
+        |       |
+        .   •   .
+        |       |
+        * - . - *
+    This function gives the `.` point in the above example.
+    """
+    if lat_lon == 'latitude':
+        if is_point_out_of_bound:
+            return [-90 + lat_grid_resolution, 90 - lat_grid_resolution]
+        else:
+            return [value + lat_grid_resolution, value - lat_grid_resolution]
+    else:
+        if is_point_out_of_bound:
+            return [-180 + lon_grid_resolution, 180 - lon_grid_resolution]
+        else:
+            return [value + lon_grid_resolution, value - lon_grid_resolution]
