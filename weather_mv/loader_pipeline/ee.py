@@ -525,7 +525,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     def get_dims_data(index: int) -> t.List[t.Any]:
                         """Returns dimensions for the given flattened index."""
                         return [
-                            dim[int(index / math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
+                            dim[int(index/math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
                         ]
 
                     # Copy CSV to gcs.
@@ -537,7 +537,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                             # Write rows in batches.
                             for i in range(0, shape, ROWS_PER_WRITE):
                                 writer.writerows(
-                                    [get_dims_data(i) + list(row) for row in zip(*[d[i:i + ROWS_PER_WRITE] for d in data])]
+                                    [get_dims_data(i) + list(row) for row in zip(
+                                        *[d[i:i + ROWS_PER_WRITE] for d in data]
+                                    )]
                                 )
 
                         upload(temp.name, target_path)
