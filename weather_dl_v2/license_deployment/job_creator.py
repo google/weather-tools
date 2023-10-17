@@ -25,8 +25,6 @@ def create_download_job(message):
         dep = yaml.safe_load(f)
         uid = uuid.uuid4()
         dep["metadata"]["name"] = f"downloader-job-id-{uid}"
-        # d = target_path.rsplit('/')[-1]
-        # dep['metadata']['name'] = f'a{d}a'
         dep["spec"]["template"]["spec"]["containers"][0]["command"] = [
             "python",
             "downloader.py",
