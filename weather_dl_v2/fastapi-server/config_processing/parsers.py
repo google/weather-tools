@@ -178,7 +178,6 @@ def _splitlines(block: str) -> t.List[str]:
 
 def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
     """Converts a range token into either a date, int, or float."""
-    # TODO(b/175432034): Recognize time values
     try:
         return date(token)
     except ValueError:

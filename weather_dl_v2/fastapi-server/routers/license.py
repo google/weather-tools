@@ -24,8 +24,6 @@ from database.queue_handler import QueueHandler, get_queue_handler
 logger = logging.getLogger(__name__)
 
 
-# TODO: Make use of google secret manager.
-# REF: https://cloud.google.com/secret-manager.
 class License(BaseModel):
     license_id: str
     client_name: str
