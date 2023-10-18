@@ -93,7 +93,6 @@ def main():
             request = fetch_request_from_db()
 
             if request is not None:
-                # TODO: Create a timeout for executor tasks.
                 executor.submit(make_fetch_request, request)
             else:
                 logger.info("No request available. Waiting...")
