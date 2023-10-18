@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(os.path.join(os.getcwd(), "config_files"), exist_ok=True)
     # Retrieve license information & create license deployment if needed.
     await create_pending_license_deployments()
-    # TODO: Automatically create required indexes on collections on server startup.
+    # TODO: Automatically create required indexes on firestore collections on server startup.
     yield
     # Clean up
 
