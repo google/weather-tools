@@ -51,6 +51,7 @@ def get_downloads(
 
     print(as_table(download_service._list_all_downloads()))
 
+
 # TODO: Add support for submitting multiple configs using *.cfg notation.
 @app.command("add", help="Submit new config to download.")
 def submit_download(
@@ -76,8 +77,9 @@ def get_download_by_config(
 ):
     print(as_table(download_service._get_download_by_config(config_name)))
 
+
 @app.command("show", help="Show contents of a particular config.")
-def get_download_by_config(
+def show_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")]
 ):
     print(download_service._show_config_content(config_name))

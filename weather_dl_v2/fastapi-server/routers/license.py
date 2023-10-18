@@ -198,4 +198,5 @@ async def delete_license(
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
 
+
 # TODO: Add route to re-deploy license deployments.

@@ -55,7 +55,7 @@ def get_config():
         downloader_config_json = os.environ.get("CONFIG_PATH", None)
 
     if downloader_config_json is None:
-        logger.error(f"Couldn't load config file for downloader.")
+        logger.error("Couldn't load config file for downloader.")
         raise FileNotFoundError("Couldn't load config file for downloader.")
 
     with open(downloader_config_json) as file:
