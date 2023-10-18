@@ -147,7 +147,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
 
         # We assume here that naive timestamps are in UTC timezone.
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
-    elif type(value, np.timedelta64):
+    elif isinstance(value, np.timedelta64):
         # Return time delta in seconds.
         return float(value / np.timedelta64(1, "s"))
     # This check must happen after processing np.timedelta64 and np.datetime64.
