@@ -50,6 +50,8 @@ cli_config = None
 
 def get_config():
     global cli_config
+    # TODO: Update this so cli can work from any folder level.
+    # Right now it only works in folder where cli_config.json is present.
     cli_config_json = os.path.join(os.getcwd(), "cli_config.json")
 
     if cli_config is None:

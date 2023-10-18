@@ -35,7 +35,7 @@ def _do_partitions(partition_obj: PartitionConfig):
         if partition_obj.new_downloads_only(partition):
             partition_obj.update_manifest_collection(partition)
 
-
+# TODO: Make partitioning faster.
 async def start_processing_config(config_file, licenses, force_download):
     config = {}
     manifest = FirestoreManifest()

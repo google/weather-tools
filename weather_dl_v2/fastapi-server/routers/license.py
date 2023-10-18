@@ -24,8 +24,6 @@ from database.queue_handler import QueueHandler, get_queue_handler
 logger = logging.getLogger(__name__)
 
 
-# TODO: Make use of google secret manager.
-# REF: https://cloud.google.com/secret-manager.
 class License(BaseModel):
     license_id: str
     client_name: str
@@ -199,3 +197,5 @@ async def delete_license(
     await queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
+
+# TODO: Add route to re-deploy license deployments.
