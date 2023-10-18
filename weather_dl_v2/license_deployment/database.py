@@ -128,6 +128,7 @@ class FirestoreClient(Database, CRUDOperations):
             f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}."
         )
 
+
 # TODO: Firestore transcational fails after reading a document 20 times with roll over.
 # This happens when too many licenses try to access the same partition document.
 # Find some alternative approach to handle this.

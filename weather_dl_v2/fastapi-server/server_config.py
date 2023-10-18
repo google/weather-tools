@@ -59,10 +59,10 @@ def get_config():
 
     server_config_json = "config/config.json"
     if not os.path.exists(server_config_json):
-        server_config_json = os.environ.get('CONFIG_PATH', None)
-    
+        server_config_json = os.environ.get("CONFIG_PATH", None)
+
     if server_config_json is None:
-        logger.error(f"Couldn't load config file for fastAPI server.")
+        logger.error("Couldn't load config file for fastAPI server.")
         raise FileNotFoundError("Couldn't load config file for fastAPI server.")
 
     with open(server_config_json) as file:

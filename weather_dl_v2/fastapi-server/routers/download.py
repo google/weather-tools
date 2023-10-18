@@ -22,7 +22,6 @@ import json
 from enum import Enum
 from config_processing.parsers import parse_config, process_config
 from config_processing.config import Config
-from server_config import get_config
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends, Body
 from config_processing.pipeline import start_processing_config
 from database.download_handler import DownloadHandler, get_download_handler

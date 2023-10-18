@@ -38,6 +38,7 @@ def timeit(func):
 
     return wrap_func
 
+
 # TODO: Add a flag (may be -j/--json) to support raw response.
 def as_table(response: str):
     data = json.loads(response)

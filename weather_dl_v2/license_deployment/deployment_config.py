@@ -56,10 +56,10 @@ def get_config():
 
     deployment_config_json = "config/config.json"
     if not os.path.exists(deployment_config_json):
-        deployment_config_json = os.environ.get('CONFIG_PATH', None)
+        deployment_config_json = os.environ.get("CONFIG_PATH", None)
 
     if deployment_config_json is None:
-        logger.error(f"Couldn't load config file for license deployment.")
+        logger.error("Couldn't load config file for license deployment.")
         raise FileNotFoundError("Couldn't load config file for license deployment.")
 
     with open(deployment_config_json) as file:
