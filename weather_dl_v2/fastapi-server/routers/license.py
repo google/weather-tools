@@ -199,3 +199,5 @@ async def delete_license(
     await queue_handler._remove_license_queue(license_id)
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
+
+# TODO: Add route to re-deploy license deployments.
