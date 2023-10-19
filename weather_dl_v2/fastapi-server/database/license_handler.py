@@ -91,6 +91,8 @@ class LicenseHandlerMock(LicenseHandler):
     async def _check_license_exists(self, license_id: str) -> bool:
         if license_id == "no_exists":
             return False
+        elif license_id == "no-exists":
+            return False
         else:
             return True
 

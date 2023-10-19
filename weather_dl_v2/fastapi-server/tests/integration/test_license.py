@@ -86,6 +86,8 @@ def _add_license(headers, payload, code, expected):
         params={"license_id": "L1"},
     )
 
+    print(f"test add license {response.json()}")
+
     assert response.status_code == code
     assert response.json() == expected
 
@@ -93,11 +95,10 @@ def _add_license(headers, payload, code, expected):
 def test_add_license_basic():
     headers = {"accept": "application/json", "Content-Type": "application/json"}
     license = {
+        "license_id": "no-exists",
         "client_name": "dummy_client",
         "number_of_requests": 0,
         "secret_id": "xxxx",
-        "api_email": "email",
-        "k8s_deployment_id": "k1",
     }
     payload = license
     code = 200
@@ -134,7 +135,7 @@ def test_get_license_wrong_license():
     license_id = "no_exists"
     code = 404
     expected = {
-        "detail": "License not found.",
+        "detail": "License no_exists not found.",
     }
 
     _get_license_by_license_id(headers, license_id, code, expected)
@@ -145,6 +146,8 @@ def _update_license(headers, license_id, license, code, expected):
         f"/license/{license_id}", headers=headers, data=json.dumps(license)
     )
 
+    print(f"_update license {response.json()}")
+
     assert response.status_code == code
     assert response.json() == expected
 
@@ -153,10 +156,10 @@ def test_update_license_basic():
     headers = {}
     license_id = "L1"
     license = {
+        "license_id": "L1",
         "client_name": "dummy_client",
         "number_of_requests": 0,
         "secret_id": "xxxx",
-        "api_email": "email",
     }
     code = 200
     expected = {"license_id": license_id, "name": "License updated successfully."}
@@ -166,15 +169,15 @@ def test_update_license_basic():
 
 def test_update_license_wrong_license_id():
     headers = {}
-    license_id = "no_exists"
+    license_id = "no-exists"
     license = {
+        "license_id": "no-exists",
         "client_name": "dummy_client",
         "number_of_requests": 0,
         "secret_id": "xxxx",
-        "api_email": "email",
     }
     code = 404
-    expected = {"detail": "No such license to update."}
+    expected = {"detail": "No such license no-exists to update."}
 
     _update_license(headers, license_id, license, code, expected)
 
@@ -199,6 +202,6 @@ def test_delete_license_wrong_license():
     headers = {}
     license_id = "no_exists"
     code = 404
-    expected = {"detail": "No such license to delete."}
+    expected = {"detail": "No such license no_exists to delete."}
 
     _delete_license(headers, license_id, code, expected)
