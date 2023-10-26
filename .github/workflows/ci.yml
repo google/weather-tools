@@ -84,7 +84,7 @@ jobs:
           echo "::set-output name=dir::$(pip cache dir)"
       - name: Install linter
         run: |
-          pip install ruff==0.0.280
+          pip install ruff==0.1.2
       - name: Lint project
         run: ruff check .
   type-check:
