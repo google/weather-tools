@@ -71,7 +71,7 @@ weather_sp_requirements = [
 
 test_requirements = [
     "pytype==2021.11.29",
-    "ruff",
+    "ruff==0.1.2",
     "pytest",
     "pytest-subtests",
     "netcdf4",
