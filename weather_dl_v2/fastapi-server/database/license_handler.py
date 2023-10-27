@@ -89,7 +89,7 @@ class LicenseHandlerMock(LicenseHandler):
         )
 
     async def _check_license_exists(self, license_id: str) -> bool:
-        if license_id == "no_exists":
+        if license_id == "not_exist":
             return False
         elif license_id == "no-exists":
             return False
@@ -97,7 +97,7 @@ class LicenseHandlerMock(LicenseHandler):
             return True
 
     async def _get_license_by_license_id(self, license_id: str) -> dict:
-        if license_id == "no_exists":
+        if license_id == "not_exist":
             return None
         return {
             "license_id": license_id,

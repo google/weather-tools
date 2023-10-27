@@ -73,9 +73,9 @@ def test_get_queue_by_license_basic():
 
 def test_get_queue_by_license_wrong_license():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     code = 404
-    expected = {"detail": 'License priority for no_exists not found.'}
+    expected = {"detail": 'License priority for not_exist not found.'}
 
     _get_queue_by_license(headers, license_id, code, expected)
 
@@ -99,10 +99,10 @@ def test_modify_license_queue_basic():
 
 def test_modify_license_queue_wrong_license_id():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     priority_list = []
     code = 404
-    expected = {"detail": 'License no_exists not found.'}
+    expected = {"detail": 'License not_exist not found.'}
 
     _modify_license_queue(headers, license_id, priority_list, code, expected)
 
@@ -130,19 +130,19 @@ def test_modify_config_priority_in_license_basic():
 
 def test_modify_config_priority_in_license_wrong_license():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     query = {"config_name": "example.cfg", "priority": 0}
     code = 404
-    expected = {"detail": 'License no_exists not found.'}
+    expected = {"detail": 'License not_exist not found.'}
 
     _modify_config_priority_in_license(headers, license_id, query, code, expected)
 
 
 def test_modify_config_priority_in_license_wrong_config():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     query = {"config_name": "wrong.cfg", "priority": 0}
     code = 404
-    expected = {"detail": 'License no_exists not found.'}
+    expected = {"detail": 'License not_exist not found.'}
 
     _modify_config_priority_in_license(headers, license_id, query, code, expected)

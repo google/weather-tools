@@ -78,11 +78,11 @@ def test_submit_download_basic():
     header = {
         "accept": "application/json",
     }
-    file_path = os.path.join(ROOT_DIR, "tests/test_data/no_exist.cfg")
+    file_path = os.path.join(ROOT_DIR, "tests/test_data/not_exist.cfg")
     licenses = ["L1"]
     code = 200
     expected = {
-        "message": f"file 'no_exist.cfg' saved at '{os.getcwd()}/tests/test_data/no_exist.cfg' "
+        "message": f"file 'not_exist.cfg' saved at '{os.getcwd()}/tests/test_data/not_exist.cfg' "
         "successfully."
     }
 
@@ -141,9 +141,9 @@ def test_get_download_by_config_basic():
 
 def test_get_download_by_config_wrong_config():
     headers = {}
-    config_name = "no_exist"
+    config_name = "not_exist"
     code = 404
-    expected = {"detail": "Download config no_exist not found in weather-dl v2."}
+    expected = {"detail": "Download config not_exist not found in weather-dl v2."}
 
     _get_download_by_config(headers, config_name, code, expected)
 
@@ -168,8 +168,8 @@ def test_delete_download_by_config_basic():
 
 def test_delete_download_by_config_wrong_config():
     headers = {}
-    config_name = "no_exist"
+    config_name = "not_exist"
     code = 404
-    expected = {"detail": "No such download config no_exist to stop & remove."}
+    expected = {"detail": "No such download config not_exist to stop & remove."}
 
     _delete_download_by_config(headers, config_name, code, expected)

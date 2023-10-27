@@ -100,7 +100,7 @@ class QueueHandlerMock(QueueHandler):
         return [{"client_name": "dummy_client", "license_id": "L1", "queue": []}]
 
     async def _get_queue_by_license_id(self, license_id: str) -> dict:
-        if license_id == "no_exists":
+        if license_id == "not_exist":
             return None
         return {"client_name": "dummy_client", "license_id": license_id, "queue": []}
 

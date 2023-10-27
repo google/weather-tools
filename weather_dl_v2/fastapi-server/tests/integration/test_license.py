@@ -132,10 +132,10 @@ def test_get_license_by_license_id():
 
 def test_get_license_wrong_license():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     code = 404
     expected = {
-        "detail": "License no_exists not found.",
+        "detail": "License not_exist not found.",
     }
 
     _get_license_by_license_id(headers, license_id, code, expected)
@@ -200,8 +200,8 @@ def test_delete_license_basic():
 
 def test_delete_license_wrong_license():
     headers = {}
-    license_id = "no_exists"
+    license_id = "not_exist"
     code = 404
-    expected = {"detail": "No such license no_exists to delete."}
+    expected = {"detail": "No such license not_exist to delete."}
 
     _delete_license(headers, license_id, code, expected)

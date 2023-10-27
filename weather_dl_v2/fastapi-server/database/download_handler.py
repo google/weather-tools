@@ -80,9 +80,9 @@ class DownloadHandlerMock(DownloadHandler):
         )
 
     async def _check_download_exists(self, config_name: str) -> bool:
-        if config_name == "no_exist":
+        if config_name == "not_exist":
             return False
-        elif config_name == "no_exist.cfg":
+        elif config_name == "not_exist.cfg":
             return False
         else:
             return True
@@ -91,7 +91,7 @@ class DownloadHandlerMock(DownloadHandler):
         return [{"config_name": "example.cfg", "client_name": "client", "status": "partitioning completed."}]
 
     async def _get_download_by_config_name(self, config_name: str):
-        if config_name == "no_exist":
+        if config_name == "not_exist":
             return None
         return {"config_name": "example.cfg", "client_name": "client", "status": "partitioning completed."}
 
