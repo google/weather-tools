@@ -84,8 +84,8 @@ def get_fetch_config_stats():
 
 
 def get_fetch_config_stats_mock():
-    def fetch_config_stats(
-        config_name: str, client_name: str, manifest_handler: ManifestHandler
+    async def fetch_config_stats(
+        config_name: str, client_name: str, status: str, manifest_handler: ManifestHandler
     ):
         return {
             "config_name": config_name,

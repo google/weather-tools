@@ -143,14 +143,13 @@ def test_get_download_by_config_wrong_config():
     headers = {}
     config_name = "no_exist"
     code = 404
-    expected = {"detail": "Download config not found in weather-dl v2."}
+    expected = {"detail": "Download config no_exist not found in weather-dl v2."}
 
     _get_download_by_config(headers, config_name, code, expected)
 
 
 def _delete_download_by_config(headers, config_name, code, expected):
     response = client.delete(f"/download/{config_name}", headers=headers)
-
     assert response.status_code == code
     assert response.json() == expected
 
@@ -171,6 +170,6 @@ def test_delete_download_by_config_wrong_config():
     headers = {}
     config_name = "no_exist"
     code = 404
-    expected = {"detail": "No such download config to stop & remove."}
+    expected = {"detail": "No such download config no_exist to stop & remove."}
 
     _delete_download_by_config(headers, config_name, code, expected)

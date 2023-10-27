@@ -88,10 +88,12 @@ class DownloadHandlerMock(DownloadHandler):
             return True
 
     async def _get_downloads(self, client_name: str) -> list:
-        return [{"config_name": "example.cfg", "client_name": "client"}]
+        return [{"config_name": "example.cfg", "client_name": "client", "status": "partitioning completed."}]
 
     async def _get_download_by_config_name(self, config_name: str):
-        return {"config_name": "example.cfg", "client_name": "client"}
+        if config_name == "no_exist":
+            return None
+        return {"config_name": "example.cfg", "client_name": "client", "status": "partitioning completed."}
 
 
 class DownloadHandlerFirestore(DownloadHandler):
