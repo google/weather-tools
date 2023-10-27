@@ -70,7 +70,7 @@ def get_create_deployment():
 
 def get_create_deployment_mock():
     async def create_deployment_mock(license_id: str, license_handler: LicenseHandler):
-        logger.info("create deployment mock.") 
+        logger.info("create deployment mock.")
 
     return create_deployment_mock
 
