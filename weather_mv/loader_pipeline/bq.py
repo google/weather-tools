@@ -101,6 +101,7 @@ class ToBigQuery(ToDataSink):
     tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
+    input_chunks: t.Dict
     coordinate_chunk_size: int = 10_000
     skip_creating_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
@@ -142,6 +143,8 @@ class ToBigQuery(ToDataSink):
                                     'BigQuery. Used to tune parallel uploads.')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help="To disable grib's schema normalization. Default: off")
+        subparser.add_argument('--input_chunks', type=json.loads, default='{"time": 1}',
+                               help="Dataset will be opened in provided chunk scheme.")
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -350,7 +353,7 @@ class ToBigQuery(ToDataSink):
             xarray_open_dataset_kwargs.pop('chunks')
             start_date = xarray_open_dataset_kwargs.pop('start_date', None)
             end_date = xarray_open_dataset_kwargs.pop('end_date', None)
-            ds, chunks = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
+            ds, _ = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
 
             if start_date is not None and end_date is not None:
                 ds = ds.sel(time=slice(start_date, end_date))
@@ -358,7 +361,7 @@ class ToBigQuery(ToDataSink):
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
-                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, { "time": 1, "level": 1 })
+                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, self.input_chunks)
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
                 | 'Window' >> beam.WindowInto(window.FixedWindows(60))
                 | 'AddTimestamp' >> beam.Map(timestamp_row)

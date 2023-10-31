@@ -205,6 +205,7 @@ weather-mv bq --uris "gs://your-bucket/*.grib" \
            --output_table $PROJECT.$DATASET_ID.$TABLE_ID \
            --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
            --temp_location "gs://$BUCKET/tmp" \
+           --input_chunks '{ "time": 1 }'
            --direct_num_workers 2
 ```
 
