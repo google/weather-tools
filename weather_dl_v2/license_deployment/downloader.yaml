@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: downloader-with-ttl
+spec:
+  ttlSecondsAfterFinished: 0
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: downloader-pool
+      containers:
+      - name: downloader
+        image: XXXXXXX
+        imagePullPolicy: Always
+        command: []
+        resources:
+          requests:
+            cpu: "1000m"                  # CPU: 1 vCPU
+            memory: "2Gi"                 # RAM: 2 GiB
+            ephemeral-storage: "100Gi"    # Storage: 100 GiB
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: config-volume
+          mountPath: ./config
+      restartPolicy: Never
+      volumes:
+      - name: data
+        emptyDir:
+          sizeLimit: 100Gi
+      - name: config-volume
+        configMap:
+          name: dl-v2-config

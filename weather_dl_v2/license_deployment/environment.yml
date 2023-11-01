@@ -1,0 +1,17 @@
+name: weather-dl-v2-license-dep
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - geojson
+  - cdsapi=0.5.1
+  - ecmwf-api-client=1.6.3
+  - pip=22.3
+  - pip:
+    - kubernetes
+    - google-cloud-secret-manager
+    - aiohttp
+    - numpy
+    - xarray
+    - apache-beam[gcp]
+    - firebase-admin
