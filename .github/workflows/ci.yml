@@ -56,6 +56,9 @@ jobs:
         channels: conda-forge
         environment-file: ci${{ matrix.python-version}}.yml
         activate-environment: weather-tools
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        use-mamba: true
     - name: Check MetView's installation
       shell: bash -l {0}
       run: python -m metview selfcheck
@@ -116,6 +119,9 @@ jobs:
           channels: conda-forge
           environment-file: ci${{ matrix.python-version}}.yml
           activate-environment: weather-tools
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
+          use-mamba: true
       - name: Install weather-tools[test]
         run: |
           conda run -n weather-tools pip install -e .[test] --use-deprecated=legacy-resolver
