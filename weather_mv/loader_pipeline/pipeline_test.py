@@ -69,6 +69,7 @@ class CLITests(unittest.TestCase):
             'log_level': 2,
             'use_local_code': False,
             'skip_creating_polygon': False,
+            'input_chunks': { 'time': 1 }
         }
 
 

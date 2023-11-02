@@ -331,7 +331,7 @@ class ToBigQuery(ToDataSink):
             yield row
 
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
-        logger.info(f"Processing for time: {ds['time'].values} and level: {ds['level'].values}")
+        logger.info(f"Processing for time: {ds['time'].values}")
         uri = ds.attrs.get(DATA_URI_COLUMN, '')
         # Re-calculate import time for streaming extractions.
         if not self.import_time or self.zarr:
