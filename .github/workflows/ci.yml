@@ -56,6 +56,8 @@ jobs:
         channels: conda-forge
         environment-file: ci${{ matrix.python-version}}.yml
         activate-environment: weather-tools
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
         use-mamba: true
     - name: Check MetView's installation
       shell: bash -l {0}
@@ -117,6 +119,8 @@ jobs:
           channels: conda-forge
           environment-file: ci${{ matrix.python-version}}.yml
           activate-environment: weather-tools
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
           use-mamba: true
       - name: Install weather-tools[test]
         run: |
