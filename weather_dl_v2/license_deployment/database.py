@@ -52,6 +52,10 @@ class CRUDOperations(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _empty_license_queue(self, license_id: str) -> None:
+        pass
+
+    @abc.abstractmethod
     def _get_partition_from_manifest(self, config_name: str) -> str:
         pass
 
@@ -123,6 +127,17 @@ class FirestoreClient(Database, CRUDOperations):
             .collection(get_config().queues_collection)
             .document(license_id)
             .update({"queue": firestore.ArrayRemove([config_name])})
+        )
+        logger.info(
+            f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}."
+        )
+
+    def _empty_license_queue(self, license_id: str) -> None:
+        result: WriteResult = (
+            self._get_db()
+            .collection(get_config().queues_collection)
+            .document(license_id)
+            .update({"queue": []})
         )
         logger.info(
             f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}."
