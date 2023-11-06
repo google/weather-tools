@@ -31,6 +31,7 @@ from apache_beam.utils import retry
 from xarray.core.utils import ensure_us_time_resolution
 from urllib.parse import urlparse
 from google.api_core.exceptions import BadRequest
+from threading import Lock
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -237,3 +238,65 @@ def download_with_aria2(url: str, path: str) -> None:
             f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}.'
         )
         raise
+
+class ThreadSafeDict:
+    """A thread safe dict with crud operations."""
+
+
+    def __init__(self) -> None:
+        self._dict = {}
+        self._lock = Lock()
+        self.initial_delay = 1
+        self.factor = 0.5
+
+
+    def __getitem__(self, key):
+        val = None
+        with self._lock:
+            val = self._dict[key]
+        return val
+
+
+    def __setitem__(self, key, value):
+        with self._lock:
+            self._dict[key] = value
+
+
+    def remove(self, key):
+        with self._lock:
+            self._dict.__delitem__(key)
+
+
+    def has_key(self, key):
+        present = False
+        with self._lock:
+            present = key in self._dict
+        return present
+
+
+    def increment(self, key, delta=1):
+        with self._lock:
+            if key in self._dict:
+                self._dict[key] += delta
+
+
+    def decrement(self, key, delta=1):
+        with self._lock:
+            if key in self._dict:
+                self._dict[key] -= delta
+
+
+    def find_exponential_delay(self, n: int) -> int:
+        delay = self.initial_delay
+        for _ in range(n):
+            delay += delay*self.factor
+        return delay
+
+
+    def exponential_time(self, key):
+        """Returns exponential time based on dict value. Time in seconds."""
+        delay = 0
+        with self._lock:
+            if key in self._dict:
+                delay = self.find_exponential_delay(self._dict[key])
+        return delay * 60

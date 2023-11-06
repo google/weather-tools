@@ -25,11 +25,11 @@ from database import FirestoreClient
 from job_creator import create_download_job
 from clients import CLIENTS
 from manifest import FirestoreManifest
-from util import exceptionit
+from util import exceptionit, ThreadSafeDict
 
 db_client = FirestoreClient()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
-
+CONFIG_MAX_ERROR_COUNT = 10
 
 def create_job(request, result):
     res = {
@@ -48,27 +48,64 @@ def create_job(request, result):
 
 
 @exceptionit
-def make_fetch_request(request):
+def make_fetch_request(request, error_map: ThreadSafeDict):
     client = CLIENTS[client_name](request["dataset"])
     manifest = FirestoreManifest(license_id=license_id)
     logger.info(
         f"By using {client_name} datasets, "
-        f"users agree to the terms and conditions specified in {client.license_url!r}"
+        f"users agree to the terms and conditions specified in {client.license_url!r}."
     )
 
     target = request["location"]
     selection = json.loads(request["selection"])
 
     logger.info(f"Fetching data for {target!r}.")
-    with manifest.transact(
-        request["config_name"],
-        request["dataset"],
-        selection,
-        target,
-        request["username"],
-    ):
-        result = client.retrieve(request["dataset"], selection, manifest)
 
+    config_name = request["config_name"]
+
+    if not error_map.has_key(config_name):
+        error_map[config_name] = 0
+
+    if error_map[config_name] >= CONFIG_MAX_ERROR_COUNT:
+        logger.info(f"Error count for config {config_name} exceeded CONFIG_MAX_ERROR_COUNT ({CONFIG_MAX_ERROR_COUNT}).")
+        error_map.remove(config_name)
+        logger.info(f"Removing config {config_name} from license queue.")
+        # Remove config from this license queue.
+        db_client._remove_config_from_license_queue(license_id=license_id, config_name=config_name)
+        return
+
+    # Wait for exponential time based on error count.
+    if error_map[config_name] > 0:
+        logger.info(f"Error count for  config {config_name}: {error_map[config_name]}.")
+        time = error_map.exponential_time(config_name)
+        logger.info(f"Sleeping for {time} mins.")
+        time.sleep(time)
+
+    try:
+        with manifest.transact(
+            request["config_name"],
+            request["dataset"],
+            selection,
+            target,
+            request["username"],
+        ):
+            result = client.retrieve(request["dataset"], selection, manifest)
+    except Exception as e:
+        # We are handling this as generic case as CDS client throws generic exceptions.
+
+        # License expired.
+        if "Access token expired" in str(e):
+            logger.error(f"{license_id} expired. Emptying queue! error: {e}.")
+            db_client._empty_license_queue(license_id=license_id)
+            return
+
+        # Increment error count for a config.
+        logger.error(f"Partition fetching failed. Error {e}.")
+        error_map.increment(config_name)
+        return
+
+    # If any partition in successful reset the error count.
+    error_map[config_name] = 0
     create_job(request, result)
 
 
@@ -90,20 +127,28 @@ def fetch_request_from_db():
 
 def main():
     logger.info("Started looking at the request.")
+    error_map = ThreadSafeDict()
     with ThreadPoolExecutor(concurrency_limit) as executor:
+        # Disclaimer: A license will pick always pick concurrency_limit + 1
+        # parition. One extra parition will be kept in threadpool task queue.
+
         while True:
             # Fetch a request from the database
             request = fetch_request_from_db()
 
             if request is not None:
-                executor.submit(make_fetch_request, request)
+                executor.submit(make_fetch_request, request, error_map)
             else:
                 logger.info("No request available. Waiting...")
                 time.sleep(5)
 
-            # Check if the maximum concurrency level has been reached
-            # If so, wait for a slot to become available
-            while executor._work_queue.qsize() >= concurrency_limit:
+            # Each license should not pick more partitions than it's
+            # concurrency_limit. We limit the threadpool queue size to just 1
+            # to prevent the license from picking more partitions than
+            # it's concurrency_limit. When an executor is freed up, the task
+            # in queue is picked and license fetches another task.
+            while executor._work_queue.qsize() >= 1:
+                logger.info("Worker busy. Waiting...")
                 time.sleep(1)
 
 
