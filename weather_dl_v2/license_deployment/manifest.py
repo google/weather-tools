@@ -506,7 +506,7 @@ class FirestoreManifest(Manifest, Database):
         result: WriteResult = download_doc_ref.set(status)
 
         logger.info(
-            f"Firestore manifest updated. " +
+            "Firestore manifest updated. " +
             f"update_time={result.update_time}, " +
             f"status={status['status']} " +
             f"status={status['status']} " +

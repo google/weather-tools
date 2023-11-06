@@ -60,7 +60,7 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     selection = json.loads(request["selection"])
 
     logger.info(f"Fetching data for {target!r}.")
-    
+
     config_name = request["config_name"]
 
     if not error_map.has_key(config_name):
@@ -77,7 +77,7 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     # Wait for exponential time based on error count
     if error_map[config_name] > 0:
         logger.info(f"Error count for  config {config_name}: {error_map[config_name]}.")
-        time = error_map.exponential_time(config_name) 
+        time = error_map.exponential_time(config_name)
         logger.info(f"Sleeping for {time} mins.")
         time.sleep(time)
 
