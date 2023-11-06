@@ -142,10 +142,10 @@ def main():
                 logger.info("No request available. Waiting...")
                 time.sleep(5)
 
-            # Each license should not pick more partitions than it's 
+            # Each license should not pick more partitions than it's
             # concurrency_limit. We limit the threadpool queue size to just 1
             # to prevent the license from picking more partitions than
-            # it's concurrency_limit. When an executor is freed up, the task 
+            # it's concurrency_limit. When an executor is freed up, the task
             # in queue is picked and license fetches another task.
             while executor._work_queue.qsize() >= 1:
                 logger.info("Worker busy. Waiting...")
