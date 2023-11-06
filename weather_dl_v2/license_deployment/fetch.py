@@ -53,7 +53,7 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     manifest = FirestoreManifest(license_id=license_id)
     logger.info(
         f"By using {client_name} datasets, "
-        f"users agree to the terms and conditions specified in {client.license_url!r}"
+        f"users agree to the terms and conditions specified in {client.license_url!r}."
     )
 
     target = request["location"]
@@ -69,12 +69,12 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     if error_map[config_name] >= CONFIG_MAX_ERROR_COUNT:
         logger.info(f"Error count for config {config_name} exceeded CONFIG_MAX_ERROR_COUNT ({CONFIG_MAX_ERROR_COUNT}).")
         error_map.remove(config_name)
-        logger.info(f"Removing config {config_name} from license queue")
-        # Remove config from this license queue
+        logger.info(f"Removing config {config_name} from license queue.")
+        # Remove config from this license queue.
         db_client._remove_config_from_license_queue(license_id=license_id, config_name=config_name)
         return
 
-    # Wait for exponential time based on error count
+    # Wait for exponential time based on error count.
     if error_map[config_name] > 0:
         logger.info(f"Error count for  config {config_name}: {error_map[config_name]}.")
         time = error_map.exponential_time(config_name)
@@ -91,7 +91,7 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
         ):
             result = client.retrieve(request["dataset"], selection, manifest)
     except Exception as e:
-        # We are handling this as generic case as CDS client throws generic exceptions
+        # We are handling this as generic case as CDS client throws generic exceptions.
 
         # License expired.
         if "Access token expired" in str(e):
@@ -99,12 +99,12 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
             db_client._empty_license_queue(license_id=license_id)
             return
 
-        # Increment error count for a config
+        # Increment error count for a config.
         logger.error(f"Partition fetching failed. Error {e}.")
         error_map.increment(config_name)
         return
 
-    # If any partition in successful reset the error count
+    # If any partition in successful reset the error count.
     error_map[config_name] = 0
     create_job(request, result)
 
@@ -129,6 +129,9 @@ def main():
     logger.info("Started looking at the request.")
     error_map = ThreadSafeDict()
     with ThreadPoolExecutor(concurrency_limit) as executor:
+        # Disclaimer: A license will pick always pick concurrency_limit + 1
+        # parition. One extra parition will be kept in threadpool task queue.
+
         while True:
             # Fetch a request from the database
             request = fetch_request_from_db()
@@ -139,8 +142,11 @@ def main():
                 logger.info("No request available. Waiting...")
                 time.sleep(5)
 
-            # # Check if workers are busy
-            # If so, wait for a slot to become available
+            # Each license should not pick more partitions than it's 
+            # concurrency_limit. We limit the threadpool queue size to just 1
+            # to prevent the license from picking more partitions than
+            # it's concurrency_limit. When an executor is freed up, the task 
+            # in queue is picked and license fetches another task.
             while executor._work_queue.qsize() >= 1:
                 logger.info("Worker busy. Waiting...")
                 time.sleep(1)
