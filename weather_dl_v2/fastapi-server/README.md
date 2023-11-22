@@ -57,8 +57,10 @@ uvicorn main:app --reload
 ```
 export PROJECT_ID=<your-project-here>
 export REPO=<repo> eg:weather-tools
+export SERVICE=weather-dl-v2-server
+export VER=$(cat VERSION.txt)
 
-gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-server" --timeout=79200 --machine-type=e2-highcpu-32
+gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_SERVICE=$SERVICE,_VER=$VER
 ```
 
 ### Add path of created server image in server.yaml:
