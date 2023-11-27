@@ -422,12 +422,12 @@ def open_local(uri: str) -> t.Iterator[str]:
 def open_dataset(uri: str,
                  open_dataset_kwargs: t.Optional[t.Dict] = None,
                  disable_grib_schema_normalization: bool = False,
-                 group_common_hypercubes: t.Optional[bool] = False,
                  tif_metadata_for_start_time: t.Optional[str] = None,
                  tif_metadata_for_end_time: t.Optional[str] = None,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
                  forecast_time_regex: t.Optional[str] = None,
+                 group_common_hypercubes: t.Optional[bool] = False,
                  is_zarr: bool = False) -> t.Iterator[xr.Dataset]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
     try:

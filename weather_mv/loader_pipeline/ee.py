@@ -448,10 +448,10 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          group_common_hypercubes=self.group_common_hypercubes,
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
-                          forecast_time_regex=self.forecast_time_regex) as ds_list:
+                          forecast_time_regex=self.forecast_time_regex,
+                          group_common_hypercubes=self.group_common_hypercubes) as ds_list:
             if not isinstance(ds_list, list):
                 ds_list = [ds_list]
 
