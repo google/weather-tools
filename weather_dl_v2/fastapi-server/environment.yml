@@ -1,0 +1,18 @@
+name: weather-dl-v2-server
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - xarray
+  - geojson
+  - pip=22.3
+  - google-cloud-sdk=410.0.0
+  - pip:
+    - kubernetes
+    - fastapi[all]==0.97.0
+    - python-multipart
+    - numpy
+    - apache-beam[gcp]
+    - aiohttp
+    - firebase-admin
+    - gcloud

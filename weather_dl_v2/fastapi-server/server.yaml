@@ -1,0 +1,93 @@
+# Due to our org level policy we can't expose external-ip. 
+# In case your project don't have any such restriction a
+# then no need to create a nginx-server on VM to access this fastapi server
+# instead create the LoadBalancer Service given below.
+# 
+# # weather-dl server LoadBalancer Service
+# # Enables the pods in a deployment to be accessible from outside the cluster
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: weather-dl-v2-server-service
+# spec:
+#   selector:
+#     app: weather-dl-v2-server-api
+#   ports:
+#     - protocol: "TCP"
+#       port: 8080
+#       targetPort: 8080
+#   type: LoadBalancer
+
+---
+# weather-dl-server-api Deployment
+# Defines the deployment of the app running in a pod on any worker node
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-dl-v2-server-api
+  labels:
+    app: weather-dl-v2-server-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-dl-v2-server-api
+  template:
+    metadata:
+      labels:
+        app: weather-dl-v2-server-api
+    spec:
+      containers:
+        - name: weather-dl-v2-server-api
+          image: XXXXXXX
+          ports:
+            - containerPort: 8080
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: config-volume
+              mountPath: ./config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: dl-v2-config
+          # resources:
+          #   # You must specify requests for CPU to autoscale
+          #   # based on CPU utilization
+          #   requests:
+          #     cpu: "250m"
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: weather-dl-v2-server-api
+rules:
+  - apiGroups:
+      - ""
+      - "apps"
+      - "batch"
+    resources:
+      - endpoints
+      - deployments
+      - pods
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: weather-dl-v2-server-api
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: weather-dl-v2-server-api
+---

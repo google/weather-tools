@@ -84,7 +84,7 @@ class ParsePaths(beam.DoFn):
         try:
             return json.loads(message_body)
         except (json.JSONDecodeError, TypeError):
-            if type(message_body) is dict:
+            if isinstance(message_body, dict):
                 return message_body
             raise
 

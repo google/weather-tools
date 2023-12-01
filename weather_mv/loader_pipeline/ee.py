@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import csv
 import dataclasses
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -27,7 +29,6 @@ from multiprocessing import Process, Queue
 import apache_beam as beam
 import ee
 import numpy as np
-import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -36,8 +37,8 @@ from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin
-from .util import make_attrs_ee_compatible, RateLimit, validate_region
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
+from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ ASSET_TYPE_TO_EXTENSION_MAPPING = {
     'IMAGE': '.tiff',
     'TABLE': '.csv'
 }
+ROWS_PER_WRITE = 10_000  # Number of rows per feature collection write.
 
 
 def is_compute_engine() -> bool:
@@ -155,7 +157,12 @@ class SetupEarthEngine(RateLimit):
     def check_setup(self):
         """Ensures that setup has been called."""
         if not self._has_setup:
-            self.setup()
+            try:
+                # This throws an exception if ee is not initialized.
+                ee.data.getAlgorithms()
+                self._has_setup = True
+            except ee.EEException:
+                self.setup()
 
     def process(self, *args, **kwargs):
         """Checks that setup has been called then call the process implementation."""
@@ -438,6 +445,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
         logger.info(f'Converting {uri!r} to COGs...')
+        job_start_time = get_utc_timestamp()
+
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
@@ -457,6 +466,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                                     ('start_time', 'end_time', 'is_normalized','forecast_hour'))
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+                # Adding job_start_time to properites.
+                attrs["job_start_time"] = job_start_time
                 # Make attrs EE ingestable.
                 attrs = make_attrs_ee_compatible(attrs)
 
@@ -507,21 +518,40 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     channel_names = []
                     file_name = f'{asset_name}.csv'
 
-                    df = xr.Dataset.to_dataframe(ds)
-                    df = df.reset_index()
-                    # NULL and NaN create data-type mismatch issue in ee therefore replacing all of them.
-                    # fillna fills in NaNs, NULLs, and NaTs but we have to exclude NaTs.
-                    non_nat = df.select_dtypes(exclude=['datetime', 'timedelta', 'datetimetz'])
-                    df[non_nat.columns] = non_nat.fillna(-9999)
+                    shape = math.prod(list(ds.dims.values()))
+                    # Names of dimesions, coordinates and data variables.
+                    dims = list(ds.dims)
+                    coords = [c for c in list(ds.coords) if c not in dims]
+                    vars = list(ds.data_vars)
+                    header = dims + coords + vars
 
-                    # Copy in-memory dataframe to gcs.
+                    # Data of dimesions, coordinates and data variables.
+                    dims_data = [ds[dim].data for dim in dims]
+                    coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
+                    vars_data = [ds[var].data.flatten() for var in vars]
+                    data = coords_data + vars_data
+
+                    dims_shape = [len(ds[dim].data) for dim in dims]
+
+                    def get_dims_data(index: int) -> t.List[t.Any]:
+                        """Returns dimensions for the given flattened index."""
+                        return [
+                            dim[int(index / math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
+                        ]
+
+                    # Copy CSV to gcs.
                     target_path = os.path.join(self.asset_location, file_name)
-                    with tempfile.NamedTemporaryFile() as tmp_df:
-                        df.to_csv(tmp_df.name, index=False)
-                        tmp_df.flush()
-                        tmp_df.seek(0)
-                        with FileSystems().create(target_path) as dst:
-                            shutil.copyfileobj(tmp_df, dst, WRITE_CHUNK_SIZE)
+                    with tempfile.NamedTemporaryFile() as temp:
+                        with open(temp.name, 'w', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerows([header])
+                            # Write rows in batches.
+                            for i in range(0, shape, ROWS_PER_WRITE):
+                                writer.writerows(
+                                    [get_dims_data(i) + list(row) for row in zip(*[d[i:i + ROWS_PER_WRITE] for d in data])]
+                                )
+
+                        upload(temp.name, target_path)
                 asset_data = AssetData(
                     name=asset_name,
                     target_path=target_path,
@@ -625,6 +655,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     def start_ingestion(self, asset_request: t.Dict) -> str:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
+
+        asset_request['properties']['ingestion_time'] = get_utc_timestamp()
 
         try:
             if self.ee_asset_type == 'IMAGE':

@@ -102,10 +102,10 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
         return None
     elif np.issubdtype(type(value), np.floating):
         return float(value)
-    elif type(value) == np.ndarray:
+    elif isinstance(value, np.ndarray):
         # Will return a scaler if array is of size 1, else will return a list.
         return value.tolist()
-    elif type(value) == datetime.datetime or type(value) == str or type(value) == np.datetime64:
+    elif isinstance(value, datetime.datetime) or isinstance(value, str) or isinstance(value, np.datetime64):
         # Assume strings are ISO format timestamps...
         try:
             value = datetime.datetime.fromisoformat(value)
@@ -126,7 +126,7 @@ def to_json_serializable_type(value: t.Any) -> t.Any:
 
         # We assume here that naive timestamps are in UTC timezone.
         return value.replace(tzinfo=datetime.timezone.utc).isoformat()
-    elif type(value) == np.timedelta64:
+    elif isinstance(value, np.timedelta64):
         # Return time delta in seconds.
         return float(value / np.timedelta64(1, 's'))
     # This check must happen after processing np.timedelta64 and np.datetime64.

@@ -45,6 +45,7 @@ base_requirements = [
     "numpy==1.22.4",
     "pandas==1.5.1",
     "xarray==2023.1.0",
+    "xarray-beam==0.6.2",
     "cfgrib==0.9.10.2",
     "netcdf4==1.6.1",
     "geojson==2.5.0",
@@ -55,6 +56,8 @@ base_requirements = [
     "earthengine-api>=0.1.263",
     "pyproj==3.4.0",  # requires separate binary installation!
     "gdal==3.5.1",  # requires separate binary installation!
+    "gcsfs==2022.11.0",
+    "zarr==2.15.0",
 ]
 
 setup(
@@ -62,7 +65,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.17',
+    version='0.2.19',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=beam_gcp_requirements + base_requirements,

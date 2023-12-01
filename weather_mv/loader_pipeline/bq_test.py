@@ -15,6 +15,7 @@ import datetime
 import json
 import logging
 import os
+import tempfile
 import typing as t
 import unittest
 
@@ -23,6 +24,8 @@ import numpy as np
 import pandas as pd
 import simplejson
 import xarray as xr
+from apache_beam.testing.test_pipeline import TestPipeline
+from apache_beam.testing.util import assert_that, is_not_empty
 from google.cloud.bigquery import SchemaField
 
 from .bq import (
@@ -75,7 +78,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -91,7 +94,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -107,7 +110,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -123,7 +126,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -140,7 +143,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -157,7 +160,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -191,7 +194,7 @@ class SchemaCreationTests(TestDataBase):
             SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
             SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
             SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'STRING', 'NULLABLE', None, (), None)
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
 
         ]
         self.assertListEqual(schema, expected_schema)
@@ -201,17 +204,18 @@ class ExtractRowsTestBase(TestDataBase):
 
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
-                tif_metadata_for_datetime=None, zarr: bool = False, zarr_kwargs=None,
+                tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, zarr: bool = False, zarr_kwargs=None,
                 skip_creating_polygon: bool = False) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
-        op = ToBigQuery.from_kwargs(first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
-                                    output_table='foo.bar.baz', variables=variables, area=area,
-                                    xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time,
-                                    infer_schema=False, tif_metadata_for_datetime=tif_metadata_for_datetime,
-                                    skip_region_validation=True,
-                                    disable_grib_schema_normalization=disable_grib_schema_normalization,
-                                    coordinate_chunk_size=1000, skip_creating_polygon=skip_creating_polygon)
+        op = ToBigQuery.from_kwargs(
+            first_uri=data_path, dry_run=True, zarr=zarr, zarr_kwargs=zarr_kwargs,
+            output_table='foo.bar.baz', variables=variables, area=area,
+            xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
+            tif_metadata_for_start_time=tif_metadata_for_start_time,
+            tif_metadata_for_end_time=tif_metadata_for_end_time, skip_region_validation=True,
+            disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
+            skip_creating_polygon=skip_creating_polygon)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -398,18 +402,18 @@ class ExtractRowsTest(ExtractRowsTestBase):
         valid_lat_long = [[-90, 0], [-90, -180], [-45, -180], [-45, 180], [0, 0], [90, 180], [45, -180], [-90, 180],
                           [90, 1], [0, 180], [1, -180], [90, -180]]
         actual_val = [
-            '{"type": "Polygon", "coordinates": [[-1, 89], [-1, -89], [1, -89], [1, 89], [-1, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]}',
-            '{"type": "Polygon", "coordinates": [[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]}',
-            '{"type": "Polygon", "coordinates": [[-1, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, 44], [179, 46], [-179, 46], [-179, 44], [179, 44]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}',
-            '{"type": "Polygon", "coordinates": [[0, 89], [0, -89], [2, -89], [2, 89], [0, 89]]}',
-            '{"type": "Polygon", "coordinates": [[179, -1], [179, 1], [-179, 1], [-179, -1], [179, -1]]}',
-            '{"type": "Polygon", "coordinates": [[179, 0], [179, 2], [-179, 2], [-179, 0], [179, 0]]}',
-            '{"type": "Polygon", "coordinates": [[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]}'
+            '{"type": "Polygon", "coordinates": [[[-1, 89], [-1, -89], [1, -89], [1, 89], [-1, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -46], [179, -44], [-179, -44], [-179, -46], [179, -46]]]}',
+            '{"type": "Polygon", "coordinates": [[[-1, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 44], [179, 46], [-179, 46], [-179, 44], [179, 44]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[0, 89], [0, -89], [2, -89], [2, 89], [0, 89]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, -1], [179, 1], [-179, 1], [-179, -1], [179, -1]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 0], [179, 2], [-179, 2], [-179, 0], [179, 0]]]}',
+            '{"type": "Polygon", "coordinates": [[[179, 89], [179, -89], [-179, -89], [-179, 89], [179, 89]]]}'
         ]
         lat_grid_resolution = 1
         lon_grid_resolution = 1
@@ -469,10 +473,35 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.test_data_path = f'{self.test_data_folder}/test_data_tif_start_time.tif'
+        self.test_data_path = f'{self.test_data_folder}/test_data_tif_time.tif'
 
-    def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path, tif_metadata_for_datetime='start_time'))
+    def test_extract_rows_with_end_time(self):
+        actual = next(
+            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time',
+                         tif_metadata_for_end_time='end_time')
+        )
+        expected = {
+            'dewpoint_temperature_2m': 281.09349060058594,
+            'temperature_2m': 296.8329772949219,
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2020-07-01T00:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 42.09783344918844,
+            'longitude': -123.66686981141397,
+            'time': '2020-07-01T00:00:00+00:00',
+            'valid_time': '2020-07-01T00:00:00+00:00',
+            'geo_point': geojson.dumps(geojson.Point((-123.66687, 42.097833))),
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (-123.669853, 42.095605), (-123.669853, 42.100066),
+                        (-123.663885, 42.100066), (-123.663885, 42.095605),
+                        (-123.669853, 42.095605)]))
+        }
+        self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows_without_end_time(self):
+        actual = next(
+            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time')
+        )
         expected = {
             'dewpoint_temperature_2m': 281.09349060058594,
             'temperature_2m': 296.8329772949219,
@@ -735,6 +764,39 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
 
         }
         self.assertRowsEqual(actual, expected)
+
+
+class ExtractRowsFromZarrTest(ExtractRowsTestBase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.tmpdir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        self.tmpdir.cleanup()
+
+    def test_extracts_rows(self):
+        input_zarr = os.path.join(self.tmpdir.name, 'air_temp.zarr')
+
+        ds = (
+            xr.tutorial.open_dataset('air_temperature', cache_dir=self.test_data_folder)
+            .isel(time=slice(0, 4), lat=slice(0, 4), lon=slice(0, 4))
+            .rename(dict(lon='longitude', lat='latitude'))
+        )
+        ds.to_zarr(input_zarr)
+
+        op = ToBigQuery.from_kwargs(
+            first_uri=input_zarr, zarr_kwargs=dict(chunks=None, consolidated=True), dry_run=True, zarr=True,
+            output_table='foo.bar.baz',
+            variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
+            tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
+            disable_grib_schema_normalization=False,
+        )
+
+        with TestPipeline() as p:
+            result = p | op
+            assert_that(result, is_not_empty())
 
 
 if __name__ == '__main__':

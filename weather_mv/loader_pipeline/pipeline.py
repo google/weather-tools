@@ -17,6 +17,7 @@ import argparse
 import json
 import logging
 import typing as t
+import warnings
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -27,7 +28,7 @@ from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
-SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
+SDK_CONTAINER_IMAGE = 'gcr.io/weather-tools-prod/weather-tools:0.0.0'
 
 
 def configure_logger(verbosity: int) -> None:
@@ -55,8 +56,9 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
     known_args.first_uri = next(iter(all_uris))
 
     with beam.Pipeline(argv=pipeline_args) as p:
-        if known_args.topic or known_args.subscription:
-
+        if known_args.zarr:
+            paths = p
+        elif known_args.topic or known_args.subscription:
             paths = (
                     p
                     # Windowing is based on this code sample:
@@ -140,10 +142,18 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # Validate Zarr arguments
     if known_args.uris.endswith('.zarr'):
         known_args.zarr = True
-        known_args.zarr_kwargs['chunks'] = known_args.zarr_kwargs.get('chunks', None)
 
     if known_args.zarr_kwargs and not known_args.zarr:
         raise ValueError('`--zarr_kwargs` argument is only allowed with valid Zarr input URI.')
+
+    if known_args.zarr_kwargs:
+        if not known_args.zarr_kwargs.get('start_date') or not known_args.zarr_kwargs.get('end_date'):
+            warnings.warn('`--zarr_kwargs` not contains both `start_date` and `end_date`'
+                          'so whole zarr-dataset will ingested.')
+
+    if known_args.zarr:
+        known_args.zarr_kwargs['chunks'] = known_args.zarr_kwargs.get('chunks', None)
+        known_args.zarr_kwargs['consolidated'] = known_args.zarr_kwargs.get('consolidated', True)
 
     # Validate subcommand
     if known_args.subcommand == 'bigquery' or known_args.subcommand == 'bq':

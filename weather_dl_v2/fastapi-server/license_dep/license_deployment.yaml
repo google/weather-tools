@@ -1,0 +1,35 @@
+# weather-dl-v2-license-dep Deployment
+# Defines the deployment of the app running in a pod on any worker node
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-dl-v2-license-dep
+  labels:
+    app: weather-dl-v2-license-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-dl-v2-license-dep
+  template:
+    metadata:
+      labels:
+        app: weather-dl-v2-license-dep
+    spec:
+      containers:
+        - name: weather-dl-v2-license-dep
+          image: XXXXXXX
+          imagePullPolicy: Always
+          args: []
+          volumeMounts:
+          - name: config-volume
+            mountPath: ./config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: dl-v2-config
+          # resources:
+          #   # You must specify requests for CPU to autoscale
+          #   # based on CPU utilization
+          #   requests:
+          #     cpu: "250m"
