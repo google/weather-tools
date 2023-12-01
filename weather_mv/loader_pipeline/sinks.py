@@ -683,7 +683,7 @@ def open_dataset(uri: str,
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
 
-            xr_dataset: xr.Dataset = __open_dataset_file(local_path,
+            xr_datasets: xr.Dataset = __open_dataset_file(local_path,
                                                          uri_extension,
                                                          disable_grib_schema_normalization,
                                                          local_open_dataset_kwargs,
@@ -703,6 +703,7 @@ def open_dataset(uri: str,
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
             else:
+                xr_dataset = xr_datasets
                 if start_date is not None and end_date is not None:
                     xr_dataset = xr_dataset.sel(time=slice(start_date, end_date))
                 if uri_extension in ['.tif', '.tiff']:
@@ -714,8 +715,7 @@ def open_dataset(uri: str,
                                                  band_names_dict,
                                                  initialization_time_regex,
                                                  forecast_time_regex)
-                else:
-                    xr_dataset = xr_datasets
+
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
