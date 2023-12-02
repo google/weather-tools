@@ -213,7 +213,7 @@ async def redeploy_licenses(
         else:
             license = await license_handler._get_license_by_license_id(license_id)
             licenses = [license]
-    
+
     if client_name is not None:
         licenses = await license_handler._get_license_by_client_name(client_name)
 
