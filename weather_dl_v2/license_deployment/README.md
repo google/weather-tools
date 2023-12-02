@@ -13,11 +13,4 @@ export CONFIG_PATH=/path/to/weather_dl_v2/config.json
 ```
 
 ### Create docker image for license deployment
-```
-export PROJECT_ID=<your-project-here>
-export REPO=<repo> eg:weather-tools
-export SERVICE=weather-dl-v2-license-dep
-export VER=$(cat VERSION.txt)
-
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_SERVICE=$SERVICE,_VER=$VER
-```
+Refer instructions in weather_dl_v2/README.md

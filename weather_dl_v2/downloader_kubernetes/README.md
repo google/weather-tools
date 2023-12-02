@@ -15,11 +15,4 @@ export CONFIG_PATH=/path/to/weather_dl_v2/config.json
 ```
 
 ### Create docker image for downloader:
-```
-export PROJECT_ID=<your-project-here>
-export REPO=<repo> eg:weather-tools
-export SERVICE=weather-dl-v2-downloader
-export VER=$(cat VERSION.txt)
-
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_SERVICE=$SERVICE,_VER=$VER
-```
+Refer instructions in weather_dl_v2/README.md

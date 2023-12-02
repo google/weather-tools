@@ -54,14 +54,7 @@ uvicorn main:app --reload
 
 
 ### Create docker image for server:
-```
-export PROJECT_ID=<your-project-here>
-export REPO=<repo> eg:weather-tools
-export SERVICE=weather-dl-v2-server
-export VER=$(cat VERSION.txt)
-
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_SERVICE=$SERVICE,_VER=$VER
-```
+Refer instructions in weather_dl_v2/README.md
 
 ### Add path of created server image in server.yaml:
 ```

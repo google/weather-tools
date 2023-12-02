@@ -1,6 +1,6 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$_PROJECT_ID/$_REPO:$_SERVICE', '.']
+  args: ['build', '-t', 'gcr.io/$_PROJECT_ID/$_REPO:$_SERVICE', '$_FOLDER']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$_PROJECT_ID/$_REPO:$_SERVICE']
 - name: 'gcr.io/cloud-builders/docker'

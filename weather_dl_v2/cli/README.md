@@ -15,15 +15,7 @@ Please make approriate changes in cli_config.json, if required.
 > for better solution for the same.
 
 ## Create docker image for weather-dl-cli 
-
-```
-export PROJECT_ID=<your-project-here>
-export REPO=<repo> eg:weather-tools
-export SERVICE=weather-dl-cli
-export VER=$(cat VERSION.txt)
-
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_SERVICE=$SERVICE,_VER=$VER
-```
+Refer instructions in weather_dl_v2/README.md
 
 ## Create a VM using above created docker-image
 ```
