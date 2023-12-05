@@ -644,7 +644,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         except ee.EEException as e:
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.info(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}. Moving on.")
-                return
+                return ""
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
