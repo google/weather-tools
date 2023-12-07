@@ -239,6 +239,7 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
+    group_common_hypercubes: bool
     band_names_mapping: str
     initialization_time_regex: str
     forecast_time_regex: str
@@ -274,6 +275,8 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
+        subparser.add_argument('--group_common_hypercubes', action='store_true', default=False,
+                               help='To group common hypercubes into image collections when loading grib data.')
         subparser.add_argument('--band_names_mapping', type=str, default=None,
                                help='A JSON file which contains the band names for the TIFF file.')
         subparser.add_argument('--initialization_time_regex', type=str, default=None,
@@ -423,6 +426,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
+    group_common_hypercubes: t.Optional[bool] = False
     band_names_dict: t.Optional[t.Dict] = None
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
@@ -446,98 +450,110 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                           self.disable_grib_schema_normalization,
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
-                          forecast_time_regex=self.forecast_time_regex) as ds:
+                          forecast_time_regex=self.forecast_time_regex,
+                          group_common_hypercubes=self.group_common_hypercubes) as ds_list:
+            if not isinstance(ds_list, list):
+                ds_list = [ds_list]
 
-            attrs = ds.attrs
-            data = list(ds.values())
-            asset_name = get_ee_safe_name(uri)
-            channel_names = [da.name for da in data]
-            start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                   ('start_time', 'end_time', 'is_normalized'))
-            dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
-            attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
-            # Adding job_start_time to properites.
-            attrs["job_start_time"] = job_start_time
-            # Make attrs EE ingestable.
-            attrs = make_attrs_ee_compatible(attrs)
+            for ds in ds_list:
+                attrs = ds.attrs
+                data = list(ds.values())
+                asset_name = get_ee_safe_name(uri)
+                channel_names = [da.name for da in data]
+                start_time, end_time, is_normalized = (attrs.get(key) for key in
+                                                       ('start_time', 'end_time', 'is_normalized'))
+                dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
+                # Adding job_start_time to properites.
+                attrs["job_start_time"] = job_start_time
+                # Make attrs EE ingestable.
+                attrs = make_attrs_ee_compatible(attrs)
 
-            # For tiff ingestions.
-            if self.ee_asset_type == 'IMAGE':
-                file_name = f'{asset_name}.tiff'
+                if self.group_common_hypercubes:
+                    level, height = (attrs.pop(key) for key in ['level', 'height'])
+                    safe_level_name = get_ee_safe_name(level)
+                    asset_name = f'{asset_name}_{safe_level_name}'
 
-                with MemoryFile() as memfile:
-                    with memfile.open(driver='COG',
-                                      dtype=dtype,
-                                      width=data[0].data.shape[1],
-                                      height=data[0].data.shape[0],
-                                      count=len(data),
-                                      nodata=np.nan,
-                                      crs=crs,
-                                      transform=transform,
-                                      compress='lzw') as f:
-                        for i, da in enumerate(data):
-                            f.write(da, i+1)
-                            # Making the channel name EE-safe before adding it as a band name.
-                            f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                            f.update_tags(i+1, band_name=channel_names[i])
-                            f.update_tags(i+1, **da.attrs)
-                        # Write attributes as tags in tiff.
-                        f.update_tags(**attrs)
+                # For tiff ingestions.
+                if self.ee_asset_type == 'IMAGE':
+                    file_name = f'{asset_name}.tiff'
 
-                    # Copy in-memory tiff to gcs.
+                    with MemoryFile() as memfile:
+                        with memfile.open(driver='COG',
+                                          dtype=dtype,
+                                          width=data[0].data.shape[1],
+                                          height=data[0].data.shape[0],
+                                          count=len(data),
+                                          nodata=np.nan,
+                                          crs=crs,
+                                          transform=transform,
+                                          compress='lzw') as f:
+                            for i, da in enumerate(data):
+                                f.write(da, i+1)
+                                # Making the channel name EE-safe before adding it as a band name.
+                                f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                                f.update_tags(i+1, band_name=channel_names[i])
+                                f.update_tags(i+1, **da.attrs)
+
+                            # Write attributes as tags in tiff.
+                            f.update_tags(**attrs)
+
+                        # Copy in-memory tiff to gcs.
+                        target_path = os.path.join(self.asset_location, file_name)
+                        with FileSystems().create(target_path) as dst:
+                            shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                # For feature collection ingestions.
+                elif self.ee_asset_type == 'TABLE':
+                    channel_names = []
+                    file_name = f'{asset_name}.csv'
+
+                    shape = math.prod(list(ds.dims.values()))
+                    # Names of dimesions, coordinates and data variables.
+                    dims = list(ds.dims)
+                    coords = [c for c in list(ds.coords) if c not in dims]
+                    vars = list(ds.data_vars)
+                    header = dims + coords + vars
+
+                    # Data of dimesions, coordinates and data variables.
+                    dims_data = [ds[dim].data for dim in dims]
+                    coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
+                    vars_data = [ds[var].data.flatten() for var in vars]
+                    data = coords_data + vars_data
+
+                    dims_shape = [len(ds[dim].data) for dim in dims]
+
+                    def get_dims_data(index: int) -> t.List[t.Any]:
+                        """Returns dimensions for the given flattened index."""
+                        return [
+                            dim[int(index/math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
+                        ]
+
+                    # Copy CSV to gcs.
                     target_path = os.path.join(self.asset_location, file_name)
-                    with FileSystems().create(target_path) as dst:
-                        shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
-            # For feature collection ingestions.
-            elif self.ee_asset_type == 'TABLE':
-                channel_names = []
-                file_name = f'{asset_name}.csv'
+                    with tempfile.NamedTemporaryFile() as temp:
+                        with open(temp.name, 'w', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerows([header])
+                            # Write rows in batches.
+                            for i in range(0, shape, ROWS_PER_WRITE):
+                                writer.writerows(
+                                    [get_dims_data(i) + list(row) for row in zip(
+                                        *[d[i:i + ROWS_PER_WRITE] for d in data]
+                                    )]
+                                )
 
-                shape = math.prod(list(ds.dims.values()))
-                # Names of dimesions, coordinates and data variables.
-                dims = list(ds.dims)
-                coords = [c for c in list(ds.coords) if c not in dims]
-                vars = list(ds.data_vars)
-                header = dims + coords + vars
+                        upload(temp.name, target_path)
 
-                # Data of dimesions, coordinates and data variables.
-                dims_data = [ds[dim].data for dim in dims]
-                coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
-                vars_data = [ds[var].data.flatten() for var in vars]
-                data = coords_data + vars_data
+                asset_data = AssetData(
+                    name=asset_name,
+                    target_path=target_path,
+                    channel_names=channel_names,
+                    start_time=start_time,
+                    end_time=end_time,
+                    properties=attrs
+                )
 
-                dims_shape = [len(ds[dim].data) for dim in dims]
-
-                def get_dims_data(index: int) -> t.List[t.Any]:
-                    """Returns dimensions for the given flattened index."""
-                    return [
-                        dim[int(index / math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
-                    ]
-
-                # Copy CSV to gcs.
-                target_path = os.path.join(self.asset_location, file_name)
-                with tempfile.NamedTemporaryFile() as temp:
-                    with open(temp.name, 'w', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerows([header])
-                        # Write rows in batches.
-                        for i in range(0, shape, ROWS_PER_WRITE):
-                            writer.writerows(
-                                [get_dims_data(i) + list(row) for row in zip(*[d[i:i + ROWS_PER_WRITE] for d in data])]
-                            )
-
-                    upload(temp.name, target_path)
-
-            asset_data = AssetData(
-                name=asset_name,
-                target_path=target_path,
-                channel_names=channel_names,
-                start_time=start_time,
-                end_time=end_time,
-                properties=attrs
-            )
-
-            self.add_to_queue(queue, asset_data)
+                self.add_to_queue(queue, asset_data)
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     def process(self, uri: str) -> t.Iterator[AssetData]:
