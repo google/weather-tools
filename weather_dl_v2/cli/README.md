@@ -15,13 +15,7 @@ Please make approriate changes in cli_config.json, if required.
 > for better solution for the same.
 
 ## Create docker image for weather-dl-cli 
-
-```
-export PROJECT_ID=<your-project-here>
-export REPO=<repo> eg:weather-tools
-
-gcloud builds submit . --tag "gcr.io/$PROJECT_ID/$REPO:weather-dl-v2-cli" --timeout=79200 --machine-type=e2-highcpu-32
-```
+Refer instructions in weather_dl_v2/README.md
 
 ## Create a VM using above created docker-image
 ```
