@@ -310,7 +310,7 @@ class ToBigQuery(ToDataSink):
         first_time_step = to_json_serializable_type(first_ts_raw)
         for _, row in rows.iterrows():
             row = row.astype(object).where(pd.notnull(row), None)
-            row = {k: convert_time(v) for k, v in row.items()}
+            row = {k: to_json_serializable_type(v) for k, v in row.items()}
 
             # Add import metadata.
             row[DATA_IMPORT_TIME_COLUMN] = self.import_time
@@ -506,12 +506,3 @@ def get_lat_lon_range(value: float, lat_lon: str, is_point_out_of_bound: bool,
             return [-180 + lon_grid_resolution, 180 - lon_grid_resolution]
         else:
             return [value + lon_grid_resolution, value - lon_grid_resolution]
-
-def convert_time(val) -> t.Any:
-    """Converts pandas Timestamp values to ISO format."""
-    if isinstance(val, pd.Timestamp):
-        return val.replace(tzinfo=datetime.timezone.utc).isoformat()
-    elif isinstance(val, pd.Timedelta):
-        return val.total_seconds()
-    else:
-        return val
