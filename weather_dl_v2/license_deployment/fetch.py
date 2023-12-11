@@ -78,7 +78,7 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     if error_map[config_name] > 0:
         logger.info(f"Error count for  config {config_name}: {error_map[config_name]}.")
         sleep_time = error_map.exponential_time(config_name)
-        logger.info(f"Sleeping for {sleep_time} mins.")
+        logger.info(f"Sleeping for {sleep_time} secs.")
         time.sleep(sleep_time)
 
     try:

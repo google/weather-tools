@@ -198,6 +198,7 @@ async def delete_license(
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
 
+# TODO: Create a better response for this route.
 @router.patch("/redeploy")
 async def redeploy_licenses(
     license_id: str = None,
@@ -222,13 +223,17 @@ async def redeploy_licenses(
 
     for license in licenses:
         license_id = license['license_id']
-        logger.info(f"Terminating deployment {license['k8s_deployment_id']}")
+        logger.info(f"Terminating deployment {license['k8s_deployment_id']}.")
         try:
             terminate_license_deployment(license_id)
         except Exception as e:
-            logger.error(f"Couldn't terminate Deployment. Error: {e}")
-        logger.info(f"Creating deployment for {license_id}")
-        await create_deployment(license_id, license_handler)
+            logger.error(f"Couldn't terminate Deployment {license_id}. Error: {e}.")
+
+        logger.info(f"Creating deployment for {license_id}.")
+        try:
+            await create_deployment(license_id, license_handler)
+        except Exception as e:
+            logger.error(f"Couldn't create Deployment {license_id}. Error: {e}.")
 
     return {"message": "Licenses redeployed."}
 
