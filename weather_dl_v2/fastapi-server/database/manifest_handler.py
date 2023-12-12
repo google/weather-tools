@@ -133,8 +133,8 @@ class ManifestHandlerFirestore(ManifestHandler):
             ]
         )
         or_filter = Or(filters=[
-            FieldFilter("status", "==", "in-progress"), 
-            FieldFilter("status", "==", "processing"), 
+            FieldFilter("status", "==", "in-progress"),
+            FieldFilter("status", "==", "processing"),
             and_filter]
         )
 
