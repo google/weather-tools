@@ -53,7 +53,7 @@ class LicenseService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _redeploy_licenses_by_client(self, license_id: str):
+    def _redeploy_licenses_by_client(self, client_name: str):
         pass
 
 class LicenseServiceNetwork(LicenseService):
