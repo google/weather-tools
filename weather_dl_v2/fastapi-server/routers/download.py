@@ -71,10 +71,10 @@ async def fetch_config_stats(
         "config_name": config_name,
         "client_name": client_name,
         "partitioning_status": status,
-        "downloaded_shards": success_count,
         "scheduled_shards": scheduled_count,
-        "failed_shards": failure_count,
         "in-progress_shards": inprogress_count,
+        "downloaded_shards": success_count,
+        "failed_shards": failure_count,
         "total_shards": total_count,
     }
 
@@ -90,10 +90,10 @@ def get_fetch_config_stats_mock():
         return {
             "config_name": config_name,
             "client_name": client_name,
-            "downloaded_shards": 0,
             "scheduled_shards": 0,
-            "failed_shards": 0,
             "in-progress_shards": 0,
+            "downloaded_shards": 0,
+            "failed_shards": 0,
             "total_shards": 0,
         }
 
