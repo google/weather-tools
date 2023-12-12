@@ -214,12 +214,12 @@ async def submit_download(
             )
 
         for license_id in licenses:
-            await mark_license_active(license_id, license_handler)
             if not await license_handler._check_license_exists(license_id):
                 logger.info(f"No such license {license_id}.")
                 raise HTTPException(
                     status_code=404, detail=f"No such license {license_id}."
                 )
+            await mark_license_active(license_id, license_handler)
         try:
             dest = upload(file)
             # Start processing config.
@@ -377,12 +377,12 @@ async def retry_config(
         )
 
     for license_id in licenses:
-        await mark_license_active(license_id, license_handler)
         if not await license_handler._check_license_exists(license_id):
             logger.info(f"No such license {license_id}.")
             raise HTTPException(
                 status_code=404, detail=f"No such license {license_id}."
             )
+        await mark_license_active(license_id, license_handler)
 
     background_tasks.add_task(reschedule_partitions, config_name, licenses)
 
