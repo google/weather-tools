@@ -81,5 +81,14 @@ class NetworkService:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
 
+    @timeit
+    def patch(self, uri, header, query=None):
+        try:
+            with Loader("Sending request..."):
+                x = requests.patch(uri, params=query, headers=header)
+            return self.parse_response(x)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"request error: {e}")
+            raise SystemExit(e)
 
 network_service = NetworkService()

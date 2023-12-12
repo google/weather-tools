@@ -48,6 +48,13 @@ class LicenseService(abc.ABC):
     def _update_license(self, license_id: str, license_dict: dict):
         pass
 
+    @abc.abstractmethod
+    def _redeploy_license_by_license_id(self, license_id: str):
+        pass
+
+    @abc.abstractmethod
+    def _redeploy_licenses_by_client(self, license_id: str):
+        pass
 
 class LicenseServiceNetwork(LicenseService):
 
@@ -92,6 +99,19 @@ class LicenseServiceNetwork(LicenseService):
             payload=json.dumps(license_dict),
         )
 
+    def _redeploy_license_by_license_id(self, license_id: str):
+        return network_service.patch(
+            uri=f"{self.endpoint}/redeploy",
+            header={"accept": "application/json"},
+            query={"license_id": license_id}
+        )
+
+    def _redeploy_licenses_by_client(self, client_name: str):
+        return network_service.patch(
+            uri=f"{self.endpoint}/redeploy",
+            header={"accept": "application/json"},
+            query={"client_name": client_name}
+        )
 
 class LicenseServiceMock(LicenseService):
     pass
