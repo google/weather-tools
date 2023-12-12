@@ -42,6 +42,9 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+async def mark_license_active(license_id: str, license_handler: LicenseHandler):
+    logger.info(f"Marking {license_id} active.")
+    await license_handler._mark_license_status(license_id, 'License Active.')
 
 # Add/Update k8s deployment ID for existing license (intenally).
 async def update_license_internal(
@@ -129,6 +132,7 @@ async def update_license(
 
     license_dict = license.dict()
     await license_handler._update_license(license_id, license_dict)
+    await mark_license_active(license_id, license_handler)
     await queue_handler._update_client_name_in_license_queue(
         license_id, license_dict["client_name"]
     )
@@ -174,6 +178,7 @@ async def add_license(
     license_dict = license.dict()
     license_dict["k8s_deployment_id"] = ""
     license_id = await license_handler._add_license(license_dict)
+    await mark_license_active(license_id, license_handler)
     await queue_handler._create_license_queue(license_id, license_dict["client_name"])
     background_tasks.add_task(create_deployment, license_id, license_handler)
     return {"license_id": license_id, "message": "License added successfully."}
@@ -232,10 +237,8 @@ async def redeploy_licenses(
         logger.info(f"Creating deployment for {license_id}.")
         try:
             await create_deployment(license_id, license_handler)
+            await mark_license_active(license_id, license_handler)
         except Exception as e:
             logger.error(f"Couldn't create Deployment {license_id}. Error: {e}.")
 
     return {"message": "Licenses redeployed."}
-
-
-# TODO: Add route to re-deploy license deployments.

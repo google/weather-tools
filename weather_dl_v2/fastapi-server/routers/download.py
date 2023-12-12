@@ -31,6 +31,7 @@ from database.manifest_handler import ManifestHandler, get_manifest_handler
 from database.storage_handler import StorageHandler, get_storage_handler
 from config_processing.manifest import FirestoreManifest, Manifest
 from fastapi.concurrency import run_in_threadpool
+from routers.license import mark_license_active
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,7 @@ async def submit_download(
             )
 
         for license_id in licenses:
+            await mark_license_active(license_id, license_handler)
             if not await license_handler._check_license_exists(license_id):
                 logger.info(f"No such license {license_id}.")
                 raise HTTPException(
@@ -375,6 +377,7 @@ async def retry_config(
         )
 
     for license_id in licenses:
+        await mark_license_active(license_id, license_handler)
         if not await license_handler._check_license_exists(license_id):
             logger.info(f"No such license {license_id}.")
             raise HTTPException(
