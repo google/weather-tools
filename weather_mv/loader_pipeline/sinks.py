@@ -242,9 +242,12 @@ def _is_3d_da(da):
     return len(da.shape) == 3
 
 
-def __normalize_grib_dataset(filename: str) -> xr.Dataset:
+def __normalize_grib_dataset(filename: str,
+                             group_common_hypercubes: t.Optional[bool] = False) -> t.Union[xr.Dataset,
+                                                                                           t.List[xr.Dataset]]:
     """Reads a list of datasets and merge them into a single dataset."""
-    _data_array_list = []
+    _level_data_dict = {}
+
     list_ds = cfgrib.open_datasets(filename)
     ds_attrs = list_ds[0].attrs
     dv_units_dict = {}
@@ -272,6 +275,13 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
             attrs['start_time'] = start_time
             attrs['end_time'] = end_time
 
+            if group_common_hypercubes:
+                attrs['level'] = level  # Adding the level in the metadata, will remove in further steps.
+                attrs['is_normalized'] = True  # Adding the 'is_normalized' attribute in the metadata.
+
+            if level not in _level_data_dict:
+                _level_data_dict[level] = []
+
             no_of_levels = da.shape[0] if _is_3d_da(da) else 1
 
             # Deal with the randomness that is 3d data interspersed with 2d.
@@ -293,7 +303,8 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
                 logger.debug('Found channel %s', channel_name)
 
                 # Add the height as a metadata field, that seems useful.
-                copied_da.attrs['height'] = height
+                copied_da.attrs['height'] = height_string
+
                 # Add the units of each band as a metadata field.
                 dv_units_dict['unit_'+channel_name] = None
                 if 'units' in attrs:
@@ -303,19 +314,26 @@ def __normalize_grib_dataset(filename: str) -> xr.Dataset:
                 if _is_3d_da(da):
                     copied_da = copied_da.sel({level: height})
                 copied_da = copied_da.drop_vars(level)
-                _data_array_list.append(copied_da)
 
-    # Stick the forecast hour, start_time, end_time, data variables units
-    # in the ds attrs as well, that's useful.
-    ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
-    ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
-    ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
-    ds_attrs.update(**dv_units_dict)
+                _level_data_dict[level].append(copied_da)
 
-    merged_dataset = xr.merge(_data_array_list)
-    merged_dataset.attrs.clear()
-    merged_dataset.attrs.update(ds_attrs)
-    return merged_dataset
+    _data_array_list = []
+    _data_array_list = [xr.merge(list_da) for list_da in _level_data_dict.values()]
+
+    if not group_common_hypercubes:
+        # Stick the forecast hour, start_time, end_time, data variables units
+        # in the ds attrs as well, that's useful.
+        ds_attrs['forecast_hour'] = _data_array_list[0].attrs['forecast_hour']
+        ds_attrs['start_time'] = _data_array_list[0].attrs['start_time']
+        ds_attrs['end_time'] = _data_array_list[0].attrs['end_time']
+        ds_attrs.update(**dv_units_dict)
+
+        merged_dataset = xr.merge(_data_array_list)
+        merged_dataset.attrs.clear()
+        merged_dataset.attrs.update(ds_attrs)
+        return merged_dataset
+
+    return _data_array_list
 
 
 def create_partition_configs(ds:xr.Dataset, tiff_config_dims:t.List[str]):
@@ -567,8 +585,13 @@ def __open_dataset_file(filename: str,
                         uri_extension: str,
                         disable_grib_schema_normalization: bool,
                         open_dataset_kwargs: t.Optional[t.Dict] = None,
+                        group_common_hypercubes: t.Optional[bool] = False,
                         tiff_config: t.Optional[t.Dict] = None) -> t.Union[xr.Dataset, t.List[xr.Dataset]]:
     """Opens the dataset at 'uri' and returns a xarray.Dataset."""
+    # add a flag to group common hypercubes
+    if group_common_hypercubes:
+        return __normalize_grib_dataset(filename, group_common_hypercubes)
+
     if open_dataset_kwargs:
         ds =  xr.open_dataset(filename, **open_dataset_kwargs)
         return _add_is_normalized_attr(__partition_dataset(ds, tiff_config), False)
@@ -661,6 +684,7 @@ def open_dataset(uri: str,
                  band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
                  forecast_time_regex: t.Optional[str] = None,
+                 group_common_hypercubes: t.Optional[bool] = False,
                  is_zarr: bool = False,
                  tiff_config: t.Optional[t.Dict] = None,) -> t.Iterator[t.Union[xr.Dataset, t.List[xr.Dataset]]]:
     """Open the dataset at 'uri' and return a xarray.Dataset."""
@@ -682,11 +706,11 @@ def open_dataset(uri: str,
             return
         with open_local(uri) as local_path:
             _, uri_extension = os.path.splitext(uri)
-
             xr_datasets: xr.Dataset = __open_dataset_file(local_path,
                                                          uri_extension,
                                                          disable_grib_schema_normalization,
                                                          local_open_dataset_kwargs,
+                                                         group_common_hypercubes,
                                                          tiff_config)
             # Extracting dtype, crs and transform from the dataset & storing them as attributes.
             try:
@@ -705,9 +729,9 @@ def open_dataset(uri: str,
             else:
                 xr_dataset = xr_datasets
                 if start_date is not None and end_date is not None:
-                    xr_dataset = xr_dataset.sel(time=slice(start_date, end_date))
+                    xr_dataset = xr_datasets.sel(time=slice(start_date, end_date))
                 if uri_extension in ['.tif', '.tiff']:
-                    xr_dataset = _preprocess_tif(xr_datasets,
+                    xr_dataset = _preprocess_tif(xr_dataset,
                                                  local_path,
                                                  tif_metadata_for_start_time,
                                                  tif_metadata_for_end_time,
@@ -716,6 +740,7 @@ def open_dataset(uri: str,
                                                  initialization_time_regex,
                                                  forecast_time_regex)
 
+                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
                 xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 

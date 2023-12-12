@@ -120,6 +120,11 @@ class OpenDatasetTest(TestDataBase):
                 with open_dataset(test_netcdf_path) as _:
                     pass
 
+    def test_group_common_hypercubes(self):
+        with open_dataset(self.test_grib_path,
+                          group_common_hypercubes=True) as ds:
+            self.assertEqual(isinstance(ds, list), True)
+
 
 class DatetimeTest(unittest.TestCase):
 

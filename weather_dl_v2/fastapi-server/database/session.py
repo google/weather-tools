@@ -34,8 +34,6 @@ class Database(abc.ABC):
 
 
 db: firestore.AsyncClient = None
-gcs: storage.Client = None
-
 
 def get_async_client() -> firestore.AsyncClient:
     global db
@@ -66,11 +64,6 @@ def get_async_client() -> firestore.AsyncClient:
 
 
 def get_gcs_client() -> storage.Client:
-    global gcs
-
-    if gcs:
-        return gcs
-
     try:
         gcs = storage.Client(project=get_config().gcs_project)
     except ValueError as e:

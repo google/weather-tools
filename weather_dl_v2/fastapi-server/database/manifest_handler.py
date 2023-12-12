@@ -163,6 +163,7 @@ class ManifestHandlerFirestore(ManifestHandler):
             filters=[
                 FieldFilter("stage", "==", "fetch"),
                 FieldFilter("stage", "==", "download"),
+                FieldFilter("stage", "==", "null"),
                 And(
                     filters=[
                         FieldFilter("status", "!=", "success"),

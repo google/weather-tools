@@ -239,6 +239,7 @@ class ToEarthEngine(ToDataSink):
     ee_qps: int
     ee_latency: float
     ee_max_concurrent: int
+    group_common_hypercubes: bool
     band_names_mapping: str
     initialization_time_regex: str
     forecast_time_regex: str
@@ -275,6 +276,8 @@ class ToEarthEngine(ToDataSink):
                                help='The expected latency per requests, in seconds. Default: 0.5')
         subparser.add_argument('--ee_max_concurrent', type=int, default=10,
                                help='Maximum concurrent api requests to EE allowed for your project. Default: 10')
+        subparser.add_argument('--group_common_hypercubes', action='store_true', default=False,
+                               help='To group common hypercubes into image collections when loading grib data.')
         subparser.add_argument('--band_names_mapping', type=str, default=None,
                                help='A JSON file which contains the band names for the TIFF file.')
         subparser.add_argument('--initialization_time_regex', type=str, default=None,
@@ -428,6 +431,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     ee_asset_type: str = 'IMAGE'
     open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
+    group_common_hypercubes: t.Optional[bool] = False
     band_names_dict: t.Optional[t.Dict] = None
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
@@ -453,6 +457,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
                           forecast_time_regex=self.forecast_time_regex,
+                          group_common_hypercubes=self.group_common_hypercubes,
                           tiff_config = self.tiff_config) as ds_list:
             if not isinstance(ds_list, list):
                 ds_list = [ds_list]
@@ -463,7 +468,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 asset_name = get_ee_safe_name(uri)
                 channel_names = [da.name for da in data]
                 start_time, end_time, is_normalized, forecast_hour = (attrs.get(key) for key in
-                                                    ('start_time', 'end_time', 'is_normalized','forecast_hour'))
+                                                    ('start_time', 'end_time', 'is_normalized', 'forecast_hour'))
+
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
                 # Adding job_start_time to properites.
@@ -484,12 +490,15 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                 asset_name = f"{asset_name}_{var}_{var_val.values:.0f}"
                             else:
                                 asset_name = f"{asset_name}_{var}_{var_val.values:.2f}".replace('.', '_')
-                asset_name = get_ee_safe_name(asset_name)
+                if self.group_common_hypercubes:
+                    level, height = (attrs.pop(key) for key in ['level', 'height'])
+                    safe_level_name = get_ee_safe_name(level)
+                    asset_name = f'{asset_name}_{safe_level_name}'
 
+                asset_name = get_ee_safe_name(asset_name)
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
                     file_name = f'{asset_name}.tiff'
-
                     with MemoryFile() as memfile:
                         with memfile.open(driver='COG',
                                         dtype=dtype,
@@ -506,6 +515,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                 f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
                                 f.update_tags(i+1, band_name=channel_names[i])
                                 f.update_tags(i+1, **da.attrs)
+
                             # Write attributes as tags in tiff.
                             f.update_tags(**attrs)
 
@@ -668,6 +678,9 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 task_id = ee.data.newTaskId(1)[0]
                 result = ee.data.startTableIngestion(task_id, asset_request)
         except ee.EEException as e:
+            if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
+                logger.info(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}. Moving on.")
+                return ""
             logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error

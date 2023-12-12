@@ -77,9 +77,9 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
     # Wait for exponential time based on error count.
     if error_map[config_name] > 0:
         logger.info(f"Error count for  config {config_name}: {error_map[config_name]}.")
-        time = error_map.exponential_time(config_name)
-        logger.info(f"Sleeping for {time} mins.")
-        time.sleep(time)
+        sleep_time = error_map.exponential_time(config_name)
+        logger.info(f"Sleeping for {sleep_time} secs.")
+        time.sleep(sleep_time)
 
     try:
         with manifest.transact(

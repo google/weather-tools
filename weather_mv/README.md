@@ -397,6 +397,7 @@ _Command options_:
 * `--band_names_mapping`: A JSON file which contains the band names for the TIFF file.
 * `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
 * `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
+* `--group_common_hypercubes`: A flag that allows to split up large grib files into multiple level-wise ImageCollections / COGS.
 * `--tiff_config`: Configs to handle source data with more than two dimensions. It is a JSON string containing key as `dims` (array with dimensions). Based on dimensions in `dims` separate tiff files will be created. By default multiple tiff files will be generated if source data has multiple time or step values. For grib files with multiple datasets (It is not necessary that every dataset will have same dimensions so some datasets may contain dimension some may not contain) if dataset does not contain dimension provided in `dims` then that dataset will be stored as bands.
 `e.g {"dims": ["isobaricInhPa"]}`
 
@@ -512,6 +513,15 @@ weather-mv ee --uris "gs://tmp-gs-bucket/3B-HHR-E_MS_MRG_3IMERG_20220901-S000000
            --ee_asset "projects/$PROJECT/assets/test_dir" \
            --initialization_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S%H%M%S-*tiff" \
            --forecast_time_regex "3B-HHR-E_MS_MRG_3IMERG_%Y%m%d-S*-E%H%M%S*tiff"
+```
+
+Ingesting a file into Earth Engine in a levelwise manner:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.tif" \
+           --asset_location "gs://$BUCKET/assets" \ # Needed to store assets generated from *.tif
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --group_common_hypercubes
 ```
 
 Using DataflowRunner:

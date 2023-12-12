@@ -153,6 +153,9 @@ class ToBigQuery(ToDataSink):
         # Add a check for tiff_config.
         if pipeline_options_dict.get('tiff_config'):
             raise RuntimeError('--tiff_config can be specified only for earth engine ingestions.')
+        # Add a check for group_common_hypercubes.
+        if pipeline_options_dict.get('group_common_hypercubes'):
+            raise RuntimeError('--group_common_hypercubes can be specified only for earth engine ingestions.')
 
         # Check that all arguments are supplied for COG input.
         _, uri_extension = os.path.splitext(known_args.uris)
