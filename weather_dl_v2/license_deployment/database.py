@@ -59,6 +59,9 @@ class CRUDOperations(abc.ABC):
     def _get_partition_from_manifest(self, config_name: str) -> str:
         pass
 
+    @abc.abstractmethod
+    def _mark_license_status(self, license_id: str, status: str) -> None:
+        pass
 
 class FirestoreClient(Database, CRUDOperations):
 
