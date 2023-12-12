@@ -67,6 +67,9 @@ class LicenseHandler(abc.ABC):
     async def _get_license_without_deployment(self) -> list:
         pass
 
+    @abc.abstractmethod
+    async def _mark_license_status(self, license_id: str, status: str) -> None:
+        pass
 
 class LicenseHandlerMock(LicenseHandler):
 
@@ -198,3 +201,13 @@ class LicenseHandlerFirestore(LicenseHandler):
             .stream()
         )
         return [doc.to_dict() async for doc in docs]
+
+    async def _mark_license_status(self, license_id: str, status: str) -> None:
+        timestamp = (
+            await self.db.collection(self.collection)
+            .document(license_id)
+            .update({"status": status})
+        )
+        logger.info(
+            f"Updated {license_id} in 'license' collection. Update_time: {timestamp}."
+        )

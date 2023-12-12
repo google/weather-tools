@@ -16,6 +16,8 @@ spec:
       labels:
         app: weather-dl-v2-license-dep
     spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: default-pool
       containers:
         - name: weather-dl-v2-license-dep
           image: XXXXXXX

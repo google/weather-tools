@@ -97,6 +97,15 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
         if "Access token expired" in str(e):
             logger.error(f"{license_id} expired. Emptying queue! error: {e}.")
             db_client._empty_license_queue(license_id=license_id)
+            db_client._mark_license_status(license_id, "License Expired.")
+            return
+
+        # License queue full on client side.
+        if "USER_QUEUED_LIMIT_EXCEEDED" in str(e) or \
+            "Too many queued requests" in str(e):
+            logger.error(f"{license_id} queue full. Emptying queue! error: {e}.")
+            db_client._empty_license_queue(license_id=license_id)
+            db_client._mark_license_status(license_id, "License Queue Full.")
             return
 
         # Increment error count for a config.

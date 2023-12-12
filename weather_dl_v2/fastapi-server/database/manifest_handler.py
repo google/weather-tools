@@ -132,7 +132,11 @@ class ManifestHandlerFirestore(ManifestHandler):
                 FieldFilter("stage", "!=", "upload"),
             ]
         )
-        or_filter = Or(filters=[FieldFilter("status", "==", "in-progress"), and_filter])
+        or_filter = Or(filters=[
+            FieldFilter("status", "==", "in-progress"),
+            FieldFilter("status", "==", "processing"),
+            and_filter]
+        )
 
         result = (
             await self.db.collection(self.collection)

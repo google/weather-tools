@@ -59,6 +59,9 @@ class CRUDOperations(abc.ABC):
     def _get_partition_from_manifest(self, config_name: str) -> str:
         pass
 
+    @abc.abstractmethod
+    def _mark_license_status(self, license_id: str, status: str) -> None:
+        pass
 
 class FirestoreClient(Database, CRUDOperations):
 
@@ -143,6 +146,16 @@ class FirestoreClient(Database, CRUDOperations):
             f"Updated {license_id} queue in 'queues' collection. Update_time: {result.update_time}."
         )
 
+    def _mark_license_status(self, license_id: str, status: str) -> None:
+        timestamp = (
+            self._get_db()
+            .collection(get_config().license_collection)
+            .document(license_id)
+            .update({"status": status})
+        )
+        logger.info(
+            f"Updated {license_id} in 'license' collection. Update_time: {timestamp}."
+        )
 
 # TODO: Firestore transcational fails after reading a document 20 times with roll over.
 # This happens when too many licenses try to access the same partition document.
