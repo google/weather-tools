@@ -105,15 +105,15 @@ def update_license(
 
 @app.command("redeploy",
              help="""Redeploy licenses."""
-             """\nCAUTION: Redeploying will cause licenses to stop whatever they are doing."""
-             """This can cause queues to be filled with stray reqs from previous deployments."""
+             """ CAUTION: Redeploying will cause licenses to stop whatever they are doing."""
+             """ This can cause queues to be filled with stray requests from previous deployments."""
             )
 def redeploy_license(
     license_id: Annotated[
         str,
         typer.Option(
-            help="""Mention license_id of license to redeploy"""
-            """Send 'all' if want to redeploy all licenses."""
+            help="""Mention license_id of license to redeploy."""
+            """ Send 'all' if want to redeploy all licenses."""
             )
         ] = None,
     client_name: Annotated[str, typer.Option(help="Redeploy all licenses of a particular client.")] = None
