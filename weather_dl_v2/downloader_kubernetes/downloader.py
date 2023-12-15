@@ -19,8 +19,9 @@ This program downloads ECMWF data & upload it into GCS.
 import tempfile
 import os
 import sys
+import time
 from manifest import FirestoreManifest, Stage
-from util import copy, download_with_aria2
+from util import copy, download_with_aria2, download_with_wget
 import datetime
 
 
@@ -32,7 +33,24 @@ def download(url: str, path: str) -> None:
             # transfer below might be fooled into thinking we're resuming
             # an interrupted download.
             open(path, "w").close()
-        download_with_aria2(url, path)
+
+        download_methods = [download_with_aria2, download_with_aria2, download_with_wget]
+        errors = []
+
+        for method in download_methods:
+            print(f"Trying {method.__name__}.")
+            try:
+                method(url, path)
+                return
+            except Exception as e:
+                print(f"{method.__name__} failed. Error: {e}.")
+                errors.append(str(e))
+                print(f"Waiting for 2 mins.")
+                time.sleep(120)
+
+        err_msgs = '\n'.join(errors)
+        print(f"Failed to download {url}. Error Msg: {err_msgs}.")
+        raise Exception(f"Downloading failed for url {url} & path {path}.\nError Msg: {err_msgs}.")
 
 
 def main(

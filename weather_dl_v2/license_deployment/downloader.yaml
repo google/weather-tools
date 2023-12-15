@@ -4,6 +4,7 @@ metadata:
   name: downloader-with-ttl
 spec:
   ttlSecondsAfterFinished: 0
+  backoffLimit: 0
   template:
     spec:
       nodeSelector:

@@ -224,3 +224,22 @@ def download_with_aria2(url: str, path: str) -> None:
             f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}'
         )
         raise
+
+def download_with_wget(url: str, path: str) -> None:
+    """Download a files from given URL using `wget` command."""
+    try:
+        subprocess.run(
+            [
+                "wget",
+                url,
+                "-O",
+                path
+            ],
+            check=True,
+            capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(
+            f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}.'
+        )
+        raise
