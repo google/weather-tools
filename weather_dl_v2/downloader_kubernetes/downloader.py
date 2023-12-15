@@ -49,7 +49,7 @@ def download(url: str, path: str) -> None:
             except Exception as e:
                 print(f"{method.__name__} failed. Error: {e}.")
                 errors.append(str(e))
-                print(f"Waiting for 2 mins.")
+                print("Waiting for 2 mins.")
                 time.sleep(120)
 
         err_msgs = "\n".join(errors)
