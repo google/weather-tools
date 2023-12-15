@@ -100,6 +100,12 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
             db_client._mark_license_status(license_id, "License Expired.")
             return
 
+        if "Access token disabled'" in str(e):
+            logger.error(f"{license_id} disabled. Emptying queue! error: {e}.")
+            db_client._empty_license_queue(license_id=license_id)
+            db_client._mark_license_status(license_id, "License Disabled.")
+            return
+
         # License queue full on client side.
         if "USER_QUEUED_LIMIT_EXCEEDED" in str(e) or \
             "Too many queued requests" in str(e):
