@@ -34,7 +34,11 @@ def download(url: str, path: str) -> None:
             # an interrupted download.
             open(path, "w").close()
 
-        download_methods = [download_with_aria2, download_with_aria2, download_with_wget]
+        download_methods = [
+            download_with_aria2,
+            download_with_aria2,
+            download_with_wget,
+        ]
         errors = []
 
         for method in download_methods:
@@ -48,9 +52,11 @@ def download(url: str, path: str) -> None:
                 print(f"Waiting for 2 mins.")
                 time.sleep(120)
 
-        err_msgs = '\n'.join(errors)
+        err_msgs = "\n".join(errors)
         print(f"Failed to download {url}. Error Msg: {err_msgs}.")
-        raise Exception(f"Downloading failed for url {url} & path {path}.\nError Msg: {err_msgs}.")
+        raise Exception(
+            f"Downloading failed for url {url} & path {path}.\nError Msg: {err_msgs}."
+        )
 
 
 def main(
