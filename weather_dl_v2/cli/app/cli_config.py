@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import pkg_resources
 import dataclasses
 import typing as t
 import json
@@ -50,9 +50,8 @@ cli_config = None
 
 def get_config():
     global cli_config
-    # TODO: Update this so cli can work from any folder level.
-    # Right now it only works in folder where cli_config.json is present.
-    cli_config_json = os.path.join(os.getcwd(), "cli_config.json")
+
+    cli_config_json = pkg_resources.resource_filename('app', 'data/cli_config.json')
 
     if cli_config is None:
         with open(cli_config_json) as file:

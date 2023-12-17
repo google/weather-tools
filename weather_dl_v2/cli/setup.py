@@ -26,5 +26,6 @@ setup(
     description=(
         "This cli tools helps in interacting with weather dl v2 fast API server."
     ),
-    entry_points={"console_scripts": ["weather-dl-v2=app.main:app"]},
+    entry_points={"console_scripts": ["weather-dl-v2=app.main:app", "dl-v2=app.main:app"]},
+    package_data={'app': ['data/*.json']},
 )
