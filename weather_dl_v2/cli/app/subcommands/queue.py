@@ -59,6 +59,21 @@ def get_license_queue(license: Annotated[str, typer.Argument(help="License ID")]
 )  # noqa
 def modify_license_queue(
     license: Annotated[str, typer.Argument(help="License ID.")],
+    empty: Annotated[
+        bool,
+        typer.Option(
+            "--empty",
+            help="""Empties the license queue. If this is passed, other options are ignored."""
+        )
+    ] = False,
+    save: Annotated[
+        str,
+        typer.Option(
+            "--save-and-empty",
+            help="""Saves the license queue to a file and empties the queue."""
+            """ Pass in path of directory. File will be saved as <license_id>.json ."""
+        )
+    ] = None,
     file: Annotated[
         str,
         typer.Option(
@@ -76,10 +91,28 @@ def modify_license_queue(
             "--priority",
             "-p",
             help="Absolute priority for the config in a license queue."
-            "Priority increases in ascending order with 0 having highest priority.",
+            " Priority increases in ascending order with 0 having highest priority.",
         ),
     ] = None,  # noqa
 ):
+
+    if empty and save:
+        print("Both --empty and --save-empty can't be passed. Use only one.")
+        return
+
+    if empty:
+        print("Emptying license queue...")
+        print(queue_service._edit_license_queue(license, []))
+        return
+
+    if save:
+        print("Saving and Emptying license queue...")
+        print("license", license)
+        file_path = queue_service._save_queue_to_file(license, save)
+        print(f"Queue saved at {file_path}")
+        print(queue_service._edit_license_queue(license, []))
+        return
+
     if file is None and (config is None and priority is None):
         print("Priority file or config name with absolute priority must be passed.")
         return
