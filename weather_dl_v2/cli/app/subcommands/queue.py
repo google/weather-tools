@@ -107,9 +107,8 @@ def modify_license_queue(
 
     if save:
         print("Saving and Emptying license queue...")
-        print("license", license)
         file_path = queue_service._save_queue_to_file(license, save)
-        print(f"Queue saved at {file_path}")
+        print(f"Queue saved at {file_path}.")
         print(queue_service._edit_license_queue(license, []))
         return
 

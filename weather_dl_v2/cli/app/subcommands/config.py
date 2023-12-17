@@ -27,7 +27,7 @@ app = typer.Typer()
 class ConfigValidator(Validator):
     pass
 
-@app.command("update", help="Update the cli")
+@app.command("update", help="Update the cli.")
 def update_cli():
     try:
         print("Updating CLI. This will take some time...")
