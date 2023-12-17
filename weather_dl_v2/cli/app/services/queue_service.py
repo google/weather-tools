@@ -111,6 +111,7 @@ class QueueServiceNetwork(QueueService):
 
         return file_path
 
+
 class QueueServiceMock(QueueService):
     pass
 

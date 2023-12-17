@@ -103,11 +103,12 @@ def update_license(
 
     print(license_service._update_license(license, license_dict))
 
+
 @app.command("redeploy",
              help="""Redeploy licenses."""
              """ CAUTION: Redeploying will cause licenses to stop whatever they are doing."""
              """ This can cause queues to be filled with stray requests from previous deployments."""
-            )
+             )
 def redeploy_license(
     license_id: Annotated[
         str,

@@ -16,7 +16,6 @@ import pkg_resources
 import dataclasses
 import typing as t
 import json
-import os
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 

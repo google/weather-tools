@@ -56,6 +56,7 @@ class LicenseService(abc.ABC):
     def _redeploy_licenses_by_client(self, client_name: str):
         pass
 
+
 class LicenseServiceNetwork(LicenseService):
 
     def __init__(self):
@@ -112,6 +113,7 @@ class LicenseServiceNetwork(LicenseService):
             header={"accept": "application/json"},
             query={"client_name": client_name}
         )
+
 
 class LicenseServiceMock(LicenseService):
     pass

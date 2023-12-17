@@ -91,4 +91,5 @@ class NetworkService:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
 
+
 network_service = NetworkService()
