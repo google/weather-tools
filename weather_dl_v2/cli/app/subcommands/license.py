@@ -15,6 +15,7 @@
 
 import typer
 from typing_extensions import Annotated
+
 from app.services.license_service import license_service
 from app.utils import Validator, as_table
 
@@ -88,12 +89,12 @@ def update_license(
         str,
         typer.Argument(
             help="""Input json file. Example json for updated license- """
-            """{"client_id": <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            """{"license_id": <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
         ),
     ],  # noqa
 ):
     validator = LicenseValidator(
-        valid_keys=["client_id", "client_name", "number_of_requests", "secret_id"]
+        valid_keys=["license_id", "client_name", "number_of_requests", "secret_id"]
     )
     try:
         license_dict = validator.validate_json(file_path=file_path)
@@ -103,23 +104,35 @@ def update_license(
 
     print(license_service._update_license(license, license_dict))
 
+
 @app.command("redeploy",
              help="""Redeploy licenses."""
              """ CAUTION: Redeploying will cause licenses to stop whatever they are doing."""
              """ This can cause queues to be filled with stray requests from previous deployments."""
-            )
+             )
 def redeploy_license(
     license_id: Annotated[
         str,
         typer.Option(
+            "--license_id",
             help="""Mention license_id of license to redeploy."""
             """ Send 'all' if want to redeploy all licenses."""
             )
         ] = None,
-    client_name: Annotated[str, typer.Option(help="Redeploy all licenses of a particular client.")] = None
+    client_name: Annotated[
+        str,
+        typer.Option(
+            "--client_name",
+            help="Redeploy all licenses of a particular client."
+            )
+        ] = None
 ):
     if license_id is not None and client_name is not None:
         print("Can't pass both license_id and client_name. Please pass only one.")
+        return
+
+    if license_id is None and client_name is None:
+        print("Please pass --license_id or --client_name.")
         return
 
     if license_id is not None:

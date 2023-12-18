@@ -13,10 +13,13 @@
 # limitations under the License.
 
 
-import typer
 import json
 import os
+import subprocess
+
+import typer
 from typing_extensions import Annotated
+
 from app.cli_config import get_config
 from app.utils import Validator
 
@@ -27,12 +30,25 @@ class ConfigValidator(Validator):
     pass
 
 
-@app.command("show-ip", help="See the current server IP address.")
+@app.command("update", help="Update the cli.")
+def update_cli():
+    try:
+        print("Updating CLI. This will take some time...")
+        subprocess.run(['pip', 'uninstall', 'weather-dl-v2', '-y', '-q'])
+        subprocess.run(['pip', 'install',
+                        'git+http://github.com/google/weather-tools#subdirectory=weather_dl_v2/cli'])
+        subprocess.run(['clear'])
+        print("CLI updated successfully. ✨")
+    except Exception as e:
+        print(f"Couldn't update CLI. Error: {e}.")
+
+
+@app.command("show_ip", help="See the current server IP address.")
 def show_server_ip():
     print(f"Current pod IP: {get_config().pod_ip}")
 
 
-@app.command("set-ip", help="Update the server IP address.")
+@app.command("set_ip", help="Update the server IP address.")
 def update_server_ip(
     new_ip: Annotated[
         str, typer.Argument(help="New IP address. (Do not add port or protocol).")

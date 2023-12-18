@@ -14,15 +14,15 @@
 
 
 import abc
-import logging
 import dataclasses
-import typing as t
 import json
-from time import time
+import logging
+import typing as t
 from itertools import cycle
 from shutil import get_terminal_size
 from threading import Thread
-from time import sleep
+from time import sleep, time
+
 from tabulate import tabulate
 
 logger = logging.getLogger(__name__)

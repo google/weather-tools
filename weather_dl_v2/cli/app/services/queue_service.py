@@ -14,11 +14,13 @@
 
 
 import abc
-import logging
 import json
+import logging
+import os
 import typing as t
-from app.services.network_service import network_service
+
 from app.cli_config import get_config
+from app.services.network_service import network_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,10 @@ class QueueService(abc.ABC):
     def _edit_config_absolute_priority(
         self, license_id: str, config_name: str, priority: int
     ):
+        pass
+
+    @abc.abstractmethod
+    def _save_queue_to_file(self, license_id: str, dir: str):
         pass
 
 
@@ -85,6 +91,26 @@ class QueueServiceNetwork(QueueService):
             header={"accept": "application/json"},
             query={"config_name": config_name, "priority": priority},
         )
+
+    def _save_queue_to_file(self, license_id: str, dir_path: str) -> str:
+        if not os.path.isdir(dir_path):
+            print(f"{dir_path} is a not directory.")
+            return None
+
+        response = self._get_queue_by_license(license_id)
+        parsed_response = json.loads(response)
+
+        if "queue" not in parsed_response:
+            print(response)
+            return None
+
+        json_data = {"priority": parsed_response["queue"]}
+        file_path = os.path.join(dir_path, f"{license_id}.json")
+
+        with open(file_path, 'w') as json_file:
+            json.dump(json_data, json_file)
+
+        return file_path
 
 
 class QueueServiceMock(QueueService):

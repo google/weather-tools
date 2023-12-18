@@ -14,10 +14,11 @@
 
 
 import abc
-import logging
 import json
-from app.services.network_service import network_service
+import logging
+
 from app.cli_config import get_config
+from app.services.network_service import network_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class LicenseService(abc.ABC):
     @abc.abstractmethod
     def _redeploy_licenses_by_client(self, client_name: str):
         pass
+
 
 class LicenseServiceNetwork(LicenseService):
 
@@ -112,6 +114,7 @@ class LicenseServiceNetwork(LicenseService):
             header={"accept": "application/json"},
             query={"client_name": client_name}
         )
+
 
 class LicenseServiceMock(LicenseService):
     pass
