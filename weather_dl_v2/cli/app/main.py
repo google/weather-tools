@@ -13,11 +13,13 @@
 # limitations under the License.
 
 
-import typer
 import logging
-from app.cli_config import get_config
+
 import requests
-from app.subcommands import download, queue, license, config
+import typer
+
+from app.cli_config import get_config
+from app.subcommands import config, download, license, queue
 from app.utils import Loader
 
 logger = logging.getLogger(__name__)

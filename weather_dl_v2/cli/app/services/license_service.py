@@ -14,10 +14,11 @@
 
 
 import abc
-import logging
 import json
-from app.services.network_service import network_service
+import logging
+
 from app.cli_config import get_config
+from app.services.network_service import network_service
 
 logger = logging.getLogger(__name__)
 

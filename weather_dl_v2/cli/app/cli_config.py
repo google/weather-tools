@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pkg_resources
 import dataclasses
-import typing as t
 import json
+import typing as t
+
+import pkg_resources
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 

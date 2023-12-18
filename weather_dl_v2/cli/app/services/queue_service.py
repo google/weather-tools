@@ -13,13 +13,14 @@
 # limitations under the License.
 
 
-import os
 import abc
-import logging
 import json
+import logging
+import os
 import typing as t
-from app.services.network_service import network_service
+
 from app.cli_config import get_config
+from app.services.network_service import network_service
 
 logger = logging.getLogger(__name__)
 

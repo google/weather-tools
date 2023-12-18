@@ -13,11 +13,13 @@
 # limitations under the License.
 
 
-import typer
 import json
 import os
 import subprocess
+
+import typer
 from typing_extensions import Annotated
+
 from app.cli_config import get_config
 from app.utils import Validator
 

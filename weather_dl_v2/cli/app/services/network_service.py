@@ -13,9 +13,11 @@
 # limitations under the License.
 
 
-import requests
 import json
 import logging
+
+import requests
+
 from app.utils import Loader, timeit
 
 logger = logging.getLogger(__name__)

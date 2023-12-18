@@ -15,6 +15,7 @@
 
 import typer
 from typing_extensions import Annotated
+
 from app.services.queue_service import queue_service
 from app.utils import Validator, as_table
 

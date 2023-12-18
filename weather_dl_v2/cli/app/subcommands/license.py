@@ -15,6 +15,7 @@
 
 import typer
 from typing_extensions import Annotated
+
 from app.services.license_service import license_service
 from app.utils import Validator, as_table
 
