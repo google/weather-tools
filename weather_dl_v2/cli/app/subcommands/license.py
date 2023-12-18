@@ -88,12 +88,12 @@ def update_license(
         str,
         typer.Argument(
             help="""Input json file. Example json for updated license- """
-            """{"client_id": <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
+            """{"license_id": <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
         ),
     ],  # noqa
 ):
     validator = LicenseValidator(
-        valid_keys=["client_id", "client_name", "number_of_requests", "secret_id"]
+        valid_keys=["license_id", "client_name", "number_of_requests", "secret_id"]
     )
     try:
         license_dict = validator.validate_json(file_path=file_path)
