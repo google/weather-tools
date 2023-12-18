@@ -41,9 +41,9 @@ def create_license_deployment(license_id: str) -> str:
         ] = get_config().license_deployment_image
 
         # Create an instance of the Kubernetes API client
-        api_instance = client.AppsV1Api()
+        batch_api = client.BatchV1Api()
         # Create the deployment in the specified namespace
-        response = api_instance.create_namespaced_deployment(
+        response = batch_api.create_namespaced_job(
             body=deployment_manifest, namespace="default"
         )
 
