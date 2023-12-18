@@ -14,9 +14,9 @@
 
 
 import json
-import os
 import subprocess
 
+import pkg_resources
 import typer
 from typing_extensions import Annotated
 
@@ -54,7 +54,7 @@ def update_server_ip(
         str, typer.Argument(help="New IP address. (Do not add port or protocol).")
     ],
 ):
-    file_path = os.path.join(os.getcwd(), "cli_config.json")
+    file_path = pkg_resources.resource_filename('app', 'data/cli_config.json')
     cli_config = {}
     with open(file_path, "r") as file:
         cli_config = json.load(file)
