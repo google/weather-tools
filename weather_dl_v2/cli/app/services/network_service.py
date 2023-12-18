@@ -13,9 +13,11 @@
 # limitations under the License.
 
 
-import requests
 import json
 import logging
+
+import requests
+
 from app.utils import Loader, timeit
 
 logger = logging.getLogger(__name__)
@@ -90,5 +92,6 @@ class NetworkService:
         except requests.exceptions.RequestException as e:
             logger.error(f"request error: {e}")
             raise SystemExit(e)
+
 
 network_service = NetworkService()

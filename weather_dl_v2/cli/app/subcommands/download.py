@@ -13,11 +13,13 @@
 # limitations under the License.
 
 
+from typing import List
+
 import typer
 from typing_extensions import Annotated
+
 from app.services.download_service import download_service
 from app.utils import Validator, as_table
-from typing import List
 
 app = typer.Typer(rich_markup_mode="markdown")
 
