@@ -118,7 +118,13 @@ def redeploy_license(
             """ Send 'all' if want to redeploy all licenses."""
             )
         ] = None,
-    client_name: Annotated[str, typer.Option("--client_name", help="Redeploy all licenses of a particular client.")] = None
+    client_name: Annotated[
+        str,
+        typer.Option(
+            "--client_name",
+            help="Redeploy all licenses of a particular client."
+            )
+        ] = None
 ):
     if license_id is not None and client_name is not None:
         print("Can't pass both license_id and client_name. Please pass only one.")
