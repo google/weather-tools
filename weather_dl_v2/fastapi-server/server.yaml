@@ -37,6 +37,8 @@ spec:
       labels:
         app: weather-dl-v2-server-api
     spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: server-pool
       containers:
         - name: weather-dl-v2-server-api
           image: XXXXXXX
