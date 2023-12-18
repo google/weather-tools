@@ -67,10 +67,10 @@ def modify_license_queue(
             help="""Empties the license queue. If this is passed, other options are ignored."""
         )
     ] = False,
-    save: Annotated[
+    save_dir_path: Annotated[
         str,
         typer.Option(
-            "--save-and-empty",
+            "--save_and_empty",
             help="""Saves the license queue to a file and empties the queue."""
             """ Pass in path of directory. File will be saved as <license_id>.json ."""
         )
@@ -97,8 +97,8 @@ def modify_license_queue(
     ] = None,  # noqa
 ):
 
-    if empty and save:
-        print("Both --empty and --save-empty can't be passed. Use only one.")
+    if empty and save_dir_path:
+        print("Both --empty and --save_and_empty can't be passed. Use only one.")
         return
 
     if empty:
@@ -106,9 +106,9 @@ def modify_license_queue(
         print(queue_service._edit_license_queue(license, []))
         return
 
-    if save:
+    if save_dir_path:
         print("Saving and Emptying license queue...")
-        file_path = queue_service._save_queue_to_file(license, save)
+        file_path = queue_service._save_queue_to_file(license, save_dir_path)
         print(f"Queue saved at {file_path}.")
         print(queue_service._edit_license_queue(license, []))
         return

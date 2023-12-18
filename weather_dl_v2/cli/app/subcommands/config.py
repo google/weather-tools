@@ -43,12 +43,12 @@ def update_cli():
         print(f"Couldn't update CLI. Error: {e}.")
 
 
-@app.command("show-ip", help="See the current server IP address.")
+@app.command("show_ip", help="See the current server IP address.")
 def show_server_ip():
     print(f"Current pod IP: {get_config().pod_ip}")
 
 
-@app.command("set-ip", help="Update the server IP address.")
+@app.command("set_ip", help="Update the server IP address.")
 def update_server_ip(
     new_ip: Annotated[
         str, typer.Argument(help="New IP address. (Do not add port or protocol).")
