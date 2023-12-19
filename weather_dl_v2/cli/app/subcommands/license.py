@@ -26,6 +26,11 @@ class LicenseValidator(Validator):
     pass
 
 
+license_key_order = [
+    'secret_id', 'k8s_deployment_id', 'status', 'client_name', 'license_id', 'number_of_requests'
+    ]
+
+
 @app.command("list", help="List all licenses.")
 def get_all_license(
     filter: Annotated[
@@ -42,15 +47,15 @@ def get_all_license(
             print(f"filter error: {e}")
             return
 
-        print(as_table(license_service._get_all_license_by_client_name(client_name)))
+        print(as_table(license_service._get_all_license_by_client_name(client_name), license_key_order))
         return
 
-    print(as_table(license_service._get_all_license()))
+    print(as_table(license_service._get_all_license(), license_key_order))
 
 
 @app.command("get", help="Get a particular license by ID.")
 def get_license(license: Annotated[str, typer.Argument(help="License ID.")]):
-    print(as_table(license_service._get_license_by_license_id(license)))
+    print(as_table(license_service._get_license_by_license_id(license), license_key_order))
 
 
 @app.command("add", help="Add new license.")

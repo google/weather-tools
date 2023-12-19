@@ -32,7 +32,7 @@ class ConfigValidator(Validator):
 
 @app.command("update", help="Update the cli.")
 def update_cli():
-    confirm_action(f"Are you sure you want to update cli?")
+    confirm_action("Are you sure you want to update cli?")
     try:
         print("Updating CLI. This will take some time...")
         subprocess.run(['pip', 'uninstall', 'weather-dl-v2', '-y', '-q'])

@@ -26,6 +26,9 @@ class QueueValidator(Validator):
     pass
 
 
+queue_key_order = ['client_name', 'license_id', 'queue']
+
+
 @app.command("list", help="List all the license queues.")
 def get_all_license_queue(
     filter: Annotated[
@@ -42,15 +45,15 @@ def get_all_license_queue(
             print(f"filter error: {e}")
             return
 
-        print(as_table(queue_service._get_license_queue_by_client_name(client_name)))
+        print(as_table(queue_service._get_license_queue_by_client_name(client_name), queue_key_order))
         return
 
-    print(as_table(queue_service._get_all_license_queues()))
+    print(as_table(queue_service._get_all_license_queues(), queue_key_order))
 
 
 @app.command("get", help="Get queue of particular license.")
 def get_license_queue(license: Annotated[str, typer.Argument(help="License ID")]):
-    print(as_table(queue_service._get_queue_by_license(license)))
+    print(as_table(queue_service._get_queue_by_license(license), queue_key_order))
 
 
 @app.command(

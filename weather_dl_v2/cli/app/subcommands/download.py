@@ -28,6 +28,12 @@ class DowloadFilterValidator(Validator):
     pass
 
 
+download_key_order = [
+    'config_name', 'client_name', 'partitioning_status', 'scheduled_shards', 'in-progress_shards',
+    'downloaded_shards', 'failed_shards', 'total_shards'
+]
+
+
 @app.command("list", help="List out all the configs.")
 def get_downloads(
     filter: Annotated[
@@ -48,10 +54,10 @@ def get_downloads(
             print(f"filter error: {e}")
             return
 
-        print(as_table(download_service._list_all_downloads_by_filter(filter_dict)))
+        print(as_table(download_service._list_all_downloads_by_filter(filter_dict), download_key_order))
         return
 
-    print(as_table(download_service._list_all_downloads()))
+    print(as_table(download_service._list_all_downloads(), download_key_order))
 
 
 # TODO: Add support for submitting multiple configs using *.cfg notation.
@@ -77,7 +83,7 @@ def submit_download(
 def get_download_by_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")]
 ):
-    print(as_table(download_service._get_download_by_config(config_name)))
+    print(as_table(download_service._get_download_by_config(config_name), download_key_order))
 
 
 @app.command("show", help="Show contents of a particular config.")
