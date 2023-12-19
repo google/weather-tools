@@ -17,6 +17,7 @@ import abc
 import dataclasses
 import json
 import logging
+import typer
 import typing as t
 from itertools import cycle
 from shutil import get_terminal_size
@@ -38,6 +39,9 @@ def timeit(func):
 
     return wrap_func
 
+
+def confirm_action(message: str = "Are you sure you want to continue?"):
+    _ = typer.confirm(message, abort=True)
 
 # TODO: Add a flag (may be -j/--json) to support raw response.
 def as_table(response: str):

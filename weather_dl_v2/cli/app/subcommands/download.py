@@ -19,7 +19,7 @@ import typer
 from typing_extensions import Annotated
 
 from app.services.download_service import download_service
-from app.utils import Validator, as_table
+from app.utils import Validator, as_table, confirm_action
 
 app = typer.Typer(rich_markup_mode="markdown")
 
@@ -89,8 +89,11 @@ def show_config(
 
 @app.command("remove", help="Remove existing config.")
 def remove_download(
-    config_name: Annotated[str, typer.Argument(help="Config file name.")]
+    config_name: Annotated[str, typer.Argument(help="Config file name.")],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to remove {config_name}?")
     print(download_service._remove_download(config_name))
 
 
@@ -100,5 +103,8 @@ def remove_download(
 def refetch_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")],
     license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to refetch {config_name}?")
     print(download_service._refetch_config_partitions(config_name, license))

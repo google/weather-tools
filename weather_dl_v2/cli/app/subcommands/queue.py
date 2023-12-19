@@ -17,7 +17,7 @@ import typer
 from typing_extensions import Annotated
 
 from app.services.queue_service import queue_service
-from app.utils import Validator, as_table
+from app.utils import Validator, as_table, confirm_action
 
 app = typer.Typer()
 
@@ -57,7 +57,7 @@ def get_license_queue(license: Annotated[str, typer.Argument(help="License ID")]
     "edit",
     help="Edit existing license queue. Queue can edited via a priority"
     "file or my moving a single config to a given priority.",
-)  # noqa
+)
 def modify_license_queue(
     license: Annotated[str, typer.Argument(help="License ID.")],
     empty: Annotated[
@@ -82,7 +82,7 @@ def modify_license_queue(
             "-f",
             help="""File path of priority json file. Example json: {"priority": ["c1.cfg", "c2.cfg",...]}""",
         ),
-    ] = None,  # noqa
+    ] = None,
     config: Annotated[
         str, typer.Option("--config", "-c", help="Config name for absolute priority.")
     ] = None,
@@ -94,7 +94,8 @@ def modify_license_queue(
             help="Absolute priority for the config in a license queue."
             " Priority increases in ascending order with 0 having highest priority.",
         ),
-    ] = None,  # noqa
+    ] = None,
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
 
     if empty and save_dir_path:
@@ -102,11 +103,15 @@ def modify_license_queue(
         return
 
     if empty:
+        if not auto_confirm:
+            confirm_action(f"Are you sure you want to empty queue for {license}?")
         print("Emptying license queue...")
         print(queue_service._edit_license_queue(license, []))
         return
 
     if save_dir_path:
+        if not auto_confirm:
+            confirm_action(f"Are you sure you want to empty queue for {license}?")
         print("Saving and Emptying license queue...")
         file_path = queue_service._save_queue_to_file(license, save_dir_path)
         print(f"Queue saved at {file_path}.")
@@ -130,13 +135,16 @@ def modify_license_queue(
         except Exception as e:
             print(f"key error: {e}")
             return
+        if not auto_confirm:
+            confirm_action(f"Are you sure you want to edit {license} queue priority?")
         print(queue_service._edit_license_queue(license, priority_list))
         return
     elif config is not None and priority is not None:
         if priority < 0:
             print("Priority can not be negative.")
             return
-
+        if not auto_confirm:
+            confirm_action(f"Are you sure you want to edit {license} queue priority?")
         print(queue_service._edit_config_absolute_priority(license, config, priority))
         return
     else:
