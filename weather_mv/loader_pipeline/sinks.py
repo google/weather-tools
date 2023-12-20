@@ -138,9 +138,14 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
     return datetime.datetime(*time_list)
 
 
-def _preprocess_tif(ds: xr.Dataset, filename: str, tif_metadata_for_start_time: str,
-                    tif_metadata_for_end_time: str, uri: str, band_names_dict: t.Dict,
-                    initialization_time_regex: str, forecast_time_regex: str) -> xr.Dataset:
+def _preprocess_tif(
+    ds: xr.Dataset,
+    tif_metadata_for_start_time: str,
+    tif_metadata_for_end_time: str,
+    uri: str,
+    initialization_time_regex: str,
+    forecast_time_regex: str
+) -> xr.Dataset:
     """Transforms (y, x) coordinates into (lat, long) and adds bands data in data variables.
 
     This also retrieves datetime from tif's metadata and stores it into dataset.
@@ -424,7 +429,6 @@ def open_dataset(uri: str,
                  disable_grib_schema_normalization: bool = False,
                  tif_metadata_for_start_time: t.Optional[str] = None,
                  tif_metadata_for_end_time: t.Optional[str] = None,
-                 band_names_dict: t.Optional[t.Dict] = None,
                  initialization_time_regex: t.Optional[str] = None,
                  forecast_time_regex: t.Optional[str] = None,
                  group_common_hypercubes: t.Optional[bool] = False,
@@ -474,11 +478,9 @@ def open_dataset(uri: str,
                     xr_dataset = xr_datasets.sel(time=slice(start_date, end_date))
                 if uri_extension in ['.tif', '.tiff']:
                     xr_dataset = _preprocess_tif(xr_dataset,
-                                                 local_path,
                                                  tif_metadata_for_start_time,
                                                  tif_metadata_for_end_time,
                                                  uri,
-                                                 band_names_dict,
                                                  initialization_time_regex,
                                                  forecast_time_regex)
 
