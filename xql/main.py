@@ -1,7 +1,7 @@
-import readline
 
 import numpy as np
 import xarray as xr
+import typing as t
 
 from sqlglot import parse_one, exp
 
@@ -73,7 +73,7 @@ def apply_group_by(fields, ds: xr.Dataset, agg_funcs):
             grouped_ds = apply_aggregation(grouped_ds, list(agg_funcs.values())[0], field)
     return grouped_ds
 
-def apply_aggregation(groups, fun: str, dim: str = None):
+def apply_aggregation(groups, fun: str, dim: t.Optional[str] = None):
     return aggregate_function_map[fun](groups, dim)
 
 def parse_query(query: str) -> xr.Dataset:
@@ -86,22 +86,25 @@ def parse_query(query: str) -> xr.Dataset:
     table = expr.find(exp.Table).args['this'].args['this']
 
     is_star = expr.find(exp.Star)
-    
+
     data_vars = []
     if is_star is None:
         data_vars = [ var.args['this'].args['this'] for var in expr.expressions if var.key == "column" ]
 
     where = expr.find(exp.Where)
-    
+
     group_by = expr.find(exp.Group)
-    
-    agg_funcs = { var.args['this'].args['this'].args['this']: var.key for var in expr.expressions if var.key in aggregate_function_map }
-    
+
+    agg_funcs = {
+        var.args['this'].args['this'].args['this']: var.key
+        for var in expr.expressions if var.key in aggregate_function_map
+    }
+
     if len(agg_funcs):
         data_vars = agg_funcs.keys()
 
     ds = xr.open_zarr(table, chunks=None)
-    
+
     if is_star is None:
         ds = ds[data_vars]
 
