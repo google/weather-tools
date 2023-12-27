@@ -17,6 +17,7 @@ import abc
 import dataclasses
 import json
 import logging
+import typer
 import typing as t
 from itertools import cycle
 from shutil import get_terminal_size
@@ -39,8 +40,15 @@ def timeit(func):
     return wrap_func
 
 
-# TODO: Add a flag (may be -j/--json) to support raw response.
-def as_table(response: str):
+def confirm_action(message: str = "Are you sure you want to continue?"):
+    _ = typer.confirm(message, abort=True)
+
+
+def order_dict_fields(dictionary, key_order):
+    return {key: dictionary[key] for key in key_order if key in dictionary}
+
+
+def as_table(response: str, key_order=None):
     data = json.loads(response)
 
     if not isinstance(data, list):
@@ -50,20 +58,24 @@ def as_table(response: str):
     if len(data) == 0:
         return ""
 
-    header = data[0].keys()
+    if key_order is None:
+        key_order = list(data[0].keys())
+
+    ordered_data = [order_dict_fields(d, key_order) for d in data]
+
     # if any column has lists, convert that to a string.
     rows = [
         [
             ",\n".join([f"{i} {ele}" for i, ele in enumerate(val)])
             if isinstance(val, list)
             else val
-            for val in x.values()
+            for _, val in x.items()
         ]
-        for x in data
+        for x in ordered_data
     ]
-    rows.insert(0, list(header))
+    rows.insert(0, list(key_order))
     return tabulate(
-        rows, showindex=True, tablefmt="grid", maxcolwidths=[16] * len(header)
+        rows, showindex=True, tablefmt="grid", maxcolwidths=[16] * len(key_order)
     )
 
 
