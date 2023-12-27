@@ -27,7 +27,7 @@ class LicenseValidator(Validator):
 
 
 license_key_order = [
-    'secret_id', 'k8s_deployment_id', 'status', 'client_name', 'license_id', 'number_of_requests'
+    'license_id', 'client_name', 'status', 'number_of_requests', 'secret_id', 'k8s_deployment_id'
     ]
 
 

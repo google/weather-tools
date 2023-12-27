@@ -26,7 +26,7 @@ class QueueValidator(Validator):
     pass
 
 
-queue_key_order = ['client_name', 'license_id', 'queue']
+queue_key_order = ['license_id', 'client_name', 'queue']
 
 
 @app.command("list", help="List all the license queues.")
