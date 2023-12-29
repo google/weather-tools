@@ -28,7 +28,7 @@ import dask
 import xarray as xr
 import xarray_beam as xbeam
 
-from .sinks import ToDataSink, open_local, copy
+from .sinks import ToDataSink, open_local, copy, path_exists
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,7 @@ class Regrid(ToDataSink):
     """
     output_path: str
     regrid_kwargs: t.Dict
+    force_regrid: bool = False
     to_netcdf: bool = False
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
@@ -190,6 +191,8 @@ class Regrid(ToDataSink):
         subparser.add_argument('-k', '--regrid_kwargs', type=json.loads, default='{"grid": [0.25, 0.25]}',
                                help="""Keyword-args to pass into `metview.regrid()` in the form of a JSON string. """
                                     """Will default to '{"grid": [0.25, 0.25]}'.""")
+        subparser.add_argument('--force_regrid', action='store_true', default=False,
+                               help='Force regrid all files even if file is present at output_path.')
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
         subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
@@ -234,6 +237,10 @@ class Regrid(ToDataSink):
         logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
 
         if self.dry_run:
+            return
+
+        if not self.force_regrid and path_exists(self.target_from(uri)):
+            logger.info(f"Skipping {uri}")
             return
 
         with _metview_op():

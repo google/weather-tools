@@ -380,6 +380,21 @@ def upload(src: str, dst: str) -> None:
     """Uploads a file to the specified GCS bucket destination."""
     subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
 
+def path_exists(path: str) -> bool:
+    """Check if path exists at a certain location.
+    First Check in Google Cloud Storage then in Local file system."""
+    for command in [
+        f'gsutil ls {path}',
+        f'ls {path}'
+    ]:
+        try:
+            subprocess.run(command.split(), check=True, capture_output=True, text=True)
+            logger.info(f"{path} exists.")
+            return True
+        except subprocess.CalledProcessError as _:
+            pass
+    logger.info(f"{path} does not exists.")
+    return False
 
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
