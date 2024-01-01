@@ -1,14 +1,24 @@
 # `xql` - Querying Xarray Datasets with SQL
 
-Running SQL like quieries on Xarray Datasets. (Only works on zarr datasets for now.)
+Running SQL like queries on Xarray Datasets.
+> Note: For now, we support only zarr datasets.
 
 # Supported Features
 
-* **Select Variables** - From a large dataset having hundreds of variables select only needed variables.
-* **Apply Where Clouse** - A general where condition like SQL. Applicable for queries which includes data for specific time range or only for specific regions. (Conditions on coordinates suppoted for now.)
-* **Group By And Aggregate Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()` suppoted after applying groupby on any coordinate like time.
+* **`Select` Variables** - From a large dataset having hundreds of variables select only needed variables.
+* **Apply `where` clause** - A general where condition like SQL. Applicable for queries which includes data for specific time range or only for specific regions. 
+* > Note: For now, we support conditions on coordinates.
+* **`group by` and `aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()` supported after applying `group-by` on any coordinate like time.
 
-# Usage
+# Quickstart
+
+## Prerequisites
+
+Get an access to the dataset you want to query. As an example we're using the analysis ready era5 public dataset. [full_37-1h-0p25deg-chunk-1.zarr-v3](https://pantheon.corp.google.com/storage/browser/gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3?project=gcp-public-data-signals).
+
+For this gcloud must be configured in the environment. [Initializing the gcloud CLI](https://cloud.google.com/sdk/docs/initializing).
+
+## Usage
 
 Install required packages
 ```
@@ -25,7 +35,7 @@ Running a simple query on dataset. Comparing with SQL a data variable is like a 
 ```
 SELECT evaporation, geopotential_at_surface, temperature FROM '{TABLE}'
 ```
-Replace `{TABLE}` with dataset uri. Ex. `gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3`:
+Replace `{TABLE}` with dataset uri. Eg. `gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3`.
 
 ---
 Apply a conditions. Query to get temperature of arctic region in last winter:
