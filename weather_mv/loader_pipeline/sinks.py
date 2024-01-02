@@ -382,23 +382,12 @@ def upload(src: str, dst: str) -> None:
     subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
 
 def path_exists(path: str, force_regrid: bool = False) -> bool:
-    """Check if path exists at a certain location. Pass force_regrid to skip checking."""
+    """Check if path exists. Pass force_regrid to skip checking."""
     if force_regrid:
         return False
-    # Try on gcs file system.
-    try:
-        matches = FileSystems().match([path])
-        assert len(matches) == 1
-        if len(matches[0].metadata_list) > 0:
-            return True
-    except Exception as _:
-        pass
-    # Try on local file system.
-    try:
-        return os.path.exists(path)
-    except Exception as _:
-        pass
-    return False
+    matches = FileSystems().match([path])
+    assert len(matches) == 1
+    return len(matches[0].metadata_list) > 0
 
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
