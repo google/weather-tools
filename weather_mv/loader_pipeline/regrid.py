@@ -240,7 +240,7 @@ class Regrid(ToDataSink):
             return
 
         if path_exists(self.target_from(uri), self.force_regrid):
-            logger.info(f"Skipping {uri}")
+            logger.info(f"Skipping {uri}.")
             return
 
         with _metview_op():
