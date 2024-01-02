@@ -239,7 +239,7 @@ class Regrid(ToDataSink):
         if self.dry_run:
             return
 
-        if not self.force_regrid and path_exists(self.target_from(uri)):
+        if path_exists(self.target_from(uri), self.force_regrid):
             logger.info(f"Skipping {uri}")
             return
 

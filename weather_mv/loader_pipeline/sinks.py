@@ -380,9 +380,12 @@ def upload(src: str, dst: str) -> None:
     """Uploads a file to the specified GCS bucket destination."""
     subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
 
-def path_exists(path: str) -> bool:
+def path_exists(path: str, force_regrid: bool = False) -> bool:
     """Check if path exists at a certain location.
     First Check in Google Cloud Storage then in Local file system."""
+    if force_regrid:
+        return False
+
     for command in [
         f'gsutil ls {path}',
         f'ls {path}'
