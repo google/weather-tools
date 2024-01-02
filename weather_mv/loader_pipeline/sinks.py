@@ -33,6 +33,7 @@ import rasterio
 import rioxarray
 import xarray as xr
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
+from apache_beam.io.filesystems import FileSystems
 from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
@@ -380,6 +381,13 @@ def upload(src: str, dst: str) -> None:
     """Uploads a file to the specified GCS bucket destination."""
     subprocess.run(f'gsutil -m cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
 
+def path_exists(path: str, force_regrid: bool = False) -> bool:
+    """Check if path exists. Pass force_regrid to skip checking."""
+    if force_regrid:
+        return False
+    matches = FileSystems().match([path])
+    assert len(matches) == 1
+    return len(matches[0].metadata_list) > 0
 
 def copy(src: str, dst: str) -> None:
     """Copy data via `gcloud alpha storage` or `gsutil`."""
