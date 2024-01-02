@@ -8,7 +8,8 @@ Running SQL like queries on Xarray Datasets.
 * **`Select` Variables** - From a large dataset having hundreds of variables select only needed variables.
 * **Apply `where` clause** - A general where condition like SQL. Applicable for queries which includes data for specific time range or only for specific regions. 
 * > Note: For now, we support conditions on coordinates.
-* **`group by` and `aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()` supported after applying `group-by` on any coordinate like time.
+* **`group by` and `order by` Functions** - Both are supported on the coordinates  only. e.g. time, latitude, longitude, etc.
+* **`aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()`, etc. are supported on any coordinate like time.
 
 # Quickstart
 
@@ -49,3 +50,9 @@ SELECT AVG(temperature) FROM '{TABLE}' WHERE time >= '2022-12-01' AND time < '20
 GROUP BY time_day
 ```
 Replace `time_day` to `time_month` or `time_year` if monthly or yearly average is needed. Also use MIN() and MAX() functions same way as AVG().
+
+---
+Order by latitude, longitude in ascending and descending order.
+```
+SELECT surface_pressure FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2021-06-01T00:00:00Z' AND time <= '2021-06-30T23:59:59Z' ORDER BY latitude, longitude DESC LIMIT 1
+```

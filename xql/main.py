@@ -39,7 +39,8 @@ aggregate_function_map = {
     'sum': lambda x, y: x.sum(dim=y) if y else x.sum(),
 }
 
-def parse(a: t.Union[xr.DataArray, str], b: t.Union[xr.DataArray, str]) -> t.Tuple[t.Union[xr.DataArray, str], t.Union[xr.DataArray, str]]:
+def parse(a: t.Union[xr.DataArray, str], b: t.Union[xr.DataArray, str]) -> t.Tuple[t.Union[xr.DataArray, str],
+                                                                                   t.Union[xr.DataArray, str]]:
     """
     Parse input values 'a' and 'b' into NumPy arrays with compatible types for evaluation.
 
@@ -116,6 +117,28 @@ def inorder(expression: exp.Expression, ds: xr.Dataset) -> xr.DataArray:
         return left_sol
 
 
+def apply_order_by(fields: t.List[str], ds: xr.Dataset) -> xr.Dataset:
+    """
+    Apply order-by to the dataset based on specified fields.
+
+    Parameters:
+    - fields (List[str]): List of fields(coordinates) to be used for ordering.
+    - ds (xarray.Dataset): The input dataset.
+
+    Returns:
+    - xarray.Dataset: The dataset after applying group-by and aggregation operations.
+    """
+    ordered_ds = ds
+    for field in fields:
+        actual_field = field.split()
+        ordered_ds = (
+            ordered_ds.sortby(actual_field[0], False) if
+            len(actual_field) > 1 and actual_field[1] == 'DESC' else
+            ordered_ds.sortby(actual_field[0])
+        )
+    return ordered_ds
+
+
 def apply_group_by(fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, str]) -> xr.Dataset:
     """
     Apply group-by and aggregation operations to the dataset based on specified fields and aggregation functions.
@@ -123,7 +146,8 @@ def apply_group_by(fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, s
     Parameters:
     - fields (List[str]): List of fields (variables or coordinates) to be used for grouping.
     - ds (xarray.Dataset): The input dataset.
-    - agg_funcs (Dict[str, str]): Dictionary mapping aggregation function names to their corresponding xarray-compatible string representations.
+    - agg_funcs (Dict[str, str]): Dictionary mapping aggregation function names to their corresponding
+    xarray-compatible string representations.
 
     Returns:
     - xarray.Dataset: The dataset after applying group-by and aggregation operations.
@@ -150,7 +174,8 @@ def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim
     Parameters:
     - groups (Union[xr.Dataset, xr.core.groupby.DatasetGroupBy]): The input dataset or dataset groupby object.
     - fun (str): The aggregation function to be applied.
-    - dim (Optional[str]): The dimension along which to apply the aggregation. If None, aggregation is applied to the entire dataset.
+    - dim (Optional[str]): The dimension along which to apply the aggregation. If None, aggregation is applied
+    to the entire dataset.
 
     Returns:
     - xr.Dataset: The dataset after applying the aggregation.
@@ -175,8 +200,8 @@ def parse_query(query: str) -> xr.Dataset:
         data_vars = [ var.args['this'].args['this'] for var in expr.expressions if var.key == "column" ]
 
     where = expr.find(exp.Where)
-
     group_by = expr.find(exp.Group)
+    order_by = expr.find(exp.Order)
 
     agg_funcs = {
         var.args['this'].args['this'].args['this']: var.key
@@ -199,6 +224,10 @@ def parse_query(query: str) -> xr.Dataset:
         groupby_fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
         ds = apply_group_by(groupby_fields, ds, agg_funcs)
 
+    if order_by:
+        orderby_fields = [(str(e)) for e in order_by.args['expressions'] ]
+        ds = apply_order_by(orderby_fields, ds)
+
     return ds
 
 
@@ -213,7 +242,7 @@ if __name__ == "__main__":
 
         try:
             result = parse_query(query)
-        except:
+        except Exception:
             result = "Something wrong with the query."
 
         if isinstance(result, xr.Dataset):
