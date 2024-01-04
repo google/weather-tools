@@ -19,13 +19,19 @@ import typer
 from typing_extensions import Annotated
 
 from app.services.download_service import download_service
-from app.utils import Validator, as_table
+from app.utils import Validator, as_table, confirm_action
 
 app = typer.Typer(rich_markup_mode="markdown")
 
 
 class DowloadFilterValidator(Validator):
     pass
+
+
+download_key_order = [
+    'config_name', 'client_name', 'partitioning_status', 'scheduled_shards', 'in-progress_shards',
+    'downloaded_shards', 'failed_shards', 'total_shards'
+]
 
 
 @app.command("list", help="List out all the configs.")
@@ -48,10 +54,10 @@ def get_downloads(
             print(f"filter error: {e}")
             return
 
-        print(as_table(download_service._list_all_downloads_by_filter(filter_dict)))
+        print(as_table(download_service._list_all_downloads_by_filter(filter_dict), download_key_order))
         return
 
-    print(as_table(download_service._list_all_downloads()))
+    print(as_table(download_service._list_all_downloads(), download_key_order))
 
 
 # TODO: Add support for submitting multiple configs using *.cfg notation.
@@ -77,7 +83,7 @@ def submit_download(
 def get_download_by_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")]
 ):
-    print(as_table(download_service._get_download_by_config(config_name)))
+    print(as_table(download_service._get_download_by_config(config_name), download_key_order))
 
 
 @app.command("show", help="Show contents of a particular config.")
@@ -89,8 +95,11 @@ def show_config(
 
 @app.command("remove", help="Remove existing config.")
 def remove_download(
-    config_name: Annotated[str, typer.Argument(help="Config file name.")]
+    config_name: Annotated[str, typer.Argument(help="Config file name.")],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to remove {config_name}?")
     print(download_service._remove_download(config_name))
 
 
@@ -100,5 +109,8 @@ def remove_download(
 def refetch_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")],
     license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to refetch {config_name}?")
     print(download_service._refetch_config_partitions(config_name, license))

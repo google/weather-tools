@@ -28,6 +28,9 @@ class CliConfig:
 
     @property
     def BASE_URI(self) -> str:
+        # If pod IP is not present assume in dev environment.
+        if(self.pod_ip == "<pod_ip>"):
+            return "http://127.0.0.1:8000"
         return f"http://{self.pod_ip}:{self.port}"
 
     kwargs: t.Optional[t.Dict[str, Values]] = dataclasses.field(default_factory=dict)

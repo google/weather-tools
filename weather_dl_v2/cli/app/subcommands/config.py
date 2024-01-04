@@ -21,7 +21,7 @@ import typer
 from typing_extensions import Annotated
 
 from app.cli_config import get_config
-from app.utils import Validator
+from app.utils import Validator, confirm_action
 
 app = typer.Typer()
 
@@ -32,6 +32,7 @@ class ConfigValidator(Validator):
 
 @app.command("update", help="Update the cli.")
 def update_cli():
+    confirm_action("Are you sure you want to update cli?")
     try:
         print("Updating CLI. This will take some time...")
         subprocess.run(['pip', 'uninstall', 'weather-dl-v2', '-y', '-q'])

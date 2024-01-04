@@ -17,13 +17,18 @@ import typer
 from typing_extensions import Annotated
 
 from app.services.license_service import license_service
-from app.utils import Validator, as_table
+from app.utils import Validator, as_table, confirm_action
 
 app = typer.Typer()
 
 
 class LicenseValidator(Validator):
     pass
+
+
+license_key_order = [
+    'license_id', 'client_name', 'status', 'number_of_requests', 'secret_id', 'k8s_deployment_id'
+    ]
 
 
 @app.command("list", help="List all licenses.")
@@ -42,15 +47,15 @@ def get_all_license(
             print(f"filter error: {e}")
             return
 
-        print(as_table(license_service._get_all_license_by_client_name(client_name)))
+        print(as_table(license_service._get_all_license_by_client_name(client_name), license_key_order))
         return
 
-    print(as_table(license_service._get_all_license()))
+    print(as_table(license_service._get_all_license(), license_key_order))
 
 
 @app.command("get", help="Get a particular license by ID.")
 def get_license(license: Annotated[str, typer.Argument(help="License ID.")]):
-    print(as_table(license_service._get_license_by_license_id(license)))
+    print(as_table(license_service._get_license_by_license_id(license), license_key_order))
 
 
 @app.command("add", help="Add new license.")
@@ -78,7 +83,12 @@ def add_license(
 
 
 @app.command("remove", help="Remove a license.")
-def remove_license(license: Annotated[str, typer.Argument(help="License ID.")]):
+def remove_license(
+    license: Annotated[str, typer.Argument(help="License ID.")],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
+):
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to remove {license}?")
     print(license_service._remove_license(license))
 
 
@@ -91,7 +101,8 @@ def update_license(
             help="""Input json file. Example json for updated license- """
             """{"license_id": <str>, "client_name" : <str>, "number_of_requests" : <int>, "secret_id" : <str>}"""
         ),
-    ],  # noqa
+    ],
+    auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
     validator = LicenseValidator(
         valid_keys=["license_id", "client_name", "number_of_requests", "secret_id"]
@@ -101,7 +112,8 @@ def update_license(
     except Exception as e:
         print(f"payload error: {e}")
         return
-
+    if not auto_confirm:
+        confirm_action(f"Are you sure you want to update {license}?")
     print(license_service._update_license(license, license_dict))
 
 
@@ -136,9 +148,11 @@ def redeploy_license(
         return
 
     if license_id is not None:
+        confirm_action(f"Are you sure you want to redeploy {license_id}?")
         print(license_service._redeploy_license_by_license_id(license_id))
         return
 
     if client_name is not None:
+        confirm_action(f"Are you sure you want to redeploy licenses from {client_name}?")
         print(license_service._redeploy_licenses_by_client(client_name))
         return
