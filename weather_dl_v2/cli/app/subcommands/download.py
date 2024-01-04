@@ -109,8 +109,9 @@ def remove_download(
 def refetch_config(
     config_name: Annotated[str, typer.Argument(help="Config file name.")],
     license: Annotated[List[str], typer.Option("--license", "-l", help="License ID.")],
+    only_failed: Annotated[bool, typer.Option("--only_failed", help="Only refetch failed partitions.")] = False,
     auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
 ):
     if not auto_confirm:
         confirm_action(f"Are you sure you want to refetch {config_name}?")
-    print(download_service._refetch_config_partitions(config_name, license))
+    print(download_service._refetch_config_partitions(config_name, license, only_failed))
