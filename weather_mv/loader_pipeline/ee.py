@@ -458,9 +458,10 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 attrs = ds.attrs
                 data = list(ds.values())
                 asset_name = get_ee_safe_name(uri)
-                channel_names = list(self.band_names_dict.values()) \
-                    if self.band_names_dict \
-                    else [da.name for da in data]
+                channel_names = [
+                    self.band_names_dict.get(da.name, da.name) if self.band_names_dict
+                    else da.name for da in data
+                ]
 
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 # Adding job_start_time to properites.
