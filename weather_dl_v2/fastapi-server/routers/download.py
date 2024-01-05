@@ -135,15 +135,18 @@ def get_reschedule_partitions():
                 partition["username"],
             )
 
-    async def reschedule_partitions(config_name: str, licenses: list):
+    async def reschedule_partitions(config_name: str, licenses: list, only_failed: bool = False):
         manifest_handler: ManifestHandler = get_manifest_handler()
         download_handler: DownloadHandler = get_download_handler()
         queue_handler: QueueHandler = get_queue_handler()
         storage_handler: StorageHandler = get_storage_handler()
 
-        partition_list = await manifest_handler._get_non_successfull_downloads(
-            config_name
-        )
+        if only_failed:
+            partition_list = await manifest_handler._get_failed_downloads(config_name)
+        else:
+            partition_list = await manifest_handler._get_non_successfull_downloads(
+                config_name
+            )
 
         config = None
         manifest = FirestoreManifest()
@@ -171,7 +174,8 @@ def get_reschedule_partitions():
             await download_handler._mark_partitioning_status(
                 config_name, "Partitioning completed."
             )
-            await queue_handler._update_queues_on_start_download(config_name, licenses)
+            if len(licenses) > 0:
+                await queue_handler._update_queues_on_start_download(config_name, licenses)
         except Exception as e:
             error_str = f"Partitioning failed for {config_name} due to {e}."
             logger.error(error_str)
@@ -181,7 +185,7 @@ def get_reschedule_partitions():
 
 
 def get_reschedule_partitions_mock():
-    def reschedule_partitions(config_name: str, licenses: list):
+    async def reschedule_partitions(config_name: str, licenses: list, only_failed: bool = False):
         pass
 
     return reschedule_partitions
@@ -364,6 +368,7 @@ async def delete_download(
 async def retry_config(
     config_name: str,
     licenses: list = Body(embed=True),
+    only_failed: bool = False,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
@@ -384,6 +389,6 @@ async def retry_config(
             )
         await mark_license_active(license_id, license_handler)
 
-    background_tasks.add_task(reschedule_partitions, config_name, licenses)
+    background_tasks.add_task(reschedule_partitions, config_name, licenses, only_failed)
 
     return {"msg": "Refetch initiated successfully."}

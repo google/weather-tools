@@ -57,6 +57,10 @@ class ManifestHandler(abc.ABC):
     async def _get_non_successfull_downloads(self, config_name: str) -> list:
         pass
 
+    @abc.abstractmethod
+    async def _get_failed_downloads(self, config_name: str) -> list:
+        pass
+
 
 class ManifestHandlerMock(ManifestHandler):
 
@@ -76,6 +80,9 @@ class ManifestHandlerMock(ManifestHandler):
         return 0
 
     async def _get_non_successfull_downloads(self, config_name: str) -> list:
+        return []
+
+    async def _get_failed_downloads(self, config_name: str) -> list:
         return []
 
 
@@ -181,6 +188,15 @@ class ManifestHandlerFirestore(ManifestHandler):
             self.db.collection(self.collection)
             .where(filter=FieldFilter("config_name", "==", config_name))
             .where(filter=or_filter)
+            .stream()
+        )
+        return [doc.to_dict() async for doc in docs]
+
+    async def _get_failed_downloads(self, config_name: str) -> list:
+        docs = (
+            self.db.collection(self.collection)
+            .where(filter=FieldFilter("config_name", "==", config_name))
+            .where(filter=FieldFilter("status", "==", "failure"))
             .stream()
         )
         return [doc.to_dict() async for doc in docs]

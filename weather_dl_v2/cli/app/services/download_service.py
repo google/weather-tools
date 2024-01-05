@@ -53,7 +53,7 @@ class DownloadService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str]):
+    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str], only_failed: bool):
         pass
 
 
@@ -107,11 +107,12 @@ class DownloadServiceNetwork(DownloadService):
             uri=f"{self.endpoint}/{config_name}", header={"accept": "application/json"}
         )
 
-    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str]):
+    def _refetch_config_partitions(self, config_name: str, licenses: t.List[str], only_failed: bool):
         return network_service.post(
             uri=f"{self.endpoint}/retry/{config_name}",
             header={"accept": "application/json"},
             payload=json.dumps({"licenses": licenses}),
+            query={'only_failed': only_failed}
         )
 
 
