@@ -1,0 +1,6 @@
+fsspec
+gcsfs
+numpy
+sqlglot
+xarray
+zarr
