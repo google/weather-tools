@@ -22,6 +22,15 @@ import xarray as xr
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
+command_info = {
+    ".exit": "To exit from the current session.",
+    ".set": "To set the dataset uri as a shortened key. e.g. .set era5 gs://{BUCKET}/dataset-uri",
+    ".show": "To list down dataset shortened key. e.g. .show or .show [key]",
+    "[query]": "Any valid sql like query."
+}
+
+table_dataset_map = {} # To store dataset shortened keys for a single session.
+
 operate = {
     "and" : lambda a, b: a & b,
     "or" : lambda a, b: a | b,
@@ -184,6 +193,26 @@ def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim
     return aggregate_function_map[fun](groups, dim)
 
 
+def get_table(e: exp.Expression) -> str:
+    """
+    Get the table name from an expression.
+
+    Args:
+        e (Expression): The expression containing table information.
+
+    Returns:
+        str: The table name.
+    """
+    # Extract the table name from the expression
+    table = e.find(exp.Table).args['this'].args['this']
+
+    # Check if the table is mapped in table_dataset_map
+    if table in table_dataset_map:
+        table = table_dataset_map[table]
+
+    return table
+
+
 def parse_query(query: str) -> xr.Dataset:
 
     expr = parse_one(query)
@@ -191,7 +220,7 @@ def parse_query(query: str) -> xr.Dataset:
     if not isinstance(expr, exp.Select):
         return "ERROR: Only select queries are supported."
 
-    table = expr.find(exp.Table).args['this'].args['this']
+    table = get_table(expr)
 
     is_star = expr.find(exp.Star)
 
@@ -201,7 +230,6 @@ def parse_query(query: str) -> xr.Dataset:
 
     where = expr.find(exp.Where)
     group_by = expr.find(exp.Group)
-    order_by = expr.find(exp.Order)
 
     agg_funcs = {
         var.args['this'].args['this'].args['this']: var.key
@@ -224,11 +252,78 @@ def parse_query(query: str) -> xr.Dataset:
         groupby_fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
         ds = apply_group_by(groupby_fields, ds, agg_funcs)
 
-    if order_by:
-        orderby_fields = [(str(e)) for e in order_by.args['expressions'] ]
-        ds = apply_order_by(orderby_fields, ds)
-
     return ds
+
+
+def set_dataset_table(cmd: str) -> None:
+    """
+    Set the mapping between a key and a dataset.
+
+    Args:
+        cmd (str): The command string in the format ".set key val"
+            where key is the identifier and val is the dataset table.
+    """
+    # Split the command into parts
+    cmd_parts = cmd.split(" ")
+
+    # Check if the command has the correct number of arguments
+    if len(cmd_parts) == 3:
+        # Extract key and val from the command
+        _, key, val = cmd_parts
+        # Update the dataset table mapping
+        table_dataset_map[key] = val
+    else:
+        # Print an error message for incorrect arguments
+        print("Incorrect args. Run .help .set for usage info.")
+
+
+def list_key_values(input: t.Dict[str, str]) -> None:
+    """
+    Display key-value pairs from a dictionary.
+
+    Args:
+        input (Dict[str, str]): The dictionary containing key-value pairs.
+    """
+    for cmd, desc in input.items():
+        print(f"{cmd}  =>  {desc}")
+
+
+def display_help(cmd: str) -> None:
+    """
+    Display help information for commands.
+
+    Args:
+        cmd (str): The command string.
+    """
+    cmd_parts = cmd.split(" ")
+
+    if len(cmd_parts) == 2:
+        if cmd_parts[1] in command_info:
+            print(f"{cmd_parts[1]}  =>  {command_info[cmd_parts[1]]}")
+        else:
+            list_key_values(command_info)
+    elif len(cmd_parts) == 1:
+        list_key_values(command_info)
+    else:
+        print("Incorrect usage. Run .help or .help [cmd] for usage info.")
+
+
+def display_table_dataset_map(cmd: str) -> None:
+    """
+    Display information from the table_dataset_map.
+
+    Args:
+        cmd (str): The command string.
+    """
+    cmd_parts = cmd.split(" ")
+
+    if len(cmd_parts) == 2:
+        if cmd_parts[1] in table_dataset_map:
+            print(f"{cmd_parts[1]}  =>  {table_dataset_map[cmd_parts[1]]}")
+        else:
+            list_key_values(table_dataset_map)
+    else:
+        list_key_values(table_dataset_map)
 
 
 if __name__ == "__main__":
@@ -237,15 +332,25 @@ if __name__ == "__main__":
 
         query = input("xql>")
 
-        if query == "exit":
+        if query == ".exit":
             break
 
-        try:
-            result = parse_query(query)
-        except Exception:
-            result = "Something wrong with the query."
+        elif ".help" in query:
+            display_help(query)
 
-        if isinstance(result, xr.Dataset):
-            print(result.to_dataframe())
+        elif ".set" in query:
+            set_dataset_table(query)
+
+        elif ".show" in query:
+            display_table_dataset_map(query)
+
         else:
-            print(result)
+            try:
+                result = parse_query(query)
+            except Exception as e:
+                result = f"ERROR: {type(e).__name__}: {e.__str__()}."
+
+            if isinstance(result, xr.Dataset):
+                print(result.to_dataframe())
+            else:
+                print(result)
