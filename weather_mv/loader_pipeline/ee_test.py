@@ -65,24 +65,98 @@ class ConvertToAssetTests(TestDataBase):
     def setUp(self) -> None:
         super().setUp()
         self.tmpdir = tempfile.TemporaryDirectory()
-        self.convert_to_image_asset = ConvertToAsset(asset_location=self.tmpdir.name)
-        self.convert_to_table_asset = ConvertToAsset(asset_location=self.tmpdir.name, ee_asset_type='TABLE')
+        self.convert_to_image_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            tiff_config={"dims": []},
+        )
+        self.convert_to_table_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            ee_asset_type='TABLE'
+        )
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
     def test_convert_to_image_asset(self):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep_20211018060000.tiff')
 
         next(self.convert_to_image_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
 
+    def test_convert_to_multiple_image_assets(self):
+        data_path = f'{self.test_data_folder}/test_data_20180101.nc'
+        # file with multiple time values will generate separate tiff files
+        time_arr = ["20180102060000", "20180102070000", "20180102080000", "20180102090000",
+                    "20180102100000", "20180102110000", "20180102120000", "20180102130000",
+                    "20180102140000", "20180102150000", "20180102160000", "20180102170000",
+                    "20180102180000", "20180102190000", "20180102200000", "20180102210000",
+                    "20180102220000", "20180102230000", "20180103000000", "20180103010000",
+                    "20180103020000", "20180103030000", "20180103040000", "20180103050000",
+                    "20180103060000"]
+        it = self.convert_to_image_asset.process(data_path)
+        total_assets_size = 0
+        for time in time_arr:
+            next(it)
+            asset_path = os.path.join(self.tmpdir.name, f'test_data_20180101_{time}.tiff')
+            self.assertTrue(os.path.lexists(asset_path))
+            total_assets_size += os.path.getsize(asset_path)
+
+        # The size of all tiff combined is expected to be more than source file.
+        self.assertTrue(total_assets_size > os.path.getsize(data_path))
+
+    def test_convert_to_multiple_image_assets_with_grib_multiple_edition_default_behaviour(self):
+        # default behaviour i.e if user does not provide any dimension in tiff_config then for grib
+        # with multiple time values will generate separate tiff files
+
+        data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_multiple_timestep.grib2'
+        time_arr = ["20230614000000","20230614060000","20230614120000"]
+        it = self.convert_to_image_asset.process(data_path)
+        total_assets_size = 0
+        for time in time_arr:
+            next(it)
+            asset_path = os.path.join(self.tmpdir.name,
+                                f'test_data_grib_multiple_edition_multiple_timestep_{time}_FH-6.tiff')
+            self.assertTrue(os.path.lexists(asset_path))
+            total_assets_size += os.path.getsize(asset_path)
+
+        self.assertTrue(total_assets_size > os.path.getsize(data_path))
+
+    def test_convert_to_multiple_image_assets_with_grib_multiple_edition(self):
+
+        data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_multiple_timestep.grib2'
+        expected = [
+                {"time": "20230614000000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614000000", "depthBelowLandLayer": "0_10"},
+                {"time": "20230614060000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614060000", "depthBelowLandLayer": "0_10"},
+                {"time": "20230614120000", "depthBelowLandLayer": "0_00"},
+                {"time": "20230614120000", "depthBelowLandLayer": "0_10"}
+        ]
+        convert_to_image_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            tiff_config={"dims": ['depthBelowLandLayer']},
+        )
+        it = convert_to_image_asset.process(data_path)
+        total_assets_size = 0
+        for obj in expected:
+            next(it)
+            time,dbl = obj.values()
+            asset_name = f'test_data_grib_multiple_edition_multiple_timestep_{time}_FH-6_depthBelowLandLayer_{dbl}.tiff'
+            asset_path = os.path.join(self.tmpdir.name, asset_name)
+            self.assertTrue(os.path.lexists(asset_path))
+            total_assets_size += os.path.getsize(asset_path)
+
+        self.assertTrue(total_assets_size > os.path.getsize(data_path))
+
     def test_convert_to_image_asset__with_multiple_grib_edition(self):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
+        asset_path = os.path.join(
+            self.tmpdir.name,
+            'test_data_grib_multiple_edition_single_timestep_20211210120000_FH-8.tiff',
+        )
 
         next(self.convert_to_image_asset.process(data_path))
 
@@ -91,7 +165,7 @@ class ConvertToAssetTests(TestDataBase):
 
     def test_convert_to_table_asset(self):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.csv')
+        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep_20211018060000.csv')
 
         next(self.convert_to_table_asset.process(data_path))
 
@@ -100,7 +174,10 @@ class ConvertToAssetTests(TestDataBase):
 
     def test_convert_to_table_asset__with_multiple_grib_edition(self):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.csv')
+        asset_path = os.path.join(
+            self.tmpdir.name,
+            'test_data_grib_multiple_edition_single_timestep_20211210120000_FH-8.csv',
+        )
 
         next(self.convert_to_table_asset.process(data_path))
 

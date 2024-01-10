@@ -243,6 +243,7 @@ class ToEarthEngine(ToDataSink):
     band_names_mapping: str
     initialization_time_regex: str
     forecast_time_regex: str
+    tiff_config: t.Dict
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -283,6 +284,8 @@ class ToEarthEngine(ToDataSink):
                                help='A Regex string to get the initialization time from the filename.')
         subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
+        subparser.add_argument('--tiff_config', type=json.loads, default={"dims":[]},
+                               help='Config to create assets splitted by given dimensions.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -398,8 +401,10 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
 
         # Checks if the asset is already present in the GCS bucket or not.
         target_path = os.path.join(
-            self.asset_location, f'{asset_name}{ASSET_TYPE_TO_EXTENSION_MAPPING[self.ee_asset_type]}')
-        if not self.force_overwrite and FileSystems.exists(target_path):
+            self.asset_location, f'{asset_name}*{ASSET_TYPE_TO_EXTENSION_MAPPING[self.ee_asset_type]}')
+        files = FileSystems.match([target_path])
+
+        if not self.force_overwrite and files[0].metadata_list:
             logger.info(f'Asset file {target_path} already exists in GCS bucket. Skipping...')
             return
 
@@ -430,6 +435,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     band_names_dict: t.Optional[t.Dict] = None
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
+    tiff_config: t.Optional[t.Dict] = None
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -451,7 +457,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                           band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
                           forecast_time_regex=self.forecast_time_regex,
-                          group_common_hypercubes=self.group_common_hypercubes) as ds_list:
+                          group_common_hypercubes=self.group_common_hypercubes,
+                          tiff_config = self.tiff_config) as ds_list:
             if not isinstance(ds_list, list):
                 ds_list = [ds_list]
 
@@ -460,8 +467,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 data = list(ds.values())
                 asset_name = get_ee_safe_name(uri)
                 channel_names = [da.name for da in data]
-                start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                       ('start_time', 'end_time', 'is_normalized'))
+                start_time, end_time, is_normalized, forecast_hour = (attrs.get(key) for key in
+                                                    ('start_time', 'end_time', 'is_normalized', 'forecast_hour'))
+
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
                 attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
                 # Adding job_start_time to properites.
@@ -469,25 +477,38 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 # Make attrs EE ingestable.
                 attrs = make_attrs_ee_compatible(attrs)
 
+                if start_time:
+                    st = re.sub("[^0-9]","",start_time)
+                    asset_name = f"{asset_name}_{st}"
+                if forecast_hour:
+                    asset_name = f"{asset_name}_FH-{forecast_hour}"
+                if self.tiff_config:
+                    for var in set(self.tiff_config["dims"]).difference(['time','step']):
+                        var_val = ds.get(var)
+                        if var_val is not None:
+                            if var_val >= 10:
+                                asset_name = f"{asset_name}_{var}_{var_val.values:.0f}"
+                            else:
+                                asset_name = f"{asset_name}_{var}_{var_val.values:.2f}".replace('.', '_')
                 if self.group_common_hypercubes:
                     level, height = (attrs.pop(key) for key in ['level', 'height'])
                     safe_level_name = get_ee_safe_name(level)
                     asset_name = f'{asset_name}_{safe_level_name}'
 
+                asset_name = get_ee_safe_name(asset_name)
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
                     file_name = f'{asset_name}.tiff'
-
                     with MemoryFile() as memfile:
                         with memfile.open(driver='COG',
-                                          dtype=dtype,
-                                          width=data[0].data.shape[1],
-                                          height=data[0].data.shape[0],
-                                          count=len(data),
-                                          nodata=np.nan,
-                                          crs=crs,
-                                          transform=transform,
-                                          compress='lzw') as f:
+                                        dtype=dtype,
+                                        width=data[0].data.shape[1],
+                                        height=data[0].data.shape[0],
+                                        count=len(data),
+                                        nodata=np.nan,
+                                        crs=crs,
+                                        transform=transform,
+                                        compress='lzw') as f:
                             for i, da in enumerate(data):
                                 f.write(da, i+1)
                                 # Making the channel name EE-safe before adding it as a band name.
@@ -539,11 +560,10 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                 writer.writerows(
                                     [get_dims_data(i) + list(row) for row in zip(
                                         *[d[i:i + ROWS_PER_WRITE] for d in data]
-                                    )]
+                                        )]
                                 )
 
                         upload(temp.name, target_path)
-
                 asset_data = AssetData(
                     name=asset_name,
                     target_path=target_path,

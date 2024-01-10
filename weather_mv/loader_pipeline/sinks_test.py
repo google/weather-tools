@@ -68,10 +68,10 @@ def write_netcdf():
     data_arr = np.random.uniform(low=0, high=0.1, size=(5, lat_dim, lon_dim))
 
     ds = xr.Dataset(
-        {"var_1": (('time', 'lat', 'lon'), data_arr)},
+        {"var_1": (('time', 'latitude', 'longitude'), data_arr)},
         coords={
-            "lat": lat,
-            "lon": lon,
+            "latitude": lat,
+            "longitude": lon,
         })
     with tempfile.NamedTemporaryFile() as fp:
         ds.to_netcdf(fp.name)

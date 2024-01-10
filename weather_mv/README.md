@@ -398,6 +398,8 @@ _Command options_:
 * `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
 * `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
 * `--group_common_hypercubes`: A flag that allows to split up large grib files into multiple level-wise ImageCollections / COGS.
+* `--tiff_config`: Configs to handle source data with more than two dimensions. It is a JSON string containing key as `dims` (array with dimensions). Based on dimensions in `dims` separate tiff files will be created. By default multiple tiff files will be generated if source data has multiple time or step values. For grib files with multiple datasets (It is not necessary that every dataset will have same dimensions so some datasets may contain dimension some may not contain) if dataset does not contain dimension provided in `dims` then that dataset will be stored as bands.
+`e.g {"dims": ["isobaricInhPa"]}`
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
