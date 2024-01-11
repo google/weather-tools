@@ -105,7 +105,7 @@ _Updated on 2024-01-08_
     2. [ ] On Variables 
 3. [x] **Aggregate Functions**: Only `AVG()`, `MIN()`, `MAX()`, `SUM()` are supported.
    1. [x] With Group By
-   2. [ ] Without Group By
+   2. [x] Without Group By
    3. [ ] Multiple Aggregate function in a single query
 4. [ ] **Order By**: Only suppoted for coordinates.
 5. [ ] **Limit**: Limiting the result to display.
