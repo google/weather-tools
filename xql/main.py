@@ -155,7 +155,7 @@ def apply_order_by(fields: t.List[str], ds: xr.Dataset) -> xr.Dataset:
     return ordered_ds
 
 
-def apply_group_by(group_by: exp.Expression, ds: xr.Dataset, agg_funcs: t.Dict[str, str]) -> xr.Dataset:
+def apply_group_by(fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, str]) -> xr.Dataset:
     """
     Apply group-by and aggregation operations to the dataset based on specified fields and aggregation functions.
 
@@ -169,20 +169,18 @@ def apply_group_by(group_by: exp.Expression, ds: xr.Dataset, agg_funcs: t.Dict[s
     - xarray.Dataset: The dataset after applying group-by and aggregation operations.
     """
 
-    if group_by is None:
-        return ds, None
-
-    fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
-
     grouped_ds = ds
     time_fields = list(filter(lambda field: "time" in field, fields))
-    coord_to_squeeze = [ coord for coord in ds.coords if coord not in fields and (coord != "time") ]
-    if len(time_fields):
+
+    if len(time_fields) > 1:
+        raise NotImplementedError("GroupBy using multiple time fields is not supported.")
+
+    elif len(time_fields) == 1:
         groups = grouped_ds.groupby(grouped_ds['time'].dt.strftime(timestamp_formats[time_fields[0]]))
         grouped_ds = apply_aggregation(groups, list(agg_funcs.values())[0], None)
-        grouped_ds = grouped_ds.rename({"strftime" : "time"})
+        grouped_ds = grouped_ds.rename({"strftime" : time_fields[0]})
 
-    return grouped_ds, coord_to_squeeze
+    return grouped_ds
 
 
 def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim: t.List[str] = []) -> xr.Dataset:
@@ -200,6 +198,26 @@ def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim
     """
 
     return aggregate_function_map[fun](groups, dim)
+
+
+def get_coords_to_squeeze(fields: t.List[str], ds: xr.Dataset) -> t.List[str]:
+    """
+    Get the coordinates to squeeze from an xarray dataset.
+
+    The function identifies coordinates in the dataset that are not part of the specified fields
+    and are not the 'time' coordinate.
+
+    Args:
+        fields (List[str]): List of field names.
+        ds (xr.Dataset): The xarray dataset.
+
+    Returns:
+        List[str]: List of coordinates to squeeze.
+    """
+    # Identify coordinates not in fields and not 'time'
+    coord_to_squeeze = [coord for coord in ds.coords if coord not in fields and (coord != "time")]
+
+    return coord_to_squeeze
 
 
 def get_table(e: exp.Expression) -> str:
@@ -257,7 +275,11 @@ def parse_query(query: str) -> xr.Dataset:
         mask = inorder(where, ds)
         ds = ds.where(mask, drop=True)
 
-    ds, coord_to_squeeze = apply_group_by(group_by, ds, agg_funcs)
+    coord_to_squeeze = []
+    if group_by:
+        fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
+        coord_to_squeeze = get_coords_to_squeeze(fields, ds)
+        ds = apply_group_by(fields, ds, agg_funcs)
 
     if len(agg_funcs):
         ds = apply_aggregation(ds, list(agg_funcs.values())[0], coord_to_squeeze)
@@ -340,7 +362,7 @@ if __name__ == "__main__":
 
     while True:
 
-        query = input("xql>")
+        query = input("xql> ")
 
         if query == ".exit":
             break
