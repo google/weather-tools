@@ -448,7 +448,6 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
         with open_dataset(uri,
                           self.open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
-                          band_names_dict=self.band_names_dict,
                           initialization_time_regex=self.initialization_time_regex,
                           forecast_time_regex=self.forecast_time_regex,
                           group_common_hypercubes=self.group_common_hypercubes) as ds_list:
@@ -459,15 +458,17 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 attrs = ds.attrs
                 data = list(ds.values())
                 asset_name = get_ee_safe_name(uri)
-                channel_names = [da.name for da in data]
-                start_time, end_time, is_normalized = (attrs.get(key) for key in
-                                                       ('start_time', 'end_time', 'is_normalized'))
+                channel_names = [
+                    self.band_names_dict.get(da.name, da.name) if self.band_names_dict
+                    else da.name for da in data
+                ]
+
                 dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
-                attrs.update({'is_normalized': str(is_normalized)})  # EE properties does not support bool.
                 # Adding job_start_time to properites.
                 attrs["job_start_time"] = job_start_time
                 # Make attrs EE ingestable.
                 attrs = make_attrs_ee_compatible(attrs)
+                start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
 
                 if self.group_common_hypercubes:
                     level, height = (attrs.pop(key) for key in ['level', 'height'])
