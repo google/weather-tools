@@ -275,7 +275,7 @@ def parse_query(query: str) -> xr.Dataset:
         mask = inorder(where, ds)
         ds = ds.where(mask, drop=True)
 
-    coord_to_squeeze = []
+    coord_to_squeeze = None
     if group_by:
         fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
         coord_to_squeeze = get_coords_to_squeeze(fields, ds)
