@@ -253,18 +253,20 @@ def parse_query(query: str) -> xr.Dataset:
 
     data_vars = []
     if is_star is None:
-        data_vars = [ var.args['this'].args['this'] for var in expr.expressions if var.key == "column" ]
+        data_vars = [var.args['this'].args['this'] if var.key == 'column' else var.args['this']
+             for var in expr.expressions
+             if (var.key == "column" or (var.key == "literal" and var.args.get("is_string") == True))]
 
     where = expr.find(exp.Where)
     group_by = expr.find(exp.Group)
 
-    agg_funcs = {
-        var.args['this'].args['this'].args['this']: var.key
+    agg_funcs = [
+        { 'var': var.args['this'].args['this'].args['this'], 'func': var.key }
         for var in expr.expressions if var.key in aggregate_function_map
-    }
+    ]
 
     if len(agg_funcs):
-        data_vars = agg_funcs.keys()
+        data_vars = [ agg_var['var'] for agg_var in agg_funcs ]
 
     ds = xr.open_zarr(table)
 
@@ -281,8 +283,14 @@ def parse_query(query: str) -> xr.Dataset:
         coord_to_squeeze = get_coords_to_squeeze(fields, ds)
         ds = apply_group_by(fields, ds, agg_funcs)
 
+    agg_datasets = []
+    for agg_func in agg_funcs:
+        key, value = agg_func['var'], agg_func['func']
+        agg_result = apply_aggregation(ds[[key]], value, coord_to_squeeze)
+        agg_result = agg_result.rename({key : f'{value}_{key}'})
+        agg_datasets.append(agg_result)
     if len(agg_funcs):
-        ds = apply_aggregation(ds, list(agg_funcs.values())[0], coord_to_squeeze)
+        ds = xr.merge(agg_datasets)
 
     return ds
 

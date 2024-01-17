@@ -10,8 +10,9 @@ Running SQL like queries on Xarray Datasets. Consider dataset as a table and dat
 * **`group by` Functions** - This is supported on the coordinates only. e.g. time, latitude, longitude, etc.
 * **`aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()`, etc. Only supported on data variables.
 * For more checkout the [road-map](https://github.com/google/weather-tools/tree/xql-init/xql#roadmap).
-> Note: For now, we support `where` conditions on coordinates only.
-> Note: For now, Only a single aggregate function is supported per query.
+> Note: For now, we support `where` conditions on coordinates only. 
+
+> Note: For now, variable with starting from the numbers(0-9) in aggregation function is not supported.
 
 # Quickstart
 
@@ -72,7 +73,7 @@ python xql/main.py
     ```
     ```
     SELECT 
-        AVG(temperature) 
+        AVG(temperature), SUM(charnock), MIN(temperature) 
     FROM era5
     WHERE 
         time >= '2022-01-01' AND 
@@ -107,7 +108,7 @@ _Updated on 2024-01-08_
 3. [x] **Aggregate Functions**: Only `AVG()`, `MIN()`, `MAX()`, `SUM()` are supported.
    1. [x] With Group By
    2. [x] Without Group By
-   3. [ ] Multiple Aggregate function in a single query
+   3. [x] Multiple Aggregate function in a single query
 4. [ ] **Order By**: Only suppoted for coordinates.
 5. [ ] **Limit**: Limiting the result to display.
 6. [ ] **Mathematical Operators** `(+, - , *, / )`: Add support to use mathematical operators in the query.
