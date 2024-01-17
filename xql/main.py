@@ -255,7 +255,7 @@ def parse_query(query: str) -> xr.Dataset:
     if is_star is None:
         data_vars = [var.args['this'].args['this'] if var.key == 'column' else var.args['this']
              for var in expr.expressions
-             if (var.key == "column" or (var.key == "literal" and var.args.get("is_string") == True))]
+             if (var.key == "column" or (var.key == "literal" and var.args.get("is_string") is True))]
 
     where = expr.find(exp.Where)
     group_by = expr.find(exp.Group)
