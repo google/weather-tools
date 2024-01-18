@@ -261,8 +261,12 @@ def parse_query(query: str) -> xr.Dataset:
     group_by = expr.find(exp.Group)
 
     agg_funcs = [
-        { 'var': var.args['this'].args['this'].args['this'], 'func': var.key }
-        for var in expr.expressions if var.key in aggregate_function_map
+        {
+        'var': var.args['this'].args['this'].args['this'] if  var.args['this'].key == 'column'
+                                                        else var.args['this'].args['this'],
+        'func': var.key
+        }
+    for var in expr.expressions if var.key in aggregate_function_map
     ]
 
     if len(agg_funcs):

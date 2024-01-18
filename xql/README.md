@@ -12,8 +12,6 @@ Running SQL like queries on Xarray Datasets. Consider dataset as a table and dat
 * For more checkout the [road-map](https://github.com/google/weather-tools/tree/xql-init/xql#roadmap).
 > Note: For now, we support `where` conditions on coordinates only. 
 
-> Note: For now, variable with starting from the numbers(0-9) in aggregation function is not supported.
-
 # Quickstart
 
 ## Prerequisites
@@ -73,7 +71,7 @@ python xql/main.py
     ```
     ```
     SELECT 
-        AVG(temperature), SUM(charnock), MIN(temperature) 
+        AVG(temperature), SUM(charnock), MIN('100m_v_component_of_wind') 
     FROM era5
     WHERE 
         time >= '2022-01-01' AND 
