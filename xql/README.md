@@ -77,9 +77,9 @@ python xql/main.py
         time >= '2022-01-01' AND 
         time < '2022-02-01' AND 
         latitude >= 66.5
-    GROUP BY time_day
+    GROUP BY time_date
     ```
-    Replace `time_day` to `time_month` or `time_year` if monthly or yearly average is needed. Also use `MIN()` and `MAX()` functions same way as `AVG()`.
+    Replace `time_date` to `time_month` or `time_year` if monthly or yearly average is needed. Also use `MIN()` and `MAX()` functions same way as `AVG()`.
 
 3. `caveat`: Above queries run on the client's local machine and it generates a large two dimensional array so querying for very large amount of data will fall into out of memory erros.
 
