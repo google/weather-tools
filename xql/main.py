@@ -155,7 +155,8 @@ def apply_order_by(fields: t.List[str], ds: xr.Dataset) -> xr.Dataset:
     return ordered_ds
 
 
-def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, str], dim: t.List[str] = []) -> xr.Dataset:
+def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, str],
+                   dim: t.List[str] = []) -> xr.Dataset:
     """
     Apply group-by and aggregation operations to the dataset based on specified fields and aggregation functions.
 
@@ -183,11 +184,11 @@ def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[s
             groups = grouped_ds.groupby(grouped_ds['time'].dt.strftime(timestamp_formats[time_fields[0]]))
             grouped_ds = apply_aggregation(groups, agg_func['func'], None)
             grouped_ds = grouped_ds.rename({"strftime" : time_fields[0]})
+            dim = [value for value in dim if value in grouped_ds[agg_func['var']].coords]
             grouped_ds = apply_aggregation(grouped_ds, agg_func['func'], dim)
             grouped_ds = grouped_ds.rename({agg_func['var'] : f"{agg_func['func']}_{agg_func['var']}"})
             agg_datasets.append(grouped_ds)
         grouped_ds = xr.merge(agg_datasets)
-        
 
     return grouped_ds
 
@@ -303,6 +304,7 @@ def parse_query(query: str) -> xr.Dataset:
         agg_datasets = []
         for agg_func in agg_funcs:
             key, value = agg_func['var'], agg_func['func']
+            coord_to_squeeze = [value for value in coord_to_squeeze if value in ds[key].coords]
             agg_result = apply_aggregation(ds[[key]], value, coord_to_squeeze)
             agg_result = agg_result.rename({key : f'{value}_{key}'})
             agg_datasets.append(agg_result)
