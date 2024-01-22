@@ -155,18 +155,64 @@ def apply_order_by(fields: t.List[str], ds: xr.Dataset) -> xr.Dataset:
     return ordered_ds
 
 
+def aggregate_variables(agg_funcs: t.List[t.Dict[str, str]],
+                        ds: xr.Dataset,
+                        time_fields: t.List[str],
+                        coords_to_squeeze: t.List[str]) -> xr.Dataset:
+    """
+    Aggregate variables in an xarray dataset based on aggregation functions.
+
+    Args:
+        agg_funcs (List[Dict[str, str]]): List of dictionaries specifying aggregation functions for variables.
+        ds (xr.Dataset): The input xarray dataset.
+        time_fields (List[str]): List of time fields to consider for time-based grouping.
+        coords_to_squeeze (List[str]): List of coordinates to be squeezed during aggregation.
+
+    Returns:
+        xr.Dataset: The aggregated xarray dataset.
+    """
+    agg_dataset = xr.Dataset(coords=ds.coords, attrs=ds.attrs)
+
+    # Aggregate based on time fields
+    if len(time_fields):
+        agg_dataset = agg_dataset.groupby(ds['time'].dt.strftime(timestamp_formats[time_fields[0]]))
+        agg_dataset = apply_aggregation(agg_dataset, 'avg', None)
+        agg_dataset = agg_dataset.rename({"strftime": time_fields[0]})
+
+    # Aggregate based on other coordinates
+    agg_dataset = apply_aggregation(agg_dataset, 'avg', coords_to_squeeze)
+
+    # Loop through aggregation functions
+    for agg_func in agg_funcs:
+        variable, function = agg_func['var'], agg_func['func']
+        grouped_ds = ds[variable]
+        dims = [value for value in coords_to_squeeze if value in ds[variable].coords]
+
+        # If time fields are specified, group by time
+        if len(time_fields):
+            groups = grouped_ds.groupby(ds['time'].dt.strftime(timestamp_formats[time_fields[0]]))
+            grouped_ds = apply_aggregation(groups, function, None)
+            grouped_ds = grouped_ds.rename({"strftime": time_fields[0]})
+
+        # Apply aggregation on dimensions
+        grouped_ds = apply_aggregation(grouped_ds, function, dims)
+        agg_dataset = agg_dataset.assign({f"{function}_{variable}": grouped_ds})
+
+    return agg_dataset
+
+
 def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[str, str],
-                   dim: t.List[str] = []) -> xr.Dataset:
+                   coords_to_squeeze: t.List[str] = []) -> xr.Dataset:
     """
     Apply group-by and aggregation operations to the dataset based on specified fields and aggregation functions.
 
     Parameters:
     - time_fields (List[str]): List of time_fields(coordinates) to be used for grouping.
     - ds (xarray.Dataset): The input dataset.
-    - agg_funcs (Dict[str, str]): Dictionary mapping aggregation function names to their corresponding
+    - agg_funcs (t.List[t.Dict[str, str]]): Dictionary mapping aggregation function names to their corresponding
     xarray-compatible string representations.
-    - dim (Optional[str]): The dimension along which to apply the aggregation. If None, aggregation is applied
-    to the entire dataset.
+    - coords_to_squeeze (t.List[str]): The dimension along which to apply the aggregation.
+        If None, aggregation is applied to the entire dataset.
 
     Returns:
     - xarray.Dataset: The dataset after applying group-by and aggregation operations.
@@ -178,17 +224,7 @@ def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[s
         raise NotImplementedError("GroupBy using multiple time fields is not supported.")
 
     elif len(time_fields) == 1:
-        agg_datasets = []
-        for agg_func in agg_funcs:
-            grouped_ds = ds[[agg_func['var']]]
-            groups = grouped_ds.groupby(grouped_ds['time'].dt.strftime(timestamp_formats[time_fields[0]]))
-            grouped_ds = apply_aggregation(groups, agg_func['func'], None)
-            grouped_ds = grouped_ds.rename({"strftime" : time_fields[0]})
-            dim = [value for value in dim if value in grouped_ds[agg_func['var']].coords]
-            grouped_ds = apply_aggregation(grouped_ds, agg_func['func'], dim)
-            grouped_ds = grouped_ds.rename({agg_func['var'] : f"{agg_func['func']}_{agg_func['var']}"})
-            agg_datasets.append(grouped_ds)
-        grouped_ds = xr.merge(agg_datasets)
+        grouped_ds = aggregate_variables(agg_funcs, ds, time_fields, coords_to_squeeze)
 
     return grouped_ds
 
@@ -225,9 +261,9 @@ def get_coords_to_squeeze(fields: t.List[str], ds: xr.Dataset) -> t.List[str]:
         List[str]: List of coordinates to squeeze.
     """
     # Identify coordinates not in fields and not 'time'
-    coord_to_squeeze = [coord for coord in ds.coords if coord not in fields and (coord != "time")]
+    coords_to_squeeze = [coord for coord in ds.coords if coord not in fields and (coord != "time")]
 
-    return coord_to_squeeze
+    return coords_to_squeeze
 
 
 def get_table(e: exp.Expression) -> str:
@@ -291,25 +327,17 @@ def parse_query(query: str) -> xr.Dataset:
         mask = inorder(where, ds)
         ds = ds.where(mask, drop=True)
 
-    coord_to_squeeze = None
+    coords_to_squeeze = None
     time_fields = []
     if group_by:
         fields = [ e.args['this'].args['this'] for e in group_by.args['expressions'] ]
         time_fields = list(filter(lambda field: "time" in field, fields))
-        coord_to_squeeze = get_coords_to_squeeze(fields, ds)
-        ds = apply_group_by(time_fields, ds, agg_funcs, coord_to_squeeze)
+        coords_to_squeeze = get_coords_to_squeeze(fields, ds)
+        ds = apply_group_by(time_fields, ds, agg_funcs, coords_to_squeeze)
 
     if len(time_fields) == 0:
-        coord_to_squeeze.append('time')
-        agg_datasets = []
-        for agg_func in agg_funcs:
-            key, value = agg_func['var'], agg_func['func']
-            coord_to_squeeze = [value for value in coord_to_squeeze if value in ds[key].coords]
-            agg_result = apply_aggregation(ds[[key]], value, coord_to_squeeze)
-            agg_result = agg_result.rename({key : f'{value}_{key}'})
-            agg_datasets.append(agg_result)
-        if len(agg_funcs):
-            ds = xr.merge(agg_datasets)
+        coords_to_squeeze.append('time')
+        aggregate_variables(agg_funcs, ds, time_fields, coords_to_squeeze)
 
     return ds
 
