@@ -24,7 +24,7 @@ For this `gcloud` must be configured in your local environment. Refer [Initializ
 
 ```
 # Install required packages
-pip install -r xql/requirements.txt
+pip install xql/
 
 # Jump into xql
 python xql/main.py
