@@ -195,8 +195,8 @@ def aggregate_variables(agg_funcs: t.List[t.Dict[str, str]],
             grouped_ds = grouped_ds.rename({"strftime": time_fields[0]})
 
         # Apply aggregation on dimensions
-        grouped_ds = apply_aggregation(grouped_ds, function, dims)
-        agg_dataset = agg_dataset.assign({f"{function}_{variable}": grouped_ds})
+        agg_dim_ds = apply_aggregation(grouped_ds, function, dims)
+        agg_dataset = agg_dataset.assign({f"{function}_{variable}": agg_dim_ds})
 
     return agg_dataset
 
@@ -229,7 +229,7 @@ def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[s
     return grouped_ds
 
 
-def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim: t.List[str] = []) -> xr.Dataset:
+def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim: t.List[str] = []) -> xr.DataArray:
     """
     Apply aggregation to the groups based on the specified aggregation function.
 
