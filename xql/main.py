@@ -231,7 +231,7 @@ def apply_group_by(time_fields: t.List[str], ds: xr.Dataset, agg_funcs: t.Dict[s
 
 def apply_aggregation(groups: t.Union[xr.Dataset, DatasetGroupBy], fun: str, dim: t.List[str] = []) -> xr.Dataset:
     """
-    Apply aggregation to the groups based` on the specified aggregation function.
+    Apply aggregation to the groups based on the specified aggregation function.
 
     Parameters:
     - groups (Union[xr.Dataset, xr.core.groupby.DatasetGroupBy]): The input dataset or dataset groupby object.
