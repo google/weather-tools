@@ -335,7 +335,7 @@ def parse_query(query: str) -> xr.Dataset:
         coords_to_squeeze = get_coords_to_squeeze(fields, ds)
         ds = apply_group_by(time_fields, ds, agg_funcs, coords_to_squeeze)
 
-    if len(time_fields) == 0:
+    if len(time_fields) == 0 and len(agg_funcs):
         coords_to_squeeze.append('time')
         aggregate_variables(agg_funcs, ds, time_fields, coords_to_squeeze)
 
