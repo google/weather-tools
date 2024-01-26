@@ -19,7 +19,8 @@ requirements = ["fsspec", "gcsfs", "numpy", "sqlglot", "xarray", "zarr"]
 
 setup(
     name="xql",
-    packages=find_packages(),
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
     install_requires=requirements,
     version="0.0.1",
     author='anthromet',
