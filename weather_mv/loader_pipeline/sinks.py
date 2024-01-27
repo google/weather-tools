@@ -413,22 +413,30 @@ def copy(src: str, dst: str) -> None:
 @contextlib.contextmanager
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
-    with tempfile.NamedTemporaryFile() as dest_file:
-        # Transfer data with gsutil or gcloud alpha storage (when available)
-        copy(uri, dest_file.name)
-
-        # Check if data is compressed. Decompress the data using the same methods that beam's
-        # FileSystems interface uses.
-        compression_type = FileSystem._get_compression_type(uri, CompressionTypes.AUTO)
-        if compression_type == CompressionTypes.UNCOMPRESSED:
+    
+    with FileSystems().open(uri) as source_file:
+        with tempfile.NamedTemporaryFile() as dest_file:
+            shutil.copyfileobj(source_file, dest_file, DEFAULT_READ_BUFFER_SIZE)
+            dest_file.flush()
+            dest_file.seek(0)
             yield dest_file.name
-            return
+            
+    # with tempfile.NamedTemporaryFile() as dest_file:
+    #     # Transfer data with gsutil or gcloud alpha storage (when available)
+    #     copy(uri, dest_file.name)
 
-        dest_file.seek(0)
-        with tempfile.NamedTemporaryFile() as dest_uncompressed:
-            with CompressedFile(dest_file, compression_type=compression_type) as dcomp:
-                shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
-                yield dest_uncompressed.name
+    #     # Check if data is compressed. Decompress the data using the same methods that beam's
+    #     # FileSystems interface uses.
+    #     compression_type = FileSystem._get_compression_type(uri, CompressionTypes.AUTO)
+    #     if compression_type == CompressionTypes.UNCOMPRESSED:
+    #         yield dest_file.name
+    #         return
+
+    #     dest_file.seek(0)
+    #     with tempfile.NamedTemporaryFile() as dest_uncompressed:
+    #         with CompressedFile(dest_file, compression_type=compression_type) as dcomp:
+    #             shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
+    #             yield dest_uncompressed.name
 
 
 @contextlib.contextmanager
