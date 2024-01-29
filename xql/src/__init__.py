@@ -11,11 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from src.xql import main
-
-if __name__ == '__main__':
-    try:
-        main()
-    except ImportError as e:
-        raise ImportError('main function is not imported please try again.') from e
-
