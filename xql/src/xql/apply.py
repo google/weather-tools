@@ -23,6 +23,8 @@ import xarray as xr
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
+from .where import apply_where
+
 command_info = {
     ".exit": "To exit from the current session.",
     ".set": "To set the dataset uri as a shortened key. e.g. .set era5 gs://{BUCKET}/dataset-uri",
@@ -186,7 +188,7 @@ def aggregate_variables(agg_funcs: t.List[t.Dict[str, str]],
     for agg_func in agg_funcs:
         variable, function = agg_func['var'], agg_func['func']
         grouped_ds = ds[variable]
-        dims = [value for value in coords_to_squeeze if value in ds[variable].coords]
+        dims = [value for value in coords_to_squeeze if value in ds[variable].coords] if coords_to_squeeze else None
 
         # If time fields are specified, group by time
         if len(time_fields):
@@ -303,7 +305,7 @@ def parse_query(query: str) -> xr.Dataset:
              for var in expr.expressions
              if (var.key == "column" or (var.key == "literal" and var.args.get("is_string") is True))]
 
-    where = expr.find(exp.Where)
+    where_clause = expr.find(exp.Where)
     group_by = expr.find(exp.Group)
 
     agg_funcs = [
@@ -323,9 +325,8 @@ def parse_query(query: str) -> xr.Dataset:
     if is_star is None:
         ds = ds[data_vars]
 
-    if where:
-        mask = inorder(where, ds)
-        ds = ds.where(mask, drop=True)
+    if where_clause is not None:
+        ds = apply_where(ds, where_clause.args['this'])
 
     coords_to_squeeze = None
     time_fields = []
@@ -336,8 +337,9 @@ def parse_query(query: str) -> xr.Dataset:
         ds = apply_group_by(time_fields, ds, agg_funcs, coords_to_squeeze)
 
     if len(time_fields) == 0 and len(agg_funcs):
-        coords_to_squeeze.append('time')
-        aggregate_variables(agg_funcs, ds, time_fields, coords_to_squeeze)
+        if isinstance(coords_to_squeeze, t.List):
+            coords_to_squeeze.append('time')
+        ds = aggregate_variables(agg_funcs, ds, time_fields, coords_to_squeeze)
 
     return ds
 
