@@ -474,17 +474,20 @@ def open_dataset(uri: str,
                                                           local_open_dataset_kwargs,
                                                           group_common_hypercubes)
             # Extracting dtype, crs and transform from the dataset.
+            rasterio_error = False
             try:
                 with rasterio.open(local_path, 'r') as f:
                     dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
             except rasterio.errors.RasterioIOError:
+                rasterio_error = True
                 logger.warning('Cannot parse projection and data type information for Dataset %r.', uri)
 
             if group_common_hypercubes:
                 total_size_in_bytes = 0
 
                 for xr_dataset in xr_datasets:
-                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                    if not rasterio_error:
+                        xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                     total_size_in_bytes += xr_dataset.nbytes
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
@@ -500,8 +503,9 @@ def open_dataset(uri: str,
                                                  initialization_time_regex,
                                                  forecast_time_regex)
 
-                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
-                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                if not rasterio_error:
+                    # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
