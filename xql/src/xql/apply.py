@@ -23,6 +23,7 @@ import xarray as xr
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
+from .utils import timing
 from .where import apply_where
 
 command_info = {
@@ -432,7 +433,7 @@ def display_result(result: t.Any) -> None:
     else:
         print(result)
 
-
+@timing
 def run_query(query: str) -> None:
     """
     Run a query and display the result.
@@ -443,31 +444,24 @@ def run_query(query: str) -> None:
     result = parse_query(query)
     display_result(result)
 
-
-def main():
+@timing
+def main(query: str):
     """
     Main function for runnning this file.
     """
-    while True:
+    if ".help" in query:
+        display_help(query)
 
-        query = input("xql> ")
+    elif ".set" in query:
+        set_dataset_table(query)
 
-        if query == ".exit":
-            break
+    elif ".show" in query:
+        display_table_dataset_map(query)
 
-        elif ".help" in query:
-            display_help(query)
+    else:
+        try:
+            result = parse_query(query)
+        except Exception as e:
+            result = f"ERROR: {type(e).__name__}: {e.__str__()}."
 
-        elif ".set" in query:
-            set_dataset_table(query)
-
-        elif ".show" in query:
-            display_table_dataset_map(query)
-
-        else:
-            try:
-                result = parse_query(query)
-            except Exception as e:
-                result = f"ERROR: {type(e).__name__}: {e.__str__()}."
-
-            display_result(result)
+        display_result(result)

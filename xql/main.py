@@ -15,7 +15,11 @@ from src.xql import main
 
 if __name__ == '__main__':
     try:
-        main()
+        while True:
+            query = input("xql> ")
+            if query == ".exit":
+                break
+            main(query)
     except ImportError as e:
         raise ImportError('main function is not imported please try again.') from e
 
