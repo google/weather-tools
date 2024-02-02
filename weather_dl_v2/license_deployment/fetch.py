@@ -199,5 +199,5 @@ if __name__ == "__main__":
         boot_up(license)
         main()
     except Exception as e:
-        logger.info(f"License error: {e}")
+        logger.info(f"License error: {e}.")
         raise e
