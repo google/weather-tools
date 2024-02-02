@@ -187,13 +187,17 @@ def boot_up(license: str) -> None:
 
 
 if __name__ == "__main__":
-    license = sys.argv[2]
-    global logger
-    logging.basicConfig(
-        level=logging.INFO, format=f"[{license}] %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger(__name__)
+    try:
+        license = sys.argv[2]
+        global logger
+        logging.basicConfig(
+            level=logging.INFO, format=f"[{license}] %(levelname)s - %(message)s"
+        )
+        logger = logging.getLogger(__name__)
 
-    logger.info(f"Deployment for license: {license}.")
-    boot_up(license)
-    main()
+        logger.info(f"Deployment for license: {license}.")
+        boot_up(license)
+        main()
+    except Exception as e:
+        logger.info(f"License error: {e}")
+        raise e
