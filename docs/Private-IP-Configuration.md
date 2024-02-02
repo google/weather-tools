@@ -32,7 +32,7 @@ Following table<font color="red">*</font> summarizes the required input paramete
 1. Open GCP’s Create VPC-Network page.
 2. Provide name, description.
 3. Select “Subnet creation mode” as Custom.
-4. Provide name, description, region, IP address range & other
+4. Provide name, description, region, IP address range & other details for the new subnet.
 5. Select “Private Google Access” as On.
 6. Complete VPC-Network creation by providing other required parameters. Refer to GCP’s [Create-VPC-Network](https://cloud.google.com/vpc/docs/create-modify-vpc-networks) documentation for more details.
 
@@ -43,7 +43,10 @@ Following table<font color="red">*</font> summarizes the required input paramete
 2. Provide name, description. You may set “Logs” as Off.
 3. For the “Network” drop-down, select the network that we created in the previous step.
 4. Select “Direction of traffic” as Ingress & “Action on match” as Allow.
-5. Complete Firewall-Rule creation by providing other necessary information. Refer to GCP’s [Configuring-Firewall](https://cloud.google.com/filestore/docs/configuring-firewall) documentation for more details.
+5. For the "Targets" drop-down, select "All instances in the network".
+6. For the "Source IPv4 ranges", pass in the following: "0.0.0.0/0".
+7. Select "Protocols and ports" as Allow all.
+8. Complete Firewall-Rule creation by providing other necessary information. Refer to GCP’s [Configuring-Firewall](https://cloud.google.com/filestore/docs/configuring-firewall) documentation for more details.
 
 ![Firewall Rule Details](_static/firewall_rule_details.png "Firewall Rule Details")
 
