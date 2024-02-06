@@ -1,3 +1,18 @@
+#!/usr/bin/env python3
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
 import typing as t
 import xarray as xr
@@ -69,7 +84,7 @@ def check_conditional(expression: exp.Expression) -> bool:
 
 def parse_condition(expression: exp.Expression, condition_dict: dict) -> bool:
     # TODO: This function right now assumnes that for a condition
-    # LHS is always Column name and RHS is always value
+    # LHS is always Column name and RHS is always value.
     op = expression.key
     args = expression.args
 
@@ -96,8 +111,6 @@ def select_coordinate(da: xr.DataArray, coordinate: str, operator: str, value: a
     """Based on operator and sort order (if data is in ascending or descending order)
     It will apply the greater or lesser condition.
     Equal condition does not depend on that.
-    TODO: Explain what is happening here!
-    TODO: Improve code.
     """
     op = operator
     da, parsed_value = parse(da, value)
@@ -215,8 +228,5 @@ def apply_where(ds: xr.Dataset, expression: exp.Expression) -> xr.Dataset:
         postorder(term, condition_dict)
         reduced_ds = apply_select_condition(ds, condition_dict)
         or_ds.append(reduced_ds)
-    # TODO: Merge all ds in or_ds together to create final
-    # selected dataset.
-    # As we are not supporting OR op for now. there will be a
-    # single AND term.
+    # TODO: Add support for OR operation.
     return or_ds[0]
