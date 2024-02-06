@@ -15,7 +15,7 @@
 
 from setuptools import find_packages, setup
 
-requirements = ["fsspec", "gcsfs", "numpy", "sqlglot", "xarray", "zarr"]
+requirements = ["fsspec", "gcsfs", "numpy", "sqlglot", "xarray", "xee", "zarr"]
 
 setup(
     name="xql",
