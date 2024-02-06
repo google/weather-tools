@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,15 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from src.xql import main
 
-if __name__ == '__main__':
-    try:
-        while True:
-            query = input("xql> ")
-            if query == ".exit":
-                break
-            main(query)
-    except ImportError as e:
-        raise ImportError('main function is not imported please try again.') from e
+from functools import wraps
+from time import gmtime, strftime, time
 
+def timing(f):
+    """Measure a time for any function execution."""
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time()
+        result = f(*args, **kw)
+        te = time()
+        print(f"Query took: { strftime('%H:%M:%S', gmtime(te - ts)) }")
+        return result
+    return wrap
