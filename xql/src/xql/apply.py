@@ -23,6 +23,7 @@ import xarray as xr
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
+from .open import open_dataset
 from .utils import timing
 from .where import apply_where
 
@@ -321,7 +322,7 @@ def parse_query(query: str) -> xr.Dataset:
     if len(agg_funcs):
         data_vars = [ agg_var['var'] for agg_var in agg_funcs ]
 
-    ds = xr.open_zarr(table)
+    ds = open_dataset(table)
 
     if is_star is None:
         ds = ds[data_vars]
