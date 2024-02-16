@@ -34,22 +34,24 @@ def open_dataset(uri: str) -> xr.Dataset:
     Raises:
     - RuntimeError: If unable to open the dataset.
     """
-    # Flag to track if zarr opening failed
-    invalid_zarr = False
+    # Initialize dataset variable
+    ds = None
 
     # Attempt to open dataset with zarr engine
     try:
         ds = xr.open_dataset(uri, engine=OPENER_MAP["zarr"])
     except Exception:
-        # Set flag to True if zarr opening failed
-        invalid_zarr = True
+        pass
 
-    # If zarr opening failed and URI starts with "ee://", try opening with "ee" engine
-    if invalid_zarr and uri.startswith("ee://"):
+    # Attempt to open dataset with Earth Engine engine
+    try:
         ee.Initialize(opt_url='https://earthengine-highvolume.googleapis.com')
         ds = xr.open_dataset(uri, engine=OPENER_MAP["ee"])
-    else:
-        # If both attempts fail, raise RuntimeError
-        raise RuntimeError("Unable to open dataset.")
+    except Exception:
+        pass
+
+    # If both attempts fail, raise RuntimeError
+    if ds is None:
+        raise RuntimeError("Unable to open dataset. [zarr, ee] are only supported dataset types.")
 
     return ds
