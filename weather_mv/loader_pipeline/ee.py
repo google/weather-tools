@@ -653,6 +653,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
 
+        asset_name = None
         try:
             if self.ee_asset_type == 'IMAGE':
                 asset_name = asset_request['imageManifest']['name']
