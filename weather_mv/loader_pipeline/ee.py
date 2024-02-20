@@ -35,6 +35,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
+from google.auth.transport.requests import AuthorizedSession
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
@@ -625,6 +626,9 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
 
+    def get_project_id(self) -> str:
+        return self.ee_asset.split('/')[1]
+
     def ee_tasks_remaining(self) -> int:
         """Returns the remaining number of tasks in the tassk queue of earth engine."""
         return len([task for task in ee.data.getTaskList()
@@ -649,55 +653,79 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
 
-        asset_request['properties']['ingestion_time'] = get_utc_timestamp()
-
         try:
             if self.ee_asset_type == 'IMAGE':
-                result = ee.data.createAsset(asset_request)
+                asset_name = asset_request['imageManifest']['name']
+                asset_request['imageManifest']['properties']['ingestion_time'] = get_utc_timestamp()
+
+                creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
+                session = AuthorizedSession(creds)
+                response = session.post(
+                    url=(
+                        f'https://earthengine.googleapis.com/v1/projects/'
+                        f'{self.get_project_id()}/image:import?overwrite=true&'
+                        f'mode=VIRTUAL'
+                    ),
+                    data=json.dumps(asset_request),
+                    headers={
+                        'Content-Type': 'application/json',
+                        'x-goog-user-project': self.get_project_id(),
+                    }
+                )
+                response = json.loads(response.content)
+                result = response.get('name')
             elif self.ee_asset_type == 'TABLE':
+                asset_name = asset_request['name']
+                asset_request['imageManifest']['properties']['ingestion_time'] = get_utc_timestamp()
+
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
-                result = ee.data.startTableIngestion(task_id, asset_request)
+                response = ee.data.startTableIngestion(task_id, asset_request)
+                result = response.get('id')
         except ee.EEException as e:
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
-                logger.info(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}. Moving on.")
+                logger.info(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on.")
                 return ""
-            logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
+            logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
             # so this will act as a quick fix for this issue.
-            if f"Cannot overwrite asset '{asset_request['name']}'" in repr(e):
-                ee.data.deleteAsset(asset_request['name'])
+            if f"Cannot overwrite asset '{asset_name}'" in repr(e):
+                ee.data.deleteAsset(asset_name)
             raise
 
-        return result.get('id')
+        return result
 
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
         asset_name = os.path.join(self.ee_asset, asset_data.name)
 
-        request = {
-            'name': asset_name,
-            'startTime': asset_data.start_time,
-            'endTime': asset_data.end_time,
-            'properties': asset_data.properties
-        }
-
-        # Add uris.
-        uris_as_per_asset_type = {
-            'IMAGE': {
-                'type': self.ee_asset_type,
-                'gcs_location': {
-                    'uris': [asset_data.target_path]
-                }
-            },
-            'TABLE': {
+        if self.ee_asset_type == 'IMAGE':
+            request = {
+                "imageManifest": {
+                    'name': asset_name,
+                    "tilesets": [
+                        {
+                            "id": "0",
+                            "sources": {"uris": [asset_data.target_path]},
+                        }
+                    ],
+                    'startTime': asset_data.start_time,
+                    'endTime': asset_data.end_time,
+                    'properties': asset_data.properties
+                },
+                "overwrite": True,
+            }
+        elif self.ee_asset_type == 'TABLE':
+            request = {
+                'name': asset_name,
                 'sources': [{
                     'uris': [asset_data.target_path]
-                }]
+                }],
+                'startTime': asset_data.start_time,
+                'endTime': asset_data.end_time,
+                'properties': asset_data.properties
             }
-        }
-        request.update(uris_as_per_asset_type[self.ee_asset_type])
 
         logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
         asset_id = self.start_ingestion(request)
