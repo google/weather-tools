@@ -659,7 +659,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 asset_name = asset_request['imageManifest']['name']
                 asset_request['imageManifest']['properties']['ingestion_time'] = get_utc_timestamp()
 
-                creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
+                creds = compute_engine.Credentials()
                 session = AuthorizedSession(creds)
                 response = session.post(
                     url=(
@@ -673,8 +673,13 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         'x-goog-user-project': self.get_project_id(),
                     }
                 )
-                response = json.loads(response.content)
-                result = response.get('name')
+
+                response_json = json.loads(response.content)
+                if response.status_code != 200:
+                    logger.info(f"Failed to ingest virtual asset '{asset_name}' in earth engine: {response_json}")
+                    raise ee.EEException(response.text)
+
+                result = response_json.get('name')
             elif self.ee_asset_type == 'TABLE':
                 asset_name = asset_request['name']
                 asset_request['imageManifest']['properties']['ingestion_time'] = get_utc_timestamp()
