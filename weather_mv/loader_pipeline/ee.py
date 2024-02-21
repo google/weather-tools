@@ -663,7 +663,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 session = AuthorizedSession(creds)
                 response = session.post(
                     url=(
-                        f'https://earthengine.googleapis.com/v1/projects/'
+                        f'https://earthengine-highvolume.googleapis.com/v1/projects/'
                         f'{self.get_project_id()}/image:import?overwrite=true&'
                         f'mode=VIRTUAL'
                     ),
