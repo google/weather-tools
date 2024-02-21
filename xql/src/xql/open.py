@@ -47,7 +47,7 @@ def open_dataset(uri: str) -> xr.Dataset:
             ds = xr.open_dataset(uri, engine=OPENER_MAP["ee"])
         else:
             # If not, open dataset using zarr engine
-            ds = xr.open_dataset(uri, engine=OPENER_MAP["zarr"], chunks="auto")
+            ds = xr.open_zarr(uri)
     except Exception:
         # If opening fails, raise RuntimeError
         raise RuntimeError("Unable to open dataset. [zarr, ee] are the only supported dataset types.")
