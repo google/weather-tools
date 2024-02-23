@@ -740,7 +740,13 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
             # so this will act as a quick fix for this issue.
             if f"Cannot overwrite asset '{asset_name}'" in repr(e):
                 ee.data.deleteAsset(asset_name)
-            raise
+                raise
+            
+            # Doing nothing considering that if the ingestion failed, it failed for a reason.
+            # Retrying will only block the worker.
+            # It is advised to re-run the ingestion with filtering logic to ingest
+            # the ones that are missed here.
+            pass
 
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
