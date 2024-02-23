@@ -28,7 +28,7 @@ For this `gcloud` must be configured in your local environment. Refer [Initializ
 pip install xql
 
 # Jump into xql
-python xql/main.py
+python xql/main.py xql
 ```
 ---
 ### Supported meta commands
@@ -137,3 +137,55 @@ _Updated on 2024-01-08_
 8. [ ] **Join Operations**: Support joining tables and apply query.
 9. [ ] **Nested Queries**: Add support to write nested queries.
 10. [ ] **Custom Aggregate Functions**: Support custom aggregate functions
+
+# `weather-lm` - Querying Xarray Datasets with SQL
+
+Querying weather data using Natural Language prompts. This uses a gemini (large language model from Google) to generate SQL like queries and `xql` to execute that query.
+> Refer to [Natural Language to Weather & Geospatial Data](https://docs.google.com/document/d/1zQ5jVIm29swVkv9nPM-vaDSatA6U3X3tv5EMATRAzU8/edit?usp=sharing&resourcekey=0-SIwltLLJD_MYkGH3H463WA) for more insights.
+
+# Quickstart
+
+## Prerequisites
+
+Google API Key is needed to initiate Language Model. Refer [Setup your API key](https://ai.google.dev/tutorials/python_quickstart#setup_your_api_key) to generate that key.
+
+Set that key as an environment variable. Run below command.
+```
+export GOOGLE_API_KEY="generate_key"
+```
+
+## Usage
+```
+# Install required packages
+pip install xql
+
+# Jump into language model
+python xql/main.py lm
+```
+---
+### Examples
+`Input Prompt`: Daily average temperature of New York for January 2015
+
+Relevant SQL Query:
+```
+SELECT 
+    AVG('temperature') 
+FROM 
+    'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' 
+WHERE 
+    time >= '2015-01-01' AND 
+    time < '2015-02-01' AND 
+    city = 'New York' 
+GROUP BY time_date
+```
+Output Data:
+```
+     time_date  avg_temperature
+0   2015-01-01       240.978073
+1   2015-01-02       243.375031
+2   2015-01-03       244.584747
+3   2015-01-04       249.673065
+4   2015-01-05       245.650833
+...
+Query took: 00:01:55
+```
