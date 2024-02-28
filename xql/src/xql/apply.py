@@ -20,6 +20,7 @@ import pandas as pd
 import typing as t
 import xarray as xr
 
+from dask import dataframe as dd
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
@@ -346,6 +347,45 @@ def parse_query(query: str) -> xr.Dataset:
     return ds
 
 
+def filter_records(ds: xr.Dataset, query: str) -> dd.DataFrame:
+    """
+    Filter records in an xarray Dataset based on a given query.
+
+    Args:
+        ds (xr.Dataset): The xarray Dataset to filter.
+        query (str): The query string for filtering the dataset.
+
+    Returns:
+        dd.DataFrame: A dask DataFrame containing the filtered records.
+    """
+
+    # Parse the query expression
+    expr = parse_one(query)
+
+    # Find Limit and Offset clauses in the query
+    limit_clause = expr.find(exp.Limit)
+    offset_clause = expr.find(exp.Offset)
+
+    # Convert xarray Dataset to dask DataFrame
+    ddf = ds.to_dask_dataframe()
+
+    # Initialize start location for slicing
+    start_loc = 0
+
+    # Apply offset clause if present
+    if offset_clause:
+        start_loc = int(offset_clause.expression.args['this'])
+        ddf = ddf.loc[start_loc:]
+
+    # Apply limit clause if present
+    if limit_clause:
+        limit = int(limit_clause.expression.args['this'])
+        ddf = ddf.loc[:start_loc + limit - 1]
+
+    # Compute and return the filtered DataFrame
+    return ddf.compute()
+
+
 def set_dataset_table(cmd: str) -> None:
     """
     Set the mapping between a key and a dataset.
@@ -417,7 +457,7 @@ def display_table_dataset_map(cmd: str) -> None:
         list_key_values(table_dataset_map)
 
 
-def display_result(result: t.Any) -> None:
+def display_result(result: t.Any, query: str) -> None:
     """
     Display the result of a query.
 
@@ -426,7 +466,7 @@ def display_result(result: t.Any) -> None:
     """
     if isinstance(result, xr.Dataset):
         if len(result.coords):
-            print(result.to_dataframe().reset_index())
+            print(filter_records(result, query))
         else:
             result = result.compute().to_dict(data="list")
             df = pd.DataFrame({k: [v['data']] for k, v in result['data_vars'].items()})
@@ -443,7 +483,7 @@ def run_query(query: str) -> None:
         query (str): The query to be executed.
     """
     result = parse_query(query)
-    display_result(result)
+    return filter_records(result, query)
 
 @timing
 def main(query: str):
@@ -465,4 +505,4 @@ def main(query: str):
         except Exception as e:
             result = f"ERROR: {type(e).__name__}: {e.__str__()}."
 
-        display_result(result)
+        display_result(result, query)
