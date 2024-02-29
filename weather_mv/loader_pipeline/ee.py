@@ -35,6 +35,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
+from google.auth.transport.requests import AuthorizedSession
 from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
@@ -283,6 +284,8 @@ class ToEarthEngine(ToDataSink):
                                help='A Regex string to get the initialization time from the filename.')
         subparser.add_argument('--forecast_time_regex', type=str, default=None,
                                help='A Regex string to get the forecast/end time from the filename.')
+        subparser.add_argument('--ingest_as_virtual_asset', action='store_true', default=False,
+                               help='To ingest image as a virtual asset. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -312,6 +315,10 @@ class ToEarthEngine(ToDataSink):
 
         if known_args.ee_max_concurrent and known_args.ee_max_concurrent < 1:
             raise RuntimeError("Maximum concurrent requests should not be less than 1.")
+
+        # Check that when ingesting as a virtual asset, asset type is image.
+        if known_args.ingest_as_virtual_asset and known_args.ee_asset_type != "IMAGE":
+            raise RuntimeError("Only assets with IMAGE type can be ingested as a virtual asset.")
 
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
@@ -614,7 +621,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                  ee_max_concurrent: int,
                  private_key: str,
                  service_account: str,
-                 use_personal_account: bool):
+                 use_personal_account: bool,
+                 ingest_as_virtual_asset: bool,):
         """Sets up rate limit."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
@@ -624,6 +632,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                          use_personal_account=use_personal_account)
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
+        self.ingest_as_virtual_asset = ingest_as_virtual_asset
+
+    def get_project_id(self) -> str:
+        return self.ee_asset.split('/')[1]
 
     def ee_tasks_remaining(self) -> int:
         """Returns the remaining number of tasks in the tassk queue of earth engine."""
@@ -645,63 +657,94 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         initial_delay_secs=INITIAL_DELAY,
         max_delay_secs=MAX_DELAY
     )
-    def start_ingestion(self, asset_request: t.Dict) -> str:
+    def start_ingestion(self, asset_data: AssetData) -> t.Optional[str]:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
-
-        asset_request['properties']['ingestion_time'] = get_utc_timestamp()
+        asset_name = os.path.join(self.ee_asset, asset_data.name)
+        asset_data.properties['ingestion_time'] = get_utc_timestamp()
 
         try:
-            if self.ee_asset_type == 'IMAGE':
-                result = ee.data.createAsset(asset_request)
-            elif self.ee_asset_type == 'TABLE':
+            logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
+
+            if self.ee_asset_type == 'IMAGE':  # Ingest an image.
+                if self.ingest_as_virtual_asset:  # as a virtual image.
+                    creds = compute_engine.Credentials()
+                    session = AuthorizedSession(creds)
+
+                    # Makes an api call to register the virtual asset.
+                    response = session.post(
+                        url=(
+                            f'https://earthengine-highvolume.googleapis.com/v1/projects/{self.get_project_id()}/'
+                            f'image:import?overwrite=true&mode=VIRTUAL'
+                        ),
+                        data=json.dumps({
+                            "imageManifest": {
+                                'name': asset_name,
+                                "tilesets": [
+                                    {
+                                        "id": "0",
+                                        "sources": {"uris": [asset_data.target_path]},
+                                    }
+                                ],
+                                'startTime': asset_data.start_time,
+                                'endTime': asset_data.end_time,
+                                'properties': asset_data.properties,
+                            },
+                            "overwrite": True,
+                        }),
+                        headers={
+                            'Content-Type': 'application/json',
+                            'x-goog-user-project': self.get_project_id(),
+                        }
+                    )
+
+                    if response.status_code != 200:
+                        logger.info(f"Failed to ingest virtual asset '{asset_name}' in earth engine: {response.text}")
+                        raise ee.EEException(response.text)
+
+                    response_json = json.loads(response.content)
+                    return response_json.get('name')
+                else:  # as a COG based image.
+                    result = ee.data.createAsset({
+                        'name': asset_name,
+                        'type': self.ee_asset_type,
+                        'gcs_location': {
+                            'uris': [asset_data.target_path]
+                        },
+                        'startTime': asset_data.start_time,
+                        'endTime': asset_data.end_time,
+                        'properties': asset_data.properties,
+                    })
+                    return result.get('id')
+            elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
-                result = ee.data.startTableIngestion(task_id, asset_request)
+                response = ee.data.startTableIngestion(task_id, {
+                    'name': asset_name,
+                    'sources': [{
+                        'uris': [asset_data.target_path]
+                    }],
+                    'startTime': asset_data.start_time,
+                    'endTime': asset_data.end_time,
+                    'properties': asset_data.properties
+                })
+                return response.get('id')
         except ee.EEException as e:
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
-                logger.info(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}. Moving on.")
+                logger.info(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
-            logger.error(f"Failed to create asset '{asset_request['name']}' in earth engine: {e}")
+
+            logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
             # so this will act as a quick fix for this issue.
-            if f"Cannot overwrite asset '{asset_request['name']}'" in repr(e):
-                ee.data.deleteAsset(asset_request['name'])
+            if f"Cannot overwrite asset '{asset_name}'" in repr(e):
+                ee.data.deleteAsset(asset_name)
             raise
-
-        return result.get('id')
 
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
-        asset_name = os.path.join(self.ee_asset, asset_data.name)
-
-        request = {
-            'name': asset_name,
-            'startTime': asset_data.start_time,
-            'endTime': asset_data.end_time,
-            'properties': asset_data.properties
-        }
-
-        # Add uris.
-        uris_as_per_asset_type = {
-            'IMAGE': {
-                'type': self.ee_asset_type,
-                'gcs_location': {
-                    'uris': [asset_data.target_path]
-                }
-            },
-            'TABLE': {
-                'sources': [{
-                    'uris': [asset_data.target_path]
-                }]
-            }
-        }
-        request.update(uris_as_per_asset_type[self.ee_asset_type])
-
-        logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
-        asset_id = self.start_ingestion(request)
-
+        asset_id = self.start_ingestion(asset_data)
         beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
 
         yield asset_id
