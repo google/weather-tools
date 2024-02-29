@@ -657,7 +657,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         initial_delay_secs=INITIAL_DELAY,
         max_delay_secs=MAX_DELAY
     )
-    def start_ingestion(self, asset_data: AssetData) -> str:
+    def start_ingestion(self, asset_data: AssetData) -> t.Optional[str]:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
         self.check_setup()
         asset_name = os.path.join(self.ee_asset, asset_data.name)
