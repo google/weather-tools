@@ -1,7 +1,7 @@
 # `xql` - Querying Xarray Datasets with SQL
 
 Running SQL like queries on Xarray Datasets. Consider dataset as a table and data variable as a column.
-> Note: For now, we support only zarr datasets.
+> Note: For now, we support only zarr datasets and earth engine image collections.
 
 # Supported Features
 
@@ -9,8 +9,9 @@ Running SQL like queries on Xarray Datasets. Consider dataset as a table and dat
 * **Apply `where` clause** - A general where condition like SQL. Applicable for queries which includes data for specific time range or only for specific regions. 
 * **`group by` Functions** - This is supported on the coordinates only. e.g. time, latitude, longitude, etc.
 * **`aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()`, etc. Only supported on data variables.
+* **`limit and offset` clause** - Apply limit and offset to filter out the required result.
 * For more checkout the [road-map](https://github.com/google/weather-tools/tree/xql-init/xql#roadmap).
-> Note: For now, we support `where` conditions on coordinates only. 
+> Note: For now, we support `where` conditions and `groupby` on coordinates only.
 
 # Quickstart
 
@@ -107,8 +108,8 @@ _Updated on 2024-01-08_
    1. [x] With Group By
    2. [x] Without Group By
    3. [x] Multiple Aggregate function in a single query
-4. [ ] **Order By**: Only suppoted for coordinates.
-5. [ ] **Limit**: Limiting the result to display.
+4. [x] **Order By**: Apply sorting on the result.
+5. [x] **Limit**: Limiting the result to display.
 6. [ ] **Mathematical Operators** `(+, - , *, / )`: Add support to use mathematical operators in the query.
 7. [ ] **Aliases**: Add support to alias while querying.
 8. [ ] **Join Operations**: Support joining tables and apply query.

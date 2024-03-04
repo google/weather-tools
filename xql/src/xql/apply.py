@@ -20,7 +20,6 @@ import pandas as pd
 import typing as t
 import xarray as xr
 
-from dask import dataframe as dd
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
@@ -85,79 +84,31 @@ def parse(a: t.Union[xr.DataArray, str], b: t.Union[xr.DataArray, str]) -> t.Tup
     return a, b
 
 
-def evaluate(a: t.Union[xr.DataArray, str], b: t.Union[xr.DataArray, str], operator: str) -> xr.DataArray:
+def apply_orderby(e: exp.Order, df: pd.DataFrame) -> pd.DataFrame:
     """
-    Evaluate the expression 'a operator b' using NumPy arrays.
+    Apply ORDER BY clause to the DataFrame.
 
-    Parameters:
-    - a (Union[xr.DataArray, str]): The first input value.
-    - b (Union[xr.DataArray, str]): The second input value.
-    - operator (str): The operator to be applied.
+    Args:
+    - e (exp.Order): Parsed ORDER BY expression.
+    - df (pd.DataFrame): DataFrame to be sorted.
 
     Returns:
-    - xr.DataArray: The result of the evaluation.
+    - pd.DataFrame: Sorted DataFrame based on the ORDER BY clause.
     """
-    a, b = parse(a, b)
-    return operate[operator](a, b)
+    orderby_columns = []
+    orderby_columns_order = []
 
+    # Extract columns and sorting orders from the parsed ORDER BY expression
+    for el in e.expressions:
+        orderby_column = el.find(exp.Column).find(exp.Identifier).this
+        order = not bool(el.args['desc'])  # Descending if desc=False
+        orderby_columns.append(orderby_column)
+        orderby_columns_order.append(order)
 
-def inorder(expression: exp.Expression, ds: xr.Dataset) -> xr.DataArray:
-    """
-    Evaluate an expression using an xarray Dataset and return the result.
+    # Sort the DataFrame based on the extracted columns and orders
+    df = df.sort_values(orderby_columns, ascending=orderby_columns_order)
 
-    Parameters:
-    - expression (exp.Expression): The expression to be evaluated.
-    - ds (xr.Dataset): The xarray Dataset used for evaluation.
-
-    Returns:
-    - xr.DataArray: The result of evaluating the expression on the given dataset.
-    """
-
-    if(expression.key == "identifier"):
-        return ds[expression.args['this']]
-
-    if(expression.key == "literal"):
-        return expression.args['this']
-
-    args = expression.args
-
-    left = args['this']
-    right = None
-    if 'expression' in args:
-        right = args['expression']
-
-    left_sol = inorder(left, ds)
-
-    right_sol = None
-    if right is not None:
-        right_sol = inorder(right, ds)
-
-    if right_sol is not None:
-        return evaluate(left_sol, right_sol, expression.key)
-    else:
-        return left_sol
-
-
-def apply_order_by(fields: t.List[str], ds: xr.Dataset) -> xr.Dataset:
-    """
-    Apply order-by to the dataset based on specified fields.
-
-    Parameters:
-    - fields (List[str]): List of fields(coordinates) to be used for ordering.
-    - ds (xarray.Dataset): The input dataset.
-
-    Returns:
-    - xarray.Dataset: The dataset after applying group-by and aggregation operations.
-    """
-    ordered_ds = ds
-    for field in fields:
-        actual_field = field.split()
-        ordered_ds = (
-            ordered_ds.sortby(actual_field[0], False) if
-            len(actual_field) > 1 and actual_field[1] == 'DESC' else
-            ordered_ds.sortby(actual_field[0])
-        )
-    return ordered_ds
+    return df
 
 
 def aggregate_variables(agg_funcs: t.List[t.Dict[str, str]],
@@ -347,7 +298,7 @@ def parse_query(query: str) -> xr.Dataset:
     return ds
 
 
-def filter_records(ds: xr.Dataset, query: str) -> dd.DataFrame:
+def filter_records(ds: xr.Dataset, query: str) -> pd.DataFrame:
     """
     Filter records in an xarray Dataset based on a given query.
 
@@ -356,18 +307,23 @@ def filter_records(ds: xr.Dataset, query: str) -> dd.DataFrame:
         query (str): The query string for filtering the dataset.
 
     Returns:
-        dd.DataFrame: A dask DataFrame containing the filtered records.
+        pd.DataFrame: A pandas DataFrame containing the filtered records.
     """
 
     # Parse the query expression
     expr = parse_one(query)
 
-    # Find Limit and Offset clauses in the query
+    # Find Limit, Offset and OrderBy clauses in the query
+    orderby_clause = expr.find(exp.Order)
     limit_clause = expr.find(exp.Limit)
     offset_clause = expr.find(exp.Offset)
 
     # Convert xarray Dataset to dask DataFrame
-    ddf = ds.to_dask_dataframe()
+    df = ds.to_dataframe()
+
+    # Apply orderby clause if present
+    if orderby_clause:
+        df = apply_orderby(orderby_clause, df)
 
     # Initialize start location for slicing
     start_loc = 0
@@ -375,15 +331,15 @@ def filter_records(ds: xr.Dataset, query: str) -> dd.DataFrame:
     # Apply offset clause if present
     if offset_clause:
         start_loc = int(offset_clause.expression.args['this'])
-        ddf = ddf.loc[start_loc:]
+        df = df.iloc[start_loc:]
 
     # Apply limit clause if present
     if limit_clause:
         limit = int(limit_clause.expression.args['this'])
-        ddf = ddf.loc[:start_loc + limit - 1]
+        df = df.iloc[:start_loc + limit]
 
     # Compute and return the filtered DataFrame
-    return ddf.compute()
+    return df.reset_index()
 
 
 def set_dataset_table(cmd: str) -> None:
