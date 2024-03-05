@@ -11,7 +11,7 @@ Running SQL like queries on Xarray Datasets. Consider dataset as a table and dat
 * **`aggregate` Functions** - Aggregate functions `AVG()`, `MIN()`, `MAX()`, etc. Only supported on data variables.
 * **`limit and offset` clause** - Apply limit and offset to filter out the required result.
 * For more checkout the [road-map](https://github.com/google/weather-tools/tree/xql-init/xql#roadmap).
-> Note: For now, we support `where` conditions and `groupby` on coordinates only.
+> Note: For now, we support `where` conditions and `groupby` on coordinates only. `orderby` can only be applied either on selected variables or on coordinates.
 
 # Quickstart
 
