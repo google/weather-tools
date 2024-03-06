@@ -62,6 +62,15 @@ jobs:
     - name: Check MetView's installation
       shell: bash -l {0}
       run: python -m metview selfcheck
+    - name: Install wgrib2 utility
+      run: |
+        wget http://www.ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz -P /opt/
+        tar -xzvf /opt/wgrib2.tgz --directory /opt/
+        apt-get update -y
+        apt-get install -y make cmake gcc gfortran
+        export CC=gcc
+        export FC=gfortran
+        make -C /opt/grib2/ FC=gfortran
     - name: Run unit tests
       shell: bash -l {0}
       run: pytest --memray --ignore=weather_dl_v2 # Ignoring dl-v2 as it only supports py3.10
