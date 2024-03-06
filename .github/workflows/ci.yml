@@ -70,7 +70,7 @@ jobs:
         sudo apt-get install -y make cmake gcc gfortran
         export CC=gcc
         export FC=gfortran
-        make -C /opt/grib2/ FC=gfortran
+        sudo make -C /opt/grib2/ FC=gfortran
     - name: Run unit tests
       shell: bash -l {0}
       run: pytest --memray --ignore=weather_dl_v2 # Ignoring dl-v2 as it only supports py3.10
