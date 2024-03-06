@@ -66,8 +66,8 @@ jobs:
       run: |
         wget http://www.ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz -P /opt/
         tar -xzvf /opt/wgrib2.tgz --directory /opt/
-        apt-get update -y
-        apt-get install -y make cmake gcc gfortran
+        sudo apt-get update -y
+        sudo apt-get install -y make cmake gcc gfortran
         export CC=gcc
         export FC=gfortran
         make -C /opt/grib2/ FC=gfortran
