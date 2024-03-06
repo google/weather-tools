@@ -41,6 +41,15 @@ ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
 RUN apt-get update -y
 RUN gcloud components install alpha --quiet
 
+# Install wgrib2 utility
+RUN wget http://www.ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz -P /opt/
+RUN tar -xzvf /opt/wgrib2.tgz --directory /opt/
+RUN apt-get update -y
+RUN apt-get install -y make cmake gcc gfortran
+ENV CC=gcc
+ENV FC=gfortran
+RUN make -C /opt/grib2/ FC=gfortran
+
 # Copy files from official SDK image, including script/dependencies.
 COPY --from=beam_sdk /opt/apache/beam /opt/apache/beam
 
