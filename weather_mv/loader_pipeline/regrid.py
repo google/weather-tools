@@ -236,8 +236,8 @@ class Regrid(ToDataSink):
 
     def is_grib_file_corrupt(self, local_grib: str) -> bool:
         try:
-            # Running wgrib2 command to check the file...
-            subprocess.check_output(['/opt/grib2/wgrib2/wgrib2', '-s', local_grib])
+            # Run grib_ls command to check the file
+            subprocess.check_output(['grib_ls', local_grib])
             return False
         except subprocess.CalledProcessError as e:
             logger.info(f"Encountered error while reading GRIB: {e}.")

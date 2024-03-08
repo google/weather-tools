@@ -62,12 +62,6 @@ jobs:
     - name: Check MetView's installation
       shell: bash -l {0}
       run: python -m metview selfcheck
-    - name: Clone wgrib2 build from github repo
-      shell: bash -l {0}
-      run: |
-        git clone https://github.com/j9sh264/wgrib2-build.git
-        cd wgrib2-build/
-        sudo tar -xzvf wgrib2.tar.gz --directory /opt/
     - name: Run unit tests
       shell: bash -l {0}
       run: pytest --memray --ignore=weather_dl_v2 # Ignoring dl-v2 as it only supports py3.10
