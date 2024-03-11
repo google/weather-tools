@@ -135,6 +135,13 @@ class RegridTest(TestDataBase):
         except:  # noqa
             self.fail('Cannot open Zarr with Xarray.')
 
+    def test_corrupt_grib_file(self):
+        correct_file_path = os.path.join(self.test_data_folder, 'test_data_grib_single_timestep')
+        corrupt_file_path = os.path.join(self.test_data_folder, 'test_data_corrupt_grib')
+
+        self.assertFalse(self.Op.is_grib_file_corrupt(correct_file_path))
+        self.assertTrue(self.Op.is_grib_file_corrupt(corrupt_file_path))
+
 
 if __name__ == '__main__':
     unittest.main()
