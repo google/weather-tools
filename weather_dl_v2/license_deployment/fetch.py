@@ -155,7 +155,7 @@ def main():
                 executor.submit(make_fetch_request, request, error_map)
             else:
                 logger.info("No request available. Waiting...")
-                time.sleep(5)
+                time.sleep(30)
 
             # Each license should not pick more partitions than it's
             # concurrency_limit. We limit the threadpool queue size to just 1
