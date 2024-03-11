@@ -19,6 +19,7 @@ import json
 import logging
 import os.path
 import shutil
+import subprocess
 import tempfile
 import typing as t
 import warnings
@@ -233,7 +234,16 @@ class Regrid(ToDataSink):
         no_ext, _ = os.path.splitext(in_dest)
         return f'{no_ext}.nc'
 
-    def apply(self, uri: str):
+    def is_grib_file_corrupt(self, local_grib: str) -> bool:
+        try:
+            # Run grib_ls command to check the file
+            subprocess.check_output(['grib_ls', local_grib])
+            return False
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Encountered error while reading GRIB: {e}.")
+            return True
+
+    def apply(self, uri: str) -> None:
         logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
 
         if self.dry_run:
@@ -247,6 +257,12 @@ class Regrid(ToDataSink):
             logger.info(f'Copying grib from {uri!r} to local disk.')
 
             with open_local(uri) as local_grib:
+                logger.info(f"Checking for {uri}'s validity...")
+                if self.is_grib_file_corrupt(local_grib):
+                    logger.info(f"Corrupt GRIB file found: {uri}.")
+                    return
+                logger.info(f"No issues found with {uri}.")
+
                 logger.info(f'Regridding {uri!r}.')
                 fs = mv.bindings.Fieldset(path=local_grib)
                 fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
