@@ -298,7 +298,29 @@ def parse_query(query: str) -> xr.Dataset:
     return ds
 
 
-def filter_records(ds: xr.Dataset, query: str) -> pd.DataFrame:
+def convert_to_dataframe(ds: xr.Dataset) -> pd.DataFrame:
+    """
+    Convert xarray Dataset to pandas DataFrame.
+
+    Args:
+        ds (xr.Dataset): xarray Dataset to be converted.
+
+    Returns:
+        pd.DataFrame: Pandas DataFrame containing the data from the xarray Dataset.
+    """
+    if len(ds.coords):
+        # If the dataset has coordinates, convert it to DataFrame and reset index
+        df = ds.to_dataframe().reset_index()
+    else:
+        # If the dataset doesn't have coordinates, compute it and convert to dictionary
+        ds = ds.compute().to_dict(data="list")
+        # Create DataFrame from dictionary
+        df = pd.DataFrame({k: [v['data']] for k, v in ds['data_vars'].items()})
+
+    return df
+
+
+def filter_records(df: pd.DataFrame, query: str) -> pd.DataFrame:
     """
     Filter records in an xarray Dataset based on a given query.
 
@@ -318,9 +340,6 @@ def filter_records(ds: xr.Dataset, query: str) -> pd.DataFrame:
     limit_clause = expr.find(exp.Limit)
     offset_clause = expr.find(exp.Offset)
 
-    # Convert xarray Dataset to dask DataFrame
-    df = ds.to_dataframe()
-
     # Apply orderby clause if present
     if orderby_clause:
         df = apply_orderby(orderby_clause, df)
@@ -339,7 +358,7 @@ def filter_records(ds: xr.Dataset, query: str) -> pd.DataFrame:
         df = df.iloc[:start_loc + limit]
 
     # Compute and return the filtered DataFrame
-    return df.reset_index()
+    return df
 
 
 def set_dataset_table(cmd: str) -> None:
@@ -421,12 +440,8 @@ def display_result(result: t.Any, query: str) -> None:
         result (Any): The result to be displayed.
     """
     if isinstance(result, xr.Dataset):
-        if len(result.coords):
-            print(filter_records(result, query))
-        else:
-            result = result.compute().to_dict(data="list")
-            df = pd.DataFrame({k: [v['data']] for k, v in result['data_vars'].items()})
-            print(df)
+        df = filter_records(convert_to_dataframe(result), query)
+        print(df)
     else:
         print(result)
 
@@ -439,7 +454,7 @@ def run_query(query: str) -> None:
         query (str): The query to be executed.
     """
     result = parse_query(query)
-    return filter_records(result, query)
+    return filter_records(convert_to_dataframe(result), query)
 
 @timing
 def main(query: str):
