@@ -259,7 +259,7 @@ class Regrid(ToDataSink):
             with open_local(uri) as local_grib:
                 logger.info(f"Checking for {uri}'s validity...")
                 if self.is_grib_file_corrupt(local_grib):
-                    logger.info(f"Corrupt GRIB file found: {uri}.")
+                    logger.error(f"Corrupt GRIB file found: {uri}.")
                     return
                 logger.info(f"No issues found with {uri}.")
 
