@@ -10,7 +10,7 @@ spec:
     spec:
       restartPolicy: Never
       nodeSelector:
-        cloud.google.com/gke-nodepool: default-pool
+        cloud.google.com/gke-nodepool: license-pool
       containers:
         - name: weather-dl-v2-license-dep
           image: XXXXXXX
@@ -18,7 +18,7 @@ spec:
           args: []
           resources:
             requests:
-              cpu: "4000m"                  # CPU: 4 vCPU
+              cpu: "2000m"                  # CPU: 2 vCPU
               memory: "2Gi"                 # RAM: 2 GiB
               ephemeral-storage: "10Gi"    # Storage: 10 GiB
           volumeMounts:
