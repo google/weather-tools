@@ -141,7 +141,6 @@ _Updated on 2024-01-08_
 # `weather-lm` - Querying Xarray Datasets with SQL
 
 Querying weather data using Natural Language prompts. This uses a gemini (large language model from Google) to generate SQL like queries and `xql` to execute that query.
-> Refer to [Natural Language to Weather & Geospatial Data](https://docs.google.com/document/d/1zQ5jVIm29swVkv9nPM-vaDSatA6U3X3tv5EMATRAzU8/edit?usp=sharing&resourcekey=0-SIwltLLJD_MYkGH3H463WA) for more insights.
 
 # Quickstart
 
