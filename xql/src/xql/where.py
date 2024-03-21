@@ -97,7 +97,7 @@ def parse_condition(expression: exp.Expression, condition_dict: dict) -> bool:
     # handing negative
     if isinstance(right, exp.Neg):
         right = right.args.get('this')
-        value = "-" + right.args['this']
+        value = "-" + right.args.get('this')
     else:
         value = right.args.get('this')
 
