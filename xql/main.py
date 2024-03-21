@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from src.xql import main
+from src.xql.utils import connect_dask_cluster
 
 if __name__ == '__main__':
     try:
+        # Connect Dask Cluster
+        connect_dask_cluster()
         while True:
             query = input("xql> ")
             if query == ".exit":

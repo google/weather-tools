@@ -15,7 +15,19 @@
 
 from setuptools import find_packages, setup
 
-requirements = ["fsspec", "gcsfs", "numpy", "sqlglot", "xarray", "xee", "zarr"]
+requirements = [
+    "dask==2024.3.0",
+    "distributed==2024.3.0",
+    "dask_kubernetes",
+    "fsspec",
+    "gcsfs==2024.2.0",
+    "numpy==1.26.3",
+    "sqlglot",
+    "toolz==0.12.0",
+    "xarray==2024.01.0",
+    "xee",
+    "zarr==2.17.0"
+]
 
 setup(
     name="xql",
