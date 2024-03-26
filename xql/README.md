@@ -109,7 +109,7 @@ Steps to deploy a Dask Cluster on GKE.
     helm repo update
     helm install xql-dask dask/dask
     ```
-    > Replace `xql-dask` with the name you want your dask cluster to have. Just set `DASK_CLUSTER={dask_cluster_name}` environment variable.
+    > Replace `xql-dask` from above command with the name you want your dask cluster to have. Just set `DASK_CLUSTER={dask_cluster_name}` environment variable.
 4. Connect to a dask cluster
     ```
     from xql.utils import connect_dask_cluster

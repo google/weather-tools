@@ -433,7 +433,7 @@ def display_table_dataset_map(cmd: str) -> None:
 
 
 @timing
-def run_query(query: str, connect_cluster = True) -> None:
+def run_query(query: str) -> None:
     """
     Run a query and display the result.
 
