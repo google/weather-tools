@@ -94,6 +94,28 @@ python xql/main.py
     FROM era5
     ```
 
+# Dask Cluster Configuration
+
+Steps to deploy a Dask Cluster on GKE.
+1. Create a Kubernetes cluster if don't have any. Follow [Creating a zonal cluster](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster).
+2. Get Cluster Credentials on Local Machine
+    ```
+    gcloud container clusters get-credentials {cluster_name} --region {cluster_region} --project {project}
+    ```
+3. Install `helm`. Follow [Helm | Installing Helm](https://helm.sh/docs/intro/install/). 
+4. Deploy Dask Cluster using below `helm` commands.
+    ```
+    helm repo add dask https://helm.dask.org/
+    helm repo update
+    helm install xql-dask dask/dask
+    ```
+    > Replace `xql-dask` with the name you want your dask cluster to have. Just set `DASK_CLUSTER={dask_cluster_name}` environment variable.
+4. Connect to a dask cluster
+    ```
+    from xql.utils import connect_dask_cluster
+    connect_dask_cluster()
+    ```
+
 # Roadmap
 
 _Updated on 2024-01-08_
