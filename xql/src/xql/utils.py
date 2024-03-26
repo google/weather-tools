@@ -36,7 +36,7 @@ def connect_dask_cluster() -> None:
     """
     Connects to a Dask cluster.
     """
-    # Fetch the cluster name from environment variable, default to "era5-dask" if not set
+    # Fetch the cluster name from environment variable, default to "xql-dask" if not set
     cluster_name = os.getenv('DASK_CLUSTER', "xql-dask")
 
     try:
