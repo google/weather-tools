@@ -432,19 +432,6 @@ def display_table_dataset_map(cmd: str) -> None:
         list_key_values(table_dataset_map)
 
 
-def display_result(result: t.Any, query: str) -> None:
-    """
-    Display the result of a query.
-
-    Args:
-        result (Any): The result to be displayed.
-    """
-    if isinstance(result, xr.Dataset):
-        df = filter_records(convert_to_dataframe(result), query)
-        print(df)
-    else:
-        print(result)
-
 @timing
 def run_query(query: str) -> None:
     """
@@ -453,7 +440,11 @@ def run_query(query: str) -> None:
     Args:
         query (str): The query to be executed.
     """
-    result = parse_query(query)
+    try:
+        result = parse_query(query)
+    except Exception as e:
+        result = f"ERROR: {type(e).__name__}: {e.__str__()}."
+        return result
     return filter_records(convert_to_dataframe(result), query)
 
 @timing
@@ -471,9 +462,5 @@ def main(query: str):
         display_table_dataset_map(query)
 
     else:
-        try:
-            result = parse_query(query)
-        except Exception as e:
-            result = f"ERROR: {type(e).__name__}: {e.__str__()}."
-
-        display_result(result, query)
+        result = run_query(query)
+        print(result, query)

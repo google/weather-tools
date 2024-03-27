@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+from dask_kubernetes import HelmCluster
+from dask.distributed import Client
 from functools import wraps
 from time import gmtime, strftime, time
 
@@ -26,3 +30,25 @@ def timing(f):
         print(f"Query took: { strftime('%H:%M:%S', gmtime(te - ts)) }")
         return result
     return wrap
+
+
+def connect_dask_cluster() -> None:
+    """
+    Connects to a Dask cluster.
+    """
+    # Fetch the cluster name from environment variable, default to "xql-dask" if not set
+    cluster_name = os.getenv('DASK_CLUSTER', "xql-dask")
+
+    try:
+        # Create a HelmCluster instance with the specified release name
+        cluster = HelmCluster(release_name=cluster_name)
+
+        # Connect a Dask client to the cluster
+        client = Client(cluster) # noqa: F841
+
+        # Print a message indicating successful connection
+        print("Dask cluster connected.")
+
+    except Exception:
+        # Print a message indicating failure to connect
+        print("Dask cluster not connected.")
