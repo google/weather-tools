@@ -22,14 +22,16 @@ from .template import DEFINED_PROMPTS
 from .utils import get_invocation_steps, get_table_map_prompt
 from xql import run_query
 
-def nl_to_weather_data(input_statement: str):
+def nl_to_sql_query(input_statement: str) -> str:
     """
-    Convert a natural language query to SQL and fetch weather data.
+    Convert a natural language query to SQL.
 
     Parameters:
     - input_statement (str): The natural language query.
-    """
 
+    Returns:
+    - str: The generated SQL query.
+    """
     # Check if API key is provided either directly or through environment variable
     api_key = os.getenv("GOOGLE_API_KEY")
 
@@ -65,11 +67,26 @@ def nl_to_weather_data(input_statement: str):
         "few_shot_examples": few_shots
     })
 
-    # Extract SQL query from result
+    # Extract SQL query from result.
+    # The response will look like [SQLQuery: SELECT * FROM {table} WHERE ...].
+    # So slice the sql query from string.
     sql_query = generate_sql_res[11:-1]
 
     # Print generated SQL statement for debugging
-    print("SQL Statement : ", sql_query)
+    print("Generated SQL Statement:", sql_query)
+
+    return sql_query
+
+
+def nl_to_weather_data(input_statement: str):
+    """
+    Convert a natural language query to SQL and fetch weather data.
+
+    Parameters:
+    - input_statement (str): The natural language query.
+    """
+    # Generate SQL query
+    sql_query = nl_to_sql_query(input_statement)
 
     # Execute SQL query to fetch weather data
     print(run_query(sql_query))

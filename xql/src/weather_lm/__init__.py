@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .gemini import nl_to_weather_data #noqa
+from .gemini import nl_to_sql_query, nl_to_weather_data #noqa

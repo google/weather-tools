@@ -138,7 +138,7 @@ _Updated on 2024-01-08_
 9. [ ] **Nested Queries**: Add support to write nested queries.
 10. [ ] **Custom Aggregate Functions**: Support custom aggregate functions
 
-# `weather-lm` - Querying Xarray Datasets with SQL
+# `weather-lm` - Querying weather data using Natural Language prompts
 
 Querying weather data using Natural Language prompts. This uses a gemini (large language model from Google) to generate SQL like queries and `xql` to execute that query.
 

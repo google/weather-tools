@@ -62,13 +62,13 @@ Some examples of SQL queries that correspond to questions are:
 Question: {question}"""
 
 few_shots = {
-    "Aggregate precipitation over months over all locations?" : "SELECT SUM(precipitation) FROM 'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY latitude, longitude, time_month",
-    "Daily average temperature.":"""SELECT AVG(temperature) FROM "gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3" GROUP BY time_date""",
-    "Average temperature of the Antarctic Area during last monsoon over months.":"SELECT AVG(temperature) FROM 'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2022-06-01' AND time < '2022-11-01' AND latitude < 66.5 GROUP BY time_month",
-    "Average temperature over years.":"SELECT AVG(temperature) FROM 'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY time_year",
-    "Aggregate precipitation globally?" : "SELECT SUM(precipitation) FROM 'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY latitude, longitude",
+    "Aggregate precipitation over months over all locations?" : "SELECT SUM(precipitation) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY latitude, longitude, time_month",
+    "Daily average temperature.":"""SELECT AVG(temperature) FROM "gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3" GROUP BY time_date""",
+    "Average temperature of the Antarctic Area during last monsoon over months.":"SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2022-06-01' AND time < '2022-11-01' AND latitude < 66.5 GROUP BY time_month",
+    "Average temperature over years.":"SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY time_year",
+    "Aggregate precipitation globally?" : "SELECT SUM(precipitation) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY latitude, longitude",
     "For January 2000" : "SELECT * from TABLE where time >= '2000-01-01 00:00:00' AND time < '2000-02-01 00:00:00' ",
-    "Daily average temperature of New York for January 2015?": "SELECT AVG(temperature) FROM 'gs://darshan-store/ar/2013-2022-full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2015-01-01' AND time < '2015-02-01' AND latitude > 40 AND latitude < 41 AND longitude > 286 AND longitude < 287 GROUP BY time_date"
+    "Daily average temperature of New York for January 2015?": "SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2015-01-01' AND time < '2015-02-01' AND latitude > 40 AND latitude < 41 AND longitude > 286 AND longitude < 287 GROUP BY time_date"
 }
 
 SELECT_DATASET_TEMPLATE = """
