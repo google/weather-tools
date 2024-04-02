@@ -466,4 +466,4 @@ def main(query: str):
 
     else:
         result = run_query(query)
-        print(result, query)
+        print(result)

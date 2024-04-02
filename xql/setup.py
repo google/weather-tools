@@ -26,7 +26,7 @@ requirements = [
     "toolz==0.12.0",
     "xarray==2024.01.0",
     "xee",
-    "zarr==2.17.0"
+    "zarr==2.17.0",
     "langchain",
     "langchain-experimental",
     "langchain-openai",
