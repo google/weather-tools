@@ -15,6 +15,9 @@
 
 import ee
 import logging
+import zarr
+
+import typing as t
 import xarray as xr
 
 logger = logging.getLogger(__name__)
@@ -24,7 +27,46 @@ OPENER_MAP = {
     "ee": "ee"
 }
 
-def open_dataset(uri: str) -> xr.Dataset:
+def get_chunking(uri: str, variables: t.List[str]) -> t.Dict:
+    """
+    Retrieve chunking information for the specified variables in a Zarr dataset.
+
+    Parameters:
+        uri (str): The URI of the Zarr dataset.
+        variables (List[str]): A list of variable names.
+
+    Returns:
+        t.Dict: A dictionary containing chunking information for each variable.
+    """
+
+    # Initialize dictionary to store chunking information
+    chunks = {}
+
+    # Open the Zarr dataset
+    zf = zarr.open(uri)
+
+    # Iterate over each variable
+    for v in variables:
+        # Get the variable object
+        var = zf[v]
+
+        # Get chunking info for the variable
+        var_chunks = var.chunks
+
+        # Get variable dimensions
+        var_dims = var.attrs.get('_ARRAY_DIMENSIONS')
+
+        # Map dimensions to chunk sizes
+        chunk_dict = dict(zip(var_dims, var_chunks))
+
+        # Update chunks with array chunk dimensions
+        chunks = chunks.update(chunk_dict)
+
+    # Return chunking information dictionary
+    return chunks
+
+
+def open_dataset(uri: str) -> t.Tuple[xr.Dataset, bool]:
     """
     Open a dataset from the given URI using the appropriate engine.
 
@@ -37,7 +79,7 @@ def open_dataset(uri: str) -> xr.Dataset:
     Raises:
     - RuntimeError: If unable to open the dataset.
     """
-
+    chunkable = False
     try:
         # Check if the URI starts with "ee://"
         if uri.startswith("ee://"):
@@ -47,9 +89,10 @@ def open_dataset(uri: str) -> xr.Dataset:
             ds = xr.open_dataset(uri, engine=OPENER_MAP["ee"])
         else:
             # If not, open dataset using zarr engine
-            ds = xr.open_zarr(uri)
+            ds = xr.open_zarr(uri, chunks=None)
+            chunkable = True
     except Exception:
         # If opening fails, raise RuntimeError
         raise RuntimeError("Unable to open dataset. [zarr, ee] are the only supported dataset types.")
 
-    return ds
+    return ds, chunkable

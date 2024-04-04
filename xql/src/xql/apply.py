@@ -23,7 +23,7 @@ import xarray as xr
 from sqlglot import parse_one, exp
 from xarray.core.groupby import DatasetGroupBy
 
-from .open import open_dataset
+from .open import get_chunking, open_dataset
 from .utils import timing
 from .where import apply_where
 
@@ -274,13 +274,16 @@ def parse_query(query: str) -> xr.Dataset:
     if len(agg_funcs):
         data_vars = [ agg_var['var'] for agg_var in agg_funcs ]
 
-    ds = open_dataset(table)
+    ds, chunkable = open_dataset(table)
 
     if is_star is None:
         ds = ds[data_vars]
 
     if where_clause is not None:
         ds = apply_where(ds, where_clause.args['this'])
+
+    if chunkable:
+        ds = ds.chunk(chunks=get_chunking(table, list(ds.data_vars)))
 
     coords_to_squeeze = None
     time_fields = []
