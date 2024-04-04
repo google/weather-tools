@@ -60,7 +60,7 @@ def get_chunking(uri: str, variables: t.List[str]) -> t.Dict:
         chunk_dict = dict(zip(var_dims, var_chunks))
 
         # Update chunks with array chunk dimensions
-        chunks = chunks.update(chunk_dict)
+        chunks.update(chunk_dict)
 
     # Return chunking information dictionary
     return chunks
