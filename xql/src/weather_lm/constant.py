@@ -49,9 +49,10 @@ SQLQuery: "SQL Query to run"
 
 Use the following information for the database:
 - Use {table} as table name.
-- The dataset includes columns like {columns} Select appropriate columns from these which are most relevant to the Question.
-- If the longitudes are negative then subtract that from 360.
-- If lat and lon columns present in {columns} consider them as latitude and longitude and use everywhere in query.
+- The dataset includes columns like {columns}. Select appropriate columns from these which are most relevant to the Question.
+- Latitude range is {latitude_range}, and longitude range is {longitude_range}. Generate query accordingly.
+- {latitude_dim} and {longitude_dim} are my columns for latitude and longitude so use them everywhere in query.
+    Ex. If lat and lon are in the {dims} then instead of latitude > x AND longitude > y use lat > x AND lon > y.
 - The interpretation of the "organic" soil type is value of soil type is equal to 6.
 - "Over all locations", "globally" entails iterating through "latitude" & "longitude."
 
@@ -68,16 +69,21 @@ few_shots = {
     "Average temperature over years.":"SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY time_year",
     "Aggregate precipitation globally?" : "SELECT SUM(precipitation) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' GROUP BY latitude, longitude",
     "For January 2000" : "SELECT * from TABLE where time >= '2000-01-01 00:00:00' AND time < '2000-02-01 00:00:00' ",
-    "Daily average temperature of New York for January 2015?": "SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2015-01-01' AND time < '2015-02-01' AND latitude > 40 AND latitude < 41 AND longitude > 286 AND longitude < 287 GROUP BY time_date"
+    "Daily average temperature of city x for January 2015?": "SELECT AVG(temperature) FROM 'gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3' WHERE time >= '2015-01-01' AND time < '2015-02-01' AND latitude > 40 AND latitude < 41 AND longitude > 286 AND longitude < 287 GROUP BY time_date",
+    "Daily min reflectivity of city x for January 2015?": "SELECT AVG(reflectivity) FROM 'ee://projects/anthromet-prod/assets/opera/instantaneous_maximum_reflectivity' WHERE time >= '2015-01-01' AND time < '2015-02-01' AND lat > 40.48 AND lat < 41.87 AND lon > -74.25 AND lon < -71.98 GROUP BY time_date"
 }
 
 SELECT_DATASET_TEMPLATE = """
-Based on below information answer the question
+I have some description of tables that stores weather related data.
+Analyze and give me an table that i need to query for provided question.
+Sometimes the exact column not be there in the table so select table that contains most relevant columns.
+    Ex. Daily average of precipitation rate asked but exact precipitation column is not there then select the table that contains relevant column like total_precipitation, precipitation_rate, total_precipitation_rate, etc.
+Below is the description and input qustion
 {table_map}
 
 Question: {question}
 
 Please use the following format:
 
-{question}:appropriate dataset
+{question}:appropriate table
 """

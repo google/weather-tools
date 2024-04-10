@@ -23,7 +23,17 @@ DEFINED_PROMPTS = {
         template = SELECT_DATASET_TEMPLATE,
     ),
     'generate_sql': PromptTemplate(
-        input_variables = ["question", "few_shot_examples", "table", "columns"],
+        input_variables = [
+            "question",
+            "few_shot_examples",
+            "table",
+            "columns",
+            "dims",
+            "latitude_dim",
+            "latitude_range",
+            "longitude_dim",
+            "longitude_range"
+        ],
         template = GENERATE_SQL_TEMPLATE,
     )
 }

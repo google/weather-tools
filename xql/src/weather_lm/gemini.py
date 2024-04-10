@@ -64,16 +64,18 @@ def nl_to_sql_query(input_statement: str) -> str:
         "question": input_statement,
         "table": dataset_metadata['uri'],
         "columns": dataset_metadata['columns'],
-        "few_shot_examples": few_shots
+        "few_shot_examples": few_shots,
+        "dims": dataset_metadata["dims"],
+        'latitude_dim': dataset_metadata["latitude_dim"],
+        'latitude_range': dataset_metadata["latitude_range"],
+        'longitude_dim': dataset_metadata["longitude_dim"],
+        'longitude_range': dataset_metadata["longitude_range"]
     })
 
     # Extract SQL query from result.
     # The response will look like [SQLQuery: SELECT * FROM {table} WHERE ...].
     # So slice the sql query from string.
     sql_query = generate_sql_res[11:-1]
-
-    # Print generated SQL statement for debugging
-    print("Generated SQL Statement:", sql_query)
 
     return sql_query
 
@@ -87,6 +89,9 @@ def nl_to_weather_data(input_statement: str):
     """
     # Generate SQL query
     sql_query = nl_to_sql_query(input_statement)
+
+    # Print generated SQL statement for debugging
+    print("Generated SQL Statement:", sql_query)
 
     # Execute SQL query to fetch weather data
     print(run_query(sql_query))
