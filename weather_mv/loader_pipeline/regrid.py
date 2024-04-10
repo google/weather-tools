@@ -159,7 +159,7 @@ class RegridChunk(MapChunkAsFieldset):
             return tmpl
 
     def apply(self, key: xbeam.Key, fs: Fieldset) -> t.Tuple[xbeam.Key, Fieldset]:
-        return key, mv.regrid(data=fs, **self.regrid_kwargs)
+        return key, mv.regrid(data=fs, accuracy=12, **self.regrid_kwargs)
 
 
 @dataclasses.dataclass
@@ -265,7 +265,7 @@ class Regrid(ToDataSink):
 
                 logger.info(f'Regridding {uri!r}.')
                 fs = mv.bindings.Fieldset(path=local_grib)
-                fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
+                fieldset = mv.regrid(data=fs, accuracy=12, **self.regrid_kwargs)
 
             with tempfile.NamedTemporaryFile() as src:
                 logger.info(f'Writing {self.target_from(uri)!r} to local disk.')
