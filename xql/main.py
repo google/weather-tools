@@ -42,7 +42,7 @@ if __name__ == '__main__':
             if known_args.mode == "xql":
                 main(query)
             else:
-                nl_to_weather_data(query)
+                print(nl_to_weather_data(query))
     except ImportError as e:
         raise ImportError('main function is not imported please try again.') from e
 

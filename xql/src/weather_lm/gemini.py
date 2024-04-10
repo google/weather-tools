@@ -94,4 +94,4 @@ def nl_to_weather_data(input_statement: str):
     print("Generated SQL Statement:", sql_query)
 
     # Execute SQL query to fetch weather data
-    print(run_query(sql_query))
+    return run_query(sql_query)
