@@ -26,7 +26,11 @@ requirements = [
     "toolz==0.12.0",
     "xarray==2024.01.0",
     "xee",
-    "zarr==2.17.0"
+    "zarr==2.17.0",
+    "langchain",
+    "langchain-experimental",
+    "langchain-openai",
+    "langchain-google-genai"
 ]
 
 setup(
@@ -40,5 +44,5 @@ setup(
     description=("Running SQL queries on Xarray Datasets. Consider dataset as a table and data variable as a column."),
     long_description=open('README.md', 'r', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
-    python_requires='>=3.8, <3.11',
+    python_requires='>=3.9, <3.11',
 )
