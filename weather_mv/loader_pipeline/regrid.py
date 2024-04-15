@@ -159,7 +159,7 @@ class RegridChunk(MapChunkAsFieldset):
             return tmpl
 
     def apply(self, key: xbeam.Key, fs: Fieldset) -> t.Tuple[xbeam.Key, Fieldset]:
-        return key, mv.regrid(data=fs, accuracy=12, **self.regrid_kwargs)
+        return key, mv.regrid(data=fs, **{"accuracy": 12, **self.regrid_kwargs})
 
 
 @dataclasses.dataclass
@@ -254,32 +254,35 @@ class Regrid(ToDataSink):
             return
 
         with _metview_op():
-            logger.info(f'Copying grib from {uri!r} to local disk.')
+            try:
+                logger.info(f'Copying grib from {uri!r} to local disk.')
 
-            with open_local(uri) as local_grib:
-                logger.info(f"Checking for {uri}'s validity...")
-                if self.is_grib_file_corrupt(local_grib):
-                    logger.error(f"Corrupt GRIB file found: {uri}.")
-                    return
-                logger.info(f"No issues found with {uri}.")
+                with open_local(uri) as local_grib:
+                    logger.info(f"Checking for {uri}'s validity...")
+                    if self.is_grib_file_corrupt(local_grib):
+                        logger.error(f"Corrupt GRIB file found: {uri}.")
+                        return
+                    logger.info(f"No issues found with {uri}.")
 
-                logger.info(f'Regridding {uri!r}.')
-                fs = mv.bindings.Fieldset(path=local_grib)
-                fieldset = mv.regrid(data=fs, accuracy=12, **self.regrid_kwargs)
+                    logger.info(f'Regridding {uri!r}.')
+                    fs = mv.bindings.Fieldset(path=local_grib)
+                    fieldset = mv.regrid(data=fs, **{"accuracy": 12, **self.regrid_kwargs})
 
-            with tempfile.NamedTemporaryFile() as src:
-                logger.info(f'Writing {self.target_from(uri)!r} to local disk.')
-                if self.to_netcdf:
-                    fieldset.to_dataset().to_netcdf(src.name)
-                else:
-                    mv.write(src.name, fieldset)
+                with tempfile.NamedTemporaryFile() as src:
+                    logger.info(f'Writing {self.target_from(uri)!r} to local disk.')
+                    if self.to_netcdf:
+                        fieldset.to_dataset().to_netcdf(src.name)
+                    else:
+                        mv.write(src.name, fieldset)
 
-                src.flush()
+                    src.flush()
 
-                _clear_metview()
+                    _clear_metview()
 
-                logger.info(f'Uploading {self.target_from(uri)!r}.')
-                copy(src.name, self.target_from(uri))
+                    logger.info(f'Uploading {self.target_from(uri)!r}.')
+                    copy(src.name, self.target_from(uri))
+            except Exception as e:
+                logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
     def expand(self, paths):
         if not self.zarr:
