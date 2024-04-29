@@ -56,12 +56,18 @@ def terminate_license_deployment(license_id: str) -> None:
     config.load_config()
 
     # Create an instance of the Kubernetes API client
-    api_instance = client.AppsV1Api()
+    batch_v1 = client.BatchV1Api()
 
     # Specify the name and namespace of the deployment to delete
-    deployment_name = f"weather-dl-v2-license-dep-{license_id}".lower()
+    job_name = f"weather-dl-v2-license-dep-{license_id}".lower()
 
     # Delete the deployment
-    api_instance.delete_namespaced_deployment(name=deployment_name, namespace="default")
+    batch_v1.delete_namespaced_job(
+        name=job_name,
+        namespace="default",
+        body=client.V1DeleteOptions(
+            propagation_policy='Foreground'
+        )
+    )
 
-    logger.info(f"Deployment '{deployment_name}' deleted successfully.")
+    logger.info(f"Deployment '{job_name}' deleted successfully.")
