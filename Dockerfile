@@ -17,9 +17,6 @@ ARG py_version=3.8
 FROM apache/beam_python${py_version}_sdk:2.40.0 as beam_sdk
 FROM continuumio/miniconda3:latest
 
-# Update miniconda
-RUN conda update conda -y
-
 # Add the mamba solver for faster builds
 RUN conda install -n base conda-libmamba-solver
 RUN conda config --set solver libmamba
