@@ -20,6 +20,7 @@ import logging
 import time
 import sys
 import os
+import google.cloud.logging
 
 from database import FirestoreClient
 from job_creator import create_download_job
@@ -28,8 +29,12 @@ from manifest import FirestoreManifest
 from util import exceptionit, ThreadSafeDict
 
 db_client = FirestoreClient()
+log_client = google.cloud.logging.Client()
+log_client.setup_logging()
 secretmanager_client = secretmanager.SecretManagerServiceClient()
 CONFIG_MAX_ERROR_COUNT = 10
+
+logger = logging.getLogger(__name__)
 
 def create_job(request, result):
     res = {
@@ -147,6 +152,7 @@ def main():
         # Disclaimer: A license will pick always pick concurrency_limit + 1
         # parition. One extra parition will be kept in threadpool task queue.
 
+        log_count = 0
         while True:
             # Fetch a request from the database
             request = fetch_request_from_db()
@@ -163,7 +169,11 @@ def main():
             # it's concurrency_limit. When an executor is freed up, the task
             # in queue is picked and license fetches another task.
             while executor._work_queue.qsize() >= 1:
-                logger.info("Worker busy. Waiting...")
+                # To prevent flooding of this log, we log this every 60 seconds.
+                if log_count%60 == 0:
+                    logger.info("Worker busy. Waiting...")
+                # Reset log_count if it goes beyond 3600.
+                log_count = 1 if log_count >= 3600 else log_count + 1
                 time.sleep(1)
 
 
@@ -189,11 +199,6 @@ def boot_up(license: str) -> None:
 if __name__ == "__main__":
     try:
         license = sys.argv[2]
-        global logger
-        logging.basicConfig(
-            level=logging.INFO, format=f"[{license}] %(levelname)s - %(message)s"
-        )
-        logger = logging.getLogger(__name__)
 
         logger.info(f"Deployment for license: {license}.")
         boot_up(license)
