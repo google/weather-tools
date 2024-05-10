@@ -198,7 +198,7 @@ def boot_up(license: str) -> None:
 
 if __name__ == "__main__":
     try:
-        license = sys.argv[2]        
+        license = sys.argv[2]
 
         logger.info(f"Deployment for license: {license}.")
         boot_up(license)
