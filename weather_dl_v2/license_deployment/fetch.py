@@ -172,8 +172,8 @@ def main():
                 # To prevent flooding of this log, we log this every 60 seconds.
                 if log_count%60 == 0:
                     logger.info("Worker busy. Waiting...")
-                # Reset log_count if it goes beyod 3600.
-                log_count = 1 if log_count > 3600 else log_count
+                # Reset log_count if it goes beyond 3600.
+                log_count = 1 if log_count >= 3600 else log_count + 1
                 time.sleep(1)
 
 
