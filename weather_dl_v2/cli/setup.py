@@ -21,7 +21,7 @@ setup(
     name="weather-dl-v2",
     packages=["app", "app.subcommands", "app.services"],
     install_requires=requirements,
-    version="0.0.2",
+    version="1.0.3",
     author="aniket",
     description=(
         "This cli tools helps in interacting with weather dl v2 fast API server."
