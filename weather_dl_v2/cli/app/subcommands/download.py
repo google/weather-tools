@@ -75,8 +75,17 @@ def submit_download(
             help="Force redownload of partitions that were previously downloaded.",
         ),
     ] = False,
+    priority: Annotated[
+        int | None,
+        typer.Option(
+            "-p",
+            "--priority",
+            help="Set the priority for submitted config in ALL licenses. If not added, the config is added" \
+                "at the end of the queue.",
+        ),
+    ] = None,
 ):
-    print(download_service._add_new_download(file_path, license, force_download))
+    print(download_service._add_new_download(file_path, license, force_download, priority))
 
 
 @app.command("get", help="Get a particular config.")
