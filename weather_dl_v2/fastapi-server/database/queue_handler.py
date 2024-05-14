@@ -217,13 +217,16 @@ class QueueHandlerFirestore(QueueHandler):
             )
 
     async def _update_config_priority_in_license(
-        self, license_id: str, config_name: str, priority: int
+        self, license_id: str, config_name: str, priority: int | None
     ) -> None:
         snapshot: DocumentSnapshot = (
             await self.db.collection(self.collection).document(license_id).get()
         )
         priority_list = snapshot.to_dict()["queue"]
         new_priority_list = [c for c in priority_list if c != config_name]
+        if priority is None:
+            # If no priority is given, insert at the end.
+            priority = len(new_priority_list)
         new_priority_list.insert(priority, config_name)
         result: WriteResult = (
             await self.db.collection(self.collection)

@@ -37,7 +37,7 @@ def _do_partitions(partition_obj: PartitionConfig):
 
 
 # TODO: Make partitioning faster.
-async def start_processing_config(config_file, licenses, force_download, priority):
+async def start_processing_config(config_file, licenses, force_download, priority = None):
     config = {}
     manifest = FirestoreManifest()
 
@@ -62,10 +62,8 @@ async def start_processing_config(config_file, licenses, force_download, priorit
         await download_handler._mark_partitioning_status(
             config_name, "Partitioning completed."
         )
-        await queue_handler._update_queues_on_start_download(config_name, licenses)
-        if priority:
-            for license_id in licenses:
-                await queue_handler._update_config_priority_in_license(license_id, config_name, priority)
+        for license_id in licenses:
+            await queue_handler._update_config_priority_in_license(license_id, config_name, priority)
     except Exception as e:
         error_str = f"Partitioning failed for {config_name} due to {e}."
         logger.error(error_str)
