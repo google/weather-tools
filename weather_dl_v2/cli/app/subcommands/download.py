@@ -81,7 +81,7 @@ def submit_download(
             "-p",
             "--priority",
             help="Set the priority for submitted config in ALL licenses. If not added, the config is added" \
-                "at the end of the queue.",
+                "at the end of the queue. Priority decreases in ascending order with 0 having highest priority.",
         ),
     ] = None,
 ):

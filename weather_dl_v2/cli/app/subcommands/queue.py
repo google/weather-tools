@@ -95,7 +95,7 @@ def modify_license_queue(
             "--priority",
             "-p",
             help="Absolute priority for the config in a license queue."
-            " Priority increases in ascending order with 0 having highest priority.",
+            " Priority decreases in ascending order with 0 having highest priority.",
         ),
     ] = None,
     auto_confirm: Annotated[bool, typer.Option("-y", help="Automically confirm any promt.")] = False
