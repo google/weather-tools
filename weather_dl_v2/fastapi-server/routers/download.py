@@ -197,6 +197,7 @@ async def submit_download(
     file: UploadFile | None = None,
     licenses: list = [],
     force_download: bool = False,
+    priority: int | None = None,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     download_handler: DownloadHandler = Depends(get_download_handler),
     license_handler: LicenseHandler = Depends(get_license_handler),
@@ -228,7 +229,7 @@ async def submit_download(
             dest = upload(file)
             # Start processing config.
             background_tasks.add_task(
-                start_processing_config, dest, licenses, force_download
+                start_processing_config, dest, licenses, force_download, priority
             )
             return {
                 "message": f"file '{file.filename}' saved at '{dest}' successfully."
