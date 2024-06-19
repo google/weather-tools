@@ -487,9 +487,14 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     safe_level_name = get_ee_safe_name(level)
                     asset_name = f'{asset_name}_{safe_level_name}'
 
-                compression = 'deflate' if self.use_deflate else 'lzw'
-                # Depending on dtype select predictor value.
-                predictor = 2 if np.issubdtype(dtype, np.integer) else 3
+                compression = 'lzw'
+                predictor = 'NO'
+                if self.use_deflate:
+                    compression = 'deflate'
+                    # Depending on dtype select predictor value.
+                    # Predictor is a method of storing only the difference from the
+                    # previous value instead of the actual value.
+                    predictor = 2 if np.issubdtype(dtype, np.integer) else 3
 
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
