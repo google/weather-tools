@@ -398,6 +398,8 @@ _Command options_:
 * `--initialization_time_regex`: A Regex string to get the initialization time from the filename.
 * `--forecast_time_regex`: A Regex string to get the forecast/end time from the filename.
 * `--group_common_hypercubes`: A flag that allows to split up large grib files into multiple level-wise ImageCollections / COGS.
+* `--use_deflate`: A flag that allows you to use deflate algorithm for beter compression. Using deflate compression
+  takes extra time in COG creation. Default:False.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 

@@ -244,6 +244,8 @@ class ToEarthEngine(ToDataSink):
     band_names_mapping: str
     initialization_time_regex: str
     forecast_time_regex: str
+    ingest_as_virtual_asset: bool
+    use_deflate:bool
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -286,6 +288,8 @@ class ToEarthEngine(ToDataSink):
                                help='A Regex string to get the forecast/end time from the filename.')
         subparser.add_argument('--ingest_as_virtual_asset', action='store_true', default=False,
                                help='To ingest image as a virtual asset. Default: False')
+        subparser.add_argument('--use_deflate', action='store_true', default=False,
+                               help='To use deflate compression algorithm. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -437,6 +441,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     band_names_dict: t.Optional[t.Dict] = None
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
+    use_deflate: t.Optional[bool] = False
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -482,6 +487,10 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                     safe_level_name = get_ee_safe_name(level)
                     asset_name = f'{asset_name}_{safe_level_name}'
 
+                compression = 'deflate' if self.use_deflate else 'lzw'
+                # Depending on dtype select predictor value.
+                predictor = 2 if np.issubdtype(dtype, np.integer) else 3
+
                 # For tiff ingestions.
                 if self.ee_asset_type == 'IMAGE':
                     file_name = f'{asset_name}.tiff'
@@ -495,7 +504,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                                           nodata=np.nan,
                                           crs=crs,
                                           transform=transform,
-                                          compress='lzw') as f:
+                                          compress=compression,
+                                          predictor=predictor) as f:
                             for i, da in enumerate(data):
                                 f.write(da, i+1)
                                 # Making the channel name EE-safe before adding it as a band name.
