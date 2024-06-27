@@ -205,7 +205,7 @@ class ExtractRowsTestBase(TestDataBase):
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
                 tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, zarr: bool = False, zarr_kwargs=None,
-                skip_creating_polygon: bool = False) -> t.Iterator[t.Dict]:
+                skip_creating_polygon: bool = False, input_chunks={ 'time': 1}) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
         op = ToBigQuery.from_kwargs(
@@ -215,7 +215,7 @@ class ExtractRowsTestBase(TestDataBase):
             tif_metadata_for_start_time=tif_metadata_for_start_time,
             tif_metadata_for_end_time=tif_metadata_for_end_time, skip_region_validation=True,
             disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
-            skip_creating_polygon=skip_creating_polygon)
+            skip_creating_polygon=skip_creating_polygon, input_chunks=input_chunks)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -792,6 +792,7 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
             tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
             disable_grib_schema_normalization=False,
+            input_chunks={'time': 1}
         )
 
         with TestPipeline() as p:
