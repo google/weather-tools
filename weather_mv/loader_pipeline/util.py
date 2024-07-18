@@ -38,6 +38,7 @@ from google.cloud import bigquery, storage
 from xarray.core.utils import ensure_us_time_resolution
 
 from .sinks import DEFAULT_COORD_KEYS
+from .metrics import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +325,20 @@ def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
 
 
+# (key, element)
+
+# (key, element), time_dict
+
+
+class Shard(beam.DoFn):
+    def __init__(self, num_shards: int):
+        super().__init__()
+        self.num_shards = num_shards
+
+    @timeit('Sharding', keyed_fn=True)
+    def process(self, element, *args, **kwargs):
+        yield _shard(element, num_shards=self.num_shards)
+
 class RateLimit(beam.PTransform, abc.ABC):
     """PTransform to extend to apply a global rate limit to an operation.
 
@@ -377,7 +392,8 @@ class RateLimit(beam.PTransform, abc.ABC):
 
     def expand(self, pcol: beam.PCollection):
         return (pcol
-                | beam.Map(_shard, self._num_shards)
+                # | beam.Map(_shard, self._num_shards)
+                | beam.ParDo(Shard(num_shards=self._num_shards))
                 | beam.GroupByKey()
                 | beam.ParDo(
                     _RateLimitDoFn(self.process, self._latency_per_request)))
