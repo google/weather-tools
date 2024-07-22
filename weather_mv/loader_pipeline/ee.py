@@ -615,9 +615,6 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
 
         process.terminate()
 
-    def expand(self, pcoll):
-        return pcoll | beam.FlatMap(self.process)
-
 
 class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     """Ingests asset into earth engine and yields asset id.
