@@ -8,7 +8,13 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.metrics import metric
 
 
-def timeit(func_name: str, first_timer: bool = False, keyed_fn: bool = False):
+def timeit(func_name: str, keyed_fn: bool = False):
+    """Decorator to add time it takes for an element to be processed by a stage.
+
+    Args:
+        func_name: A unique name of the stage.
+        keyed_fn (optional): This has to be passed true if the input is adding keys to the element.
+    """
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
@@ -17,16 +23,15 @@ def timeit(func_name: str, first_timer: bool = False, keyed_fn: bool = False):
 
             # Only the first timer wrapper will have no time_dict.
             # All subsequent wrappers can extract out the dict.
-            if not first_timer:
-                # args 0 would be a tuple.
-                if len(args[0]) == 1:
-                    raise ValueError('time_dict not found.')
+            # args 0 would be a tuple.
+            if len(args[0]) == 1:
+                raise ValueError('time_dict not found.')
 
-                element, time_dict = args[0]
-                args = (element,) + args[1:]
+            element, time_dict = args[0]
+            args = (element,) + args[1:]
 
-                if not isinstance(time_dict, dict):
-                    raise ValueError('time_dict not found.')
+            if not isinstance(time_dict, dict):
+                raise ValueError('time_dict not found.')
 
             # If the function is a generator, yield the output
             # othewise return it.
@@ -42,32 +47,21 @@ def timeit(func_name: str, first_timer: bool = False, keyed_fn: bool = False):
                     else:
                         yield result, new_time_dict
             else:
-                result = func(self, *args, **kwargs)
-                end_time = time.time()
-                processing_time = end_time - start_time
-                new_time_dict = copy.deepcopy(time_dict)
-                new_time_dict[func_name] = processing_time
-                return result, new_time_dict
+                raise ValueError("Function is not a generator.")
 
         return wrapper
     return decorator
 
-class YourExistingDoFn(beam.DoFn):
-    @timeit("simple dofn", first_timer=True)
+
+class AddTimer(beam.DoFn):
     def process(self, element):
-        yield element * 2
-
-class YourExistingDoFn2(beam.DoFn):
-    @timeit("simple dofn 2")
-    def process(self, element):
-        yield element * 3
-
-
-def add_timer(element):
-    return element, {}
+        time_dict = {}
+        yield element, time_dict
 
 
 class AddMetrics(beam.DoFn):
+    """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
+
     def __init__(self):
         super().__init__()
         self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
@@ -84,21 +78,3 @@ class AddMetrics(beam.DoFn):
             total_time += time
 
         self.element_processing_time.update(int(total_time * 1000))
-
-
-
-# Example usage within a pipeline
-def main():
-    options = PipelineOptions()
-    with Pipeline(options=options) as p:
-
-        _ = (
-            p
-            | 'Create' >> beam.Create([1, 2, 3, 4, 5])
-            | 'First ParDo' >> beam.ParDo(YourExistingDoFn())
-            | 'Second ParDo' >> beam.ParDo(YourExistingDoFn2())
-            | 'Print Result' >> beam.Map(print)
-        )
-
-if __name__ == '__main__':
-    main()

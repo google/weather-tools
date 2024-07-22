@@ -40,7 +40,7 @@ from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
-from .metrics import timeit, add_timer, AddMetrics
+from .metrics import timeit, AddTimer, AddMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -354,7 +354,7 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             (
                 paths
-                | 'AddTimer' >> beam.Map(add_timer)
+                | 'AddTimer' >> beam.ParDo(AddTimer())
                 | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self)))
