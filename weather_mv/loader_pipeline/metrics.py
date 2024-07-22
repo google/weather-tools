@@ -19,8 +19,6 @@ import copy
 import inspect
 from functools import wraps
 import apache_beam as beam
-from apache_beam import DoFn, Pipeline, PCollection
-from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.metrics import metric
 
 
