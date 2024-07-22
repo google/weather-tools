@@ -1,3 +1,19 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Utilities for adding metrics to beam pipeline."""
+
 import time
 import copy
 import inspect
@@ -14,6 +30,17 @@ def timeit(func_name: str, keyed_fn: bool = False):
     Args:
         func_name: A unique name of the stage.
         keyed_fn (optional): This has to be passed true if the input is adding keys to the element.
+
+        For example a stage like
+        class Shard(beam.DoFn):
+
+            @timeit('Sharding', keyed_fn=True)
+            def process(self,element):
+                key = randrange(10)
+                yield key, element
+        
+        We are passing `keyed_fn=True` as we are adding a key to our element. Usually keys are added
+        to later group the element by a `GroupBy` stage.
     """
     def decorator(func):
         @wraps(func)
