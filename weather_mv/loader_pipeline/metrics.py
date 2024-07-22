@@ -30,13 +30,13 @@ def timeit(func_name: str, keyed_fn: bool = False):
         keyed_fn (optional): This has to be passed true if the input is adding keys to the element.
 
         For example a stage like
-        class Shard(beam.DoFn):
 
+        class Shard(beam.DoFn):
             @timeit('Sharding', keyed_fn=True)
             def process(self,element):
                 key = randrange(10)
                 yield key, element
-        
+
         We are passing `keyed_fn=True` as we are adding a key to our element. Usually keys are added
         to later group the element by a `GroupBy` stage.
     """
@@ -101,7 +101,7 @@ class AddMetrics(beam.DoFn):
             raise ValueError("time_dict not found.")
 
         total_time = 0
-        for time in time_dict.values():
-            total_time += time
+        for stage_time in time_dict.values():
+            total_time += stage_time
 
         self.element_processing_time.update(int(total_time * 1000))
