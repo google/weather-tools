@@ -326,6 +326,7 @@ def _shard(elem, num_shards: int):
 
 
 class Shard(beam.DoFn):
+    """DoFn to shard elements into groups."""
     def __init__(self, num_shards: int):
         super().__init__()
         self.num_shards = num_shards

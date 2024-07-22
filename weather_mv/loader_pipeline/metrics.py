@@ -79,6 +79,8 @@ def timeit(func_name: str, keyed_fn: bool = False):
 
 
 class AddTimer(beam.DoFn):
+    """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
+    and the time it took for that element in that stage."""
     def process(self, element):
         time_dict = {}
         yield element, time_dict
