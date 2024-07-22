@@ -325,11 +325,6 @@ def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
 
 
-# (key, element)
-
-# (key, element), time_dict
-
-
 class Shard(beam.DoFn):
     def __init__(self, num_shards: int):
         super().__init__()
@@ -392,7 +387,6 @@ class RateLimit(beam.PTransform, abc.ABC):
 
     def expand(self, pcol: beam.PCollection):
         return (pcol
-                # | beam.Map(_shard, self._num_shards)
                 | beam.ParDo(Shard(num_shards=self._num_shards))
                 | beam.GroupByKey()
                 | beam.ParDo(
