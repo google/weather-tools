@@ -30,6 +30,7 @@ import apache_beam as beam
 import ee
 import numpy as np
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
@@ -40,6 +41,7 @@ from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
+from .metrics import timeit, AddTimer, AddMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -353,10 +355,14 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             (
                 paths
+                | 'AddTimer' >> beam.ParDo(AddTimer())
                 | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
-                | 'ConvertToAsset' >> ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                | 'ConvertToAsset' >> beam.ParDo(
+                    ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                    )
                 | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
+                | 'AddMetrics' >> beam.ParDo(AddMetrics())
             )
         else:
             (
@@ -402,6 +408,7 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
         self.ee_asset_type = ee_asset_type
         self.force_overwrite = force
 
+    @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
         self.check_setup()
@@ -423,7 +430,7 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
 
 
 @dataclasses.dataclass
-class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
+class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     """Writes asset after extracting input data and uploads it to GCS.
 
     Attributes:
@@ -579,6 +586,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 self.add_to_queue(queue, asset_data)
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
+    @timeit('ConvertToAsset')
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData.
 
@@ -609,9 +617,6 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 break
 
         process.terminate()
-
-    def expand(self, pcoll):
-        return pcoll | beam.FlatMap(self.process)
 
 
 class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
@@ -757,9 +762,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 ee.data.deleteAsset(asset_name)
             raise
 
+    @timeit('IngestIntoEE')
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
         asset_id = self.start_ingestion(asset_data)
-        beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
+        metric.Metrics.counter('Success', 'IngestIntoEE').inc()
 
         yield asset_id
