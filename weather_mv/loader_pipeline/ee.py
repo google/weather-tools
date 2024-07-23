@@ -30,6 +30,7 @@ import apache_beam as beam
 import ee
 import numpy as np
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
@@ -765,6 +766,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     def process(self, asset_data: AssetData) -> t.Iterator[str]:
         """Uploads an asset into the earth engine."""
         asset_id = self.start_ingestion(asset_data)
-        beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
+        metric.Metrics.counter('Success', 'IngestIntoEE').inc()
 
         yield asset_id

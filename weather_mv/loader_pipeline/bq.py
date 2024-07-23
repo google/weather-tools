@@ -28,6 +28,7 @@ import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.transforms import window
+from apache_beam.metrics import metric
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
@@ -294,7 +295,7 @@ class ToBigQuery(ToDataSink):
             # 'row' ends up looking like:
             # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
             #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            metric.Metrics.counter('Success', 'ExtractRows').inc()
             yield row
 
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
