@@ -461,7 +461,9 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
 
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
-        logger.info(f'Converting {uri!r} to COGs...')
+        child_logger = logging.getLogger(__name__)
+        child_logger.info(f'Converting {uri!r} to COGs...')
+
         job_start_time = get_utc_timestamp()
 
         with open_dataset(uri,
@@ -532,6 +534,8 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
                         target_path = os.path.join(self.asset_location, file_name)
                         with FileSystems().create(target_path) as dst:
                             shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                            child_logger.info(f"Uploaded {uri!r}'s COG to {target_path}")
+
                 # For feature collection ingestions.
                 elif self.ee_asset_type == 'TABLE':
                     channel_names = []
