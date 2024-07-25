@@ -101,13 +101,13 @@ class AddMetrics(beam.DoFn):
         (_, asset_start_time), time_dict = element
         if not isinstance(time_dict, dict):
             raise ValueError("time_dict not found.")
-        
-        # Adding element processing time.
 
+        # Adding element processing time.
         total_time = 0
         for stage_time in time_dict.values():
             total_time += stage_time
 
+        # Converting seconds to ms.
         self.element_processing_time.update(int(total_time * 1000))
 
         # Adding data latency.
@@ -115,5 +115,6 @@ class AddMetrics(beam.DoFn):
             current_time = time.time()
             asset_start_time = datetime.datetime.strptime(asset_start_time, '%Y-%m-%dT%H:%M:%SZ').timestamp()
 
+            # Converting seconds to ms.
             data_latency_ms = (current_time - asset_start_time) * 1000
             self.data_latency_time.update(int(data_latency_ms))
