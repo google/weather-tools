@@ -90,7 +90,7 @@ class AddTimer(beam.DoFn):
 class AddMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
-    def __init__(self, show_data_latency: bool = False):
+    def __init__(self):
         super().__init__()
         self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
         self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
