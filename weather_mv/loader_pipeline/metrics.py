@@ -16,6 +16,7 @@
 
 import time
 import copy
+import datetime
 import inspect
 from functools import wraps
 import apache_beam as beam
@@ -89,19 +90,30 @@ class AddTimer(beam.DoFn):
 class AddMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
-    def __init__(self):
+    def __init__(self, show_data_latency: bool = False):
         super().__init__()
         self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
+        self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
 
     def process(self, element):
         if len(element) == 0:
             raise ValueError("time_dict not found.")
-        _, time_dict = element
+        (_, asset_start_time), time_dict = element
         if not isinstance(time_dict, dict):
             raise ValueError("time_dict not found.")
+        
+        # Adding element processing time.
 
         total_time = 0
         for stage_time in time_dict.values():
             total_time += stage_time
 
         self.element_processing_time.update(int(total_time * 1000))
+
+        # Adding data latency.
+        if asset_start_time:
+            current_time = time.time()
+            asset_start_time = datetime.datetime.strptime(asset_start_time, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+
+            data_latency_ms = (current_time - asset_start_time) * 1000
+            self.data_latency_time.update(int(data_latency_ms))

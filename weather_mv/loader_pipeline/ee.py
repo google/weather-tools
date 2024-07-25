@@ -768,4 +768,5 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         asset_id = self.start_ingestion(asset_data)
         metric.Metrics.counter('Success', 'IngestIntoEE').inc()
 
-        yield asset_id
+        asset_start_time = asset_data.start_time
+        yield asset_id, asset_start_time
