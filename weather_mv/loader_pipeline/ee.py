@@ -352,6 +352,8 @@ class ToEarthEngine(ToDataSink):
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
+        logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
+
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
         band_names_dict = {}
