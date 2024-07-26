@@ -47,7 +47,7 @@ def timeit(func_name: str, keyed_fn: bool = False):
             # If metrics are turned off, don't do anything.
             if (
                 not hasattr(self, 'use_metrics') or
-                (hasattr(self, 'use_metrics') and self.use_metrics == False)
+                (hasattr(self, 'use_metrics') and not self.use_metrics)
             ):
                 for result in func(self, *args, **kwargs):
                     yield result
