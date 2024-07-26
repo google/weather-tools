@@ -75,7 +75,7 @@ class ConvertToAssetTests(TestDataBase):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.tiff')
 
-        next(self.convert_to_image_asset.process((data_path, {})))
+        next(self.convert_to_image_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
@@ -84,7 +84,7 @@ class ConvertToAssetTests(TestDataBase):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
         asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.tiff')
 
-        next(self.convert_to_image_asset.process((data_path, {})))
+        next(self.convert_to_image_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
@@ -93,7 +93,7 @@ class ConvertToAssetTests(TestDataBase):
         data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
         asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_single_timestep.csv')
 
-        next(self.convert_to_table_asset.process((data_path, {})))
+        next(self.convert_to_table_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
@@ -102,7 +102,7 @@ class ConvertToAssetTests(TestDataBase):
         data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
         asset_path = os.path.join(self.tmpdir.name, 'test_data_grib_multiple_edition_single_timestep.csv')
 
-        next(self.convert_to_table_asset.process((data_path, {})))
+        next(self.convert_to_table_asset.process(data_path))
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
