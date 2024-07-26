@@ -327,9 +327,10 @@ def _shard(elem, num_shards: int):
 
 class Shard(beam.DoFn):
     """DoFn to shard elements into groups."""
-    def __init__(self, num_shards: int):
+    def __init__(self, num_shards: int, use_metrics: bool):
         super().__init__()
         self.num_shards = num_shards
+        self.use_metrics = use_metrics
 
     @timeit('Sharding', keyed_fn=True)
     def process(self, element, *args, **kwargs):
@@ -345,7 +346,8 @@ class RateLimit(beam.PTransform, abc.ABC):
     def __init__(self,
                  global_rate_limit_qps: int,
                  latency_per_request: float,
-                 max_concurrent_requests: int):
+                 max_concurrent_requests: int,
+                 use_metrics: bool):
         """Creates a RateLimit object.
 
         global_rate_limit_qps and latency_per_request are used to determine how the
@@ -370,6 +372,7 @@ class RateLimit(beam.PTransform, abc.ABC):
         self._latency_per_request = datetime.timedelta(seconds=latency_per_request)
         self._num_shards = max(1, min(int(self._rate_limit * self._latency_per_request.total_seconds()),
                                       max_concurrent_requests))
+        self.use_metrics = use_metrics
 
     @abc.abstractmethod
     def process(self, elem: t.Any):
@@ -388,7 +391,7 @@ class RateLimit(beam.PTransform, abc.ABC):
 
     def expand(self, pcol: beam.PCollection):
         return (pcol
-                | beam.ParDo(Shard(num_shards=self._num_shards))
+                | beam.ParDo(Shard(num_shards=self._num_shards, use_metrics=self.use_metrics))
                 | beam.GroupByKey()
                 | beam.ParDo(
                     _RateLimitDoFn(self.process, self._latency_per_request)))
