@@ -44,6 +44,16 @@ def timeit(func_name: str, keyed_fn: bool = False):
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
+            # If metrics are turned off, don't do anything.
+            if (
+                not hasattr(self, 'use_metrics') or
+                (hasattr(self, 'use_metrics') and self.use_metrics == False)
+            ):
+                for result in func(self, *args, **kwargs):
+                    yield result
+
+                return
+
             start_time = time.time()
             time_dict = {}
 

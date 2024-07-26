@@ -141,14 +141,17 @@ class SetupEarthEngine(RateLimit):
                  ee_max_concurrent: int,
                  private_key: str,
                  service_account: str,
-                 use_personal_account: bool):
+                 use_personal_account: bool,
+                 use_metrics: bool):
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
-                         max_concurrent_requests=ee_max_concurrent)
+                         max_concurrent_requests=ee_max_concurrent,
+                         use_metrics=use_metrics)
         self._has_setup = False
         self.private_key = private_key
         self.service_account = service_account
         self.use_personal_account = use_personal_account
+        self.use_metrics = use_metrics
 
     def setup(self):
         """Makes sure ee is set up on every worker."""
@@ -248,6 +251,7 @@ class ToEarthEngine(ToDataSink):
     forecast_time_regex: str
     ingest_as_virtual_asset: bool
     use_deflate:bool
+    use_metrics: bool
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -292,6 +296,8 @@ class ToEarthEngine(ToDataSink):
                                help='To ingest image as a virtual asset. Default: False')
         subparser.add_argument('--use_deflate', action='store_true', default=False,
                                help='To use deflate compression algorithm. Default: False')
+        subparser.add_argument('--use_metrics', action='store_true', default=False,
+                               help='If you want to add metrics to your pipeline.')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -352,18 +358,23 @@ class ToEarthEngine(ToDataSink):
         if self.band_names_mapping:
             with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
                 band_names_dict = json.load(f)
+
+        if self.use_metrics:
+            paths = paths | 'AddTimer' >> beam.ParDo(AddTimer())
+
         if not self.dry_run:
-            (
+            output = (
                 paths
-                | 'AddTimer' >> beam.ParDo(AddTimer())
                 | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
                     )
                 | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
-                | 'AddMetrics' >> beam.ParDo(AddMetrics())
             )
+
+            if self.use_metrics:
+                output | 'AddMetrics' >> beam.ParDo(AddMetrics())
         else:
             (
                 paths
@@ -395,18 +406,21 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
                  force: bool,
                  private_key: str,
                  service_account: str,
-                 use_personal_account: bool):
+                 use_personal_account: bool,
+                 use_metrics: bool):
         """Sets up rate limit and initializes the earth engine."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
                          ee_max_concurrent=ee_max_concurrent,
                          private_key=private_key,
                          service_account=service_account,
-                         use_personal_account=use_personal_account)
+                         use_personal_account=use_personal_account,
+                         use_metrics=use_metrics)
         self.asset_location = asset_location
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.force_overwrite = force
+        self.use_metrics = use_metrics
 
     @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
@@ -449,6 +463,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
     use_deflate: t.Optional[bool] = False
+    use_metrics: t.Optional[bool] = False
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -646,17 +661,20 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool,
-                 ingest_as_virtual_asset: bool,):
+                 ingest_as_virtual_asset: bool,
+                 use_metrics: bool):
         """Sets up rate limit."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
                          ee_max_concurrent=ee_max_concurrent,
                          private_key=private_key,
                          service_account=service_account,
-                         use_personal_account=use_personal_account)
+                         use_personal_account=use_personal_account,
+                         use_metrics=use_metrics)
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
+        self.use_metrics = use_metrics
 
     def get_project_id(self) -> str:
         return self.ee_asset.split('/')[1]
