@@ -23,6 +23,7 @@ from pprint import pformat
 import apache_beam as beam
 import geojson
 import numpy as np
+import pandas as pd
 import xarray as xr
 import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
@@ -101,6 +102,7 @@ class ToBigQuery(ToDataSink):
     tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
+    input_chunks: t.Dict
     coordinate_chunk_size: int = 10_000
     skip_creating_polygon: bool = False
     lat_grid_resolution: t.Optional[float] = None
@@ -142,6 +144,8 @@ class ToBigQuery(ToDataSink):
                                     'BigQuery. Used to tune parallel uploads.')
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help="To disable grib's schema normalization. Default: off")
+        subparser.add_argument('--input_chunks', type=json.loads, default='{"time": 1}',
+                               help="Dataset will be opened in provided chunk scheme.")
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -255,6 +259,7 @@ class ToBigQuery(ToDataSink):
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             yield from self.to_rows(coordinates, data_ds, uri)
 
+    # TODO(#414): generalize rows generation for all type of Datasets and remove this method
     def to_rows(self, coordinates: t.Iterable[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
         first_ts_raw = (
             ds.time[0].values if isinstance(ds.time.values, np.ndarray)
@@ -298,12 +303,42 @@ class ToBigQuery(ToDataSink):
             metric.Metrics.counter('Success', 'ExtractRows').inc()
             yield row
 
+    def df_to_rows(self, rows: pd.DataFrame, ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
+        first_ts_raw = (
+            ds.time[0].values if isinstance(ds.time.values, np.ndarray)
+            else ds.time.values
+        )
+        first_time_step = to_json_serializable_type(first_ts_raw)
+        for _, row in rows.iterrows():
+            row = row.astype(object).where(pd.notnull(row), None)
+            row = {k: to_json_serializable_type(v) for k, v in row.items()}
+
+            # Add import metadata.
+            row[DATA_IMPORT_TIME_COLUMN] = self.import_time
+            row[DATA_URI_COLUMN] = uri
+            row[DATA_FIRST_STEP] = first_time_step
+
+            longitude = ((row['longitude'] + 180) % 360) - 180
+            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
+            row[GEO_POLYGON_COLUMN] = (
+                fetch_geo_polygon(row["latitude"], longitude, self.lat_grid_resolution, self.lon_grid_resolution)
+                if not self.skip_creating_polygon
+                else None
+            )
+            # 'row' ends up looking like:
+            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
+            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
+            beam.metrics.Metrics.counter('Success', 'ExtractRows').inc()
+            yield row
+
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
+        logger.info(f"Processing for time: {ds['time'].values}")
         uri = ds.attrs.get(DATA_URI_COLUMN, '')
         # Re-calculate import time for streaming extractions.
         if not self.import_time or self.zarr:
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
-        yield from self.to_rows(get_coordinates(ds, uri), ds, uri)
+        df = ds.to_dataframe().reset_index()
+        yield from self.df_to_rows(df[:], ds, uri)
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
@@ -319,7 +354,7 @@ class ToBigQuery(ToDataSink):
             xarray_open_dataset_kwargs.pop('chunks')
             start_date = xarray_open_dataset_kwargs.pop('start_date', None)
             end_date = xarray_open_dataset_kwargs.pop('end_date', None)
-            ds, chunks = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
+            ds, _ = xbeam.open_zarr(self.first_uri, **xarray_open_dataset_kwargs)
 
             if start_date is not None and end_date is not None:
                 ds = ds.sel(time=slice(start_date, end_date))
@@ -327,7 +362,7 @@ class ToBigQuery(ToDataSink):
             ds.attrs[DATA_URI_COLUMN] = self.first_uri
             extracted_rows = (
                 paths
-                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, chunks)
+                | 'OpenChunks' >> xbeam.DatasetToChunks(ds, self.input_chunks)
                 | 'ExtractRows' >> beam.FlatMapTuple(self.chunks_to_rows)
                 | 'Window' >> beam.WindowInto(window.FixedWindows(60))
                 | 'AddTimestamp' >> beam.Map(timestamp_row)
