@@ -3,9 +3,9 @@
     "queues_collection": "queues",
     "license_collection": "license",
     "manifest_collection": "manifest",
-    "storage_bucket": "weather-dl-v2-storage",
-    "gcs_project": "anthromet-ingestion",
-    "license_deployment_image": "gcr.io/anthromet-ingestion/weather-tools:weather-dl-v2-license-dep",
-    "downloader_k8_image": "gcr.io/anthromet-ingestion/weather-tools:weather-dl-v2-downloader",
+    "storage_bucket": "XXXXXXX",
+    "gcs_project": "XXXXXXX",
+    "license_deployment_image": "XXXXXXX",
+    "downloader_k8_image": "XXXXXXX",
     "welcome_message": "Greetings from weather-dl v2 from weather-dl-v2-cluster-2!"
 }
