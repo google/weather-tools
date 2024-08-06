@@ -31,4 +31,7 @@ ARG CONDA_ENV_NAME=weather-dl-v2-license-dep
 RUN echo "source activate ${CONDA_ENV_NAME}" >> ~/.bashrc
 ENV PATH /opt/conda/envs/${CONDA_ENV_NAME}/bin:$PATH
 
+# Add a health for liveness and readiness probe
+RUN touch /tmp/healthy
+
 ENTRYPOINT ["python", "-u", "fetch.py"]

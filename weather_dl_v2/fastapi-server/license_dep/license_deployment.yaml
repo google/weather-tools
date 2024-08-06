@@ -20,10 +20,25 @@ spec:
             requests:
               cpu: "1500m"                  # CPU: 1.5 vCPU
               memory: "2Gi"                 # RAM: 2 GiB
-              ephemeral-storage: "10Gi"    # Storage: 10 GiB
+              ephemeral-storage: "10Gi"     # Storage: 10 GiB
           volumeMounts:
           - name: config-volume
             mountPath: ./config
+          # The liveness and readiness checks returns ok for all probes.
+          livenessProbe:
+            exec:
+              command:
+              - echo
+              - ready
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          readinessProbe:
+            exec:
+              command:
+              - echo
+              - ready
+            initialDelaySeconds: 60
+            periodSeconds: 60
       volumes:
         - name: config-volume
           configMap:
