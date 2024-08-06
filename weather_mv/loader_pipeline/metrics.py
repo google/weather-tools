@@ -19,6 +19,7 @@ import copy
 import datetime
 import inspect
 from functools import wraps
+import typing as t
 import apache_beam as beam
 from apache_beam.metrics import metric
 
@@ -92,7 +93,7 @@ def timeit(func_name: str, keyed_fn: bool = False):
 class AddTimer(beam.DoFn):
     """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
     and the time it took for that element in that stage."""
-    def process(self, element):
+    def process(self, element) -> t.Iterator[t.Any]:
         time_dict = {}
         yield element, time_dict
 
