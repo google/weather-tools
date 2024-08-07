@@ -10,7 +10,7 @@ spec:
     spec:
       restartPolicy: Never
       nodeSelector:
-        cloud.google.com/gke-nodepool: license-pool
+        cloud.google.com/gke-nodepool: default-pool
       containers:
         - name: weather-dl-v2-license-dep
           image: XXXXXXX
@@ -18,12 +18,27 @@ spec:
           args: []
           resources:
             requests:
-              cpu: "2000m"                  # CPU: 2 vCPU
+              cpu: "1500m"                  # CPU: 1.5 vCPU
               memory: "2Gi"                 # RAM: 2 GiB
-              ephemeral-storage: "10Gi"    # Storage: 10 GiB
+              ephemeral-storage: "10Gi"     # Storage: 10 GiB
           volumeMounts:
           - name: config-volume
             mountPath: ./config
+          # The liveness and readiness checks returns ok for all probes.
+          livenessProbe:
+            exec:
+              command:
+              - echo
+              - ready
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          readinessProbe:
+            exec:
+              command:
+              - echo
+              - ready
+            initialDelaySeconds: 60
+            periodSeconds: 60
       volumes:
         - name: config-volume
           configMap:
