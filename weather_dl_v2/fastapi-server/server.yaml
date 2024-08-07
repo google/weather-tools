@@ -41,7 +41,7 @@ spec:
         cloud.google.com/gke-nodepool: default-pool
       containers:
         - name: weather-dl-v2-server-api
-          image: gcr.io/anthromet-ingestion/weather-tools:weather-dl-v2-server
+          image: XXXXX
           ports:
             - containerPort: 8080
           imagePullPolicy: Always
