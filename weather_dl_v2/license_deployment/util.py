@@ -19,6 +19,7 @@ import geojson
 import hashlib
 import itertools
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -62,6 +63,16 @@ def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(
     if isinstance(exception, BadRequest):
         return True
     return retry.retry_if_valid_input_but_server_error_and_timeout_filter(exception)
+
+class GracefulKiller:
+  kill_now = False
+  def __init__(self):
+    signal.signal(signal.SIGINT, self.exit_gracefully)
+    signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+  def exit_gracefully(self, signum, frame):
+    logger.warning('SIGTERM recieved.')
+    self.kill_now = True
 
 
 class _FakeClock:
