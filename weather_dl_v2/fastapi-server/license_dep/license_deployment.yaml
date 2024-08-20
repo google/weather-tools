@@ -24,6 +24,7 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: ./config
+        terminationGracePeriodSeconds: 3600
       volumes:
         - name: config-volume
           configMap:
