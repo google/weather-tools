@@ -160,7 +160,7 @@ def main():
                 # Fetch a request from the database.
                 request = fetch_request_from_db()
             else:
-                logger.warning('SIGTERM recieved. Stopping futher requets processing.')
+                logger.warning('SIGTERM recieved. Stopping further requets processing.')
                 break
 
             if request is not None:
