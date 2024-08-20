@@ -5,10 +5,9 @@ kind: Job
 metadata:
   name: weather-dl-v2-license-dep
 spec:
-  backoffLimit: 0
+  backoffLimit: 5
   template:
     spec:
-      restartPolicy: Never
       nodeSelector:
         cloud.google.com/gke-nodepool: license-pool
       containers:
