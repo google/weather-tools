@@ -17,9 +17,9 @@ spec:
           args: []
           resources:
             requests:
-              cpu: "2000m"                  # CPU: 2 vCPU
+              cpu: "1500m"                  # CPU: 1.5 vCPU
               memory: "2Gi"                 # RAM: 2 GiB
-              ephemeral-storage: "10Gi"    # Storage: 10 GiB
+              ephemeral-storage: "10Gi"     # Storage: 10 GiB
           volumeMounts:
           - name: config-volume
             mountPath: ./config
