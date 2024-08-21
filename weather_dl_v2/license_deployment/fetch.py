@@ -155,7 +155,7 @@ def main():
 
         log_count = 0
         while True:
-            # Check if sigterm was recived for gracefull termination
+            # Check if SIGTERM was recived for gracefull termination.
             if not killer.kill_now:
                 # Fetch a request from the database.
                 request = fetch_request_from_db()
@@ -183,7 +183,8 @@ def main():
                 time.sleep(1)
 
         logger.warning('Graceful Termination. Waiting for remaining requests to complete.')
-        # Making sure all pending requests are completed 
+
+        # Making sure all pending requests are completed.
         executor.shutdown(wait=True)
 
         logger.warning('Graceful Termination. Completed all pending requests.')
