@@ -65,6 +65,10 @@ def _retry_if_valid_input_but_server_or_socket_error_and_timeout_filter(
     return retry.retry_if_valid_input_but_server_error_and_timeout_filter(exception)
 
 class GracefulKiller:
+  """Class to check for SIGTERM signal.
+  Used to handle gracefull termination. If ever SIGTERM is recived by
+  the process GracefulKiller.kill_now will be `true`."""
+
   kill_now = False
   def __init__(self):
     signal.signal(signal.SIGINT, self.exit_gracefully)
