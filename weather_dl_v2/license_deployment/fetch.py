@@ -185,7 +185,13 @@ def main():
         logger.warning('Graceful Termination. Waiting for remaining requests to complete.')
         # Making sure all pending requests are completed 
         executor.shutdown(wait=True)
+
         logger.warning('Graceful Termination. Completed all pending requests.')
+
+        # We want mark the pod as failed as we want to start a new pod which will
+        # continue to fetch requests.
+        raise RuntimeError('License Deployment was Graceful Terminated. ' \
+                           'Raising Error to mark the pod as failed.')
 
 
 def boot_up(license: str) -> None:
