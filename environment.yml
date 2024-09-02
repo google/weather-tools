@@ -30,6 +30,7 @@ dependencies:
     - cython==0.29.34
     - earthengine-api==0.1.329
     - firebase-admin==6.0.1
+    - setuptools==70.3.0
     - .
     - ./weather_dl
     - ./weather_mv
