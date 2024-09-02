@@ -378,6 +378,7 @@ class ToBigQuery(ToDataSink):
             master_df[DATA_URI_COLUMN] = uri
             master_df[DATA_FIRST_STEP] = first_time_step
             num_chunks = math.ceil(len(master_df) / self.rows_chunk_size)
+            logger.info(f"master_df divided into {num_chunks} chunk(s).")
             for i in range(num_chunks):
                 chunk = master_df[i * self.rows_chunk_size:(i + 1) * self.rows_chunk_size]
                 rows = chunk.to_dict('records')
