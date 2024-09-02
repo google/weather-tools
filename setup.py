@@ -116,8 +116,8 @@ setup(
 
     ],
     python_requires='>=3.8, <3.10',
-    install_requires=['apache-beam[gcp]==2.40.0', 'gcsfs==2022.11.0',
-                      "cdsapi @ git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi"],
+    install_requires=['apache-beam[gcp]==2.40.0', 'gcsfs==2022.11.0'],
+    dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     scripts=['weather_dl/weather-dl', 'weather_mv/weather-mv', 'weather_sp/weather-sp'],

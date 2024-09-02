@@ -32,7 +32,6 @@ beam_gcp_requirements = [
 ]
 
 base_requirements = [
-    "cdsapi @ git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi",
     "ecmwf-api-client==1.6.3",
     "numpy>=1.19.1",
     "pandas==1.5.1",
@@ -54,4 +53,5 @@ setup(
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
     install_requires=beam_gcp_requirements + base_requirements,
+    dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],
 )
