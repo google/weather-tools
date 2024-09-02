@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import contextlib
 import datetime
 import inspect
 import itertools
 import json
 import logging
 import math
+import os
 import re
 import signal
 import sys
@@ -37,7 +39,7 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 from xarray.core.utils import ensure_us_time_resolution
 
-from .sinks import DEFAULT_COORD_KEYS
+from .sinks import DEFAULT_COORD_KEYS, copy
 from .metrics import timeit
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ CANARY_RECORD = {'foo': 'bar'}
 CANARY_RECORD_FILE_NAME = 'canary_record.json'
 CANARY_OUTPUT_TABLE_SUFFIX = '_anthromet_canary_table'
 CANARY_TABLE_SCHEMA = [bigquery.SchemaField('name', 'STRING', mode='NULLABLE')]
+BQ_EXCLUDE_COORDS = {'longitude', 'latitude'}
 
 
 def make_attrs_ee_compatible(attrs: t.Dict) -> t.Dict:
@@ -207,28 +210,33 @@ def get_coordinates(ds: xr.Dataset, uri: str = '') -> t.Iterator[t.Dict]:
     """Generates normalized coordinate dictionaries that can be used to index Datasets with `.loc[]`."""
     # Creates flattened iterator of all coordinate positions in the Dataset.
     #
-    # Example: (-108.0, 49.0, datetime.datetime('2018-01-02T22:00:00+00:00'))
+    # Example: (datetime.datetime('2018-01-02T22:00:00+00:00'))
+
+    # Filter out excluded coordinates from coords_indexes.
+    filtered_coords_indexes = [c for c in ds.coords.indexes if c not in BQ_EXCLUDE_COORDS]
+
+    # Filter out excluded coordinates from coords_dims.
+    filtered_coords_dims = {c: ds.coords.dims [c] for c in ds.coords.dims if c not in BQ_EXCLUDE_COORDS}
     coords = itertools.product(
         *(
             (
                 v
                 for v in ensure_us_time_resolution(ds[c].variable.values).tolist()
             )
-            for c in ds.coords.indexes
+            for c in filtered_coords_indexes
         )
     )
     # Give dictionary keys to a coordinate index.
     #
     # Example:
-    #   {'longitude': -108.0, 'latitude': 49.0, 'time': datetime.datetime('2018-01-02T23:00:00+00:00')}
+    #   {'time': datetime.datetime('2018-01-02T23:00:00+00:00')}
     idx = 0
-    total_coords = math.prod(ds.coords.dims.values())
+    total_coords = math.prod(filtered_coords_dims.values())
     for idx, it in enumerate(coords):
-        if idx % 1000 == 0:
-            logger.info(f'Processed {idx // 1000}k / {(total_coords / 1000):.2f}k coordinates for {uri!r}...')
-        yield dict(zip(ds.coords.indexes, it))
+        logger.info(f'Processed {idx+1} / {total_coords} coordinates for {uri!r}...')
+        yield dict(zip(filtered_coords_indexes, it))
 
-    logger.info(f'Finished processing all {(idx / 1000):.2f}k coordinates.')
+    logger.info(f'Finished processing all {idx+1} coordinates.')
 
 
 def _cleanup_bigquery(bigquery_client: bigquery.Client,
@@ -255,6 +263,15 @@ def _cleanup_bucket(storage_client: storage.Client,
     if sig:
         traceback.print_stack(frame)
         sys.exit(0)
+
+
+@contextlib.contextmanager
+def open_local(uri: str, delete=True) -> t.Iterator[str]:
+    """Copy object from cloud storage to local file."""
+    _, ext = os.path.splitext(uri)
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=delete) as dest_file:
+        copy(uri, dest_file.name)
+        yield dest_file.name
 
 
 def validate_region(output_table: t.Optional[str] = None,

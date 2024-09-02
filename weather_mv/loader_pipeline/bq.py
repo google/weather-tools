@@ -14,9 +14,13 @@
 import argparse
 import dataclasses
 import datetime
+import itertools
 import json
 import logging
+import math
 import os
+import pandas as pd
+import tempfile
 import typing as t
 from pprint import pformat
 
@@ -28,17 +32,17 @@ import xarray_beam as xbeam
 from apache_beam.io import WriteToBigQuery, BigQueryDisposition
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.transforms import window
-from apache_beam.metrics import metric
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
-from .sinks import ToDataSink, open_dataset
+from .sinks import ToDataSink, open_dataset, copy
 from .util import (
     to_json_serializable_type,
     validate_region,
     _only_target_vars,
     get_coordinates,
-    ichunked,
+    open_local,
+    BQ_EXCLUDE_COORDS,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,9 @@ class ToBigQuery(ToDataSink):
 
     Attributes:
         output_table: The destination for where data should be written in BigQuery
+        geo_data_csv_path: A path to dump the geo data CSV. This CSV consists of columns:
+          latitude, longitude, geo_point, and geo_polygon. We calculate all of this information
+          upfront so that we do not need to process it every time we process a set of files.
         variables: Target variables (or coordinates) for the BigQuery schema. By default,
           all data variables will be imported as columns.
         area: Target area in [N, W, S, E]; by default, all available area is included.
@@ -84,14 +91,17 @@ class ToBigQuery(ToDataSink):
           this location for a end/forecast time.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
+        skip_creating_geo_data_csv: Skip the generation of the geo data CSV if it already
+          exists at the given --geo_data_csv_path. Please note that the geo data CSV is mandatory
+          for ingesting data into BigQuery.
         disable_grib_schema_normalization: Turn off grib's schema normalization; Default: normalization enabled.
-        coordinate_chunk_size: How many coordinates (e.g. a cross-product of lat/lng/time
-          xr.Dataset coordinate indexes) to group together into chunks. Used to tune
-          how data is loaded into BigQuery in parallel.
+        rows_chunk_size: The size of the chunk of rows to be loaded into memory for processing.
+          Depending on your system's memory, use this to tune how much rows to process.
 
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
     output_table: str
+    geo_data_csv_path: str
     variables: t.List[str]
     area: t.List[float]
     import_time: t.Optional[datetime.datetime]
@@ -101,8 +111,9 @@ class ToBigQuery(ToDataSink):
     tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
-    coordinate_chunk_size: int = 10_000
+    rows_chunk_size: int = 1000000
     skip_creating_polygon: bool = False
+    skip_creating_geo_data_csv: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
 
@@ -111,6 +122,12 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('-o', '--output_table', type=str, required=True,
                                help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
                                     "will be created if it doesn't exist.")
+        subparser.add_argument('--geo_data_csv_path', type=str, required=True,
+                               help="A path to dump the geo data CSV.")
+        subparser.add_argument('--skip_creating_geo_data_csv', action='store_true', default=False,
+                               help="Skip the generation of geo data CSV if it already exists at given "
+                                    "--geo_data_csv_path. Please note that the geo data CSV is manditory for "
+                                    " ingesting data into BigQuery. Default: off.")
         subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                                help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
                                     'all data variables as columns.')
@@ -135,11 +152,11 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('--tif_metadata_for_end_time', type=str, default=None,
                                help='Metadata that contains tif file\'s end/forecast time. '
                                     'Applicable only for tif files.')
-        subparser.add_argument('-s', '--skip-region-validation', action='store_true', default=False,
+        subparser.add_argument('-s', '--skip_region_validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
-        subparser.add_argument('--coordinate_chunk_size', type=int, default=10_000,
-                               help='The size of the chunk of coordinates used for extracting vector data into '
-                                    'BigQuery. Used to tune parallel uploads.')
+        subparser.add_argument('--rows_chunk_size', type=int, default=1000000,
+                               help="The size of the chunk of rows to be loaded into memory for processing. "
+                                    "Depending on your system's memory, use this to tune how much rows to process.")
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
                                help="To disable grib's schema normalization. Default: off")
 
@@ -166,6 +183,9 @@ class ToBigQuery(ToDataSink):
             raise RuntimeError("'--tif_metadata_for_start_time' and "
                                "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
+        if not known_args.geo_data_csv_path.endswith(".csv"):
+            raise RuntimeError(f"'--geo_data_csv_path' {known_args.geo_data_csv_path} must end with '.csv'.")
+
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
             # Program execution will terminate on failure of region validation.
@@ -173,6 +193,49 @@ class ToBigQuery(ToDataSink):
             validate_region(known_args.output_table, temp_location=pipeline_options_dict.get('temp_location'),
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
+
+    def generate_csv(
+        self,
+        csv_path: str,
+        lats: t.List,
+        lons: t.List,
+        lat_grid_resolution: float,
+        lon_grid_resolution: float,
+        skip_creating_polygon: bool = False,
+    ):
+        """Generates geo data CSV."""
+        logger.info("Generating geo data CSV ...")
+        # Generate Cartesian product of latitudes and longitudes.
+        lat_lon_pairs = itertools.product(lats, lons)
+        # Create a temp CSV file for writing.
+        with tempfile.NamedTemporaryFile(suffix='.csv', mode='w+', newline='') as temp:
+            # Define header.
+            header = ['latitude', 'longitude', GEO_POINT_COLUMN, GEO_POLYGON_COLUMN]
+            data = []
+            for lat, lon in lat_lon_pairs:
+                lat = float(lat)
+                lon = float(lon)
+                row = [lat, lon]
+                sanitized_lon = (((lon % 360) + 540) % 360) - 180
+
+                # Fetch the geo point.
+                geo_point = fetch_geo_point(lat, sanitized_lon)
+                row.append(geo_point)
+
+                # Fetch the geo polygon if not skipped.
+                if not skip_creating_polygon:
+                    geo_polygon = fetch_geo_polygon(lat, sanitized_lon, lat_grid_resolution, lon_grid_resolution)
+                    row.append(geo_polygon)
+                else:
+                    row.append(None)
+                data.append(row)
+
+            df = pd.DataFrame(data, columns=header)
+            # Write DataFrame to CSV.
+            df.to_csv(temp.name, index=False)
+            logger.info(f"geo data CSV generated successfully. Uploading to {csv_path}.")
+            copy(temp.name, csv_path)
+            logger.info(f"geo data CSV uploaded successfully at {csv_path}.")
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -202,6 +265,24 @@ class ToBigQuery(ToDataSink):
             else:
                 logger.info("Polygon is not created as '--skip_creating_polygon' flag passed.")
 
+            if not self.skip_creating_geo_data_csv:
+                if self.area:
+                    n, w, s, e = self.area
+                    open_ds = open_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+
+                lats = open_ds["latitude"].values.tolist()
+                lons = open_ds["longitude"].values.tolist()
+                self.generate_csv(
+                    self.geo_data_csv_path,
+                    [lats] if isinstance(lats, float) else lats,
+                    [lons] if isinstance(lons, float) else lons,
+                    self.lat_grid_resolution,
+                    self.lon_grid_resolution,
+                    self.skip_creating_polygon,
+                )
+            else:
+                logger.info("geo data CSV is not created as '--skip_creating_geo_data_csv' flag passed.")
+
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
                 logger.info('Creating schema from input variables.')
@@ -227,24 +308,19 @@ class ToBigQuery(ToDataSink):
             logger.error(f'Unable to create table in BigQuery: {e}')
             raise
 
-    def prepare_coordinates(self, uri: str) -> t.Iterator[t.Tuple[str, t.List[t.Dict]]]:
+    def prepare_coordinates(self, uri: str) -> t.Iterator[t.Tuple[str, t.Dict]]:
         """Open the dataset, filter by area, and prepare chunks of coordinates for parallel ingestion into BigQuery."""
         logger.info(f'Preparing coordinates for: {uri!r}.')
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
                           self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
-            if self.area:
-                n, w, s, e = self.area
-                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
-                logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+            for coordinate in get_coordinates(data_ds, uri):
+                yield uri, coordinate
 
-            for chunk in ichunked(get_coordinates(data_ds, uri), self.coordinate_chunk_size):
-                yield uri, list(chunk)
-
-    def extract_rows(self, uri: str, coordinates: t.List[t.Dict]) -> t.Iterator[t.Dict]:
+    def extract_rows(self, uri: str, coordinate: t.Dict) -> t.Iterator[t.Dict]:
         """Reads an asset and coordinates, then yields its rows as a mapping of column names to values."""
-        logger.info(f'Extracting rows for [{coordinates[0]!r}...{coordinates[-1]!r}] of {uri!r}.')
+        logger.info(f'Extracting rows for {coordinate!r} of {uri!r}.')
 
         # Re-calculate import time for streaming extractions.
         if not self.import_time:
@@ -253,57 +329,68 @@ class ToBigQuery(ToDataSink):
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
                           self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
-            yield from self.to_rows(coordinates, data_ds, uri)
+            if self.area:
+                n, w, s, e = self.area
+                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
+            yield from self.to_rows(coordinate, data_ds, uri)
 
-    def to_rows(self, coordinates: t.Iterable[t.Dict], ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
+    def to_rows(self, coordinate: t.Dict, ds: xr.Dataset, uri: str) -> t.Iterator[t.Dict]:
         first_ts_raw = (
             ds.time[0].values if isinstance(ds.time.values, np.ndarray)
             else ds.time.values
         )
         first_time_step = to_json_serializable_type(first_ts_raw)
-        for it in coordinates:
-            # Use those index values to select a Dataset containing one row of data.
-            row_ds = ds.loc[it]
+        with open_local(self.geo_data_csv_path) as master_lat_lon:
+            selected_ds = ds.loc[coordinate]
 
-            # Create a Name-Value map for data columns. Result looks like:
-            # {'d': -2.0187, 'cc': 0.007812, 'z': 50049.8, 'rr': None}
-            row = {n: to_json_serializable_type(ensure_us_time_resolution(v.values))
-                   for n, v in row_ds.data_vars.items()}
+            # Ensure that the latitude and longitude dimensions are in sync with the geo data CSV.
+            if not BQ_EXCLUDE_COORDS - set(selected_ds.dims.keys()):
+                selected_ds = selected_ds.transpose('latitude', 'longitude')
 
-            # Serialize coordinates.
-            it = {k: to_json_serializable_type(v) for k, v in it.items()}
+            master_df = pd.read_csv(master_lat_lon)
+            if self.skip_creating_polygon:
+                master_df[GEO_POLYGON_COLUMN] = None
 
             # Add indexed coordinates.
-            row.update(it)
+            for k, v in coordinate.items():
+                master_df[k] = to_json_serializable_type(v)
+
             # Add un-indexed coordinates.
-            for c in row_ds.coords:
-                if c not in it and (not self.variables or c in self.variables):
-                    row[c] = to_json_serializable_type(ensure_us_time_resolution(row_ds[c].values))
+            # Filter out excluded coordinates from coords.
+            filtered_coords = [c for c in selected_ds.coords if c not in BQ_EXCLUDE_COORDS]
+            for c in filtered_coords:
+                if c not in coordinate and (not self.variables or c in self.variables):
+                    master_df[c] = to_json_serializable_type(ensure_us_time_resolution(selected_ds[c].values))
 
-            # Add import metadata.
-            row[DATA_IMPORT_TIME_COLUMN] = self.import_time
-            row[DATA_URI_COLUMN] = uri
-            row[DATA_FIRST_STEP] = first_time_step
+            # We are not directly assigning values to dataframe because we need to consider 'None'.
+            # Vectorized operations are generally more faster and efficient than iterating over rows.
+            # Furthermore, pd.Series does not enforces length consistency so just added a safety check.
+            for var in selected_ds.data_vars:
+                values = to_json_serializable_type(ensure_us_time_resolution(selected_ds[var].values.ravel()))
+                if len(values) != len(master_df):
+                    raise ValueError(
+                        f"Length of values {len(values)} does not match number of rows in DataFrame {len(master_df)}."
+                    )
+                master_df[var] = pd.Series(values, dtype=object)
 
-            longitude = ((row['longitude'] + 180) % 360) - 180
-            row[GEO_POINT_COLUMN] = fetch_geo_point(row['latitude'], longitude)
-            row[GEO_POLYGON_COLUMN] = (
-                fetch_geo_polygon(row["latitude"], longitude, self.lat_grid_resolution, self.lon_grid_resolution)
-                if not self.skip_creating_polygon
-                else None
-            )
-            # 'row' ends up looking like:
-            # {'latitude': 88.0, 'longitude': 2.0, 'time': '2015-01-01 06:00:00', 'd': -2.0187, 'cc': 0.007812,
-            #  'z': 50049.8, 'data_import_time': '2020-12-05 00:12:02.424573 UTC', ...}
-            metric.Metrics.counter('Success', 'ExtractRows').inc()
-            yield row
+            master_df[DATA_IMPORT_TIME_COLUMN] = self.import_time
+            master_df[DATA_URI_COLUMN] = uri
+            master_df[DATA_FIRST_STEP] = first_time_step
+            num_chunks = math.ceil(len(master_df) / self.rows_chunk_size)
+            for i in range(num_chunks):
+                chunk = master_df[i * self.rows_chunk_size:(i + 1) * self.rows_chunk_size]
+                rows = chunk.to_dict('records')
+                yield from rows
 
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
         uri = ds.attrs.get(DATA_URI_COLUMN, '')
         # Re-calculate import time for streaming extractions.
         if not self.import_time or self.zarr:
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
-        yield from self.to_rows(get_coordinates(ds, uri), ds, uri)
+
+        for coordinate in get_coordinates(ds, uri):
+            yield from self.to_rows(coordinate, ds, uri)
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
