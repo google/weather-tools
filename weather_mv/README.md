@@ -58,12 +58,13 @@ Invoke with `-h` or `--help` to see the full range of options.
 
 ```
 usage: weather-mv bigquery [-h] -i URIS [--topic TOPIC] [--window_size WINDOW_SIZE] [--num_shards NUM_SHARDS] [-d]
-                           -o OUTPUT_TABLE [-v variables [variables ...]] [-a area [area ...]]
-                           [--import_time IMPORT_TIME] [--infer_schema]
+                           -o OUTPUT_TABLE --geo_data_csv_path GEO_DATA_CSV [-v variables [variables ...]]
+                           [-a area [area ...]] [--import_time IMPORT_TIME] [--infer_schema]
                            [--xarray_open_dataset_kwargs XARRAY_OPEN_DATASET_KWARGS]
                            [--tif_metadata_for_start_time TIF_METADATA_FOR_START_TIME]
                            [--tif_metadata_for_end_time TIF_METADATA_FOR_END_TIME] [-s]
-                           [--coordinate_chunk_size COORDINATE_CHUNK_SIZE] ['--skip_creating_polygon']
+                           [--rows_chunk_size rows_chunk_size] [--skip_creating_polygon]
+                           [--skip_creating_geo_data_csv]
 ```
 
 The `bigquery` subcommand loads weather data into BigQuery. In addition to the common options above, users may specify
@@ -72,22 +73,27 @@ command-specific options:
 _Command options_:
 
 * `-o, --output_table`: (required) Full name of destination BigQuery table. Ex: my_project.my_dataset.my_table
+* `--geo_data_csv_path`: (required) A path to dump the geo data CSV. This CSV consists of columns:
+  latitude, longitude, geo_point, and geo_polygon. We calculate all of this information
+  upfront so that we do not need to process it every time we process a set of files.
 * `-v, --variables`:  Target variables (or coordinates) for the BigQuery schema. Default: will import all data variables
   as columns.
 * `-a, --area`:  Target area in [N, W, S, E]. Default: Will include all available area.
 * `--import_time`: When writing data to BigQuery, record that data import occurred at this time
   (format: YYYY-MM-DD HH:MM:SS.usec+offset). Default: now in UTC.
-* `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off
+* `--infer_schema`: Download one file in the URI pattern and infer a schema from that file. Default: off.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
-* `--coordinate_chunk_size`: The size of the chunk of coordinates used for extracting vector data into BigQuery. Used to
-  tune parallel uploads.
+* `--rows_chunk_size`: The size of the chunk of rows to be loaded into memory for processing.
+  Depending on your system's memory, use this to tune how much rows to process. Default: 1000000.
 * `--tif_metadata_for_start_time` : Metadata that contains tif file's start/initialization time. Applicable only for tif files.
 * `--tif_metadata_for_end_time` : Metadata that contains tif file's end/forecast time. Applicable only for tif files (optional).
-* `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `-s, --skip_region_validation` : Skip validation of regions for data migration. Default: off.
 * `--disable_grib_schema_normalization` : To disable grib's schema normalization. Default: off.
 * `--skip_creating_polygon` : Not ingest grid points as polygons in BigQuery. Default: Ingest grid points as Polygon in 
   BigQuery. Note: This feature relies on the assumption that the provided grid has an equal distance between consecutive 
   points of latitude and longitude.
+* `--skip_creating_geo_data_csv`: Skip the generation of the geo data CSV if it already exists at the given --geo_data_csv_path.
+  Please note that the geo data CSV is mandatory for ingesting data into BigQuery. Default: Create geo data CSV file.
 
 Invoke with `bq -h` or `bigquery --help` to see the full range of options.
 
@@ -388,7 +394,7 @@ _Command options_:
 * `--service_account`: Service account address when using a private key for earth engine authentication.
 * `--private_key`: To use a private key for earth engine authentication. Only used with the `service_account` flag.
 * `--xarray_open_dataset_kwargs`: Keyword-args to pass into `xarray.open_dataset()` in the form of a JSON string.
-* `-s, --skip-region-validation` : Skip validation of regions for data migration. Default: off.
+* `-s, --skip_region_validation` : Skip validation of regions for data migration. Default: off.
 * `-f, --force`: A flag that allows overwriting of existing asset files in the GCS bucket. Default: off, which means
   that the ingestion of URIs for which assets files (GeoTiff/CSV) already exist in the GCS bucket will be skipped.
 * `--ee_qps`: Maximum queries per second allowed by EE for your project. Default: 10.
