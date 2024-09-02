@@ -26,11 +26,19 @@ class CLITests(unittest.TestCase):
             f'-i {self.test_data_folder}/test_data_2018*.nc '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
+            '--geo_data_csv_path geo_data.csv '
             '-s'
         ).split()
         self.tif_base_cli_args = (
             'weather-mv bq '
             f'-i {self.test_data_folder}/test_data_tif_time.tif '
+            '-o myproject.mydataset.mytable '
+            '--import_time 2022-02-04T22:22:12.125893 '
+            '-s --geo_data_csv_path geo_data.csv'
+        ).split()
+        self.bq_base_cli_args = (
+            'weather-mv bq '
+            f'-i {self.test_data_folder}/test_data_2018*.nc '
             '-o myproject.mydataset.mytable '
             '--import_time 2022-02-04T22:22:12.125893 '
             '-s'
@@ -60,7 +68,7 @@ class CLITests(unittest.TestCase):
             'variables': [],
             'window_size': 1.0,
             'xarray_open_dataset_kwargs': {},
-            'coordinate_chunk_size': 10_000,
+            'rows_chunk_size': 1000000,
             'disable_grib_schema_normalization': False,
             'tif_metadata_for_start_time': None,
             'tif_metadata_for_end_time': None,
@@ -69,6 +77,8 @@ class CLITests(unittest.TestCase):
             'log_level': 2,
             'use_local_code': False,
             'skip_creating_polygon': False,
+            'geo_data_csv_path': 'geo_data.csv',
+            'skip_creating_geo_data_csv': False
         }
 
 
@@ -140,6 +150,9 @@ class TestCLI(CLITests):
         with self.assertRaisesRegex(ValueError, '`topic` or `subscription`'):
             run(self.base_cli_args + '--topic foo --subscription bar'.split())
 
+    def test_geo_data_csv_path_must_be_csv(self):
+        with self.assertRaisesRegex(RuntimeError, "must end with '.csv'"):
+            run(self.bq_base_cli_args + '--geo_data_csv_path test_geo.txt'.split())
 
 class IntegrationTest(CLITests):
     def test_dry_runs_are_allowed(self):
