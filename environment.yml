@@ -11,7 +11,6 @@ dependencies:
   - rioxarray=0.13.4
   - gdal=3.5.1
   - pyproj=3.4.0
-  - cdsapi=0.5.1
   - ecmwf-api-client=1.6.3
   - eccodes=2.27.0
   - cfgrib=0.9.10.2
@@ -30,6 +29,7 @@ dependencies:
     - cython==0.29.34
     - earthengine-api==0.1.329
     - firebase-admin==6.0.1
+    - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi
     - .
     - ./weather_dl
     - ./weather_mv

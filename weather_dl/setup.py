@@ -32,7 +32,7 @@ beam_gcp_requirements = [
 ]
 
 base_requirements = [
-    "cdsapi==0.5.1",
+    "cdsapi @ git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi",
     "ecmwf-api-client==1.6.3",
     "numpy>=1.19.1",
     "pandas==1.5.1",
