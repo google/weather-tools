@@ -53,5 +53,5 @@ setup(
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
     install_requires=beam_gcp_requirements + base_requirements,
-    dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],
+    dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],  # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
 )
