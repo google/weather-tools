@@ -18,9 +18,13 @@ import time
 import copy
 import datetime
 import inspect
+import logging
 from functools import wraps
+import typing as t
 import apache_beam as beam
 from apache_beam.metrics import metric
+
+logger = logging.getLogger(__name__)
 
 
 def timeit(func_name: str, keyed_fn: bool = False):
@@ -92,7 +96,7 @@ def timeit(func_name: str, keyed_fn: bool = False):
 class AddTimer(beam.DoFn):
     """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
     and the time it took for that element in that stage."""
-    def process(self, element):
+    def process(self, element) -> t.Iterator[t.Any]:
         time_dict = {}
         yield element, time_dict
 
@@ -100,31 +104,36 @@ class AddTimer(beam.DoFn):
 class AddMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
-    def __init__(self):
+    def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
         super().__init__()
         self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
         self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
+        self.asset_start_time_format = asset_start_time_format
 
     def process(self, element):
-        if len(element) == 0:
-            raise ValueError("time_dict not found.")
-        (_, asset_start_time), time_dict = element
-        if not isinstance(time_dict, dict):
-            raise ValueError("time_dict not found.")
+        try:
+            if len(element) == 0:
+                raise ValueError("time_dict not found.")
+            (_, asset_start_time), time_dict = element
+            if not isinstance(time_dict, dict):
+                raise ValueError("time_dict not found.")
 
-        # Adding element processing time.
-        total_time = 0
-        for stage_time in time_dict.values():
-            total_time += stage_time
+            # Adding element processing time.
+            total_time = 0
+            for stage_time in time_dict.values():
+                total_time += stage_time
 
-        # Converting seconds to ms.
-        self.element_processing_time.update(int(total_time * 1000))
+            # Converting seconds to milli seconds.
+            self.element_processing_time.update(int(total_time * 1000))
 
-        # Adding data latency.
-        if asset_start_time:
-            current_time = time.time()
-            asset_start_time = datetime.datetime.strptime(asset_start_time, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+            # Adding data latency.
+            if asset_start_time:
+                current_time = time.time()
+                asset_start_time = datetime.datetime.strptime(
+                    asset_start_time, self.asset_start_time_format).timestamp()
 
-            # Converting seconds to ms.
-            data_latency_ms = (current_time - asset_start_time) * 1000
-            self.data_latency_time.update(int(data_latency_ms))
+                # Converting seconds to milli seconds.
+                data_latency_ms = (current_time - asset_start_time) * 1000
+                self.data_latency_time.update(int(data_latency_ms))
+        except Exception as e:
+            logger.warning(f"Some error occured while adding metrics. Error {e}")

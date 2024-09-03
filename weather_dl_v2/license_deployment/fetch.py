@@ -26,7 +26,7 @@ from database import FirestoreClient
 from job_creator import create_download_job
 from clients import CLIENTS
 from manifest import FirestoreManifest
-from util import exceptionit, ThreadSafeDict
+from util import exceptionit, ThreadSafeDict, GracefulKiller
 
 db_client = FirestoreClient()
 log_client = google.cloud.logging.Client()
@@ -148,14 +148,20 @@ def fetch_request_from_db():
 def main():
     logger.info("Started looking at the request.")
     error_map = ThreadSafeDict()
+    killer = GracefulKiller()
     with ThreadPoolExecutor(concurrency_limit) as executor:
         # Disclaimer: A license will pick always pick concurrency_limit + 1
         # parition. One extra parition will be kept in threadpool task queue.
 
         log_count = 0
         while True:
-            # Fetch a request from the database
-            request = fetch_request_from_db()
+            # Check if SIGTERM was recived for graceful termination.
+            if not killer.kill_now:
+                # Fetch a request from the database.
+                request = fetch_request_from_db()
+            else:
+                logger.warning('SIGTERM recieved. Stopping further requets processing.')
+                break
 
             if request is not None:
                 executor.submit(make_fetch_request, request, error_map)
@@ -175,6 +181,18 @@ def main():
                 # Reset log_count if it goes beyond 3600.
                 log_count = 1 if log_count >= 3600 else log_count + 1
                 time.sleep(1)
+
+        logger.warning('Graceful Termination. Waiting for remaining requests to complete.')
+
+        # Making sure all pending requests are completed.
+        executor.shutdown(wait=True)
+
+        logger.warning('Graceful Termination. Completed all pending requests.')
+
+        # We want mark the pod as failed as we want to start a new pod which will
+        # continue to fetch requests.
+        raise RuntimeError('License Deployment was Graceful Terminated. ' \
+                           'Raising Error to mark the pod as failed.')
 
 
 def boot_up(license: str) -> None:
@@ -206,3 +224,5 @@ if __name__ == "__main__":
     except Exception as e:
         logger.info(f"License error: {e}.")
         raise e
+
+    logger.info('License deployment shutting down.')

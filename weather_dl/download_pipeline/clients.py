@@ -27,6 +27,7 @@ import warnings
 from urllib.parse import urljoin
 
 from cdsapi import api as cds_api
+from cads_api_client import legacy_api_client
 import urllib3
 from ecmwfapi import api
 
@@ -73,7 +74,7 @@ class Client(abc.ABC):
         pass
 
 
-class SplitCDSRequest(cds_api.Client):
+class SplitCDSRequest(legacy_api_client.LegacyApiClient):
     """Extended CDS class that separates fetch and download stage."""
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
