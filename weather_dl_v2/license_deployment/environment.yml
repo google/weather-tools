@@ -4,7 +4,6 @@ channels:
 dependencies:
   - python=3.10
   - geojson
-  - cdsapi=0.5.1
   - ecmwf-api-client=1.6.3
   - pip=22.3
   - pip:
@@ -16,3 +15,4 @@ dependencies:
     - xarray
     - apache-beam[gcp]
     - firebase-admin
+    - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
