@@ -123,7 +123,7 @@ class AddMetrics(beam.DoFn):
             for stage_time in time_dict.values():
                 total_time += stage_time
 
-            # Converting seconds to ms.
+            # Converting seconds to milli seconds.
             self.element_processing_time.update(int(total_time * 1000))
 
             # Adding data latency.
@@ -132,7 +132,7 @@ class AddMetrics(beam.DoFn):
                 asset_start_time = datetime.datetime.strptime(
                     asset_start_time, self.asset_start_time_format).timestamp()
 
-                # Converting seconds to ms.
+                # Converting seconds to milli seconds.
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
         except Exception as e:
