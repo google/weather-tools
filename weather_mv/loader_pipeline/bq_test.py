@@ -205,8 +205,8 @@ class ExtractRowsTestBase(TestDataBase):
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
                 tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, zarr: bool = False, zarr_kwargs=None,
-                skip_creating_polygon: bool = False, geo_data_csv_path,
-                skip_creating_geo_data_csv : bool = False) -> t.Iterator[t.Dict]:
+                skip_creating_polygon: bool = False, geo_data_parquet_path,
+                skip_creating_geo_data_parquet : bool = False) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
         op = ToBigQuery.from_kwargs(
@@ -215,10 +215,10 @@ class ExtractRowsTestBase(TestDataBase):
             xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
             tif_metadata_for_start_time=tif_metadata_for_start_time,
             tif_metadata_for_end_time=tif_metadata_for_end_time, skip_region_validation=True,
-            disable_grib_schema_normalization=disable_grib_schema_normalization, rows_chunk_size=1000000,
+            disable_grib_schema_normalization=disable_grib_schema_normalization, rows_chunk_size=1_000_000,
             skip_creating_polygon=skip_creating_polygon,
-            geo_data_csv_path=geo_data_csv_path,
-            skip_creating_geo_data_csv=skip_creating_geo_data_csv)
+            geo_data_parquet_path=geo_data_parquet_path,
+            skip_creating_geo_data_parquet=skip_creating_geo_data_parquet)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -249,15 +249,15 @@ class ExtractRowsTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_20180101_geo_data.csv'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_20180101_geo_data.parquet'
 
     def test_01_extract_rows(self):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
                 skip_creating_polygon=False,
-                skip_creating_geo_data_csv=False
+                skip_creating_geo_data_parquet=False
             )
         )
         expected = {
@@ -282,8 +282,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 skip_creating_polygon=True,
                 variables=['u10']
             )
@@ -306,7 +306,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
             self.extract(
                 self.test_data_path,
                 area=[45, -103, 33, -92],
-                geo_data_csv_path='./geo_data.csv',
+                geo_data_parquet_path='./geo_data.parquet',
                 skip_creating_polygon=True
             )
         )
@@ -329,7 +329,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path='./geo_data.csv',
+                geo_data_parquet_path='./geo_data.parquet',
                 area=[45.34, -103.45, 33.34, -92.87]
             )
         )
@@ -351,14 +351,14 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_05_extract_rows_raises_error_when_geo_data_csv_dimensions_mismatch(self):
+    def test_05_extract_rows_raises_error_when_geo_data_parquet_dimensions_mismatch(self):
         with self.assertRaisesRegex(ValueError, 'Length of values '):
             next(
                 self.extract(
                     self.test_data_path,
                     area=[45, -103, 33, -92],
-                    geo_data_csv_path=self.geo_data_csv_path,
-                    skip_creating_geo_data_csv=True,
+                    geo_data_parquet_path=self.geo_data_parquet_path,
+                    skip_creating_geo_data_parquet=True,
                     skip_creating_polygon=True
                 )
             )
@@ -368,8 +368,8 @@ class ExtractRowsTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 import_time=now
             )
         )
@@ -393,12 +393,12 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_07_extract_rows_single_point(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_single_point.nc'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_single_point_geo_data.csv'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_single_point_geo_data.parquet'
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
             )
         )
         expected = {
@@ -418,12 +418,12 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_08_extract_rows_nan(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_has_nan_geo_data.csv'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_has_nan_geo_data.parquet'
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
             )
         )
         expected = {
@@ -496,12 +496,12 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_12_extract_rows_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        geo_data_csv_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.csv')
+        geo_data_parquet_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.parquet')
         actual = next(
             self.extract(
                 input_path,
-                geo_data_csv_path=geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
                 zarr=True
             )
         )
@@ -524,12 +524,12 @@ class ExtractRowsTest(ExtractRowsTestBase):
 
     def test_13_droping_variable_while_opening_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        geo_data_csv_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.csv')
+        geo_data_parquet_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.parquet')
         actual = next(
             self.extract(
                 input_path,
-                geo_data_csv_path=geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 zarr=True,
                 zarr_kwargs={'drop_variables': ['cape']}
             )
@@ -556,14 +556,14 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_tif_time.tif'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_tif_time_geo_data.csv'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_tif_time_geo_data.parquet'
 
     def test_01_extract_rows_with_end_time(self):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
                 tif_metadata_for_start_time='start_time',
                 tif_metadata_for_end_time='end_time'
             )
@@ -590,8 +590,8 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 tif_metadata_for_start_time='start_time'
             )
         )
@@ -618,15 +618,15 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_grib_single_timestep_geo_data.csv'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_grib_single_timestep_geo_data.parquet'
 
     @_handle_missing_grib_be
     def test_01_extract_rows(self):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
                 disable_grib_schema_normalization=True
             )
         )
@@ -655,8 +655,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 disable_grib_schema_normalization=True, variables=['z']))
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -678,8 +678,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 disable_grib_schema_normalization=True,
                 variables=['z', 'step']
             )
@@ -705,8 +705,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 variables=['z']
             )
         )
@@ -730,8 +730,8 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 variables=['z', 'step']
             )
         )
@@ -754,12 +754,14 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     @_handle_missing_grib_be
     def test_06_multiple_editions__without_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.csv'
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=False,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
                 disable_grib_schema_normalization=True
             )
         )
@@ -819,12 +821,14 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     @_handle_missing_grib_be
     def test_07_multiple_editions__with_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.csv'
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
             )
         )
         expected = {
@@ -886,12 +890,14 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     @_handle_missing_grib_be
     def test_08_multiple_editions__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        self.geo_data_csv_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.csv'
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
         actual = next(
             self.extract(
                 self.test_data_path,
-                geo_data_csv_path=self.geo_data_csv_path,
-                skip_creating_geo_data_csv=True,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
                 variables=['p3020', 'depthBelowLandLayer', 'step']
             )
         )
@@ -941,7 +947,8 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
             output_table='foo.bar.baz',
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
             tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
-            disable_grib_schema_normalization=False, geo_data_csv_path=os.path.join(self.tmpdir.name, 'geo_data.csv'),
+            disable_grib_schema_normalization=False,
+            geo_data_parquet_path=os.path.join(self.tmpdir.name, 'geo_data.parquet'),
         )
 
         with TestPipeline() as p:

@@ -73,7 +73,7 @@ class ToBigQuery(ToDataSink):
 
     Attributes:
         output_table: The destination for where data should be written in BigQuery
-        geo_data_csv_path: A path to dump the geo data CSV. This CSV consists of columns:
+        geo_data_parquet_path: A path to dump the geo data parquet. This parquet consists of columns:
           latitude, longitude, geo_point, and geo_polygon. We calculate all of this information
           upfront so that we do not need to process it every time we process a set of files.
         variables: Target variables (or coordinates) for the BigQuery schema. By default,
@@ -91,8 +91,8 @@ class ToBigQuery(ToDataSink):
           this location for a end/forecast time.
         skip_region_validation: Turn off validation that checks if all Cloud resources
           are in the same region.
-        skip_creating_geo_data_csv: Skip the generation of the geo data CSV if it already
-          exists at the given --geo_data_csv_path. Please note that the geo data CSV is mandatory
+        skip_creating_geo_data_parquet: Skip the generation of the geo data parquet if it already
+          exists at the given --geo_data_parquet_path. Please note that the geo data parquet is mandatory
           for ingesting data into BigQuery.
         disable_grib_schema_normalization: Turn off grib's schema normalization; Default: normalization enabled.
         rows_chunk_size: The size of the chunk of rows to be loaded into memory for processing.
@@ -101,7 +101,7 @@ class ToBigQuery(ToDataSink):
     .. _these docs: https://beam.apache.org/documentation/io/built-in/google-bigquery/#setting-the-insertion-method
     """
     output_table: str
-    geo_data_csv_path: str
+    geo_data_parquet_path: str
     variables: t.List[str]
     area: t.List[float]
     import_time: t.Optional[datetime.datetime]
@@ -111,9 +111,9 @@ class ToBigQuery(ToDataSink):
     tif_metadata_for_end_time: t.Optional[str]
     skip_region_validation: bool
     disable_grib_schema_normalization: bool
-    rows_chunk_size: int = 1000000
+    rows_chunk_size: int = 1_000_000
     skip_creating_polygon: bool = False
-    skip_creating_geo_data_csv: bool = False
+    skip_creating_geo_data_parquet: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
 
@@ -122,11 +122,11 @@ class ToBigQuery(ToDataSink):
         subparser.add_argument('-o', '--output_table', type=str, required=True,
                                help="Full name of destination BigQuery table (<project>.<dataset>.<table>). Table "
                                     "will be created if it doesn't exist.")
-        subparser.add_argument('--geo_data_csv_path', type=str, required=True,
-                               help="A path to dump the geo data CSV.")
-        subparser.add_argument('--skip_creating_geo_data_csv', action='store_true', default=False,
-                               help="Skip the generation of geo data CSV if it already exists at given "
-                                    "--geo_data_csv_path. Please note that the geo data CSV is manditory for "
+        subparser.add_argument('--geo_data_parquet_path', type=str, required=True,
+                               help="A path to dump the geo data parquet.")
+        subparser.add_argument('--skip_creating_geo_data_parquet', action='store_true', default=False,
+                               help="Skip the generation of geo data parquet if it already exists at given "
+                                    "--geo_data_parquet_path. Please note that the geo data parquet is manditory for "
                                     " ingesting data into BigQuery. Default: off.")
         subparser.add_argument('-v', '--variables', metavar='variables', type=str, nargs='+', default=list(),
                                help='Target variables (or coordinates) for the BigQuery schema. Default: will import '
@@ -154,7 +154,7 @@ class ToBigQuery(ToDataSink):
                                     'Applicable only for tif files.')
         subparser.add_argument('-s', '--skip_region_validation', action='store_true', default=False,
                                help='Skip validation of regions for data migration. Default: off')
-        subparser.add_argument('--rows_chunk_size', type=int, default=1000000,
+        subparser.add_argument('--rows_chunk_size', type=int, default=1_000_000,
                                help="The size of the chunk of rows to be loaded into memory for processing. "
                                     "Depending on your system's memory, use this to tune how much rows to process.")
         subparser.add_argument('--disable_grib_schema_normalization', action='store_true', default=False,
@@ -183,8 +183,9 @@ class ToBigQuery(ToDataSink):
             raise RuntimeError("'--tif_metadata_for_start_time' and "
                                "'--tif_metadata_for_end_time' can be specified only for tif files.")
 
-        if not known_args.geo_data_csv_path.endswith(".csv"):
-            raise RuntimeError(f"'--geo_data_csv_path' {known_args.geo_data_csv_path} must end with '.csv'.")
+        if not known_args.geo_data_parquet_path.endswith(".parquet"):
+            raise RuntimeError(f"'--geo_data_parquet_path' {known_args.geo_data_parquet_path} must "
+                                "end with '.parquet'.")
 
         # Check that Cloud resource regions are consistent.
         if not (known_args.dry_run or known_args.skip_region_validation):
@@ -194,21 +195,21 @@ class ToBigQuery(ToDataSink):
                             region=pipeline_options_dict.get('region'))
             logger.info('Region validation completed successfully.')
 
-    def generate_csv(
+    def generate_parquet(
         self,
-        csv_path: str,
+        parquet_path: str,
         lats: t.List,
         lons: t.List,
         lat_grid_resolution: float,
         lon_grid_resolution: float,
         skip_creating_polygon: bool = False,
     ):
-        """Generates geo data CSV."""
-        logger.info("Generating geo data CSV ...")
+        """Generates geo data parquet."""
+        logger.info("Generating geo data parquet ...")
         # Generate Cartesian product of latitudes and longitudes.
         lat_lon_pairs = itertools.product(lats, lons)
-        # Create a temp CSV file for writing.
-        with tempfile.NamedTemporaryFile(suffix='.csv', mode='w+', newline='') as temp:
+        # Create a temp parquet file for writing.
+        with tempfile.NamedTemporaryFile(suffix='.parquet', mode='w+', newline='') as temp:
             # Define header.
             header = ['latitude', 'longitude', GEO_POINT_COLUMN, GEO_POLYGON_COLUMN]
             data = []
@@ -231,11 +232,11 @@ class ToBigQuery(ToDataSink):
                 data.append(row)
 
             df = pd.DataFrame(data, columns=header)
-            # Write DataFrame to CSV.
-            df.to_csv(temp.name, index=False)
-            logger.info(f"geo data CSV generated successfully. Uploading to {csv_path}.")
-            copy(temp.name, csv_path)
-            logger.info(f"geo data CSV uploaded successfully at {csv_path}.")
+            # Write DataFrame to parquet.
+            df.to_parquet(temp.name, index=False)
+            logger.info(f"geo data parquet generated successfully. Uploading to {parquet_path}.")
+            copy(temp.name, parquet_path)
+            logger.info(f"geo data parquet uploaded successfully at {parquet_path}.")
 
     def __post_init__(self):
         """Initializes Sink by creating a BigQuery table based on user input."""
@@ -265,15 +266,15 @@ class ToBigQuery(ToDataSink):
             else:
                 logger.info("Polygon is not created as '--skip_creating_polygon' flag passed.")
 
-            if not self.skip_creating_geo_data_csv:
+            if not self.skip_creating_geo_data_parquet:
                 if self.area:
                     n, w, s, e = self.area
                     open_ds = open_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
 
                 lats = open_ds["latitude"].values.tolist()
                 lons = open_ds["longitude"].values.tolist()
-                self.generate_csv(
-                    self.geo_data_csv_path,
+                self.generate_parquet(
+                    self.geo_data_parquet_path,
                     [lats] if isinstance(lats, float) else lats,
                     [lons] if isinstance(lons, float) else lons,
                     self.lat_grid_resolution,
@@ -281,7 +282,7 @@ class ToBigQuery(ToDataSink):
                     self.skip_creating_polygon,
                 )
             else:
-                logger.info("geo data CSV is not created as '--skip_creating_geo_data_csv' flag passed.")
+                logger.info("geo data parquet is not created as '--skip_creating_geo_data_parquet' flag passed.")
 
             # Define table from user input
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
@@ -341,14 +342,14 @@ class ToBigQuery(ToDataSink):
             else ds.time.values
         )
         first_time_step = to_json_serializable_type(first_ts_raw)
-        with open_local(self.geo_data_csv_path) as master_lat_lon:
+        with open_local(self.geo_data_parquet_path) as master_lat_lon:
             selected_ds = ds.loc[coordinate]
 
-            # Ensure that the latitude and longitude dimensions are in sync with the geo data CSV.
+            # Ensure that the latitude and longitude dimensions are in sync with the geo data parquet.
             if not BQ_EXCLUDE_COORDS - set(selected_ds.dims.keys()):
                 selected_ds = selected_ds.transpose('latitude', 'longitude')
 
-            master_df = pd.read_csv(master_lat_lon)
+            master_df = pd.read_parquet(master_lat_lon)
             if self.skip_creating_polygon:
                 master_df[GEO_POLYGON_COLUMN] = None
 
