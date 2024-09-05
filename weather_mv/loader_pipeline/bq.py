@@ -35,13 +35,12 @@ from apache_beam.transforms import window
 from google.cloud import bigquery
 from xarray.core.utils import ensure_us_time_resolution
 
-from .sinks import ToDataSink, open_dataset, copy
+from .sinks import ToDataSink, open_dataset, copy, open_local
 from .util import (
     to_json_serializable_type,
     validate_region,
     _only_target_vars,
     get_coordinates,
-    open_local,
     BQ_EXCLUDE_COORDS,
 )
 
@@ -349,39 +348,39 @@ class ToBigQuery(ToDataSink):
             if not BQ_EXCLUDE_COORDS - set(selected_ds.dims.keys()):
                 selected_ds = selected_ds.transpose('latitude', 'longitude')
 
-            master_df = pd.read_parquet(master_lat_lon)
+            vector_df = pd.read_parquet(master_lat_lon)
             if self.skip_creating_polygon:
-                master_df[GEO_POLYGON_COLUMN] = None
+                vector_df[GEO_POLYGON_COLUMN] = None
 
             # Add indexed coordinates.
             for k, v in coordinate.items():
-                master_df[k] = to_json_serializable_type(v)
+                vector_df[k] = to_json_serializable_type(v)
 
             # Add un-indexed coordinates.
             # Filter out excluded coordinates from coords.
-            filtered_coords = [c for c in selected_ds.coords if c not in BQ_EXCLUDE_COORDS]
+            filtered_coords = (c for c in selected_ds.coords if c not in BQ_EXCLUDE_COORDS)
             for c in filtered_coords:
                 if c not in coordinate and (not self.variables or c in self.variables):
-                    master_df[c] = to_json_serializable_type(ensure_us_time_resolution(selected_ds[c].values))
+                    vector_df[c] = to_json_serializable_type(ensure_us_time_resolution(selected_ds[c].values))
 
             # We are not directly assigning values to dataframe because we need to consider 'None'.
             # Vectorized operations are generally more faster and efficient than iterating over rows.
             # Furthermore, pd.Series does not enforces length consistency so just added a safety check.
             for var in selected_ds.data_vars:
                 values = to_json_serializable_type(ensure_us_time_resolution(selected_ds[var].values.ravel()))
-                if len(values) != len(master_df):
+                if len(values) != len(vector_df):
                     raise ValueError(
-                        f"Length of values {len(values)} does not match number of rows in DataFrame {len(master_df)}."
+                        f"Length of values {len(values)} does not match number of rows in DataFrame {len(vector_df)}."
                     )
-                master_df[var] = pd.Series(values, dtype=object)
+                vector_df[var] = pd.Series(values, dtype=object)
 
-            master_df[DATA_IMPORT_TIME_COLUMN] = self.import_time
-            master_df[DATA_URI_COLUMN] = uri
-            master_df[DATA_FIRST_STEP] = first_time_step
-            num_chunks = math.ceil(len(master_df) / self.rows_chunk_size)
-            logger.info(f"master_df divided into {num_chunks} chunk(s).")
+            vector_df[DATA_IMPORT_TIME_COLUMN] = self.import_time
+            vector_df[DATA_URI_COLUMN] = uri
+            vector_df[DATA_FIRST_STEP] = first_time_step
+            num_chunks = math.ceil(len(vector_df) / self.rows_chunk_size)
+            logger.info(f"{uri!r} -- {coordinate!r}'s vector_df divided into {num_chunks} chunk(s).")
             for i in range(num_chunks):
-                chunk = master_df[i * self.rows_chunk_size:(i + 1) * self.rows_chunk_size]
+                chunk = vector_df[i * self.rows_chunk_size:(i + 1) * self.rows_chunk_size]
                 rows = chunk.to_dict('records')
                 yield from rows
 

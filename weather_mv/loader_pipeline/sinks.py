@@ -395,7 +395,7 @@ def path_exists(path: str, force_regrid: bool = False) -> bool:
     return len(matches[0].metadata_list) > 0
 
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gcloud alpha storage` or `gsutil`."""
+    """Copy data via `gsutil`."""
     errors: t.List[subprocess.CalledProcessError] = []
     for cmd in ['gsutil -m cp']:
         try:
@@ -414,7 +414,7 @@ def copy(src: str, dst: str) -> None:
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
     with tempfile.NamedTemporaryFile() as dest_file:
-        # Transfer data with gsutil or gcloud alpha storage (when available)
+        # Transfer data with gsutil.
         copy(uri, dest_file.name)
 
         # Check if data is compressed. Decompress the data using the same methods that beam's

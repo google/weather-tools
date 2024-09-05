@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import contextlib
 import datetime
 import inspect
 import itertools
 import json
 import logging
 import math
-import os
 import re
 import signal
 import sys
@@ -39,7 +37,7 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, storage
 from xarray.core.utils import ensure_us_time_resolution
 
-from .sinks import DEFAULT_COORD_KEYS, copy
+from .sinks import DEFAULT_COORD_KEYS
 from .metrics import timeit
 
 logger = logging.getLogger(__name__)
@@ -263,15 +261,6 @@ def _cleanup_bucket(storage_client: storage.Client,
     if sig:
         traceback.print_stack(frame)
         sys.exit(0)
-
-
-@contextlib.contextmanager
-def open_local(uri: str, delete=True) -> t.Iterator[str]:
-    """Copy object from cloud storage to local file."""
-    _, ext = os.path.splitext(uri)
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=delete) as dest_file:
-        copy(uri, dest_file.name)
-        yield dest_file.name
 
 
 def validate_region(output_table: t.Optional[str] = None,
