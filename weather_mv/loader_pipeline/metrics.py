@@ -14,15 +14,19 @@
 
 """Utilities for adding metrics to beam pipeline."""
 
-import time
 import copy
 import datetime
 import inspect
 import logging
-from functools import wraps
+import time
 import typing as t
+
 import apache_beam as beam
 from apache_beam.metrics import metric
+from functools import wraps
+from google.cloud import monitoring_v3
+
+from .sinks import KwargsFactoryMixin
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +49,13 @@ def timeit(func_name: str, keyed_fn: bool = False):
         We are passing `keyed_fn=True` as we are adding a key to our element. Usually keys are added
         to later group the element by a `GroupBy` stage.
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
             # If metrics are turned off, don't do anything.
-            if (
-                not hasattr(self, 'use_metrics') or
-                (hasattr(self, 'use_metrics') and not self.use_metrics)
+            if not hasattr(self, "use_metrics") or (
+                hasattr(self, "use_metrics") and not self.use_metrics
             ):
                 for result in func(self, *args, **kwargs):
                     yield result
@@ -65,13 +69,13 @@ def timeit(func_name: str, keyed_fn: bool = False):
             # All subsequent wrappers can extract out the dict.
             # args 0 would be a tuple.
             if len(args[0]) == 1:
-                raise ValueError('time_dict not found.')
+                raise ValueError("time_dict not found.")
 
             element, time_dict = args[0]
             args = (element,) + args[1:]
 
             if not isinstance(time_dict, dict):
-                raise ValueError('time_dict not found.')
+                raise ValueError("time_dict not found.")
 
             # If the function is a generator, yield the output
             # othewise return it.
@@ -90,25 +94,61 @@ def timeit(func_name: str, keyed_fn: bool = False):
                 raise ValueError("Function is not a generator.")
 
         return wrapper
+
     return decorator
 
 
 class AddTimer(beam.DoFn):
     """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
     and the time it took for that element in that stage."""
+
     def process(self, element) -> t.Iterator[t.Any]:
         time_dict = {}
         yield element, time_dict
 
 
-class AddMetrics(beam.DoFn):
+class AddMetrics(beam.DoFn, KwargsFactoryMixin):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
-    def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
+    def __init__(
+        self,
+        job_name: str,
+        project: str,
+        region: str,
+        asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ",
+    ):
         super().__init__()
-        self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
-        self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
+        self.project = project
+        self.region = region
+        self.job_name = job_name
+        # These are the Apache Beam metrics.
+        self.element_processing_time = metric.Metrics.distribution("Time", "element_processing_time_ms")
+        self.data_latency_time = metric.Metrics.distribution("Time", "data_latency_time_ms")
         self.asset_start_time_format = asset_start_time_format
+
+    def create_time_series(self, metric_name: str, metric_value: float) -> None:
+        """Creates or adds data to a TimeSeries."""
+        client = monitoring_v3.MetricServiceClient()
+        series = monitoring_v3.TimeSeries()
+        series.metric.type = f"custom.googleapis.com/{metric_name}"
+        series.metric.labels["description"] = metric_name
+        series.resource.type = "dataflow_job"
+        series.resource.labels["job_name"] = self.job_name
+        series.resource.labels["region"] = self.region
+
+        now = time.time()
+        seconds = int(now)
+        nanos = int((now - seconds) * 10**9)
+        interval = monitoring_v3.TimeInterval(
+            {"end_time": {"seconds": seconds, "nanos": nanos}}
+        )
+
+        point = monitoring_v3.Point(
+            {"interval": interval, "value": {"double_value": metric_value}}
+        )
+        series.points = [point]
+        client.create_time_series(name=self.project, time_series=[series])
+        logger.info(f"Successfully created time series for {metric_name} at {now}.")
 
     def process(self, element):
         try:
@@ -125,6 +165,7 @@ class AddMetrics(beam.DoFn):
 
             # Converting seconds to milli seconds.
             self.element_processing_time.update(int(total_time * 1000))
+            self.create_time_series("element_processing_time_ms", int(total_time * 1000))
 
             # Adding data latency.
             if asset_start_time:
@@ -135,5 +176,6 @@ class AddMetrics(beam.DoFn):
                 # Converting seconds to milli seconds.
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
+                self.create_time_series("data_latency_time_ms", int(data_latency_ms))
         except Exception as e:
             logger.warning(f"Some error occured while adding metrics. Error {e}")

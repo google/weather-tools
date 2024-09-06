@@ -375,8 +375,8 @@ class ToEarthEngine(ToDataSink):
                 | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
 
-            if self.use_metrics:
-                output | 'AddMetrics' >> beam.ParDo(AddMetrics())
+            if self.use_metrics and not self.skip_region_validation:
+                output | 'AddMetrics' >> beam.ParDo(AddMetrics.from_kwargs(**vars(self)))
         else:
             (
                 paths
