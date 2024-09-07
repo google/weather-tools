@@ -382,6 +382,7 @@ class ToBigQuery(ToDataSink):
             for i in range(num_chunks):
                 chunk = vector_df[i * self.rows_chunk_size:(i + 1) * self.rows_chunk_size]
                 rows = chunk.to_dict('records')
+                logger.info(f"{uri!r} -- {coordinate!r}'s rows for {i} chunk converted to dict.")
                 yield from rows
 
     def chunks_to_rows(self, _, ds: xr.Dataset) -> t.Iterator[t.Dict]:
