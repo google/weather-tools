@@ -134,6 +134,7 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
         series.metric.labels["description"] = metric_name
         series.resource.type = "dataflow_job"
         series.resource.labels["job_name"] = self.job_name
+        series.resource.labels["project_id"] = self.project
         series.resource.labels["region"] = self.region
 
         now = time.time()
@@ -147,8 +148,8 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
             {"interval": interval, "value": {"double_value": metric_value}}
         )
         series.points = [point]
-        client.create_time_series(name=self.project, time_series=[series])
-        logger.info(f"Successfully created time series for {metric_name} at {now}.")
+        client.create_time_series(name=f"projects/{self.project}", time_series=[series])
+        logger.info(f"Successfully created time series for {metric_name} at {now}. Metric value: {metric_value}.")
 
     def process(self, element):
         try:
@@ -165,7 +166,7 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
 
             # Converting seconds to milli seconds.
             self.element_processing_time.update(int(total_time * 1000))
-            self.create_time_series("element_processing_time_ms", int(total_time * 1000))
+            self.create_time_series("element_processing_time", int(total_time))
 
             # Adding data latency.
             if asset_start_time:
@@ -176,6 +177,6 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
                 # Converting seconds to milli seconds.
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
-                self.create_time_series("data_latency_time_ms", int(data_latency_ms))
+                self.create_time_series("data_latency_time", int(data_latency_ms / 1000))
         except Exception as e:
-            logger.warning(f"Some error occured while adding metrics. Error {e}")
+            logger.warning(f"Some error occured while adding metrics. Error: {e}")
