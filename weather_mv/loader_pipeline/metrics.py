@@ -23,12 +23,19 @@ import typing as t
 
 import apache_beam as beam
 from apache_beam.metrics import metric
+from apache_beam.utils import retry
 from functools import wraps
 from google.cloud import monitoring_v3
 
 from .sinks import KwargsFactoryMixin
 
 logger = logging.getLogger(__name__)
+
+# For Metrics API retry logic.
+INITIAL_DELAY = 1.0  # Initial delay in seconds.
+MAX_DELAY = 600  # Maximum delay before giving up in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
+TASK_QUEUE_WAIT_TIME = 120  # Task queue wait time in seconds.
 
 
 def timeit(func_name: str, keyed_fn: bool = False):
@@ -126,7 +133,14 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
         self.data_latency_time = metric.Metrics.distribution("Time", "data_latency_time_ms")
         self.asset_start_time_format = asset_start_time_format
 
+    @retry.with_exponential_backoff(
+        num_retries=NUM_RETRIES,
+        logger=logger.warning,
+        initial_delay_secs=INITIAL_DELAY,
+        max_delay_secs=MAX_DELAY
+    )
     def create_time_series(self, metric_name: str, metric_value: float) -> None:
+        logger.info("Using the retry logic.")
         """Creates or adds data to a TimeSeries."""
         client = monitoring_v3.MetricServiceClient()
         series = monitoring_v3.TimeSeries()
@@ -149,7 +163,7 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
         )
         series.points = [point]
         client.create_time_series(name=f"projects/{self.project}", time_series=[series])
-        logger.info(f"Successfully created time series for {metric_name} at {now}. Metric value: {metric_value}.")
+        logger.info(f"Successfully created time series for {metric_name}. Metric value: {metric_value}.")
 
     def process(self, element):
         try:
