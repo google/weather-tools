@@ -117,30 +117,57 @@ class AddTimer(beam.DoFn):
 class AddMetrics(beam.DoFn, KwargsFactoryMixin):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
+    def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
+        super().__init__()
+        self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
+        self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
+        self.asset_start_time_format = asset_start_time_format
+
+    def process(self, element):
+        try:
+            if len(element) == 0:
+                raise ValueError("time_dict not found.")
+            (_, asset_start_time), time_dict = element
+            if not isinstance(time_dict, dict):
+                raise ValueError("time_dict not found.")
+
+            # Adding element processing time.
+            total_time = 0
+            for stage_time in time_dict.values():
+                total_time += stage_time
+
+            # Converting seconds to milli seconds.
+            self.element_processing_time.update(int(total_time * 1000))
+
+            # Adding data latency.
+            if asset_start_time:
+                current_time = time.time()
+                asset_start_time = datetime.datetime.strptime(
+                    asset_start_time, self.asset_start_time_format).timestamp()
+
+                # Converting seconds to milli seconds.
+                data_latency_ms = (current_time - asset_start_time) * 1000
+                self.data_latency_time.update(int(data_latency_ms))
+
+            yield beam.window.TimestampedValue(('data_latency_time', data_latency_ms / 1000), int(current_time))
+            yield beam.window.TimestampedValue(('element_processing_time', total_time), int(current_time))
+        except Exception as e:
+            logger.warning(f"Some error occured while adding metrics. Error {e}")
+
+
+class Add5SecMetrics(beam.DoFn, KwargsFactoryMixin):
     def __init__(
         self,
         job_name: str,
         project: str,
         region: str,
-        asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ",
     ):
         super().__init__()
         self.project = project
         self.region = region
         self.job_name = job_name
-        # These are the Apache Beam metrics.
-        self.element_processing_time = metric.Metrics.distribution("Time", "element_processing_time_ms")
-        self.data_latency_time = metric.Metrics.distribution("Time", "data_latency_time_ms")
-        self.asset_start_time_format = asset_start_time_format
 
-    @retry.with_exponential_backoff(
-        num_retries=NUM_RETRIES,
-        logger=logger.warning,
-        initial_delay_secs=INITIAL_DELAY,
-        max_delay_secs=MAX_DELAY
-    )
     def create_time_series(self, metric_name: str, metric_value: float) -> None:
-        logger.info("Using the retry logic.")
         """Creates or adds data to a TimeSeries."""
         client = monitoring_v3.MetricServiceClient()
         series = monitoring_v3.TimeSeries()
@@ -165,32 +192,14 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
         client.create_time_series(name=f"projects/{self.project}", time_series=[series])
         logger.info(f"Successfully created time series for {metric_name}. Metric value: {metric_value}.")
 
-    def process(self, element):
-        try:
-            if len(element) == 0:
-                raise ValueError("time_dict not found.")
-            (_, asset_start_time), time_dict = element
-            if not isinstance(time_dict, dict):
-                raise ValueError("time_dict not found.")
-
-            # Adding element processing time.
-            total_time = 0
-            for stage_time in time_dict.values():
-                total_time += stage_time
-
-            # Converting seconds to milli seconds.
-            self.element_processing_time.update(int(total_time * 1000))
-            self.create_time_series("element_processing_time", int(total_time))
-
-            # Adding data latency.
-            if asset_start_time:
-                current_time = time.time()
-                asset_start_time = datetime.datetime.strptime(
-                    asset_start_time, self.asset_start_time_format).timestamp()
-
-                # Converting seconds to milli seconds.
-                data_latency_ms = (current_time - asset_start_time) * 1000
-                self.data_latency_time.update(int(data_latency_ms))
-                self.create_time_series("data_latency_time", int(data_latency_ms / 1000))
-        except Exception as e:
-            logger.warning(f"Some error occured while adding metrics. Error: {e}")
+    def process(
+        self,
+        element: t.Any, 
+        timestamp=beam.DoFn.TimestampParam,
+        window=beam.DoFn.WindowParam,
+    ):
+        logger.info(f'Window ends at {window.max_timestamp().to_utc_datetime()}')
+        logger.info(f'Timestamp: {timestamp}')
+        logger.info(f"{element[0]} values: {element[1]}")
+        self.create_time_series(f"{element[0]}_max", max(element[1]))
+        self.create_time_series(f"{element[0]}_mean", sum(element[1]) / len(element[1]))

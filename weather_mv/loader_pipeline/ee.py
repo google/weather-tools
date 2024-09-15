@@ -33,6 +33,7 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.transforms import window
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
@@ -41,7 +42,7 @@ from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
-from .metrics import timeit, AddTimer, AddMetrics
+from .metrics import timeit, AddTimer, AddMetrics, Add5SecMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -376,7 +377,13 @@ class ToEarthEngine(ToDataSink):
             )
 
             if self.use_metrics and not self.skip_region_validation:
-                output | 'AddMetrics' >> beam.ParDo(AddMetrics.from_kwargs(**vars(self)))
+                (
+                    output
+                    | 'AddMetrics' >> beam.ParDo(AddMetrics.from_kwargs(**vars(self)))
+                    | '5SecWindows' >> beam.WindowInto(window.FixedWindows(5))
+                    | 'Group' >> beam.GroupByKey(lambda x: x)
+                    | 'Add5SecMetrics' >> beam.ParDo(Add5SecMetrics.from_kwargs(**vars(self)))
+                )
         else:
             (
                 paths
