@@ -24,6 +24,8 @@ import typing as t
 import apache_beam as beam
 from apache_beam.metrics import metric
 
+from .sinks import get_file_time
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,42 +47,39 @@ def timeit(func_name: str, keyed_fn: bool = False):
         We are passing `keyed_fn=True` as we are adding a key to our element. Usually keys are added
         to later group the element by a `GroupBy` stage.
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
             # If metrics are turned off, don't do anything.
-            if (
-                not hasattr(self, 'use_metrics') or
-                (hasattr(self, 'use_metrics') and not self.use_metrics)
+            if not hasattr(self, "use_metrics") or (
+                hasattr(self, "use_metrics") and not self.use_metrics
             ):
                 for result in func(self, *args, **kwargs):
                     yield result
 
                 return
 
-            start_time = time.time()
             time_dict = {}
 
             # Only the first timer wrapper will have no time_dict.
             # All subsequent wrappers can extract out the dict.
             # args 0 would be a tuple.
             if len(args[0]) == 1:
-                raise ValueError('time_dict not found.')
+                raise ValueError("time_dict not found.")
 
             element, time_dict = args[0]
             args = (element,) + args[1:]
 
             if not isinstance(time_dict, dict):
-                raise ValueError('time_dict not found.')
+                raise ValueError("time_dict not found.")
 
             # If the function is a generator, yield the output
             # othewise return it.
             if inspect.isgeneratorfunction(func):
                 for result in func(self, *args, **kwargs):
-                    end_time = time.time()
-                    processing_time = end_time - start_time
                     new_time_dict = copy.deepcopy(time_dict)
-                    new_time_dict[func_name] = processing_time
+                    new_time_dict[func_name] = time.time()
                     if keyed_fn:
                         (key, element) = result
                         yield key, (element, new_time_dict)
@@ -90,24 +89,35 @@ def timeit(func_name: str, keyed_fn: bool = False):
                 raise ValueError("Function is not a generator.")
 
         return wrapper
+
     return decorator
 
 
 class AddTimer(beam.DoFn):
-    """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
-    and the time it took for that element in that stage."""
+    """DoFn to add a empty time_dict per element in PCollection. This dict will
+    stage_names as keys and the time it took for that element in that stage."""
+
     def process(self, element) -> t.Iterator[t.Any]:
-        time_dict = {}
+        time_dict = {
+            "uri": element,
+            "bucket": get_file_time(element),
+            "pickup": time.time(),
+        }
         yield element, time_dict
 
 
 class AddMetrics(beam.DoFn):
-    """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
+    """DoFn to add Element Processing Time metric to beam. Expects PCollection
+    to contain a time_dict."""
 
-    def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
+    def __init__(self, asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ"):
         super().__init__()
-        self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
-        self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
+        self.element_processing_time = metric.Metrics.distribution(
+            "Time", "element_processing_time_ms"
+        )
+        self.data_latency_time = metric.Metrics.distribution(
+            "Time", "data_latency_time_ms"
+        )
         self.asset_start_time_format = asset_start_time_format
 
     def process(self, element):
@@ -118,22 +128,48 @@ class AddMetrics(beam.DoFn):
             if not isinstance(time_dict, dict):
                 raise ValueError("time_dict not found.")
 
-            # Adding element processing time.
-            total_time = 0
-            for stage_time in time_dict.values():
-                total_time += stage_time
+            uri = time_dict.pop("uri", _)
 
-            # Converting seconds to milli seconds.
-            self.element_processing_time.update(int(total_time * 1000))
+            time_dict_sorted = dict(
+                sorted(time_dict.items(), key=lambda item: item[1])
+            )
+            time_dict_sorted_keys = list(time_dict_sorted.keys())
+            time_dict_sorted_values = list(time_dict_sorted.values())
+            element_processing_time = (
+                time_dict_sorted_values[-1] - time_dict_sorted_values[0]
+            )
+            self.element_processing_time.update(int(element_processing_time))
 
             # Adding data latency.
             if asset_start_time:
                 current_time = time.time()
                 asset_start_time = datetime.datetime.strptime(
-                    asset_start_time, self.asset_start_time_format).timestamp()
+                    asset_start_time, self.asset_start_time_format
+                ).timestamp()
 
                 # Converting seconds to milli seconds.
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
+
+                # Logging file init to bucket time as well.
+                time_dict["FileInit"] = asset_start_time
+
+            # Logging time taken by each step...
+            time_dict_sorted = dict(
+                sorted(time_dict.items(), key=lambda item: item[1])
+            )
+            time_dict_sorted_keys = list(time_dict_sorted.keys())
+            time_dict_sorted_values = list(time_dict_sorted.values())
+            for i in range(len(time_dict_sorted) - 1):
+                step_time = round(
+                    time_dict_sorted_values[i+1] - time_dict_sorted_values[i]
+                )
+                logger.info(
+                    f"{uri}: Time from {time_dict_sorted_keys[i]} -> "
+                    f"{time_dict_sorted_keys[i+1]}: {step_time} seconds."
+                )
+
         except Exception as e:
-            logger.warning(f"Some error occured while adding metrics. Error {e}")
+            logger.warning(
+                f"Some error occured while adding metrics. Error {e}"
+            )
