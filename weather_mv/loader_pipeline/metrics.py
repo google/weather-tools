@@ -198,8 +198,6 @@ class Add5SecMetrics(beam.DoFn, KwargsFactoryMixin):
         timestamp=beam.DoFn.TimestampParam,
         window=beam.DoFn.WindowParam,
     ):
-        logger.info(f'Window ends at {window.max_timestamp().to_utc_datetime()}')
-        logger.info(f'Timestamp: {timestamp}')
         logger.info(f"{element[0]} values: {element[1]}")
         self.create_time_series(f"{element[0]}_max", max(element[1]))
         self.create_time_series(f"{element[0]}_mean", sum(element[1]) / len(element[1]))
