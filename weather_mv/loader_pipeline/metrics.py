@@ -15,6 +15,7 @@
 """Utilities for adding metrics to beam pipeline."""
 
 import copy
+import dataclasses
 import datetime
 import inspect
 import logging
@@ -23,7 +24,7 @@ import typing as t
 
 import apache_beam as beam
 from apache_beam.metrics import metric
-from apache_beam.utils import retry
+from apache_beam.transforms import window
 from functools import wraps
 from google.cloud import monitoring_v3
 
@@ -114,7 +115,7 @@ class AddTimer(beam.DoFn):
         yield element, time_dict
 
 
-class AddMetrics(beam.DoFn, KwargsFactoryMixin):
+class AddBeamMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
     def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
@@ -149,23 +150,17 @@ class AddMetrics(beam.DoFn, KwargsFactoryMixin):
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
 
-            yield beam.window.TimestampedValue(('data_latency_time', data_latency_ms / 1000), int(current_time))
-            yield beam.window.TimestampedValue(('element_processing_time', total_time), int(current_time))
+            yield ('data_latency_time', data_latency_ms / 1000)
+            yield ('element_processing_time', total_time)
         except Exception as e:
             logger.warning(f"Some error occured while adding metrics. Error {e}")
 
 
-class Add5SecMetrics(beam.DoFn, KwargsFactoryMixin):
-    def __init__(
-        self,
-        job_name: str,
-        project: str,
-        region: str,
-    ):
-        super().__init__()
-        self.project = project
-        self.region = region
-        self.job_name = job_name
+@dataclasses.dataclass
+class CreateTimeSeries(beam.DoFn):
+    job_name: str
+    project: str
+    region: str
 
     def create_time_series(self, metric_name: str, metric_value: float) -> None:
         """Creates or adds data to a TimeSeries."""
@@ -194,10 +189,27 @@ class Add5SecMetrics(beam.DoFn, KwargsFactoryMixin):
 
     def process(
         self,
-        element: t.Any, 
-        timestamp=beam.DoFn.TimestampParam,
-        window=beam.DoFn.WindowParam,
+        element: t.Any
     ):
-        logger.info(f"{element[0]} values: {element[1]}")
-        self.create_time_series(f"{element[0]}_max", max(element[1]))
-        self.create_time_series(f"{element[0]}_mean", sum(element[1]) / len(element[1]))
+        metric_name, metric_values = element
+        logger.info(f"{metric_name} values: {metric_values}")
+        self.create_time_series(f"{metric_name}_max", max(metric_values))
+        self.create_time_series(f"{metric_name}_mean", sum(metric_values) / len(metric_values))
+
+
+@dataclasses.dataclass
+class AddMetrics(beam.PTransform, KwargsFactoryMixin):
+    job_name: str
+    project: str
+    region: str
+
+    def expand(self, pcol: beam.PCollection):
+        return (
+            pcol
+            | 'AddBeamMetrics' >> beam.ParDo(AddBeamMetrics())
+            | 'AddTimestamps' >> beam.Map(lambda element: beam.window.TimestampedValue(element, time.time()))
+            | 'Window' >> beam.WindowInto(window.FixedWindows(5))
+            | 'GroupByKeyAndWindow' >> beam.GroupByKey(lambda element: element)
+            | 'CreateTimeSeries' >> beam.ParDo(CreateTimeSeries(
+                self.job_name, self.project, self.region))
+        )

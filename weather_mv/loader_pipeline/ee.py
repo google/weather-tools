@@ -377,13 +377,7 @@ class ToEarthEngine(ToDataSink):
             )
 
             if self.use_metrics and not self.skip_region_validation:
-                (
-                    output
-                    | 'AddMetrics' >> beam.ParDo(AddMetrics.from_kwargs(**vars(self)))
-                    | '5SecWindows' >> beam.WindowInto(window.FixedWindows(5))
-                    | 'Group' >> beam.GroupByKey(lambda x: x)
-                    | 'Add5SecMetrics' >> beam.ParDo(Add5SecMetrics.from_kwargs(**vars(self)))
-                )
+                output | 'AddMetrics' >> AddMetrics.from_kwargs(**vars(self))
         else:
             (
                 paths
