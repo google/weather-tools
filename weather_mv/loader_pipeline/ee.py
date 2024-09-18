@@ -42,7 +42,7 @@ from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
-from .metrics import timeit, AddTimer, AddMetrics, Add5SecMetrics
+from .metrics import timeit, AddTimer, AddMetrics
 
 logger = logging.getLogger(__name__)
 
