@@ -14,13 +14,15 @@
 
 """Utilities for adding metrics to beam pipeline."""
 
-import time
 import copy
 import datetime
 import inspect
 import logging
-from functools import wraps
+import time
 import typing as t
+from collections import OrderedDict
+from functools import wraps
+
 import apache_beam as beam
 from apache_beam.metrics import metric
 
@@ -60,7 +62,7 @@ def timeit(func_name: str, keyed_fn: bool = False):
 
                 return
 
-            time_dict = {}
+            time_dict = OrderedDict()
 
             # Only the first timer wrapper will have no time_dict.
             # All subsequent wrappers can extract out the dict.
@@ -71,7 +73,7 @@ def timeit(func_name: str, keyed_fn: bool = False):
             element, time_dict = args[0]
             args = (element,) + args[1:]
 
-            if not isinstance(time_dict, dict):
+            if not isinstance(time_dict, OrderedDict):
                 raise ValueError("time_dict not found.")
 
             # If the function is a generator, yield the output
@@ -79,6 +81,8 @@ def timeit(func_name: str, keyed_fn: bool = False):
             if inspect.isgeneratorfunction(func):
                 for result in func(self, *args, **kwargs):
                     new_time_dict = copy.deepcopy(time_dict)
+                    if func_name in new_time_dict:
+                        del new_time_dict[func_name]
                     new_time_dict[func_name] = time.time()
                     if keyed_fn:
                         (key, element) = result
@@ -98,11 +102,11 @@ class AddTimer(beam.DoFn):
     stage_names as keys and the time it took for that element in that stage."""
 
     def process(self, element) -> t.Iterator[t.Any]:
-        time_dict = {
-            "uri": element,
-            "bucket": get_file_time(element),
-            "pickup": time.time(),
-        }
+        time_dict = OrderedDict([
+            ("uri", element),
+            ("bucket", get_file_time(element)),
+            ("pickup", time.time()),
+        ])
         yield element, time_dict
 
 
@@ -125,19 +129,13 @@ class AddMetrics(beam.DoFn):
             if len(element) == 0:
                 raise ValueError("time_dict not found.")
             (_, asset_start_time), time_dict = element
-            if not isinstance(time_dict, dict):
+            if not isinstance(time_dict, OrderedDict):
                 raise ValueError("time_dict not found.")
 
             uri = time_dict.pop("uri", _)
 
-            time_dict_sorted = dict(
-                sorted(time_dict.items(), key=lambda item: item[1])
-            )
-            time_dict_sorted_keys = list(time_dict_sorted.keys())
-            time_dict_sorted_values = list(time_dict_sorted.values())
-            element_processing_time = (
-                time_dict_sorted_values[-1] - time_dict_sorted_values[0]
-            )
+            time_dict_values = list(time_dict.values())
+            element_processing_time = (time_dict_values[-1] - time_dict_values[0])
             self.element_processing_time.update(int(element_processing_time))
 
             # Adding data latency.
@@ -152,21 +150,17 @@ class AddMetrics(beam.DoFn):
                 self.data_latency_time.update(int(data_latency_ms))
 
                 # Logging file init to bucket time as well.
-                time_dict["FileInit"] = asset_start_time
+                time_dict.update({"FileInit": asset_start_time})
+                time_dict.move_to_end('FileInit', last=False)
 
             # Logging time taken by each step...
-            time_dict_sorted = dict(
-                sorted(time_dict.items(), key=lambda item: item[1])
-            )
-            time_dict_sorted_keys = list(time_dict_sorted.keys())
-            time_dict_sorted_values = list(time_dict_sorted.values())
-            for i in range(len(time_dict_sorted) - 1):
-                step_time = round(
-                    time_dict_sorted_values[i+1] - time_dict_sorted_values[i]
-                )
+            time_dict_keys = list(time_dict.keys())
+            time_dict_values = list(time_dict.values())
+            for i in range(len(time_dict) - 1):
+                step_time = round(time_dict_values[i+1] - time_dict_values[i])
                 logger.info(
-                    f"{uri}: Time from {time_dict_sorted_keys[i]} -> "
-                    f"{time_dict_sorted_keys[i+1]}: {step_time} seconds."
+                    f"{uri}: Time from {time_dict_keys[i]} -> "
+                    f"{time_dict_keys[i+1]}: {step_time} seconds."
                 )
 
         except Exception as e:

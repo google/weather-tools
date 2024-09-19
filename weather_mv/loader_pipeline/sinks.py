@@ -26,6 +26,7 @@ import subprocess
 import tempfile
 import time
 import typing as t
+from urllib.parse import urlparse
 
 import apache_beam as beam
 import cfgrib
@@ -519,13 +520,13 @@ def open_dataset(uri: str,
 
 
 def get_file_time(element: t.Any) -> int:
+    """Calculates element file's write timestamp in UTC."""
     try:
-        if element.startswith("gs://"):
-            bucket_name, file_name = element[5:].split("/", 1)
-
+        element_parsed = urlparse(element)
+        if element_parsed.scheme == "gs":
             client = storage.Client()
-            bucket = client.get_bucket(bucket_name)
-            blob = bucket.get_blob(file_name)
+            bucket = client.get_bucket(element_parsed.netloc)
+            blob = bucket.get_blob(element_parsed.path[1:])
 
             updated_time = int(blob.updated.timestamp())
         else:
