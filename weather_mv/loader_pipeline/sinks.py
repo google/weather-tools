@@ -523,13 +523,13 @@ def get_file_time(element: t.Any) -> int:
     """Calculates element file's write timestamp in UTC."""
     try:
         element_parsed = urlparse(element)
-        if element_parsed.scheme == "gs":
+        if element_parsed.scheme == "gs":  # For file in Google cloud storage.
             client = storage.Client()
             bucket = client.get_bucket(element_parsed.netloc)
             blob = bucket.get_blob(element_parsed.path[1:])
 
             updated_time = int(blob.updated.timestamp())
-        else:
+        else:  # For file in local.
             file_stats = os.stat(element)
             updated_time = int(time.mktime(time.gmtime(file_stats.st_mtime)))
 

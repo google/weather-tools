@@ -62,8 +62,6 @@ def timeit(func_name: str, keyed_fn: bool = False):
 
                 return
 
-            time_dict = OrderedDict()
-
             # Only the first timer wrapper will have no time_dict.
             # All subsequent wrappers can extract out the dict.
             # args 0 would be a tuple.
@@ -98,15 +96,18 @@ def timeit(func_name: str, keyed_fn: bool = False):
 
 
 class AddTimer(beam.DoFn):
-    """DoFn to add a empty time_dict per element in PCollection. This dict will
-    stage_names as keys and the time it took for that element in that stage."""
+    """DoFn to add a time_dict with uri, file time in GCS bucket, when it was
+    picked up in PCollection. This dict will contain each stage_names as keys
+    and the timestamp when it finished that step's execution."""
 
     def process(self, element) -> t.Iterator[t.Any]:
-        time_dict = OrderedDict([
-            ("uri", element),
-            ("bucket", get_file_time(element)),
-            ("pickup", time.time()),
-        ])
+        time_dict = OrderedDict(
+            [
+                ("uri", element),
+                ("bucket", get_file_time(element)),
+                ("pickup", time.time()),
+            ]
+        )
         yield element, time_dict
 
 
@@ -134,8 +135,10 @@ class AddMetrics(beam.DoFn):
 
             uri = time_dict.pop("uri", _)
 
-            time_dict_values = list(time_dict.values())
-            element_processing_time = (time_dict_values[-1] - time_dict_values[0])
+            # Time for a file to get ingested into EE from when it appeared in bucket.
+            element_processing_time = (
+                time_dict["IngestIntoEE"] - time_dict["bucket"]
+            ) * 1000
             self.element_processing_time.update(int(element_processing_time))
 
             # Adding data latency.
@@ -151,16 +154,15 @@ class AddMetrics(beam.DoFn):
 
                 # Logging file init to bucket time as well.
                 time_dict.update({"FileInit": asset_start_time})
-                time_dict.move_to_end('FileInit', last=False)
+                time_dict.move_to_end("FileInit", last=False)
 
             # Logging time taken by each step...
-            time_dict_keys = list(time_dict.keys())
-            time_dict_values = list(time_dict.values())
-            for i in range(len(time_dict) - 1):
-                step_time = round(time_dict_values[i+1] - time_dict_values[i])
+            for (current_step, current_time), (next_step, next_time) in zip(
+                time_dict.items(), list(time_dict.items())[1:]
+            ):
+                step_time = round(next_time - current_time)
                 logger.info(
-                    f"{uri}: Time from {time_dict_keys[i]} -> "
-                    f"{time_dict_keys[i+1]}: {step_time} seconds."
+                    f"{uri}: Time from {current_step} -> {next_step}: {step_time} seconds."
                 )
 
         except Exception as e:
