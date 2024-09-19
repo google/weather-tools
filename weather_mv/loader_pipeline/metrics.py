@@ -24,7 +24,7 @@ import typing as t
 
 import apache_beam as beam
 from apache_beam.metrics import metric
-from apache_beam.transforms import window
+from apache_beam.transforms import window, trigger
 from functools import wraps
 from google.cloud import monitoring_v3
 
@@ -207,9 +207,15 @@ class AddMetrics(beam.PTransform, KwargsFactoryMixin):
         return (
             pcol
             | 'AddBeamMetrics' >> beam.ParDo(AddBeamMetrics())
-            | 'AddTimestamps' >> beam.Map(lambda element: beam.window.TimestampedValue(element, time.time()))
-            | 'Window' >> beam.WindowInto(window.FixedWindows(5))
+            | 'AddTimestamps' >> beam.Map(
+                lambda element: window.TimestampedValue(element, time.time()))
+            | 'Window' >> beam.WindowInto(
+                window.GlobalWindows(),
+                trigger=trigger.Repeatedly(
+                    trigger.AfterProcessingTime(5)
+                ),
+                accumulation_mode=trigger.AccumulationMode.DISCARDING)
             | 'GroupByKeyAndWindow' >> beam.GroupByKey(lambda element: element)
-            | 'CreateTimeSeries' >> beam.ParDo(CreateTimeSeries(
-                self.job_name, self.project, self.region))
+            | 'CreateTimeSeries' >> beam.ParDo(
+                CreateTimeSeries(self.job_name, self.project, self.region))
         )
