@@ -118,10 +118,14 @@ class AddTimer(beam.DoFn):
 class AddBeamMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
 
-    def __init__(self, asset_start_time_format: str = '%Y-%m-%dT%H:%M:%SZ'):
+    def __init__(self, asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ"):
         super().__init__()
-        self.element_processing_time = metric.Metrics.distribution('Time', 'element_processing_time_ms')
-        self.data_latency_time = metric.Metrics.distribution('Time', 'data_latency_time_ms')
+        self.element_processing_time = metric.Metrics.distribution(
+            "Time", "element_processing_time_ms"
+        )
+        self.data_latency_time = metric.Metrics.distribution(
+            "Time", "data_latency_time_ms"
+        )
         self.asset_start_time_format = asset_start_time_format
 
     def process(self, element):
@@ -144,26 +148,29 @@ class AddBeamMetrics(beam.DoFn):
             if asset_start_time:
                 current_time = time.time()
                 asset_start_time = datetime.datetime.strptime(
-                    asset_start_time, self.asset_start_time_format).timestamp()
+                    asset_start_time, self.asset_start_time_format
+                ).timestamp()
 
                 # Converting seconds to milli seconds.
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
 
-            yield ('data_latency_time', data_latency_ms / 1000)
-            yield ('element_processing_time', total_time)
+            yield ("custom_metrics", (data_latency_ms / 1000, total_time))
         except Exception as e:
-            logger.warning(f"Some error occured while adding metrics. Error {e}")
+            logger.warning(
+                f"Some error occured while adding metrics. Error {e}"
+            )
 
 
 @dataclasses.dataclass
 class CreateTimeSeries(beam.DoFn):
+    """DoFn to write metrics TimeSeries data in Google Cloud Monitoring."""
     job_name: str
     project: str
     region: str
 
     def create_time_series(self, metric_name: str, metric_value: float) -> None:
-        """Creates or adds data to a TimeSeries."""
+        """Writes data to a Metrics TimeSeries."""
         client = monitoring_v3.MetricServiceClient()
         series = monitoring_v3.TimeSeries()
         series.metric.type = f"custom.googleapis.com/{metric_name}"
@@ -184,17 +191,26 @@ class CreateTimeSeries(beam.DoFn):
             {"interval": interval, "value": {"double_value": metric_value}}
         )
         series.points = [point]
-        client.create_time_series(name=f"projects/{self.project}", time_series=[series])
-        logger.info(f"Successfully created time series for {metric_name}. Metric value: {metric_value}.")
+        client.create_time_series(
+            name=f"projects/{self.project}", time_series=[series]
+        )
+        logger.info(
+            f"Successfully created time series for {metric_name}. Metric value: {metric_value}."
+        )
 
-    def process(
-        self,
-        element: t.Any
-    ):
-        metric_name, metric_values = element
-        logger.info(f"{metric_name} values: {metric_values}")
-        self.create_time_series(f"{metric_name}_max", max(metric_values))
-        self.create_time_series(f"{metric_name}_mean", sum(metric_values) / len(metric_values))
+    def process(self, element: t.Any):
+        _, (data_latency_times, element_processing_times) = element
+        logger.info(f"data_latency_time values: {data_latency_times}")
+        self.create_time_series(f"data_latency_time_max", max(data_latency_times))
+        self.create_time_series(
+            f"data_latency_time_mean", sum(data_latency_times) / len(data_latency_times)
+        )
+
+        logger.info(f"element_processing_time values: {element_processing_times}")
+        self.create_time_series(f"element_processing_time_max", max(element_processing_times))
+        self.create_time_series(
+            f"element_processing_time_mean", sum(element_processing_times) / len(element_processing_times)
+        )
 
 
 @dataclasses.dataclass
@@ -203,19 +219,23 @@ class AddMetrics(beam.PTransform, KwargsFactoryMixin):
     project: str
     region: str
 
-    def expand(self, pcol: beam.PCollection):
+    def expand(self, pcoll: beam.PCollection):
         return (
-            pcol
-            | 'AddBeamMetrics' >> beam.ParDo(AddBeamMetrics())
-            | 'AddTimestamps' >> beam.Map(
-                lambda element: window.TimestampedValue(element, time.time()))
-            | 'Window' >> beam.WindowInto(
+            pcoll
+            | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics())
+            | "AddTimestamps"
+            >> beam.Map(
+                lambda element: window.TimestampedValue(element, time.time())
+            )
+            | "Window"
+            >> beam.WindowInto(
                 window.GlobalWindows(),
-                trigger=trigger.Repeatedly(
-                    trigger.AfterProcessingTime(5)
-                ),
-                accumulation_mode=trigger.AccumulationMode.DISCARDING)
-            | 'GroupByKeyAndWindow' >> beam.GroupByKey(lambda element: element)
-            | 'CreateTimeSeries' >> beam.ParDo(
-                CreateTimeSeries(self.job_name, self.project, self.region))
+                trigger=trigger.Repeatedly(trigger.AfterProcessingTime(5)),
+                accumulation_mode=trigger.AccumulationMode.DISCARDING,
+            )
+            | "GroupByKeyAndWindow" >> beam.GroupByKey(lambda element: element)
+            | "CreateTimeSeries"
+            >> beam.ParDo(
+                CreateTimeSeries(self.job_name, self.project, self.region)
+            )
         )
