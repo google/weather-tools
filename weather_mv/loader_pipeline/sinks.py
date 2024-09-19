@@ -24,7 +24,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import typing as t
+from urllib.parse import urlparse
 
 import apache_beam as beam
 import cfgrib
@@ -34,6 +36,7 @@ import rioxarray
 import xarray as xr
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
+from google.cloud import storage
 from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
@@ -514,3 +517,24 @@ def open_dataset(uri: str,
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')
         raise
+
+
+def get_file_time(element: t.Any) -> int:
+    """Calculates element file's write timestamp in UTC."""
+    try:
+        element_parsed = urlparse(element)
+        if element_parsed.scheme == "gs":  # For file in Google cloud storage.
+            client = storage.Client()
+            bucket = client.get_bucket(element_parsed.netloc)
+            blob = bucket.get_blob(element_parsed.path[1:])
+
+            updated_time = int(blob.updated.timestamp())
+        else:  # For file in local.
+            file_stats = os.stat(element)
+            updated_time = int(time.mktime(time.gmtime(file_stats.st_mtime)))
+
+        return updated_time
+    except Exception as e:
+        raise ValueError(
+            f"Error fetching raw data file bucket time for {element!r}. Error: {str(e)}"
+        )
