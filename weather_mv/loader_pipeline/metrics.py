@@ -15,6 +15,7 @@
 """Utilities for adding metrics to beam pipeline."""
 
 import copy
+import dataclasses
 import datetime
 import inspect
 import logging
@@ -26,7 +27,7 @@ from functools import wraps
 import apache_beam as beam
 from apache_beam.metrics import metric
 
-from .sinks import get_file_time
+from .sinks import get_file_time, KwargsFactoryMixin
 
 logger = logging.getLogger(__name__)
 
@@ -95,16 +96,19 @@ def timeit(func_name: str, keyed_fn: bool = False):
     return decorator
 
 
-class AddTimer(beam.DoFn):
+@dataclasses.dataclass
+class AddTimer(beam.DoFn, KwargsFactoryMixin):
     """DoFn to add a time_dict with uri, file time in GCS bucket, when it was
     picked up in PCollection. This dict will contain each stage_names as keys
     and the timestamp when it finished that step's execution."""
+
+    topic: t.Optional[str] = None
 
     def process(self, element) -> t.Iterator[t.Any]:
         time_dict = OrderedDict(
             [
                 ("uri", element),
-                ("bucket", get_file_time(element)),
+                ("bucket", get_file_time(element) if self.topic else time.time()),
                 ("pickup", time.time()),
             ]
         )
@@ -136,6 +140,8 @@ class AddMetrics(beam.DoFn):
             uri = time_dict.pop("uri", _)
 
             # Time for a file to get ingested into EE from when it appeared in bucket.
+            # When the pipeline is in batch mode, it will be from when the file
+            # was picked up by the pipeline.
             element_processing_time = (
                 time_dict["IngestIntoEE"] - time_dict["bucket"]
             ) * 1000
