@@ -22,14 +22,22 @@ import logging
 import time
 import typing as t
 from collections import OrderedDict
-from functools import wraps
 
 import apache_beam as beam
 from apache_beam.metrics import metric
+from apache_beam.transforms import window, trigger
+from functools import wraps
+from google.cloud import monitoring_v3
 
 from .sinks import get_file_time, KwargsFactoryMixin
 
 logger = logging.getLogger(__name__)
+
+# For Metrics API retry logic.
+INITIAL_DELAY = 1.0  # Initial delay in seconds.
+MAX_DELAY = 600  # Maximum delay before giving up in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
+TASK_QUEUE_WAIT_TIME = 120  # Task queue wait time in seconds.
 
 
 def timeit(func_name: str, keyed_fn: bool = False):
@@ -115,7 +123,7 @@ class AddTimer(beam.DoFn, KwargsFactoryMixin):
         yield element, time_dict
 
 
-class AddMetrics(beam.DoFn):
+class AddBeamMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection
     to contain a time_dict."""
 
@@ -170,8 +178,90 @@ class AddMetrics(beam.DoFn):
                 logger.info(
                     f"{uri}: Time from {current_step} -> {next_step}: {step_time} seconds."
                 )
-
+            yield ("custom_metrics", (data_latency_ms / 1000, element_processing_time / 1000))
         except Exception as e:
             logger.warning(
                 f"Some error occured while adding metrics. Error {e}"
             )
+
+
+@dataclasses.dataclass
+class CreateTimeSeries(beam.DoFn):
+    """DoFn to write metrics TimeSeries data in Google Cloud Monitoring."""
+    job_name: str
+    project: str
+    region: str
+
+    def create_time_series(self, metric_name: str, metric_value: float) -> None:
+        """Writes data to a Metrics TimeSeries."""
+        client = monitoring_v3.MetricServiceClient()
+        series = monitoring_v3.TimeSeries()
+        series.metric.type = f"custom.googleapis.com/{metric_name}"
+        series.metric.labels["description"] = metric_name
+        series.resource.type = "dataflow_job"
+        series.resource.labels["job_name"] = self.job_name
+        series.resource.labels["project_id"] = self.project
+        series.resource.labels["region"] = self.region
+
+        now = time.time()
+        seconds = int(now)
+        nanos = int((now - seconds) * 10**9)
+        interval = monitoring_v3.TimeInterval(
+            {"end_time": {"seconds": seconds, "nanos": nanos}}
+        )
+
+        point = monitoring_v3.Point(
+            {"interval": interval, "value": {"double_value": metric_value}}
+        )
+        series.points = [point]
+        client.create_time_series(
+            name=f"projects/{self.project}", time_series=[series]
+        )
+        logger.info(
+            f"Successfully created time series for {metric_name}. Metric value: {metric_value}."
+        )
+
+    def process(self, element: t.Any):
+        _, metric_values = element
+        data_latency_times = [x[0] for x in metric_values]
+        element_processing_times = [x[1] for x in metric_values]
+
+        logger.info(f"data_latency_time values: {data_latency_times}")
+        self.create_time_series("data_latency_time_max", max(data_latency_times))
+        self.create_time_series(
+            "data_latency_time_mean", sum(data_latency_times) / len(data_latency_times)
+        )
+
+        logger.info(f"element_processing_time values: {element_processing_times}")
+        self.create_time_series("element_processing_time_max", max(element_processing_times))
+        self.create_time_series(
+            "element_processing_time_mean", sum(element_processing_times) / len(element_processing_times)
+        )
+
+
+@dataclasses.dataclass
+class AddMetrics(beam.PTransform, KwargsFactoryMixin):
+    job_name: str
+    project: str
+    region: str
+
+    def expand(self, pcoll: beam.PCollection):
+        return (
+            pcoll
+            | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics())
+            | "AddTimestamps"
+            >> beam.Map(
+                lambda element: window.TimestampedValue(element, time.time())
+            )
+            | "Window"
+            >> beam.WindowInto(
+                window.GlobalWindows(),
+                trigger=trigger.Repeatedly(trigger.AfterProcessingTime(5)),
+                accumulation_mode=trigger.AccumulationMode.DISCARDING,
+            )
+            | "GroupByKeyAndWindow" >> beam.GroupByKey(lambda element: element)
+            | "CreateTimeSeries"
+            >> beam.ParDo(
+                CreateTimeSeries(self.job_name, self.project, self.region)
+            )
+        )

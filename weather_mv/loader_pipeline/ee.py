@@ -250,7 +250,7 @@ class ToEarthEngine(ToDataSink):
     initialization_time_regex: str
     forecast_time_regex: str
     ingest_as_virtual_asset: bool
-    use_deflate:bool
+    use_deflate: bool
     use_metrics: bool
     topic: str
 
@@ -376,8 +376,8 @@ class ToEarthEngine(ToDataSink):
                 | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
 
-            if self.use_metrics:
-                output | 'AddMetrics' >> beam.ParDo(AddMetrics())
+            if self.use_metrics and not self.skip_region_validation:
+                output | 'AddMetrics' >> AddMetrics.from_kwargs(**vars(self))
         else:
             (
                 paths
