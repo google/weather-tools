@@ -21,6 +21,8 @@ import inspect
 import logging
 import time
 import typing as t
+from collections import OrderedDict
+from functools import wraps
 
 import apache_beam as beam
 from apache_beam.metrics import metric
@@ -29,6 +31,8 @@ from functools import wraps
 from google.cloud import monitoring_v3
 
 from .sinks import KwargsFactoryMixin
+
+from .sinks import get_file_time, KwargsFactoryMixin
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +74,6 @@ def timeit(func_name: str, keyed_fn: bool = False):
 
                 return
 
-            start_time = time.time()
-            time_dict = {}
-
             # Only the first timer wrapper will have no time_dict.
             # All subsequent wrappers can extract out the dict.
             # args 0 would be a tuple.
@@ -82,17 +83,17 @@ def timeit(func_name: str, keyed_fn: bool = False):
             element, time_dict = args[0]
             args = (element,) + args[1:]
 
-            if not isinstance(time_dict, dict):
+            if not isinstance(time_dict, OrderedDict):
                 raise ValueError("time_dict not found.")
 
             # If the function is a generator, yield the output
             # othewise return it.
             if inspect.isgeneratorfunction(func):
                 for result in func(self, *args, **kwargs):
-                    end_time = time.time()
-                    processing_time = end_time - start_time
                     new_time_dict = copy.deepcopy(time_dict)
-                    new_time_dict[func_name] = processing_time
+                    if func_name in new_time_dict:
+                        del new_time_dict[func_name]
+                    new_time_dict[func_name] = time.time()
                     if keyed_fn:
                         (key, element) = result
                         yield key, (element, new_time_dict)
@@ -106,17 +107,28 @@ def timeit(func_name: str, keyed_fn: bool = False):
     return decorator
 
 
-class AddTimer(beam.DoFn):
-    """DoFn to add a empty time_dict per element in PCollection. This dict will stage_names as keys
-    and the time it took for that element in that stage."""
+@dataclasses.dataclass
+class AddTimer(beam.DoFn, KwargsFactoryMixin):
+    """DoFn to add a time_dict with uri, file time in GCS bucket, when it was
+    picked up in PCollection. This dict will contain each stage_names as keys
+    and the timestamp when it finished that step's execution."""
+
+    topic: t.Optional[str] = None
 
     def process(self, element) -> t.Iterator[t.Any]:
-        time_dict = {}
+        time_dict = OrderedDict(
+            [
+                ("uri", element),
+                ("bucket", get_file_time(element) if self.topic else time.time()),
+                ("pickup", time.time()),
+            ]
+        )
         yield element, time_dict
 
 
 class AddBeamMetrics(beam.DoFn):
-    """DoFn to add Element Processing Time metric to beam. Expects PCollection to contain a time_dict."""
+    """DoFn to add Element Processing Time metric to beam. Expects PCollection
+    to contain a time_dict."""
 
     def __init__(self, asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ"):
         super().__init__()
@@ -133,16 +145,18 @@ class AddBeamMetrics(beam.DoFn):
             if len(element) == 0:
                 raise ValueError("time_dict not found.")
             (_, asset_start_time), time_dict = element
-            if not isinstance(time_dict, dict):
+            if not isinstance(time_dict, OrderedDict):
                 raise ValueError("time_dict not found.")
 
-            # Adding element processing time.
-            total_time = 0
-            for stage_time in time_dict.values():
-                total_time += stage_time
+            uri = time_dict.pop("uri", _)
 
-            # Converting seconds to milli seconds.
-            self.element_processing_time.update(int(total_time * 1000))
+            # Time for a file to get ingested into EE from when it appeared in bucket.
+            # When the pipeline is in batch mode, it will be from when the file
+            # was picked up by the pipeline.
+            element_processing_time = (
+                time_dict["IngestIntoEE"] - time_dict["bucket"]
+            ) * 1000
+            self.element_processing_time.update(int(element_processing_time))
 
             # Adding data latency.
             if asset_start_time:
@@ -155,7 +169,19 @@ class AddBeamMetrics(beam.DoFn):
                 data_latency_ms = (current_time - asset_start_time) * 1000
                 self.data_latency_time.update(int(data_latency_ms))
 
-            yield ("custom_metrics", (data_latency_ms / 1000, total_time))
+                # Logging file init to bucket time as well.
+                time_dict.update({"FileInit": asset_start_time})
+                time_dict.move_to_end("FileInit", last=False)
+
+            # Logging time taken by each step...
+            for (current_step, current_time), (next_step, next_time) in zip(
+                time_dict.items(), list(time_dict.items())[1:]
+            ):
+                step_time = round(next_time - current_time)
+                logger.info(
+                    f"{uri}: Time from {current_step} -> {next_step}: {step_time} seconds."
+                )
+            yield ("custom_metrics", (data_latency_ms / 1000, element_processing_time / 1000))
         except Exception as e:
             logger.warning(
                 f"Some error occured while adding metrics. Error {e}"

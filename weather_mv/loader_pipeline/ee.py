@@ -253,6 +253,7 @@ class ToEarthEngine(ToDataSink):
     ingest_as_virtual_asset: bool
     use_deflate:bool
     use_metrics: bool
+    topic: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -363,7 +364,7 @@ class ToEarthEngine(ToDataSink):
                 band_names_dict = json.load(f)
 
         if self.use_metrics:
-            paths = paths | 'AddTimer' >> beam.ParDo(AddTimer())
+            paths = paths | 'AddTimer' >> beam.ParDo(AddTimer.from_kwargs(**vars(self)))
 
         if not self.dry_run:
             output = (
