@@ -225,7 +225,10 @@ class CreateTimeSeries(beam.DoFn):
         )
 
     def process(self, element: t.Any):
-        _, (data_latency_times, element_processing_times) = element
+        _, metric_values = element
+        data_latency_times = [x[0] for x in metric_values]
+        element_processing_times = [x[1] for x in metric_values]
+
         logger.info(f"data_latency_time values: {data_latency_times}")
         self.create_time_series(f"data_latency_time_max", max(data_latency_times))
         self.create_time_series(
