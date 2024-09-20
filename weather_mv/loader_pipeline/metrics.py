@@ -22,15 +22,12 @@ import logging
 import time
 import typing as t
 from collections import OrderedDict
-from functools import wraps
 
 import apache_beam as beam
 from apache_beam.metrics import metric
 from apache_beam.transforms import window, trigger
 from functools import wraps
 from google.cloud import monitoring_v3
-
-from .sinks import KwargsFactoryMixin
 
 from .sinks import get_file_time, KwargsFactoryMixin
 
@@ -230,15 +227,15 @@ class CreateTimeSeries(beam.DoFn):
         element_processing_times = [x[1] for x in metric_values]
 
         logger.info(f"data_latency_time values: {data_latency_times}")
-        self.create_time_series(f"data_latency_time_max", max(data_latency_times))
+        self.create_time_series("data_latency_time_max", max(data_latency_times))
         self.create_time_series(
-            f"data_latency_time_mean", sum(data_latency_times) / len(data_latency_times)
+            "data_latency_time_mean", sum(data_latency_times) / len(data_latency_times)
         )
 
         logger.info(f"element_processing_time values: {element_processing_times}")
-        self.create_time_series(f"element_processing_time_max", max(element_processing_times))
+        self.create_time_series("element_processing_time_max", max(element_processing_times))
         self.create_time_series(
-            f"element_processing_time_mean", sum(element_processing_times) / len(element_processing_times)
+            "element_processing_time_mean", sum(element_processing_times) / len(element_processing_times)
         )
 
 

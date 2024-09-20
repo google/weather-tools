@@ -33,7 +33,6 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.transforms import window
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
@@ -251,7 +250,7 @@ class ToEarthEngine(ToDataSink):
     initialization_time_regex: str
     forecast_time_regex: str
     ingest_as_virtual_asset: bool
-    use_deflate:bool
+    use_deflate: bool
     use_metrics: bool
     topic: str
 
