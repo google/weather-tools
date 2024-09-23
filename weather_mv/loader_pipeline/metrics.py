@@ -195,7 +195,6 @@ class CreateTimeSeries(beam.DoFn):
 
     def create_time_series(self, metric_name: str, metric_value: float) -> None:
         """Writes data to a Metrics TimeSeries."""
-        client = monitoring_v3.MetricServiceClient()
         series = monitoring_v3.TimeSeries()
         series.metric.type = f"custom.googleapis.com/{metric_name}"
         series.metric.labels["description"] = metric_name
