@@ -193,8 +193,8 @@ class CreateTimeSeries(beam.DoFn):
     project: str
     region: str
 
-    def create_time_series(self, metric_name: str, metric_value: float) -> None:
-        """Writes data to a Metrics TimeSeries."""
+    def create_time_series_object(self, metric_name: str, metric_value: float) -> None:
+        """Returns a Metrics TimeSeries object."""
         series = monitoring_v3.TimeSeries()
         series.metric.type = f"custom.googleapis.com/{metric_name}"
         series.metric.labels["description"] = metric_name
