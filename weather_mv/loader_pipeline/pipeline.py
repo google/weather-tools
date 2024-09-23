@@ -21,6 +21,7 @@ import warnings
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.options.pipeline_options import PipelineOptions
 
 from .bq import ToBigQuery
 from .regrid import Regrid
@@ -45,16 +46,6 @@ def pattern_to_uris(match_pattern: str, is_zarr: bool = False) -> t.Iterable[str
 
     for match in FileSystems().match([match_pattern]):
         yield from [x.path for x in match.metadata_list]
-
-
-def arguments_to_dict(args: t.List[str]) -> t.Dict[str, str]:
-    """Converts a list of arguments to a dictionary."""
-    result = {}
-    for i in range(0, len(args), 2):
-        key = args[i].lstrip("-")
-        value = args[i + 1]
-        result[key] = value
-    return result
 
 
 def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -85,10 +76,10 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
+            pipeline_options = PipelineOptions(pipeline_args)
+            pipeline_options_dict = pipeline_options.get_all_options()
             # all_args will contain all the arguments passed to the pipeline.
-            all_args = {}
-            all_args.update(arguments_to_dict(pipeline_args))
-            all_args.update(**vars(known_args))
+            all_args = {**vars(known_args), **pipeline_options_dict}
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**all_args)
         else:
             raise ValueError('invalid subcommand!')

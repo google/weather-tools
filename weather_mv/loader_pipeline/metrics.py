@@ -188,6 +188,7 @@ class AddBeamMetrics(beam.DoFn):
 @dataclasses.dataclass
 class CreateTimeSeries(beam.DoFn):
     """DoFn to write metrics TimeSeries data in Google Cloud Monitoring."""
+
     job_name: str
     project: str
     region: str
@@ -214,12 +215,7 @@ class CreateTimeSeries(beam.DoFn):
             {"interval": interval, "value": {"double_value": metric_value}}
         )
         series.points = [point]
-        client.create_time_series(
-            name=f"projects/{self.project}", time_series=[series]
-        )
-        logger.info(
-            f"Successfully created time series for {metric_name}. Metric value: {metric_value}."
-        )
+        return series
 
     def process(self, element: t.Any):
         _, metric_values = element
@@ -227,15 +223,34 @@ class CreateTimeSeries(beam.DoFn):
         element_processing_times = [x[1] for x in metric_values]
 
         logger.info(f"data_latency_time values: {data_latency_times}")
-        self.create_time_series("data_latency_time_max", max(data_latency_times))
-        self.create_time_series(
-            "data_latency_time_mean", sum(data_latency_times) / len(data_latency_times)
+        data_latency_max_series = self.create_time_series_object(
+            "data_latency_time_max", max(data_latency_times)
+        )
+        data_latency_mean_series = self.create_time_series_object(
+            "data_latency_time_mean",
+            sum(data_latency_times) / len(data_latency_times),
         )
 
-        logger.info(f"element_processing_time values: {element_processing_times}")
-        self.create_time_series("element_processing_time_max", max(element_processing_times))
-        self.create_time_series(
-            "element_processing_time_mean", sum(element_processing_times) / len(element_processing_times)
+        logger.info(
+            f"element_processing_time values: {element_processing_times}"
+        )
+        element_processing_max_series = self.create_time_series_object(
+            "element_processing_time_max", max(element_processing_times)
+        )
+        element_processing_mean_series = self.create_time_series_object(
+            "element_processing_time_mean",
+            sum(element_processing_times) / len(element_processing_times),
+        )
+
+        client = monitoring_v3.MetricServiceClient()
+        client.create_time_series(
+            name=f"projects/{self.project}",
+            time_series=[
+                data_latency_max_series,
+                data_latency_mean_series,
+                element_processing_max_series,
+                element_processing_mean_series,
+            ],
         )
 
 
