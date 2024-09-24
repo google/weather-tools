@@ -78,7 +78,9 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
             pipeline_options = PipelineOptions(pipeline_args)
             pipeline_options_dict = pipeline_options.get_all_options()
-            # all_args will contain all the arguments passed to the pipeline.
+            # all_args stores all arguments passed to the pipeline.
+            # This is necessary because pipeline_args are later used by
+            # the CreateTimeSeries DoFn in the AddMetrics transform.
             all_args = {**vars(known_args), **pipeline_options_dict}
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**all_args)
         else:

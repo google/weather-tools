@@ -193,7 +193,7 @@ class CreateTimeSeries(beam.DoFn):
     project: str
     region: str
 
-    def create_time_series_object(self, metric_name: str, metric_value: float) -> None:
+    def create_time_series_object(self, metric_name: str, metric_value: float):
         """Returns a Metrics TimeSeries object."""
         series = monitoring_v3.TimeSeries()
         series.metric.type = f"custom.googleapis.com/{metric_name}"
@@ -258,24 +258,26 @@ class AddMetrics(beam.PTransform, KwargsFactoryMixin):
     job_name: str
     project: str
     region: str
+    use_monitoring_metrics: bool
 
     def expand(self, pcoll: beam.PCollection):
-        return (
-            pcoll
-            | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics())
-            | "AddTimestamps"
-            >> beam.Map(
-                lambda element: window.TimestampedValue(element, time.time())
+        metrics = pcoll | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics())
+        if self.use_monitoring_metrics:
+            (
+                metrics
+                | "AddTimestamps"
+                >> beam.Map(
+                    lambda element: window.TimestampedValue(element, time.time())
+                )
+                | "Window"
+                >> beam.WindowInto(
+                    window.GlobalWindows(),
+                    trigger=trigger.Repeatedly(trigger.AfterProcessingTime(5)),
+                    accumulation_mode=trigger.AccumulationMode.DISCARDING,
+                )
+                | "GroupByKeyAndWindow" >> beam.GroupByKey(lambda element: element)
+                | "CreateTimeSeries"
+                >> beam.ParDo(
+                    CreateTimeSeries(self.job_name, self.project, self.region)
+                )
             )
-            | "Window"
-            >> beam.WindowInto(
-                window.GlobalWindows(),
-                trigger=trigger.Repeatedly(trigger.AfterProcessingTime(5)),
-                accumulation_mode=trigger.AccumulationMode.DISCARDING,
-            )
-            | "GroupByKeyAndWindow" >> beam.GroupByKey(lambda element: element)
-            | "CreateTimeSeries"
-            >> beam.ParDo(
-                CreateTimeSeries(self.job_name, self.project, self.region)
-            )
-        )
