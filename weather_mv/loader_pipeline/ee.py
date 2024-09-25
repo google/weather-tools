@@ -250,8 +250,9 @@ class ToEarthEngine(ToDataSink):
     initialization_time_regex: str
     forecast_time_regex: str
     ingest_as_virtual_asset: bool
-    use_deflate:bool
+    use_deflate: bool
     use_metrics: bool
+    use_monitoring_metrics: bool
     topic: str
 
     @classmethod
@@ -298,7 +299,9 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--use_deflate', action='store_true', default=False,
                                help='To use deflate compression algorithm. Default: False')
         subparser.add_argument('--use_metrics', action='store_true', default=False,
-                               help='If you want to add metrics to your pipeline.')
+                               help='If you want to add Beam metrics to your pipeline. Default: False')
+        subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
+                               help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -354,6 +357,7 @@ class ToEarthEngine(ToDataSink):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
+        logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
 
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
@@ -377,7 +381,7 @@ class ToEarthEngine(ToDataSink):
             )
 
             if self.use_metrics:
-                output | 'AddMetrics' >> beam.ParDo(AddMetrics())
+                output | 'AddMetrics' >> AddMetrics.from_kwargs(**vars(self))
         else:
             (
                 paths

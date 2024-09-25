@@ -31,6 +31,7 @@ dependencies:
     - firebase-admin==6.0.1
     - setuptools==70.3.0
     - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
+    - google-cloud-monitoring
     - .
     - ./weather_dl
     - ./weather_mv
