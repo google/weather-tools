@@ -751,8 +751,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         logger.info(f"Failed to ingest virtual asset '{asset_name}' in earth engine: {response.text}")
                         raise ee.EEException(response.text)
 
-                    response_json = json.loads(response.content)
-                    return response_json.get('name')
+                    return asset_name
                 else:  # as a COG based image.
                     ee.data.createAsset({
                         'name': asset_name,
