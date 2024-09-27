@@ -754,7 +754,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                     response_json = json.loads(response.content)
                     return response_json.get('name')
                 else:  # as a COG based image.
-                    result = ee.data.createAsset({
+                    ee.data.createAsset({
                         'name': asset_name,
                         'type': self.ee_asset_type,
                         'gcs_location': {
@@ -768,7 +768,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
-                response = ee.data.startTableIngestion(task_id, {
+                ee.data.startTableIngestion(task_id, {
                     'name': asset_name,
                     'sources': [{
                         'uris': [asset_data.target_path]
