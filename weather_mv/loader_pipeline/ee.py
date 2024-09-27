@@ -764,7 +764,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         'endTime': asset_data.end_time,
                         'properties': asset_data.properties,
                     })
-                    return result.get('id')
+                    return asset_name
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
@@ -777,7 +777,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                     'endTime': asset_data.end_time,
                     'properties': asset_data.properties
                 })
-                return response.get('id')
+                return asset_name
         except ee.EEException as e:
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.info(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
@@ -794,8 +794,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('IngestIntoEE')
     def process(self, asset_data: AssetData) -> t.Iterator[t.Tuple[str, float]]:
         """Uploads an asset into the earth engine."""
-        asset_id = self.start_ingestion(asset_data)
+        asset_name = self.start_ingestion(asset_data)
         metric.Metrics.counter('Success', 'IngestIntoEE').inc()
 
         asset_start_time = asset_data.start_time
-        yield asset_id, asset_start_time
+        yield asset_name, asset_start_time
