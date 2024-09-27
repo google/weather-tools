@@ -18,6 +18,7 @@ import copy
 import dataclasses
 import datetime
 import inspect
+import json
 import logging
 import time
 import typing as t
@@ -141,11 +142,11 @@ class AddBeamMetrics(beam.DoFn):
         try:
             if len(element) == 0:
                 raise ValueError("time_dict not found.")
-            (_, asset_start_time), time_dict = element
+            (asset_id, asset_start_time), time_dict = element
             if not isinstance(time_dict, OrderedDict):
                 raise ValueError("time_dict not found.")
 
-            uri = time_dict.pop("uri", _)
+            uri = time_dict.pop("uri")
 
             # Time for a file to get ingested into EE from when it appeared in bucket.
             # When the pipeline is in batch mode, it will be from when the file
@@ -171,13 +172,15 @@ class AddBeamMetrics(beam.DoFn):
                 time_dict.move_to_end("FileInit", last=False)
 
             # Logging time taken by each step...
-            for (current_step, current_time), (next_step, next_time) in zip(
-                time_dict.items(), list(time_dict.items())[1:]
-            ):
-                step_time = round(next_time - current_time)
-                logger.info(
-                    f"{uri}: Time from {current_step} -> {next_step}: {step_time} seconds."
-                )
+            step_intervals = {
+                f"{current_step} -> {next_step}": round(next_time - current_time)
+                for (current_step, current_time), (next_step, next_time)
+                in zip(time_dict.items(), list(time_dict.items())[1:])
+            }
+            logger.info(
+                f"Step intervals for {uri}:{asset_id} :: {json.dumps(step_intervals, indent=4)}"
+            )
+
             yield ("custom_metrics", (data_latency_ms / 1000, element_processing_time / 1000))
         except Exception as e:
             logger.warning(
