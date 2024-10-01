@@ -406,6 +406,8 @@ _Command options_:
 * `--group_common_hypercubes`: A flag that allows to split up large grib files into multiple level-wise ImageCollections / COGS.
 * `--use_deflate`: A flag that allows you to use deflate algorithm for beter compression. Using deflate compression
   takes extra time in COG creation. Default:False.
+* `--use_metrics`: A flag that allows you to add Beam metrics to the pipeline. Default: False.
+* `--use_monitoring_metrics`: A flag that allows you to to add Google Cloud Monitoring metrics to the pipeline. Default: False.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 

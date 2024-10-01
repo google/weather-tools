@@ -254,6 +254,10 @@ class ToEarthEngine(ToDataSink):
     use_metrics: bool
     use_monitoring_metrics: bool
     topic: str
+    # Pipeline arguments.
+    job_name: str
+    project: str
+    region: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):

@@ -128,7 +128,7 @@ class AddBeamMetrics(beam.DoFn):
     """DoFn to add Element Processing Time metric to beam. Expects PCollection
     to contain a time_dict."""
 
-    def __init__(self, asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ"):
+    def __init__(self, asset_start_time_format: str):
         super().__init__()
         self.element_processing_time = metric.Metrics.distribution(
             "Time", "element_processing_time_ms"
@@ -258,13 +258,16 @@ class CreateTimeSeries(beam.DoFn):
 
 @dataclasses.dataclass
 class AddMetrics(beam.PTransform, KwargsFactoryMixin):
+    """A custom transform to add metrics to the pipeline."""
+
     job_name: str
     project: str
     region: str
     use_monitoring_metrics: bool
+    asset_start_time_format: str = "%Y-%m-%dT%H:%M:%SZ"
 
     def expand(self, pcoll: beam.PCollection):
-        metrics = pcoll | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics())
+        metrics = pcoll | "AddBeamMetrics" >> beam.ParDo(AddBeamMetrics(self.asset_start_time_format))
         if self.use_monitoring_metrics:
             (
                 metrics
