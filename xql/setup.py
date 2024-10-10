@@ -14,7 +14,8 @@
 
 
 from setuptools import find_packages, setup
-
+# Please Maintain the dask_kubernetes version at 2024.4.2 (https://github.com/dask/dask-kubernetes/releases/tag/2024.4.2).
+# Subsequent versions have removed code which is essential for the current codebase to function properly.
 requirements = [
     "dask==2024.3.0",
     "distributed==2024.3.0",
