@@ -14,11 +14,12 @@
 
 
 from setuptools import find_packages, setup
-
+# Please maintain the dask_kubernetes version at 2024.4.2 (https://github.com/dask/dask-kubernetes/releases/tag/2024.4.2).
+# Subsequent versions have removed code which is essential for the current codebase to function properly.
 requirements = [
     "dask==2024.3.0",
     "distributed==2024.3.0",
-    "dask_kubernetes",
+    "dask_kubernetes==2024.4.2",
     "fsspec",
     "gcsfs==2024.2.0",
     "numpy==1.26.3",
@@ -38,7 +39,7 @@ setup(
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     install_requires=requirements,
-    version="0.0.1",
+    version="0.0.2",
     author='anthromet',
     author_email='anthromets-ecmwf@google.com',
     description=("Running SQL queries on Xarray Datasets. Consider dataset as a table and data variable as a column."),
