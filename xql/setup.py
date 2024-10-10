@@ -18,7 +18,7 @@ from setuptools import find_packages, setup
 requirements = [
     "dask==2024.3.0",
     "distributed==2024.3.0",
-    "dask_kubernetes",
+    "dask_kubernetes==2024.4.2",
     "fsspec",
     "gcsfs==2024.2.0",
     "numpy==1.26.3",
