@@ -217,7 +217,7 @@ source's catalog is structured.
 
 ### Copernicus / CDS
 
-**License**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in [License](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
+**License**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in dataset. i.e. [License](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download#manage-licences).
 
 **Catalog**: [https://cds.climate.copernicus.eu/datasets](https://cds.climate.copernicus.eu/datasets)
 

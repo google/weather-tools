@@ -125,7 +125,7 @@ For a full list of how to configure the Dataflow pipeline, please review
 You can view how your ECMWF API jobs are by visitng the client-specific job queue:
 
 * [MARS](https://apps.ecmwf.int/mars-activity/)
-* [Copernicus](https://cds.climate.copernicus.eu/live/queue)
+* [Copernicus](https://cds.climate.copernicus.eu/requests?tab=all)
 
 If you use Google Cloud Storage, we recommend using [`gsutil` (link)](https://cloud.google.com/storage/docs/gsutil) to
 inspect the progress of your downloads. For example:

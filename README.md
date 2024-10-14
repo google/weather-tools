@@ -56,24 +56,26 @@ From here, you can use the `weather-*` tools from your python environment. Curre
 ## Quickstart
 
 In this tutorial, we will
-download the [Era 5 pressure level dataset](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=overview)
+download the [Era 5 pressure level dataset](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
 and ingest it into Google BigQuery using `weather-dl` and `weather-mv`, respectively.
 
 ### Prerequisites
 
-1. [Register](https://cds.climate.copernicus.eu/user/register) for a license from
+1. [Register here](https://www.ecmwf.int/) and [here](https://cds.climate.copernicus.eu/) for a license from
    ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to).
-2. Install your license by copying your API url & key from [this page](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key) to a new file `$HOME/.cdsapirc`.[^1] The file should look like this:
+
+2. User must agree to the Terms of Use of a dataset before downloading any data out of dataset.(i.e. accept [terms & condition](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download#manage-licences) from here.)
+3. Install your license by copying your API url & key from [this page](https://cds.climate.copernicus.eu/how-to-api) to a new file `$HOME/.cdsapirc`.[^1] The file should look like this:
    ```
    url: https://cds.climate.copernicus.eu/api
    key: <YOUR_USER_ID>:<YOUR_API_KEY>
    ```
-3. If you do not already have a Google Cloud project, create one by following
+4. If you do not already have a Google Cloud project, create one by following
    [these steps](https://cloud.google.com/docs/get-started). If you are working on
    an existing project, make sure your user has the [BigQuery Admin role](https://cloud.google.com/bigquery/docs/access-control#bigquery.admin).
    To learn more about granting IAM roles to users in Google Cloud, visit the
    [official docs](https://cloud.google.com/iam/docs/granting-changing-revoking-access#grant-single-role).
-4. Create an empty BigQuery Dataset. This can be done using
+5. Create an empty BigQuery Dataset. This can be done using
    the [Google Cloud Console](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-cloud-console#create_a_dataset)
    or via the [`bq` CLI tool](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-command-line). 
    For example:
