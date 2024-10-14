@@ -65,7 +65,7 @@ and ingest it into Google BigQuery using `weather-dl` and `weather-mv`, respecti
    ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to).
 2. Install your license by copying your API url & key from [this page](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key) to a new file `$HOME/.cdsapirc`.[^1] The file should look like this:
    ```
-   url: https://cds.climate.copernicus.eu/api/v2
+   url: https://cds.climate.copernicus.eu/api
    key: <YOUR_USER_ID>:<YOUR_API_KEY>
    ```
 3. If you do not already have a Google Cloud project, create one by following

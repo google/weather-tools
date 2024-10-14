@@ -219,10 +219,10 @@ source's catalog is structured.
 
 **License**: By using Copernicus / CDS Dataset, users agree to the terms and conditions specified in [License](https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf) document.
 
-**Catalog**: [https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset)
+**Catalog**: [https://cds.climate.copernicus.eu/datasets](https://cds.climate.copernicus.eu/datasets)
 
 Visit the follow to register / acquire API credentials:
-_[Install the CDS API key](https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key)_. After, please set
+_[Install the CDS API key](https://cds.climate.copernicus.eu/how-to-api)_. After, please set
 the `api_url` and `api_key` arguments in the `parameters` section of your configuration. Alternatively, one can set
 these values as environment variables:
 
@@ -232,8 +232,8 @@ export CDSAPI_KEY=$api_key
 ```
 
 For CDS parameter options, check out
-the [Copernicus documentation](https://cds.climate.copernicus.eu/cdsapp#!/search?type=dataset).
-See [this example](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=form)
+the [Copernicus documentation](https://cds.climate.copernicus.eu/datasets).
+See [this example](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
 for what kind of requests one can make.
 
 ### MARS
