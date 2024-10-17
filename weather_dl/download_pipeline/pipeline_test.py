@@ -36,7 +36,7 @@ CONFIG = {
                    'partition_keys': ['year', 'month', 'day', 'pressure_level'],
                    'force_download': False,
                    'user_id': getpass.getuser(),
-                   'api_url': 'https://cds.climate.copernicus.eu/api/v2',
+                   'api_url': 'https://cds.climate.copernicus.eu/api',
                    'api_key': '12345:1234567-ab12-34cd-9876-4o4fake90909',  # fake key for testing.
                    },
     'selection': {'product_type': 'reanalysis',
