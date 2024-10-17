@@ -13,11 +13,14 @@
 # limitations under the License.
 import datetime
 import io
+import json
 import unittest
+from unittest.mock import patch, MagicMock
 
 from .manifest import MockManifest, Location
 from .parsers import (
     date,
+    get_secret,
     parse_config,
     process_config,
     _number_of_replacements,
@@ -537,6 +540,29 @@ class ParseConfigTest(unittest.TestCase):
                     'bob': {'api_key': '456'},
                 },
             })
+
+    @patch("weather_dl.download_pipeline.parsers.secretmanager.SecretManagerServiceClient")
+    def test_get_secret_success(self, mock_secretmanager):
+        secret_data = {
+            "api_url": "https://example.com/api",
+            "api_key": "my_secret_api_key"
+        }
+        mock_response = MagicMock()
+        mock_response.payload.data.decode.return_value = json.dumps(secret_data)
+        mock_secretmanager.return_value.access_secret_version.return_value = (
+            mock_response)
+
+        secret_key = "projects/my-project/secrets/my-secret/versions/latest"
+        result = get_secret(secret_key)
+        self.assertEqual(result, secret_data)
+
+    @patch("weather_dl.download_pipeline.parsers.secretmanager.SecretManagerServiceClient")
+    def test_get_secret_failure(self, mock_secretmanager):
+        mock_secretmanager.return_value.access_secret_version.side_effect = (
+            Exception("Error retrieving secret"))
+        secret_key = "projects/my-project/secrets/my-secret/versions/latest"
+        with self.assertRaises(Exception):
+            get_secret(secret_key)
 
 
 class HelpersTest(unittest.TestCase):
