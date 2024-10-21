@@ -38,4 +38,5 @@ dependencies:
     - earthengine-api==0.1.329
     - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     - google-cloud-monitoring
+    - pyparsing==3.1.4
     - .[test]
