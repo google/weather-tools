@@ -63,8 +63,7 @@ and ingest it into Google BigQuery using `weather-dl` and `weather-mv`, respecti
 
 1. [Register here](https://www.ecmwf.int/) and [here](https://cds.climate.copernicus.eu/) for a license from
    ECMWF's [Copernicus (CDS) API](https://cds.climate.copernicus.eu/api-how-to).
-
-2. User must agree to the Terms of Use of a dataset before downloading any data out of dataset.(i.e. accept [terms & condition](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download#manage-licences) from here.)
+2. User must agree to the Terms of Use of a dataset before downloading any data out of dataset.(E.g.: accept [terms & condition](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download#manage-licences) from here.)
 3. Install your license by copying your API url & key from [this page](https://cds.climate.copernicus.eu/how-to-api) to a new file `$HOME/.cdsapirc`.[^1] The file should look like this:
    ```
    url: https://cds.climate.copernicus.eu/api
