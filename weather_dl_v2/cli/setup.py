@@ -22,7 +22,8 @@ setup(
     packages=["app", "app.subcommands", "app.services"],
     install_requires=requirements,
     version="1.0.3",
-    author="aniket",
+    author='Anthromets',
+    author_email='anthromets-ecmwf@google.com',
     description=(
         "This cli tools helps in interacting with weather dl v2 fast API server."
     ),
