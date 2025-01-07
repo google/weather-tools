@@ -76,7 +76,7 @@ def submit_download(
         ),
     ] = False,
     priority: Annotated[
-        int | None,
+        int,
         typer.Option(
             "-p",
             "--priority",

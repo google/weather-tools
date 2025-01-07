@@ -7,5 +7,5 @@
     "gcs_project": "XXXXXXX",
     "license_deployment_image": "XXXXXXX",
     "downloader_k8_image": "XXXXXXX",
-    "welcome_message": "Greetings from weather-dl v2!"
+    "welcome_message": "Greetings from weather-dl v2 from weather-dl-v2-cluster-2!"
 }

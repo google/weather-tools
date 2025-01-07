@@ -205,7 +205,8 @@ class ExtractRowsTestBase(TestDataBase):
     def extract(self, data_path, *, variables=None, area=None, open_dataset_kwargs=None,
                 import_time=DEFAULT_IMPORT_TIME, disable_grib_schema_normalization=False,
                 tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, zarr: bool = False, zarr_kwargs=None,
-                skip_creating_polygon: bool = False) -> t.Iterator[t.Dict]:
+                skip_creating_polygon: bool = False, geo_data_parquet_path,
+                skip_creating_geo_data_parquet : bool = False) -> t.Iterator[t.Dict]:
         if zarr_kwargs is None:
             zarr_kwargs = {}
         op = ToBigQuery.from_kwargs(
@@ -214,8 +215,10 @@ class ExtractRowsTestBase(TestDataBase):
             xarray_open_dataset_kwargs=open_dataset_kwargs, import_time=import_time, infer_schema=False,
             tif_metadata_for_start_time=tif_metadata_for_start_time,
             tif_metadata_for_end_time=tif_metadata_for_end_time, skip_region_validation=True,
-            disable_grib_schema_normalization=disable_grib_schema_normalization, coordinate_chunk_size=1000,
-            skip_creating_polygon=skip_creating_polygon)
+            disable_grib_schema_normalization=disable_grib_schema_normalization, rows_chunk_size=1_000_000,
+            skip_creating_polygon=skip_creating_polygon,
+            geo_data_parquet_path=geo_data_parquet_path,
+            skip_creating_geo_data_parquet=skip_creating_geo_data_parquet)
         coords = op.prepare_coordinates(data_path)
         for uri, chunk in coords:
             yield from op.extract_rows(uri, chunk)
@@ -246,9 +249,17 @@ class ExtractRowsTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_20180101.nc'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_20180101_geo_data.parquet'
 
-    def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path, skip_creating_polygon=True))
+    def test_01_extract_rows(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_polygon=False,
+                skip_creating_geo_data_parquet=False
+            )
+        )
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -260,12 +271,23 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'u10': 3.4776244163513184,
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
-            'geo_polygon': None
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (-108.098837, 48.900826), (-108.098837, 49.099174),
+                        (-107.901163, 49.099174), (-107.901163, 48.900826),
+                        (-108.098837, 48.900826)]))
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows__with_subset_variables(self):
-        actual = next(self.extract(self.test_data_path, variables=['u10']))
+    def test_02_extract_rows__with_subset_variables(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                skip_creating_polygon=True,
+                variables=['u10']
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2018-01-02T06:00:00+00:00',
@@ -275,15 +297,19 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'time': '2018-01-02T06:00:00+00:00',
             'u10': 3.4776244163513184,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
-            'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (-108.098837, 48.900826), (-108.098837, 49.099174),
-                        (-107.901163, 49.099174), (-107.901163, 48.900826),
-                        (-108.098837, 48.900826)]))
+            'geo_polygon': None
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows__specific_area(self):
-        actual = next(self.extract(self.test_data_path, area=[45, -103, 33, -92], skip_creating_polygon=True))
+    def test_03_extract_rows__specific_area(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                area=[45, -103, 33, -92],
+                geo_data_parquet_path='./geo_data.parquet',
+                skip_creating_polygon=True
+            )
+        )
         expected = {
             'd2m': 246.19993591308594,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -299,8 +325,14 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows__specific_area_float_points(self):
-        actual = next(self.extract(self.test_data_path, area=[45.34, -103.45, 33.34, -92.87]))
+    def test_04_extract_rows__specific_area_float_points(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path='./geo_data.parquet',
+                area=[45.34, -103.45, 33.34, -92.87]
+            )
+        )
         expected = {
             'd2m': 246.47116088867188,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -319,9 +351,28 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows__specify_import_time(self):
+    def test_05_extract_rows_raises_error_when_geo_data_parquet_dimensions_mismatch(self):
+        with self.assertRaisesRegex(ValueError, 'Length of values '):
+            next(
+                self.extract(
+                    self.test_data_path,
+                    area=[45, -103, 33, -92],
+                    geo_data_parquet_path=self.geo_data_parquet_path,
+                    skip_creating_geo_data_parquet=True,
+                    skip_creating_polygon=True
+                )
+            )
+
+    def test_06_extract_rows__specify_import_time(self):
         now = datetime.datetime.utcnow().isoformat()
-        actual = next(self.extract(self.test_data_path, import_time=now))
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                import_time=now
+            )
+        )
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': now,
@@ -340,9 +391,16 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows_single_point(self):
+    def test_07_extract_rows_single_point(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_single_point.nc'
-        actual = next(self.extract(self.test_data_path))
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_single_point_geo_data.parquet'
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+            )
+        )
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -358,9 +416,16 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows_nan(self):
+    def test_08_extract_rows_nan(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_has_nan.nc'
-        actual = next(self.extract(self.test_data_path))
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_has_nan_geo_data.parquet'
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+            )
+        )
         expected = {
             'd2m': 242.3035430908203,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -379,7 +444,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows__with_valid_lat_long_with_point(self):
+    def test_09_extract_rows__with_valid_lat_long_with_point(self):
         valid_lat_long = [[-90, 0], [-90, 1], [-45, -180], [-45, -45], [0, 0], [45, 45], [45, -180], [90, -1],
                           [90, 0]]
         actual_val = [
@@ -398,7 +463,7 @@ class ExtractRowsTest(ExtractRowsTestBase):
                 expected = fetch_geo_point(lat, long)
                 self.assertEqual(actual, expected)
 
-    def test_extract_rows__with_valid_lat_long_with_polygon(self):
+    def test_10_extract_rows__with_valid_lat_long_with_polygon(self):
         valid_lat_long = [[-90, 0], [-90, -180], [-45, -180], [-45, 180], [0, 0], [90, 180], [45, -180], [-90, 180],
                           [90, 1], [0, 180], [1, -180], [90, -180]]
         actual_val = [
@@ -422,18 +487,26 @@ class ExtractRowsTest(ExtractRowsTestBase):
                 expected = fetch_geo_polygon(lat, long, lat_grid_resolution, lon_grid_resolution)
                 self.assertEqual(actual, expected)
 
-    def test_extract_rows__with_invalid_lat_lon(self):
+    def test_11_extract_rows__with_invalid_lat_lon(self):
         invalid_lat_long = [[-100, -2000], [-100, -500], [100, 500], [100, 2000]]
         for (lat, long) in invalid_lat_long:
             with self.subTest():
                 with self.assertRaises(ValueError):
                     fetch_geo_point(lat, long)
 
-    def test_extract_rows_zarr(self):
+    def test_12_extract_rows_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        actual = next(self.extract(input_path, zarr=True))
+        geo_data_parquet_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.parquet')
+        actual = next(
+            self.extract(
+                input_path,
+                geo_data_parquet_path=geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+                zarr=True
+            )
+        )
         expected = {
-            'cape': 0.623349666595459,
+            'cape': 0.623291015625,
             'd2m': 237.5404052734375,
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '1959-01-01T00:00:00+00:00',
@@ -449,9 +522,18 @@ class ExtractRowsTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_droping_variable_while_opening_zarr(self):
+    def test_13_droping_variable_while_opening_zarr(self):
         input_path = os.path.join(self.test_data_folder, 'test_data.zarr')
-        actual = next(self.extract(input_path, zarr=True, zarr_kwargs={'drop_variables': ['cape']}))
+        geo_data_parquet_path = os.path.join(self.test_data_folder, 'test_data_zarr_geo_data.parquet')
+        actual = next(
+            self.extract(
+                input_path,
+                geo_data_parquet_path=geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                zarr=True,
+                zarr_kwargs={'drop_variables': ['cape']}
+            )
+        )
         expected = {
             'd2m': 237.5404052734375,
             'data_import_time': '1970-01-01T00:00:00+00:00',
@@ -474,11 +556,17 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_tif_time.tif'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_tif_time_geo_data.parquet'
 
-    def test_extract_rows_with_end_time(self):
+    def test_01_extract_rows_with_end_time(self):
         actual = next(
-            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time',
-                         tif_metadata_for_end_time='end_time')
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+                tif_metadata_for_start_time='start_time',
+                tif_metadata_for_end_time='end_time'
+            )
         )
         expected = {
             'dewpoint_temperature_2m': 281.09349060058594,
@@ -498,9 +586,14 @@ class ExtractRowsTifSupportTest(ExtractRowsTestBase):
         }
         self.assertRowsEqual(actual, expected)
 
-    def test_extract_rows_without_end_time(self):
+    def test_02_extract_rows_without_end_time(self):
         actual = next(
-            self.extract(self.test_data_path, tif_metadata_for_start_time='start_time')
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                tif_metadata_for_start_time='start_time'
+            )
         )
         expected = {
             'dewpoint_temperature_2m': 281.09349060058594,
@@ -525,10 +618,18 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_single_timestep'
+        self.geo_data_parquet_path = f'{self.test_data_folder}/test_data_grib_single_timestep_geo_data.parquet'
 
     @_handle_missing_grib_be
-    def test_extract_rows(self):
-        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True))
+    def test_01_extract_rows(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+                disable_grib_schema_normalization=True
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -550,27 +651,39 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_extract_rows__with_vars__excludes_non_index_coords__without_schema_normalization(self):
-        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True, variables=['z']))
-        expected = {
-            'data_import_time': '1970-01-01T00:00:00+00:00',
-            'data_first_step': '2021-10-18T06:00:00+00:00',
-            'data_uri': self.test_data_path,
-            'latitude': 90.0,
-            'longitude': -180.0,
-            'z': 1.42578125,
-            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
-            'geo_polygon': geojson.dumps(geojson.Polygon([
-                        (179.950014, 89.950028), (179.950014, -89.950028),
-                        (-179.950014, -89.950028), (-179.950014, 89.950028),
-                        (179.950014, 89.950028)]))
-        }
-        self.assertRowsEqual(actual, expected)
-
-    @_handle_missing_grib_be
-    def test_extract_rows__with_vars__includes_coordinates_in_vars__without_schema_normalization(self):
+    def test_02_extract_rows__with_vars__excludes_non_index_coords__without_schema_normalization(self):
         actual = next(
-            self.extract(self.test_data_path, disable_grib_schema_normalization=True, variables=['z', 'step']))
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                disable_grib_schema_normalization=True, variables=['z']))
+        expected = {
+            'data_import_time': '1970-01-01T00:00:00+00:00',
+            'data_first_step': '2021-10-18T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': 90.0,
+            'longitude': -180.0,
+            'z': 1.42578125,
+            'geo_point': geojson.dumps(geojson.Point((-180.0, 90.0))),
+            'geo_polygon': geojson.dumps(geojson.Polygon([
+                        (179.950014, 89.950028), (179.950014, -89.950028),
+                        (-179.950014, -89.950028), (-179.950014, 89.950028),
+                        (179.950014, 89.950028)]))
+        }
+        self.assertRowsEqual(actual, expected)
+
+    @_handle_missing_grib_be
+    def test_03_extract_rows__with_vars__includes_coordinates_in_vars__without_schema_normalization(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                disable_grib_schema_normalization=True,
+                variables=['z', 'step']
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -588,8 +701,15 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_extract_rows__with_vars__excludes_non_index_coords__with_schema_normalization(self):
-        actual = next(self.extract(self.test_data_path, variables=['z']))
+    def test_04_extract_rows__with_vars__excludes_non_index_coords__with_schema_normalization(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                variables=['z']
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -606,8 +726,15 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_extract_rows__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
-        actual = next(self.extract(self.test_data_path, variables=['z', 'step']))
+    def test_05_extract_rows__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                variables=['z', 'step']
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-10-18T06:00:00+00:00',
@@ -625,9 +752,19 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_multiple_editions__without_schema_normalization(self):
+    def test_06_multiple_editions__without_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(self.extract(self.test_data_path, disable_grib_schema_normalization=True))
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=False,
+                disable_grib_schema_normalization=True
+            )
+        )
         expected = {
             'cape': 0.0,
             'cbh': None,
@@ -682,9 +819,18 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_multiple_editions__with_schema_normalization(self):
+    def test_07_multiple_editions__with_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(self.extract(self.test_data_path))
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+            )
+        )
         expected = {
             'surface_0_00_instant_cape': 0.0,
             'surface_0_00_instant_cbh': None,
@@ -742,9 +888,19 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
         self.assertRowsEqual(actual, expected)
 
     @_handle_missing_grib_be
-    def test_multiple_editions__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
+    def test_08_multiple_editions__with_vars__includes_coordinates_in_vars__with_schema_normalization(self):
         self.test_data_path = f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep.bz2'
-        actual = next(self.extract(self.test_data_path, variables=['p3020', 'depthBelowLandLayer', 'step']))
+        self.geo_data_parquet_path = (
+            f'{self.test_data_folder}/test_data_grib_multiple_edition_single_timestep_geo_data.parquet'
+        )
+        actual = next(
+            self.extract(
+                self.test_data_path,
+                geo_data_parquet_path=self.geo_data_parquet_path,
+                skip_creating_geo_data_parquet=True,
+                variables=['p3020', 'depthBelowLandLayer', 'step']
+            )
+        )
         expected = {
             'data_import_time': '1970-01-01T00:00:00+00:00',
             'data_first_step': '2021-12-10T12:00:00+00:00',
@@ -776,7 +932,7 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
         super().tearDown()
         self.tmpdir.cleanup()
 
-    def test_extracts_rows(self):
+    def test_01_extracts_rows(self):
         input_zarr = os.path.join(self.tmpdir.name, 'air_temp.zarr')
 
         ds = (
@@ -792,6 +948,7 @@ class ExtractRowsFromZarrTest(ExtractRowsTestBase):
             variables=list(), area=list(), xarray_open_dataset_kwargs=dict(), import_time=None, infer_schema=False,
             tif_metadata_for_start_time=None, tif_metadata_for_end_time=None, skip_region_validation=True,
             disable_grib_schema_normalization=False,
+            geo_data_parquet_path=os.path.join(self.tmpdir.name, 'geo_data.parquet'),
         )
 
         with TestPipeline() as p:

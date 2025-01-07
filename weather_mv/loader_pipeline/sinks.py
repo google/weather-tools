@@ -24,7 +24,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import typing as t
+from urllib.parse import urlparse
 
 import apache_beam as beam
 import cfgrib
@@ -34,6 +36,7 @@ import rioxarray
 import xarray as xr
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
+from google.cloud import storage
 from pyproj import Transformer
 
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
@@ -395,9 +398,9 @@ def path_exists(path: str, force_regrid: bool = False) -> bool:
     return len(matches[0].metadata_list) > 0
 
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gcloud alpha storage` or `gsutil`."""
+    """Copy data via `gsutil`."""
     errors: t.List[subprocess.CalledProcessError] = []
-    for cmd in ['gcloud alpha storage cp', 'gsutil cp']:
+    for cmd in ['gsutil -m cp']:
         try:
             subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
             return
@@ -405,7 +408,7 @@ def copy(src: str, dst: str) -> None:
             errors.append(e)
 
     msg = f'Failed to copy file {src!r} to {dst!r}'
-    err_msgs = ', '.join(map(lambda err: repr(err.stderr.decode('utf-8')), errors))
+    err_msgs = ', '.join(map(lambda err: repr(err.stderr), errors))
     logger.error(f'{msg} due to {err_msgs}.')
     raise EnvironmentError(msg, errors)
 
@@ -414,7 +417,7 @@ def copy(src: str, dst: str) -> None:
 def open_local(uri: str) -> t.Iterator[str]:
     """Copy a cloud object (e.g. a netcdf, grib, or tif file) from cloud storage, like GCS, to local file."""
     with tempfile.NamedTemporaryFile() as dest_file:
-        # Transfer data with gsutil or gcloud alpha storage (when available)
+        # Transfer data with gsutil.
         copy(uri, dest_file.name)
 
         # Check if data is compressed. Decompress the data using the same methods that beam's
@@ -426,7 +429,7 @@ def open_local(uri: str) -> t.Iterator[str]:
 
         dest_file.seek(0)
         with tempfile.NamedTemporaryFile() as dest_uncompressed:
-            with CompressedFile(dest_file, compression_type=compression_type) as dcomp:
+            with CompressedFile(open(dest_file.name, 'rb'), compression_type=compression_type) as dcomp:
                 shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
                 yield dest_uncompressed.name
 
@@ -466,17 +469,20 @@ def open_dataset(uri: str,
                                                           local_open_dataset_kwargs,
                                                           group_common_hypercubes)
             # Extracting dtype, crs and transform from the dataset.
+            rasterio_error = False
             try:
                 with rasterio.open(local_path, 'r') as f:
                     dtype, crs, transform = (f.profile.get(key) for key in ['dtype', 'crs', 'transform'])
             except rasterio.errors.RasterioIOError:
+                rasterio_error = True
                 logger.warning('Cannot parse projection and data type information for Dataset %r.', uri)
 
             if group_common_hypercubes:
                 total_size_in_bytes = 0
 
                 for xr_dataset in xr_datasets:
-                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                    if not rasterio_error:
+                        xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                     total_size_in_bytes += xr_dataset.nbytes
 
                 logger.info(f'opened dataset size: {total_size_in_bytes}')
@@ -492,8 +498,9 @@ def open_dataset(uri: str,
                                                  initialization_time_regex,
                                                  forecast_time_regex)
 
-                # Extracting dtype, crs and transform from the dataset & storing them as attributes.
-                xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
+                if not rasterio_error:
+                    # Extracting dtype, crs and transform from the dataset & storing them as attributes.
+                    xr_dataset.attrs.update({'dtype': dtype, 'crs': crs, 'transform': transform})
                 logger.info(f'opened dataset size: {xr_dataset.nbytes}')
 
             beam.metrics.Metrics.counter('Success', 'ReadNetcdfData').inc()
@@ -510,3 +517,24 @@ def open_dataset(uri: str,
         beam.metrics.Metrics.counter('Failure', 'ReadNetcdfData').inc()
         logger.error(f'Unable to open file {uri!r}: {e}')
         raise
+
+
+def get_file_time(element: t.Any) -> int:
+    """Calculates element file's write timestamp in UTC."""
+    try:
+        element_parsed = urlparse(element)
+        if element_parsed.scheme == "gs":  # For file in Google cloud storage.
+            client = storage.Client()
+            bucket = client.get_bucket(element_parsed.netloc)
+            blob = bucket.get_blob(element_parsed.path[1:])
+
+            updated_time = int(blob.updated.timestamp())
+        else:  # For file in local.
+            file_stats = os.stat(element)
+            updated_time = int(time.mktime(time.gmtime(file_stats.st_mtime)))
+
+        return updated_time
+    except Exception as e:
+        raise ValueError(
+            f"Error fetching raw data file bucket time for {element!r}. Error: {str(e)}"
+        )

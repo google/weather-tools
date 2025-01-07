@@ -30,6 +30,7 @@ import apache_beam as beam
 import ee
 import numpy as np
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
@@ -40,6 +41,7 @@ from rasterio.io import MemoryFile
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
+from .metrics import timeit, AddTimer, AddMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -139,14 +141,17 @@ class SetupEarthEngine(RateLimit):
                  ee_max_concurrent: int,
                  private_key: str,
                  service_account: str,
-                 use_personal_account: bool):
+                 use_personal_account: bool,
+                 use_metrics: bool):
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
-                         max_concurrent_requests=ee_max_concurrent)
+                         max_concurrent_requests=ee_max_concurrent,
+                         use_metrics=use_metrics)
         self._has_setup = False
         self.private_key = private_key
         self.service_account = service_account
         self.use_personal_account = use_personal_account
+        self.use_metrics = use_metrics
 
     def setup(self):
         """Makes sure ee is set up on every worker."""
@@ -245,7 +250,14 @@ class ToEarthEngine(ToDataSink):
     initialization_time_regex: str
     forecast_time_regex: str
     ingest_as_virtual_asset: bool
-    use_deflate:bool
+    use_deflate: bool
+    use_metrics: bool
+    use_monitoring_metrics: bool
+    topic: str
+    # Pipeline arguments.
+    job_name: str
+    project: str
+    region: str
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -290,6 +302,10 @@ class ToEarthEngine(ToDataSink):
                                help='To ingest image as a virtual asset. Default: False')
         subparser.add_argument('--use_deflate', action='store_true', default=False,
                                help='To use deflate compression algorithm. Default: False')
+        subparser.add_argument('--use_metrics', action='store_true', default=False,
+                               help='If you want to add Beam metrics to your pipeline. Default: False')
+        subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
+                               help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -344,20 +360,32 @@ class ToEarthEngine(ToDataSink):
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
+        logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
+        logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
+
     def expand(self, paths):
         """Converts input data files into assets and uploads them into the earth engine."""
         band_names_dict = {}
         if self.band_names_mapping:
             with open(self.band_names_mapping, 'r', encoding='utf-8') as f:
                 band_names_dict = json.load(f)
+
+        if self.use_metrics:
+            paths = paths | 'AddTimer' >> beam.ParDo(AddTimer.from_kwargs(**vars(self)))
+
         if not self.dry_run:
-            (
+            output = (
                 paths
                 | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
-                | 'ConvertToAsset' >> ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                | 'ConvertToAsset' >> beam.ParDo(
+                    ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
+                    )
                 | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
+
+            if self.use_metrics:
+                output | 'AddMetrics' >> AddMetrics.from_kwargs(**vars(self))
         else:
             (
                 paths
@@ -389,19 +417,23 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
                  force: bool,
                  private_key: str,
                  service_account: str,
-                 use_personal_account: bool):
+                 use_personal_account: bool,
+                 use_metrics: bool):
         """Sets up rate limit and initializes the earth engine."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
                          ee_max_concurrent=ee_max_concurrent,
                          private_key=private_key,
                          service_account=service_account,
-                         use_personal_account=use_personal_account)
+                         use_personal_account=use_personal_account,
+                         use_metrics=use_metrics)
         self.asset_location = asset_location
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.force_overwrite = force
+        self.use_metrics = use_metrics
 
+    @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
         self.check_setup()
@@ -423,7 +455,7 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
 
 
 @dataclasses.dataclass
-class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
+class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     """Writes asset after extracting input data and uploads it to GCS.
 
     Attributes:
@@ -442,6 +474,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
     initialization_time_regex: t.Optional[str] = None
     forecast_time_regex: t.Optional[str] = None
     use_deflate: t.Optional[bool] = False
+    use_metrics: t.Optional[bool] = False
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -454,7 +487,9 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
 
     def convert_to_asset(self, queue: Queue, uri: str):
         """Converts source data into EE asset (GeoTiff or CSV) and uploads it to the bucket."""
-        logger.info(f'Converting {uri!r} to COGs...')
+        child_logger = logging.getLogger(__name__)
+        child_logger.info(f'Converting {uri!r} to COGs...')
+
         job_start_time = get_utc_timestamp()
 
         with open_dataset(uri,
@@ -525,6 +560,8 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                         target_path = os.path.join(self.asset_location, file_name)
                         with FileSystems().create(target_path) as dst:
                             shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                            child_logger.info(f"Uploaded {uri!r}'s COG to {target_path}")
+
                 # For feature collection ingestions.
                 elif self.ee_asset_type == 'TABLE':
                     channel_names = []
@@ -579,6 +616,7 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
                 self.add_to_queue(queue, asset_data)
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
+    @timeit('ConvertToAsset')
     def process(self, uri: str) -> t.Iterator[AssetData]:
         """Opens grib files and yields AssetData.
 
@@ -610,9 +648,6 @@ class ConvertToAsset(beam.DoFn, beam.PTransform, KwargsFactoryMixin):
 
         process.terminate()
 
-    def expand(self, pcoll):
-        return pcoll | beam.FlatMap(self.process)
-
 
 class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     """Ingests asset into earth engine and yields asset id.
@@ -637,17 +672,20 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool,
-                 ingest_as_virtual_asset: bool,):
+                 ingest_as_virtual_asset: bool,
+                 use_metrics: bool):
         """Sets up rate limit."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
                          ee_max_concurrent=ee_max_concurrent,
                          private_key=private_key,
                          service_account=service_account,
-                         use_personal_account=use_personal_account)
+                         use_personal_account=use_personal_account,
+                         use_metrics=use_metrics)
         self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
+        self.use_metrics = use_metrics
 
     def get_project_id(self) -> str:
         return self.ee_asset.split('/')[1]
@@ -717,10 +755,9 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         logger.info(f"Failed to ingest virtual asset '{asset_name}' in earth engine: {response.text}")
                         raise ee.EEException(response.text)
 
-                    response_json = json.loads(response.content)
-                    return response_json.get('name')
+                    return asset_name
                 else:  # as a COG based image.
-                    result = ee.data.createAsset({
+                    ee.data.createAsset({
                         'name': asset_name,
                         'type': self.ee_asset_type,
                         'gcs_location': {
@@ -730,11 +767,11 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         'endTime': asset_data.end_time,
                         'properties': asset_data.properties,
                     })
-                    return result.get('id')
+                    return asset_name
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
-                response = ee.data.startTableIngestion(task_id, {
+                ee.data.startTableIngestion(task_id, {
                     'name': asset_name,
                     'sources': [{
                         'uris': [asset_data.target_path]
@@ -743,7 +780,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                     'endTime': asset_data.end_time,
                     'properties': asset_data.properties
                 })
-                return response.get('id')
+                return asset_name
         except ee.EEException as e:
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.info(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
@@ -757,9 +794,11 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 ee.data.deleteAsset(asset_name)
             raise
 
-    def process(self, asset_data: AssetData) -> t.Iterator[str]:
+    @timeit('IngestIntoEE')
+    def process(self, asset_data: AssetData) -> t.Iterator[t.Tuple[str, float]]:
         """Uploads an asset into the earth engine."""
-        asset_id = self.start_ingestion(asset_data)
-        beam.metrics.Metrics.counter('Success', 'IngestIntoEE').inc()
+        asset_name = self.start_ingestion(asset_data)
+        metric.Metrics.counter('Success', 'IngestIntoEE').inc()
 
-        yield asset_id
+        asset_start_time = asset_data.start_time
+        yield asset_name, asset_start_time

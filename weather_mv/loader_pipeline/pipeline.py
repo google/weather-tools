@@ -21,6 +21,7 @@ import warnings
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.options.pipeline_options import PipelineOptions
 
 from .bq import ToBigQuery
 from .regrid import Regrid
@@ -75,7 +76,13 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
-            paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**vars(known_args))
+            pipeline_options = PipelineOptions(pipeline_args)
+            pipeline_options_dict = pipeline_options.get_all_options()
+            # all_args stores all arguments passed to the pipeline.
+            # This is necessary because pipeline_args are later used by
+            # the CreateTimeSeries DoFn in the AddMetrics transform.
+            all_args = {**vars(known_args), **pipeline_options_dict}
+            paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**all_args)
         else:
             raise ValueError('invalid subcommand!')
 

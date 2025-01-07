@@ -5,12 +5,11 @@ kind: Job
 metadata:
   name: weather-dl-v2-license-dep
 spec:
-  backoffLimit: 0
+  backoffLimit: 5
+  podReplacementPolicy: Failed
   template:
     spec:
-      restartPolicy: Never
-      nodeSelector:
-        cloud.google.com/gke-nodepool: license-pool
+      restartPolicy: OnFailure
       containers:
         - name: weather-dl-v2-license-dep
           image: XXXXXXX
@@ -18,12 +17,13 @@ spec:
           args: []
           resources:
             requests:
-              cpu: "2000m"                  # CPU: 2 vCPU
+              cpu: "1500m"                  # CPU: 1.5 vCPU
               memory: "2Gi"                 # RAM: 2 GiB
-              ephemeral-storage: "10Gi"    # Storage: 10 GiB
+              ephemeral-storage: "10Gi"     # Storage: 10 GiB
           volumeMounts:
           - name: config-volume
             mountPath: ./config
+      terminationGracePeriodSeconds: 172800   # 48 hours
       volumes:
         - name: config-volume
           configMap:

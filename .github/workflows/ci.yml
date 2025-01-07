@@ -23,9 +23,8 @@ on:
   workflow_dispatch:
 
 env:
-  CDSAPI_URL: https://cds.climate.copernicus.eu/api/v2
-  CDSAPI_KEY: 12345:1234567-ab12-34cd-9876-4o4fake90909  # A fake key for testing
-
+  CDSAPI_URL: https://cds.climate.copernicus.eu/api
+  CDSAPI_KEY: 1234567-ab12-34cd-9876-4o4fake90909  # A fake key for testing
 jobs:
   build:
     runs-on: ubuntu-latest
