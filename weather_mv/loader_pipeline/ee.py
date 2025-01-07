@@ -461,13 +461,13 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     Attributes:
         ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         asset_location: The bucket location at which asset files will be pushed.
-        open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
+        xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
     """
 
     asset_location: str
     ee_asset_type: str = 'IMAGE'
-    open_dataset_kwargs: t.Optional[t.Dict] = None
+    xarray_open_dataset_kwargs: t.Optional[t.Dict] = None
     disable_grib_schema_normalization: bool = False
     group_common_hypercubes: t.Optional[bool] = False
     band_names_dict: t.Optional[t.Dict] = None
@@ -493,7 +493,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
         job_start_time = get_utc_timestamp()
 
         with open_dataset(uri,
-                          self.open_dataset_kwargs,
+                          self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization,
                           initialization_time_regex=self.initialization_time_regex,
                           forecast_time_regex=self.forecast_time_regex,
