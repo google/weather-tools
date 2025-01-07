@@ -118,7 +118,7 @@ jobs:
           channels: conda-forge
           environment-file: ci${{ matrix.python-version}}.yml
           activate-environment: weather-tools
-          miniforge-variant: Mambaforge
+          miniforge-variant: Miniforge3
           miniforge-version: latest
           use-mamba: true
       - name: Install weather-tools[test]
