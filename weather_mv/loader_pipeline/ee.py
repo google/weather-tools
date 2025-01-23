@@ -227,7 +227,7 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
                 parts = []
                 for dim in to_flatten:
                     value = sliced_ds[dim].values[flat_selector[dim]]
-                    parts.append(f"{dim}_{convert_to_string(value, date_format)}")
+                    parts.append(f"{dim}_{convert_to_string(value, date_format, make_ee_safe=True)}")
                 parts.append(var_name)
 
                 flat_var_name = f"{'_'.join(parts)}"
@@ -534,7 +534,7 @@ class ToEarthEngine(ToDataSink):
         if known_args.partition_dims:
             if not known_args.asset_name_format:
                 raise RuntimeError('asset_name_format is required when specifying partition_dims.')
-            if not known_args.ee_asset_type != "IMAGE":
+            if known_args.ee_asset_type != "IMAGE":
                 raise RuntimeError('partition_dims should be specified for "IMAGE" asset_type only.')
 
         # Check whether the asset name format contains valid dimensions.

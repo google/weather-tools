@@ -333,21 +333,24 @@ def get_dims_from_name_format(asset_name_format):
     return [field_name for _, field_name, _, _ in Formatter().parse(asset_name_format) if field_name]
 
 def get_datetime_from(value: np.datetime64):
-    return datetime.fromtimestamp((value - np.datetime64(0, 's')) // np.timedelta64(1, 's'))
+    return datetime.datetime.fromtimestamp((value - np.datetime64(0, 's')) // np.timedelta64(1, 's'))
 
-def convert_to_string(value, date_format='%Y%M%d%H%M%S'):
+def convert_to_string(value, date_format='%Y%M%d%H%M%S', make_ee_safe=False):
     """Converts a given value to string based on the type of value."""
+    str_val = ''
     if isinstance(value, np.ndarray) and value.size == 1:
         value = value.item()
         if isinstance(value, float):
-            return str(round(value, 2))
+            str_val = str(round(value, 2))
         else:
-            return str(value)
+            str_val = str(value)
     elif isinstance(value, np.datetime64):
         dt = get_datetime_from(value)
-        return dt.strftime(date_format)
+        str_val = dt.strftime(date_format)
     else:
-        return str(value)
+        str_val = str(value)
+
+    return re.sub(r'[^a-zA-Z0-9-_]+', r'_', str_val) if make_ee_safe else str_val
 
 def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
