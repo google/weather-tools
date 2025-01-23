@@ -27,6 +27,7 @@ import traceback
 import typing as t
 import uuid
 from functools import partial
+from string import Formatter
 from urllib.parse import urlparse
 import apache_beam as beam
 import numpy as np
@@ -326,6 +327,27 @@ def validate_region(output_table: t.Optional[str] = None,
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGINT, original_sigtstp_handler)
 
+
+def get_dims_from_name_format(asset_name_format):
+    """Returns a list of dimension from the asset name format."""
+    return [field_name for _, field_name, _, _ in Formatter().parse(asset_name_format) if field_name]
+
+def get_datetime_from(value: np.datetime64):
+    return datetime.fromtimestamp((value - np.datetime64(0, 's')) // np.timedelta64(1, 's'))
+
+def convert_to_string(value, date_format='%Y%M%d%H%M%S'):
+    """Converts a given value to string based on the type of value."""
+    if isinstance(value, np.ndarray) and value.size == 1:
+        value = value.item()
+        if isinstance(value, float):
+            return str(round(value, 2))
+        else:
+            return str(value)
+    elif isinstance(value, np.datetime64):
+        dt = get_datetime_from(value)
+        return dt.strftime(date_format)
+    else:
+        return str(value)
 
 def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
