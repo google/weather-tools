@@ -140,6 +140,7 @@ def ee_initialize(use_personal_account: bool = False,
     else:
         ee.Initialize(creds)
 
+
 def construct_asset_name(ds, asset_name_format):
     """Generate asset_name based on the format by using dataset attributes."""
     dims = get_dims_from_name_format(asset_name_format)
@@ -153,6 +154,7 @@ def construct_asset_name(ds, asset_name_format):
             dim_values[dim] = ds.attrs[dim + '_value']
     asset_name = asset_name_format.format(**dim_values)
     return asset_name
+
 
 def add_additional_attrs(ds, dim_mapping, date_format):
     """
@@ -178,6 +180,7 @@ def add_additional_attrs(ds, dim_mapping, date_format):
 
     attrs['init_time'] = convert_to_string(start_time, date_format)
     attrs['valid_time'] = convert_to_string(end_time, date_format)
+
 
 def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_format):
     """
@@ -216,9 +219,11 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
 
         # Add attribiutes (init_time, valid_time, forecast_seconds) in dataset
         add_additional_attrs(sliced_ds, dim_mapping, date_format)
+
         # Flatten the remaining dimensions into variable names
         new_data_vars = {}
         for var_name, data_array in sliced_ds.data_vars.items():
+            # Iterate over the indexes created for the dimension that needs to be flatten
             for flat_idx in itertools.product(*[range(sliced_ds.sizes[dim]) for dim in to_flatten]):
                 flat_selector = {dim: flat_idx[i] for i, dim in enumerate(to_flatten)}
                 flat_data_array = data_array.isel(flat_selector).squeeze()
@@ -262,6 +267,7 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
         partitioned_datasets.append(new_ds)
 
     return partitioned_datasets
+
 
 class SetupEarthEngine(RateLimit):
     """A base class to setup the earth engine."""

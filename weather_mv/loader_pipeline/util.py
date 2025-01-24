@@ -332,8 +332,10 @@ def get_dims_from_name_format(asset_name_format):
     """Returns a list of dimension from the asset name format."""
     return [field_name for _, field_name, _, _ in Formatter().parse(asset_name_format) if field_name]
 
+
 def get_datetime_from(value: np.datetime64):
     return datetime.datetime.fromtimestamp((value - np.datetime64(0, 's')) // np.timedelta64(1, 's'))
+
 
 def convert_to_string(value, date_format='%Y%M%d%H%M%S', make_ee_safe=False):
     """Converts a given value to string based on the type of value."""
@@ -351,6 +353,7 @@ def convert_to_string(value, date_format='%Y%M%d%H%M%S', make_ee_safe=False):
         str_val = str(value)
 
     return re.sub(r'[^a-zA-Z0-9-_]+', r'_', str_val) if make_ee_safe else str_val
+
 
 def _shard(elem, num_shards: int):
     return (np.random.randint(0, num_shards), elem)
