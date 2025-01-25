@@ -26,6 +26,7 @@ from .util import (
     ichunked,
     make_attrs_ee_compatible,
     to_json_serializable_type,
+    convert_to_string
 )
 
 
@@ -251,3 +252,18 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
         self.assertEqual(self._convert(timedelta(seconds=1)), float(1))
         self.assertEqual(self._convert(timedelta(minutes=1)), float(60))
         self.assertEqual(self._convert(timedelta(days=1)), float(86400))
+
+
+class ConvertToStringTests(unittest.TestCase):
+
+    def test_convert_scalar_to_string(self):
+
+        self.assertEqual(convert_to_string(np.array(5)), '5')
+        self.assertEqual(convert_to_string(np.array(5.6789)), '5.68')
+
+    def test_convert_datetime_to_string(self):
+
+        value = np.datetime64('2025-01-24T04:05:06')
+        self.assertEqual(convert_to_string(value), '202501240405')
+        self.assertEqual(convert_to_string(value, '%Y/%m/%dT%H:%M:%S'), '2025/01/24T04:05:06')
+        self.assertEqual(convert_to_string(value, '%Y/%m/%dT%H:%M:%S', True), '2025_01_24T04_05_06')

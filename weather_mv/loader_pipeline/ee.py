@@ -141,17 +141,17 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
-def construct_asset_name(ds, asset_name_format):
+def construct_asset_name(attrs, asset_name_format):
     """Generate asset_name based on the format by using dataset attributes."""
     dims = get_dims_from_name_format(asset_name_format)
 
     dim_values = {}
     for dim in dims:
         # If the dim is init_time or valid_time
-        if dim in ds.attrs:
-            dim_values[dim] = ds.attrs[dim]
-        elif dim + '_value' in ds.attrs:
-            dim_values[dim] = ds.attrs[dim + '_value']
+        if dim in attrs:
+            dim_values[dim] = attrs[dim]
+        elif dim + '_value' in attrs:
+            dim_values[dim] = attrs[dim + '_value']
     asset_name = asset_name_format.format(**dim_values)
     return asset_name
 
@@ -160,7 +160,7 @@ def add_additional_attrs(ds, dim_mapping, date_format):
     """
     Adds additional attributes (start_time, end_time, forecast_seconds) in the dataset if the dim_mapping is provided.
     """
-    attrs = ds.attrs
+    attrs = {}
     if (dim_mapping['init_time'] not in ds) or (dim_mapping['valid_time'] not in ds):
         raise ValueError('The dimension passed for init_time/valid_time is not present in dataset.')
 
@@ -181,6 +181,8 @@ def add_additional_attrs(ds, dim_mapping, date_format):
     attrs['init_time'] = convert_to_string(start_time, date_format)
     attrs['valid_time'] = convert_to_string(end_time, date_format)
 
+    return attrs
+
 
 def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_format):
     """
@@ -193,7 +195,7 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
                             start_time, end_time and forecast_seconds attributes in dataset.
                             It also helps to calculate the valid_time if the step value is in timedelta format.
         asset_name_format (str): Specifies the format for the asset name of resulting COG,
-                                 containing dimensions enclosed in {} (e.g., '{init_time}_{valid_time}_{level}')
+                                 containing dimensions enclosed in {} (e.g., '{init_time}_{valid_time}')
         date_format (str): Datetime format to use in the asset name if the dimension is of type datetime
 
     Returns:
@@ -218,7 +220,7 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
         sliced_ds = ds.isel(selector)
 
         # Add attribiutes (init_time, valid_time, forecast_seconds) in dataset
-        add_additional_attrs(sliced_ds, dim_mapping, date_format)
+        sliced_ds.attrs.update(**add_additional_attrs(sliced_ds, dim_mapping, date_format))
 
         # Flatten the remaining dimensions into variable names
         new_data_vars = {}
@@ -262,7 +264,7 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
         )
 
         # Create asset_name and store it in attributes
-        asset_name = construct_asset_name(new_ds, asset_name_format)
+        asset_name = construct_asset_name(new_ds.attrs, asset_name_format)
         new_ds.attrs['asset_name'] = asset_name
         partitioned_datasets.append(new_ds)
 

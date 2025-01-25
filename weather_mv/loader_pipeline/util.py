@@ -334,10 +334,13 @@ def get_dims_from_name_format(asset_name_format):
 
 
 def get_datetime_from(value: np.datetime64):
-    return datetime.datetime.fromtimestamp((value - np.datetime64(0, 's')) // np.timedelta64(1, 's'))
+    return datetime.datetime.fromtimestamp(
+        (value - np.datetime64(0, 's')) // np.timedelta64(1, 's'),
+        datetime.timezone.utc
+    )
 
 
-def convert_to_string(value, date_format='%Y%M%d%H%M%S', make_ee_safe=False):
+def convert_to_string(value, date_format='%Y%m%d%H%M', make_ee_safe=False):
     """Converts a given value to string based on the type of value."""
     str_val = ''
     if isinstance(value, np.ndarray) and value.size == 1:
