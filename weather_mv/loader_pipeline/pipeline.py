@@ -81,7 +81,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
             # all_args stores all arguments passed to the pipeline.
             # This is necessary because pipeline_args are later used by
             # the CreateTimeSeries DoFn in the AddMetrics transform.
-            all_args = {**vars(known_args), **pipeline_options_dict}
+            all_args = {**pipeline_options_dict, **vars(known_args)}
             paths | "MoveToEarthEngine" >> ToEarthEngine.from_kwargs(**all_args)
         else:
             raise ValueError('invalid subcommand!')
