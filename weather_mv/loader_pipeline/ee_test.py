@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import fnmatch
 import logging
 import os
 import tempfile
@@ -111,6 +112,23 @@ class ConvertToAssetTests(TestDataBase):
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
+
+    def test_convert_to_multi_image_asset(self):
+        convert_to_multi_image_asset = ConvertToAsset(
+            asset_location=self.tmpdir.name,
+            partition_dims=['time', 'step'],
+            asset_name_format='{init_time}_{valid_time}',
+            dim_mapping={
+                'init_time': 'time',
+                'valid_time': 'step'
+            }
+        )
+        data_path = f'{self.test_data_folder}/test_data_multi_dimension.nc'
+        asset_path = os.path.join(self.tmpdir.name)
+        list(convert_to_multi_image_asset.process(data_path))
+
+        # Make sure there are total 9 tiff files generated at target location
+        self.assertEqual(len(fnmatch.filter(os.listdir(asset_path), '*.tiff')), 9)
 
 
 class PartitionDatasetTests(TestDataBase):
