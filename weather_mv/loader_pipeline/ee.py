@@ -141,30 +141,30 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
-def construct_asset_name(attrs, asset_name_format):
+def construct_asset_name(attrs: t.Dict, asset_name_format: str) -> str:
     """Generate asset_name based on the format by using dataset attributes."""
     dims = get_dims_from_name_format(asset_name_format)
-
     dim_values = {}
+
+    # Get the init_time and valid_time from normal key and get other dimensions
+    # values from '_value' keys of attributes.
     for dim in dims:
-        # If the dim is init_time or valid_time
-        if dim in attrs:
-            dim_values[dim] = attrs[dim]
-        elif dim + '_value' in attrs:
-            dim_values[dim] = attrs[dim + '_value']
+        dim_values[dim] = attrs[dim + '_value'] if dim + '_value' in attrs else attrs[dim]
+
     asset_name = asset_name_format.format(**dim_values)
     return asset_name
 
 
-def add_additional_attrs(ds, dim_mapping, date_format):
+def add_additional_attrs(ds: xr.Dataset, forecast_dim_mapping: t.Dict, date_format: str) -> t.Dict:
     """
-    Adds additional attributes (start_time, end_time, forecast_seconds) in the dataset if the dim_mapping is provided.
+    Adds additional attributes (start_time, end_time, forecast_seconds) in the dataset
+    if the forecast_dim_mapping is provided.
     """
     attrs = {}
-    if (dim_mapping['init_time'] not in ds) or (dim_mapping['valid_time'] not in ds):
+    if (forecast_dim_mapping['init_time'] not in ds) or (forecast_dim_mapping['valid_time'] not in ds):
         raise ValueError('The dimension passed for init_time/valid_time is not present in dataset.')
 
-    init_time_da, valid_time_da = ds[dim_mapping['init_time']], ds[dim_mapping['valid_time']]
+    init_time_da, valid_time_da = ds[forecast_dim_mapping['init_time']], ds[forecast_dim_mapping['valid_time']]
     start_time = init_time_da.values
 
     if isinstance(valid_time_da.values, np.timedelta64):
@@ -184,14 +184,18 @@ def add_additional_attrs(ds, dim_mapping, date_format):
     return attrs
 
 
-def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_format):
+def partition_dataset(ds: xr.Dataset,
+                      partition_dims: t.List[str],
+                      forecast_dim_mapping: t.Dict,
+                      asset_name_format: str,
+                      date_format: str) -> t.List[xr.Dataset]:
     """
     Partitions a dataset based on the specified dimensions and flattens other dimensions into variable names.
 
     Args:
         ds (xr.Dataset): Input xarray dataset.
         partition_dims (list): List of dimensions to partition by (e.g., ['time', 'step']).
-        dim_mapping (dict): Dictionary containing init_time and valid_time as keys. This is used to add
+        forecast_dim_mapping (dict): Dictionary containing init_time and valid_time as keys. This is used to add
                             start_time, end_time and forecast_seconds attributes in dataset.
                             It also helps to calculate the valid_time if the step value is in timedelta format.
         asset_name_format (str): Specifies the format for the asset name of resulting COG,
@@ -210,17 +214,16 @@ def partition_dataset(ds, partition_dims, dim_mapping, asset_name_format, date_f
     # Dimensions to flatten (all except latitude, longitude, and partition_dims)
     to_flatten = [dim for dim in all_dims if dim not in partition_dims + ['latitude', 'longitude']]
 
-    # Partition the dataset along the specified dimensions
-    indices = itertools.product(*[range(ds.sizes[dim]) for dim in partition_dims])
+    partition_indices = itertools.product(*[range(ds.sizes[dim]) for dim in partition_dims])
     partitioned_datasets = []
 
-    for idx in indices:
+    for idx in partition_indices:
         # Partition the dataset based on the partition_dims
         selector = {dim: idx[i] for i, dim in enumerate(partition_dims)}
         sliced_ds = ds.isel(selector)
 
         # Add attribiutes (init_time, valid_time, forecast_seconds) in dataset
-        sliced_ds.attrs.update(**add_additional_attrs(sliced_ds, dim_mapping, date_format))
+        sliced_ds.attrs.update(**add_additional_attrs(sliced_ds, forecast_dim_mapping, date_format))
 
         # Flatten the remaining dimensions into variable names
         new_data_vars = {}
@@ -395,7 +398,7 @@ class ToEarthEngine(ToDataSink):
     topic: str
     partition_dims: list
     asset_name_format: str
-    dim_mapping: dict
+    forecast_dim_mapping: dict
     date_format: str
     # Pipeline arguments.
     job_name: str
@@ -458,9 +461,9 @@ class ToEarthEngine(ToDataSink):
                                help='The asset name format for each partitioned COG file.'
                                     ' This should contain the dimensions no other than partition_dims'
                                     ' (Although you can add init_time and valid_time provided that'
-                                    ' you have given dim_mapping). The dimension names should be enclosed in {} '
-                                    '(e.g. a valid format is {init_time}_{valid_time}_{number})')
-        subparser.add_argument('--dim_mapping', type=json.loads, default=None,
+                                    ' you have given forecast_dim_mapping). The dimension names should be'
+                                    ' enclosed in {} (e.g. a valid format is {init_time}_{valid_time}_{number})')
+        subparser.add_argument('--forecast_dim_mapping', type=json.loads, default=None,
                                help='A JSON string containing init_time and valid_time as keys and '
                                     'corresponding dimension names for each key.'
                                     ' It is required if init_time or valid_time is used in asset_name_format.')
@@ -525,18 +528,18 @@ class ToEarthEngine(ToDataSink):
         if not known_args.partition_dims:
             if known_args.asset_name_format:
                 raise RuntimeError("asset_name_format can only be specified when partition_dims are passed.")
-            if known_args.dim_mapping:
-                raise RuntimeError("dim_mapping can only be specified when partition_dims are passed.")
+            if known_args.forecast_dim_mapping:
+                raise RuntimeError("forecast_dim_mapping can only be specified when partition_dims are passed.")
 
-        # Check whether dim_mapping contains both init_time and valid_time
+        # Check whether forecast_dim_mapping contains both init_time and valid_time
         if (
-            known_args.dim_mapping
+            known_args.forecast_dim_mapping
             and not (
-                'init_time' in known_args.dim_mapping
-                and 'valid_time' in known_args.dim_mapping
+                'init_time' in known_args.forecast_dim_mapping
+                and 'valid_time' in known_args.forecast_dim_mapping
             )
         ):
-            raise RuntimeError('dim_mapping should contain both init_time and valid_time as keys.')
+            raise RuntimeError('forecast_dim_mapping should contain both init_time and valid_time as keys.')
 
         # Perform the checks when partition_dims are specified.
         if known_args.partition_dims:
@@ -553,8 +556,9 @@ class ToEarthEngine(ToDataSink):
                     raise RuntimeError('Only the dimensions used for partitioning can be used in the asset name.'
                                         f'{dim} is not used to partition dataset.')
 
-            if ('init_time' in dims or 'valid_time' in dims) and not known_args.dim_mapping:
-                raise RuntimeError('dim_mapping is required if asset_name_format contains init_time or valid_time.')
+            if ('init_time' in dims or 'valid_time' in dims) and not known_args.forecast_dim_mapping:
+                raise RuntimeError('forecast_dim_mapping is required if asset_name_format contains'
+                                   ' init_time or valid_time.')
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
@@ -673,7 +677,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     use_metrics: t.Optional[bool] = False
     partition_dims: t.Optional[list] = None
     asset_name_format: t.Optional[str] = None
-    dim_mapping: t.Optional[t.Dict] = None
+    forecast_dim_mapping: t.Optional[t.Dict] = None
     date_format: str = '%Y%m%d%H%M'
 
     def add_to_queue(self, queue: Queue, item: t.Any):
@@ -706,7 +710,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
                     partitioned_datasets = partition_dataset(
                         dataset,
                         self.partition_dims,
-                        self.dim_mapping,
+                        self.forecast_dim_mapping,
                         self.asset_name_format,
                         self.date_format
                     )

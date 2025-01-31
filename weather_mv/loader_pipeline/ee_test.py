@@ -118,7 +118,7 @@ class ConvertToAssetTests(TestDataBase):
             asset_location=self.tmpdir.name,
             partition_dims=['time', 'step'],
             asset_name_format='{init_time}_{valid_time}',
-            dim_mapping={
+            forecast_dim_mapping={
                 'init_time': 'time',
                 'valid_time': 'step'
             }
@@ -135,7 +135,7 @@ class PartitionDatasetTests(TestDataBase):
 
     def setUp(self):
         super().setUp()
-        self.dim_mapping = {
+        self.forecast_dim_mapping = {
             'init_time': 'time',
             'valid_time': 'step'
         }
@@ -145,7 +145,7 @@ class PartitionDatasetTests(TestDataBase):
     def test_add_additional_attrs(self):
 
         sliced_ds = self.ds.isel({'time': 0, 'step': 1})
-        attrs = add_additional_attrs(sliced_ds, self.dim_mapping, self.date_format)
+        attrs = add_additional_attrs(sliced_ds, self.forecast_dim_mapping, self.date_format)
         attr_names = ['init_time', 'valid_time', 'start_time', 'end_time', 'forecast_seconds']
 
         for name in attr_names:
@@ -175,7 +175,7 @@ class PartitionDatasetTests(TestDataBase):
         partition_dims = ['time', 'step']
         asset_name_format = '{init_time}_{valid_time}'
         partition_datasets = partition_dataset(
-            self.ds, partition_dims, self.dim_mapping, asset_name_format, self.date_format
+            self.ds, partition_dims, self.forecast_dim_mapping, asset_name_format, self.date_format
         )
 
         # As the ds partitioned on time(3) and step(3), there should be total 9 datasets

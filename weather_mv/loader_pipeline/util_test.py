@@ -257,12 +257,10 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
 class ConvertToStringTests(unittest.TestCase):
 
     def test_convert_scalar_to_string(self):
-
         self.assertEqual(convert_to_string(np.array(5)), '5')
         self.assertEqual(convert_to_string(np.array(5.6789)), '5.68')
 
     def test_convert_datetime_to_string(self):
-
         value = np.datetime64('2025-01-24T04:05:06')
         self.assertEqual(convert_to_string(value), '202501240405')
         self.assertEqual(convert_to_string(value, '%Y/%m/%dT%H:%M:%S'), '2025/01/24T04:05:06')

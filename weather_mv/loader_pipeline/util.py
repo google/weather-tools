@@ -328,34 +328,36 @@ def validate_region(output_table: t.Optional[str] = None,
         signal.signal(signal.SIGINT, original_sigtstp_handler)
 
 
-def get_dims_from_name_format(asset_name_format):
+def get_dims_from_name_format(asset_name_format: str) -> t.List[str]:
     """Returns a list of dimension from the asset name format."""
     return [field_name for _, field_name, _, _ in Formatter().parse(asset_name_format) if field_name]
 
 
-def get_datetime_from(value: np.datetime64):
+def get_datetime_from(value: np.datetime64) -> datetime.datetime:
     return datetime.datetime.fromtimestamp(
         (value - np.datetime64(0, 's')) // np.timedelta64(1, 's'),
         datetime.timezone.utc
     )
 
 
-def convert_to_string(value, date_format='%Y%m%d%H%M', make_ee_safe=False):
+def convert_to_string(value: t.Any, date_format : str = '%Y%m%d%H%M', make_ee_safe : bool = False):
     """Converts a given value to string based on the type of value."""
+    def _make_ee_safe(str_val: str) -> str:
+        return re.sub(r'[^a-zA-Z0-9-_]+', r'_', str_val)
+
     str_val = ''
     if isinstance(value, np.ndarray) and value.size == 1:
         value = value.item()
-        if isinstance(value, float):
-            str_val = str(round(value, 2))
-        else:
-            str_val = str(value)
+
+    if isinstance(value, float):
+        str_val = str(round(value, 2))
     elif isinstance(value, np.datetime64):
         dt = get_datetime_from(value)
         str_val = dt.strftime(date_format)
     else:
         str_val = str(value)
 
-    return re.sub(r'[^a-zA-Z0-9-_]+', r'_', str_val) if make_ee_safe else str_val
+    return _make_ee_safe(str_val) if make_ee_safe else str_val
 
 
 def _shard(elem, num_shards: int):
