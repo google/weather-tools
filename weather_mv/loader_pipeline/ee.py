@@ -720,10 +720,11 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
             logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
 
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
-                if self.ingest_as_virtual_asset:  # as a virtual image.
-                    creds = compute_engine.Credentials()
-                    session = AuthorizedSession(creds)
 
+                creds = compute_engine.Credentials()
+                session = AuthorizedSession(creds)
+
+                if self.ingest_as_virtual_asset:  # as a virtual image.
                     # Makes an api call to register the virtual asset.
                     response = session.post(
                         url=(
@@ -756,18 +757,41 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         raise ee.EEException(response.text)
 
                     return asset_name
+                
                 else:  # as a COG based image.
-                    ee.data.createAsset({
-                        'name': asset_name,
-                        'type': self.ee_asset_type,
-                        'gcs_location': {
-                            'uris': [asset_data.target_path]
-                        },
-                        'startTime': asset_data.start_time,
-                        'endTime': asset_data.end_time,
-                        'properties': asset_data.properties,
-                    })
+                    logger.info("Inside COG Based checking of image")
+                    response = session.post(
+                        url=(
+                            f'https://earthengine.googleapis.com/v1alpha/projects/{self.get_project_id()}/'
+                            f'image:importExternal'
+                        ),
+                        data = json.dumps({
+                            'imageManifest': {
+                                'name': asset_name, 
+                                'tilesets': [
+                                    {
+                                        'id': '0',
+                                        'sources': [{'uris': [asset_data.target_path]}]  # COG URI
+                                    }
+                                ],
+                                'startTime': asset_data.start_time,  
+                                'endTime': asset_data.end_time,      
+                                'properties': asset_data.properties, 
+                            }
+                        }),
+
+                        headers={
+                            'Content-Type': 'application/json',
+                            'x-goog-user-project': self.get_project_id(),
+                        }
+                    )
+
+                    if response.status_code != 200:
+                        logger.info(f"Failed to ingest COG asset '{asset_name}' in earth engine: {response.text}")
+                        raise ee.EEException(response.text)    
+
                     return asset_name
+                
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
