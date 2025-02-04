@@ -155,7 +155,7 @@ def construct_asset_name(attrs: t.Dict, asset_name_format: str) -> str:
     return asset_name
 
 
-def add_additional_attrs(ds: xr.Dataset, forecast_dim_mapping: t.Dict, date_format: str) -> t.Dict:
+def add_additional_attrs(ds: xr.Dataset, forecast_dim_mapping: t.Dict[str, str], date_format: str) -> t.Dict:
     """
     Adds additional attributes (start_time, end_time, forecast_seconds) in the dataset
     if the forecast_dim_mapping is provided.
@@ -186,7 +186,7 @@ def add_additional_attrs(ds: xr.Dataset, forecast_dim_mapping: t.Dict, date_form
 
 def partition_dataset(ds: xr.Dataset,
                       partition_dims: t.List[str],
-                      forecast_dim_mapping: t.Dict,
+                      forecast_dim_mapping: t.Dict[str, str],
                       asset_name_format: str,
                       date_format: str) -> t.List[xr.Dataset]:
     """
@@ -396,9 +396,9 @@ class ToEarthEngine(ToDataSink):
     use_metrics: bool
     use_monitoring_metrics: bool
     topic: str
-    partition_dims: list
+    partition_dims: t.List[str]
     asset_name_format: str
-    forecast_dim_mapping: dict
+    forecast_dim_mapping: t.Dict[str, str]
     date_format: str
     # Pipeline arguments.
     job_name: str
@@ -719,7 +719,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
                 for ds in partitioned_datasets:
                     attrs = ds.attrs
                     data = list(ds.values())
-                    asset_name = attrs['asset_name'] if 'asset_name' in attrs else get_ee_safe_name(uri)
+                    asset_name = attrs.pop('asset_name') if 'asset_name' in attrs else get_ee_safe_name(uri)
                     channel_names = [
                         self.band_names_dict.get(da.name, da.name) if self.band_names_dict
                         else da.name for da in data
