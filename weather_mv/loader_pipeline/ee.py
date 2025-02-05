@@ -759,7 +759,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                     return asset_name
                 
                 else:  # as a COG based image.
-                    logger.info("Inside COG Based checking of image")
                     response = session.post(
                         url=(
                             f'https://earthengine.googleapis.com/v1alpha/projects/{self.get_project_id()}/'
