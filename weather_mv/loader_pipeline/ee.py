@@ -525,11 +525,11 @@ class ToEarthEngine(ToDataSink):
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
-        if not known_args.partition_dims:
-            if known_args.asset_name_format:
-                raise RuntimeError("asset_name_format can only be specified when partition_dims are passed.")
-            if known_args.forecast_dim_mapping:
-                raise RuntimeError("forecast_dim_mapping can only be specified when partition_dims are passed.")
+        if bool(known_args.partition_dims) ^ bool(known_args.asset_name_format):
+            raise RuntimeError("Both --partition_dims & --asset_name_format flags need to be present")
+
+        if not known_args.partition_dims and bool(known_args.forecast_dim_mapping):
+            raise RuntimeError("forecast_dim_mapping can only be specified when partition_dims are passed.")
 
         # Check whether forecast_dim_mapping contains both init_time and valid_time
         if (
@@ -542,11 +542,8 @@ class ToEarthEngine(ToDataSink):
             raise RuntimeError('forecast_dim_mapping should contain both init_time and valid_time as keys.')
 
         # Perform the checks when partition_dims are specified.
-        if known_args.partition_dims:
-            if not known_args.asset_name_format:
-                raise RuntimeError('asset_name_format is required when specifying partition_dims.')
-            if known_args.ee_asset_type != "IMAGE":
-                raise RuntimeError('partition_dims should be specified for "IMAGE" asset_type only.')
+        if known_args.partition_dims and known_args.ee_asset_type != "IMAGE":
+            raise RuntimeError('partition_dims should be specified for "IMAGE" asset_type only.')
 
         # Check whether the asset name format contains valid dimensions.
         if known_args.asset_name_format:
@@ -556,9 +553,10 @@ class ToEarthEngine(ToDataSink):
                     raise RuntimeError('Only the dimensions used for partitioning can be used in the asset name.'
                                         f'{dim} is not used to partition dataset.')
 
-            if ('init_time' in dims or 'valid_time' in dims) and not known_args.forecast_dim_mapping:
-                raise RuntimeError('forecast_dim_mapping is required if asset_name_format contains'
-                                   ' init_time or valid_time.')
+            if ('init_time' in dims or 'valid_time' in dims) ^ bool(known_args.forecast_dim_mapping):
+                raise RuntimeError('If asset_name_format contains init_time or valid_time, then forecast_dim_mapping'
+                                   'is required. Conversely, if forecast_dim_mapping is provided, asset_name_format '
+                                   'must include either init_time or valid_time or both.')
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
