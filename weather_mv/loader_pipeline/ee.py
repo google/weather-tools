@@ -755,16 +755,13 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{self.get_project_id()}/'
                         f'image:importExternal'
                     )
-                    
                 # Send API request
                 response = session.post(url=url, data=data, headers=headers)
 
                 if response.status_code != 200:
                     logger.info(f"Failed to ingest asset '{asset_name}' in Earth Engine: {response.text}")
                     raise ee.EEException(response.text)
-
                 return asset_name
-                  
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
