@@ -222,7 +222,7 @@ def partition_dataset(ds: xr.Dataset,
         selector = {dim: idx[i] for i, dim in enumerate(partition_dims)}
         sliced_ds = ds.isel(selector)
 
-        # Add attribiutes (init_time, valid_time, forecast_seconds) in dataset
+        # Add attributes (init_time, valid_time, forecast_seconds) in dataset
         sliced_ds.attrs.update(**add_additional_attrs(sliced_ds, forecast_dim_mapping, date_format))
 
         # Flatten the remaining dimensions into variable names
