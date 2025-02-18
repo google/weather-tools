@@ -720,54 +720,49 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
             logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
 
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
-                if self.ingest_as_virtual_asset:  # as a virtual image.
-                    creds = compute_engine.Credentials()
-                    session = AuthorizedSession(creds)
 
-                    # Makes an api call to register the virtual asset.
-                    response = session.post(
-                        url=(
-                            f'https://earthengine-highvolume.googleapis.com/v1/projects/{self.get_project_id()}/'
-                            f'image:import?overwrite=true&mode=VIRTUAL'
-                        ),
-                        data=json.dumps({
-                            "imageManifest": {
-                                'name': asset_name,
-                                "tilesets": [
-                                    {
-                                        "id": "0",
-                                        "sources": {"uris": [asset_data.target_path]},
-                                    }
-                                ],
-                                'startTime': asset_data.start_time,
-                                'endTime': asset_data.end_time,
-                                'properties': asset_data.properties,
-                            },
-                            "overwrite": True,
-                        }),
-                        headers={
-                            'Content-Type': 'application/json',
-                            'x-goog-user-project': self.get_project_id(),
+                creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
+                session = AuthorizedSession(creds)
+                project_id = self.get_project_id()
+
+                image_manifest = {
+                    'name': asset_name,
+                    'tilesets': [
+                        {
+                            'id': '0',
+                            'sources': [{'uris': [asset_data.target_path]}]
                         }
+                    ],
+                    'startTime': asset_data.start_time,
+                    'endTime': asset_data.end_time,
+                    'properties': asset_data.properties
+                }
+
+                headers = {
+                    'Content-Type': 'application/json',
+                    'x-goog-user-project': project_id,
+                }
+
+                data = json.dumps({'imageManifest': image_manifest, 'overwrite': True})
+
+                if self.ingest_as_virtual_asset:  # as a virtual image.
+                    # Makes an api call to register the virtual asset.
+                    url = (
+                        f'https://earthengine-highvolume.googleapis.com/v1/projects/{project_id}/'
+                        f'image:import?overwrite=true&mode=VIRTUAL'
                     )
-
-                    if response.status_code != 200:
-                        logger.info(f"Failed to ingest virtual asset '{asset_name}' in earth engine: {response.text}")
-                        raise ee.EEException(response.text)
-
-                    return asset_name
                 else:  # as a COG based image.
-                    ee.data.createAsset({
-                        'name': asset_name,
-                        'type': self.ee_asset_type,
-                        'gcs_location': {
-                            'uris': [asset_data.target_path]
-                        },
-                        'startTime': asset_data.start_time,
-                        'endTime': asset_data.end_time,
-                        'properties': asset_data.properties,
-                    })
-                    return asset_name
+                    url = (
+                        f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{project_id}/'
+                        f'image:importExternal'
+                    )
+                # Send API request
+                response = session.post(url=url, data=data, headers=headers)
+
+                if response.status_code != 200:
+                    logger.info(f"Failed to ingest asset '{asset_name}' in Earth Engine: {response.text}")
+                    raise ee.EEException(response.text)
+                return asset_name
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
                 task_id = ee.data.newTaskId(1)[0]
