@@ -723,6 +723,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
                 creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
                 session = AuthorizedSession(creds)
+                project_id = self.get_project_id()
 
                 image_manifest = {
                     'name': asset_name,
@@ -739,7 +740,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
                 headers = {
                     'Content-Type': 'application/json',
-                    'x-goog-user-project': self.get_project_id(),
+                    'x-goog-user-project': project_id,
                 }
 
                 data = json.dumps({'imageManifest': image_manifest, 'overwrite': True})
@@ -747,12 +748,12 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 if self.ingest_as_virtual_asset:  # as a virtual image.
                     # Makes an api call to register the virtual asset.
                     url = (
-                        f'https://earthengine-highvolume.googleapis.com/v1/projects/{self.get_project_id()}/'
+                        f'https://earthengine-highvolume.googleapis.com/v1/projects/{project_id}/'
                         f'image:import?overwrite=true&mode=VIRTUAL'
                     )
                 else:  # as a COG based image.
                     url = (
-                        f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{self.get_project_id()}/'
+                        f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{project_id}/'
                         f'image:importExternal'
                     )
                 # Send API request
