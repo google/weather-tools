@@ -115,9 +115,9 @@ For testing at development time, we make use of three tools:
 * `ruff` for linting:
    ```shell 
    # lint everything
-   ruff
+   ruff check .
    # lint a specific tool
-   ruff weather_mv
+   ruff check weather_mv
    ```
 
 * `pytest` for running tests:
