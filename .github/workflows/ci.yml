@@ -40,7 +40,7 @@ jobs:
       if: ${{github.ref != 'refs/head/main'}}
     - uses: actions/checkout@v2
     - name: conda cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       env:
         # Increase this value to reset cache if etc/example-environment.yml has not changed
         CACHE_NUMBER: 0
@@ -103,7 +103,7 @@ jobs:
         if: ${{github.ref != 'refs/head/main'}}
       - uses: actions/checkout@v2
       - name: conda cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           # Increase this value to reset cache if etc/example-environment.yml has not changed
           CACHE_NUMBER: 0
