@@ -122,15 +122,14 @@ def ee_initialize(use_personal_account: bool = False,
     on_compute_engine = is_compute_engine()
 
     project_name = ee_asset.split('/')[1]
+    opt_url = 'https://earthengine-highvolume.googleapis.com'
 
     # Using the high volume api.
     if on_compute_engine:
-        if use_personal_account == True:
-            print('inside if condition of use_personal_account')
-            ee.Initialize(creds, project=project_name, opt_url='https://earthengine-highvolume.googleapis.com')
+        if use_personal_account:
+            ee.Initialize(creds, project=project_name, opt_url=opt_url)
         else:
-            print('inside elde of ee')
-            ee.Initialize(creds, opt_url='https://earthengine-highvolume.googleapis.com')
+            ee.Initialize(creds, opt_url=opt_url)
 
     # Only the compute engine service service account can access the high volume api.
     elif enforce_high_volume and not on_compute_engine:

@@ -187,6 +187,4 @@ def run(argv: t.List[str]) -> t.Tuple[argparse.Namespace, t.List[str]]:
     # workflow rely on global context (e.g., a module imported at module level).
     pipeline_args.extend('--save_main_session true'.split())
 
-    logger.info(f'System Args: {argv}')
-
     return known_args, pipeline_args
