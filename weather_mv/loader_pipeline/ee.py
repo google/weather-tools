@@ -446,7 +446,6 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
-        logger.info('Inside process method of FilterFileTransform class')
         self.check_setup()
         asset_name = get_ee_safe_name(uri)
 
