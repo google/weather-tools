@@ -104,7 +104,8 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
 def ee_initialize(use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
-                  private_key: t.Optional[str] = None) -> None:
+                  private_key: t.Optional[str] = None,
+                  ee_asset: t.Optional[str] = None) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
@@ -112,6 +113,7 @@ def ee_initialize(use_personal_account: bool = False,
         enforce_high_volume: A flag to use the high volume API when using a compute engine VM. Default: False.
         service_account: Service account address when using a private key for earth engine authentication.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
+        ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
 
     Raises:
         RuntimeError: Earth Engine did not initialize.
@@ -119,9 +121,16 @@ def ee_initialize(use_personal_account: bool = False,
     creds = get_creds(use_personal_account, service_account, private_key)
     on_compute_engine = is_compute_engine()
 
+    project_name = ee_asset.split('/')[1]
+
     # Using the high volume api.
     if on_compute_engine:
-        ee.Initialize(creds, opt_url='https://earthengine-highvolume.googleapis.com')
+        if use_personal_account == True:
+            print('inside if condition of use_personal_account')
+            ee.Initialize(creds, project=project_name, opt_url='https://earthengine-highvolume.googleapis.com')
+        else:
+            print('inside elde of ee')
+            ee.Initialize(creds, opt_url='https://earthengine-highvolume.googleapis.com')
 
     # Only the compute engine service service account can access the high volume api.
     elif enforce_high_volume and not on_compute_engine:
@@ -142,7 +151,8 @@ class SetupEarthEngine(RateLimit):
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool,
-                 use_metrics: bool):
+                 use_metrics: bool,
+                 ee_asset: str):
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
                          max_concurrent_requests=ee_max_concurrent,
@@ -152,12 +162,13 @@ class SetupEarthEngine(RateLimit):
         self.service_account = service_account
         self.use_personal_account = use_personal_account
         self.use_metrics = use_metrics
+        self.ee_asset = ee_asset
 
     def setup(self):
         """Makes sure ee is set up on every worker."""
         ee_initialize(use_personal_account=self.use_personal_account,
                       service_account=self.service_account,
-                      private_key=self.private_key)
+                      private_key=self.private_key, ee_asset=self.ee_asset)
         self._has_setup = True
 
     def check_setup(self):
@@ -426,9 +437,9 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
                          private_key=private_key,
                          service_account=service_account,
                          use_personal_account=use_personal_account,
-                         use_metrics=use_metrics)
+                         use_metrics=use_metrics,
+                         ee_asset=ee_asset)
         self.asset_location = asset_location
-        self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.force_overwrite = force
         self.use_metrics = use_metrics
@@ -436,6 +447,7 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
+        logger.info('Inside process method of FilterFileTransform class')
         self.check_setup()
         asset_name = get_ee_safe_name(uri)
 
@@ -681,8 +693,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                          private_key=private_key,
                          service_account=service_account,
                          use_personal_account=use_personal_account,
-                         use_metrics=use_metrics)
-        self.ee_asset = ee_asset
+                         use_metrics=use_metrics,
+                         ee_asset=ee_asset)
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
         self.use_metrics = use_metrics
