@@ -101,11 +101,11 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
     return creds
 
 
-def ee_initialize(use_personal_account: bool = False,
+def ee_initialize(project_id: t.Optional[str] = None, 
+                  use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
-                  private_key: t.Optional[str] = None,
-                  ee_asset: t.Optional[str] = None) -> None:
+                  private_key: t.Optional[str] = None) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
@@ -113,23 +113,22 @@ def ee_initialize(use_personal_account: bool = False,
         enforce_high_volume: A flag to use the high volume API when using a compute engine VM. Default: False.
         service_account: Service account address when using a private key for earth engine authentication.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
-        ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
-
     Raises:
         RuntimeError: Earth Engine did not initialize.
     """
     creds = get_creds(use_personal_account, service_account, private_key)
     on_compute_engine = is_compute_engine()
-
-    project_name = ee_asset.split('/')[1]
-    opt_url = 'https://earthengine-highvolume.googleapis.com'
-
     # Using the high volume api.
-    if on_compute_engine:
-        if use_personal_account:
-            ee.Initialize(creds, project=project_name, opt_url=opt_url)
-        else:
-            ee.Initialize(creds, opt_url=opt_url)
+    if on_compute_engine: 
+        if project_id is None:
+            raise RuntimeError('Project_name should not be None!')
+        
+        ee.Initialize(creds, project=project_id, opt_url='https://earthengine-highvolume.googleapis.com')
+    
+    elif on_compute_engine and project_id==None:
+       raise RuntimeError(
+            'project_name should not be None!'
+        ) 
 
     # Only the compute engine service service account can access the high volume api.
     elif enforce_high_volume and not on_compute_engine:
@@ -150,8 +149,7 @@ class SetupEarthEngine(RateLimit):
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool,
-                 use_metrics: bool,
-                 ee_asset: str):
+                 use_metrics: bool):      
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
                          max_concurrent_requests=ee_max_concurrent,
@@ -161,16 +159,16 @@ class SetupEarthEngine(RateLimit):
         self.service_account = service_account
         self.use_personal_account = use_personal_account
         self.use_metrics = use_metrics
-        self.ee_asset = ee_asset
 
-    def setup(self):
+    def setup(self, project_id):
         """Makes sure ee is set up on every worker."""
-        ee_initialize(use_personal_account=self.use_personal_account,
-                      service_account=self.service_account,
-                      private_key=self.private_key, ee_asset=self.ee_asset)
+        ee_initialize(project_id=project_id, 
+                      use_personal_account=self.use_personal_account,
+                      service_account=self.service_account, 
+                      private_key=self.private_key)
         self._has_setup = True
 
-    def check_setup(self):
+    def check_setup(self, project_id: t.Optional[str] = None):
         """Ensures that setup has been called."""
         if not self._has_setup:
             try:
@@ -178,7 +176,7 @@ class SetupEarthEngine(RateLimit):
                 ee.data.getAlgorithms()
                 self._has_setup = True
             except ee.EEException:
-                self.setup()
+                self.setup(project_id)
 
     def process(self, *args, **kwargs):
         """Checks that setup has been called then call the process implementation."""
@@ -436,9 +434,9 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
                          private_key=private_key,
                          service_account=service_account,
                          use_personal_account=use_personal_account,
-                         use_metrics=use_metrics,
-                         ee_asset=ee_asset)
+                         use_metrics=use_metrics)
         self.asset_location = asset_location
+        self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.force_overwrite = force
         self.use_metrics = use_metrics
@@ -446,7 +444,8 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('FilterFileTransform')
     def process(self, uri: str) -> t.Iterator[str]:
         """Yields uri if the asset does not already exist."""
-        self.check_setup()
+        project_id = self.ee_asset.split('/')[1]
+        self.check_setup(project_id)
         asset_name = get_ee_safe_name(uri)
 
         # Checks if the asset is already present in the GCS bucket or not.
@@ -691,8 +690,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                          private_key=private_key,
                          service_account=service_account,
                          use_personal_account=use_personal_account,
-                         use_metrics=use_metrics,
-                         ee_asset=ee_asset)
+                         use_metrics=use_metrics)
+        self.ee_asset = ee_asset
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
         self.use_metrics = use_metrics
@@ -722,7 +721,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     )
     def start_ingestion(self, asset_data: AssetData) -> t.Optional[str]:
         """Creates COG-backed asset in earth engine. Returns the asset id."""
-        self.check_setup()
+        project_id = self.get_project_id()
+        self.check_setup(project_id)
         asset_name = os.path.join(self.ee_asset, asset_data.name)
         asset_data.properties['ingestion_time'] = get_utc_timestamp()
 
@@ -733,7 +733,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
                 creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
                 session = AuthorizedSession(creds)
-                project_id = self.get_project_id()
 
                 image_manifest = {
                     'name': asset_name,
