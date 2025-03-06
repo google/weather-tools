@@ -101,7 +101,7 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
     return creds
 
 
-def ee_initialize(project_id: t.Optional[str] = None, 
+def ee_initialize(project_id: t.Optional[str] = None,
                   use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
@@ -119,16 +119,10 @@ def ee_initialize(project_id: t.Optional[str] = None,
     creds = get_creds(use_personal_account, service_account, private_key)
     on_compute_engine = is_compute_engine()
     # Using the high volume api.
-    if on_compute_engine: 
+    if on_compute_engine:
         if project_id is None:
             raise RuntimeError('Project_name should not be None!')
-        
         ee.Initialize(creds, project=project_id, opt_url='https://earthengine-highvolume.googleapis.com')
-    
-    elif on_compute_engine and project_id==None:
-       raise RuntimeError(
-            'project_name should not be None!'
-        ) 
 
     # Only the compute engine service service account can access the high volume api.
     elif enforce_high_volume and not on_compute_engine:
@@ -149,7 +143,7 @@ class SetupEarthEngine(RateLimit):
                  private_key: str,
                  service_account: str,
                  use_personal_account: bool,
-                 use_metrics: bool):      
+                 use_metrics: bool):
         super().__init__(global_rate_limit_qps=ee_qps,
                          latency_per_request=ee_latency,
                          max_concurrent_requests=ee_max_concurrent,
@@ -162,9 +156,9 @@ class SetupEarthEngine(RateLimit):
 
     def setup(self, project_id):
         """Makes sure ee is set up on every worker."""
-        ee_initialize(project_id=project_id, 
+        ee_initialize(project_id=project_id,
                       use_personal_account=self.use_personal_account,
-                      service_account=self.service_account, 
+                      service_account=self.service_account,
                       private_key=self.private_key)
         self._has_setup = True
 
