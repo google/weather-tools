@@ -120,9 +120,12 @@ def ee_initialize(project_id: t.Optional[str] = None,
     on_compute_engine = is_compute_engine()
     # Using the high volume api.
     if on_compute_engine:
-        if project_id is None:
+        if project_id is None and use_personal_account:
             raise RuntimeError('Project_name should not be None!')
-        ee.Initialize(creds, project=project_id, opt_url='https://earthengine-highvolume.googleapis.com')
+        params = {'credentials': creds, 'opt_url': 'https://earthengine-highvolume.googleapis.com'}
+        if project_id:
+            params['project'] = project_id
+        ee.Initialize(**params)
 
     # Only the compute engine service service account can access the high volume api.
     elif enforce_high_volume and not on_compute_engine:
