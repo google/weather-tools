@@ -101,11 +101,11 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
     return creds
 
 
-def ee_initialize(project_id: t.Optional[str] = None,
-                  use_personal_account: bool = False,
+def ee_initialize(use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
-                  private_key: t.Optional[str] = None) -> None:
+                  private_key: t.Optional[str] = None,
+                  project_id: t.Optional[str] = None) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
@@ -113,6 +113,7 @@ def ee_initialize(project_id: t.Optional[str] = None,
         enforce_high_volume: A flag to use the high volume API when using a compute engine VM. Default: False.
         service_account: Service account address when using a private key for earth engine authentication.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
+        Project ID: An identifier that represents the name of a project present in Earth Engine.
     Raises:
         RuntimeError: Earth Engine did not initialize.
     """
@@ -159,10 +160,10 @@ class SetupEarthEngine(RateLimit):
 
     def setup(self, project_id):
         """Makes sure ee is set up on every worker."""
-        ee_initialize(project_id=project_id,
-                      use_personal_account=self.use_personal_account,
+        ee_initialize(use_personal_account=self.use_personal_account,
                       service_account=self.service_account,
-                      private_key=self.private_key)
+                      private_key=self.private_key,
+                      project_id=project_id)
         self._has_setup = True
 
     def check_setup(self, project_id: t.Optional[str] = None):
