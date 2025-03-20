@@ -33,10 +33,10 @@ dependencies:
   - google-cloud-sdk=410.0.0
   - aria2=1.36.0
   - zarr=2.15.0
+  - google-cloud-monitoring==2.22.2
   - pip:
     - cython==0.29.34
     - earthengine-api==0.1.329
     - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
-    - google-cloud-monitoring
     - pyparsing==3.1.4
     - .[test]
