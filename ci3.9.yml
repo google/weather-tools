@@ -33,7 +33,7 @@ dependencies:
   - xarray==2023.1.0
   - ruff==0.1.2
   - zarr=2.15.0
-  - google-cloud-monitoring==2.22.2
+  - google-cloud-monitoring=2.22.2
   - pip:
     - cython==0.29.34
     - earthengine-api==0.1.329

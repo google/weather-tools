@@ -25,7 +25,7 @@ dependencies:
   - aria2=1.36.0
   - pip=22.3
   - zarr=2.15.0
-  - google-cloud-monitoring==2.22.2
+  - google-cloud-monitoring=2.22.2
   - pip:
     - cython==0.29.34
     - earthengine-api==0.1.329
