@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from dateutil.relativedelta import relativedelta
 import logging
 import datetime
 import geojson
@@ -227,3 +227,28 @@ def download_with_aria2(url: str, path: str) -> None:
             f'Failed download from server {url!r} to {path!r} due to {e.stderr.decode("utf-8")}.'
         )
         raise
+
+def generate_hdate(date: str, subtract_year: str) -> str:
+    """Generate a historical date by subtracting a specified number of years from the given date.
+    If input date is leap day (Feb 29), return Feb 28 even if target hdate is also a leap year.
+    This is expected in ECMWF API.
+
+    Args:
+        date (str): The input date in the format 'YYYY-MM-DD'.
+        subtract_year (str): The number of years to subtract.
+
+    Returns:
+        str: The historical date in the format 'YYYY-MM-DD'.
+    """
+    try:
+        input_date = datetime.datetime.strptime(date, "%Y-%m-%d")
+        # Check for leap day
+        if input_date.month == 2 and input_date.day == 29:
+            input_date = input_date - datetime.timedelta(days=1)
+        subtract_year = int(subtract_year)
+    except (ValueError, TypeError):
+        logger.error("Invalid input.")
+        raise
+
+    hdate = input_date - relativedelta(years=subtract_year)
+    return hdate.strftime("%Y-%m-%d")
