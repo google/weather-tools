@@ -23,6 +23,7 @@ from .manifest import Manifest
 from .parsers import prepare_target_name
 from .config import Config
 from .stores import Store, FSStore
+from .util import generate_hdate
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ class PartitionConfig:
         out = cp.deepcopy(self.config)
         for idx, key in enumerate(self.config.partition_keys):
             copy[key] = [option[idx]]
+
+        # Replace hdate with actual value.
+        if 'hdate' in copy:
+            copy['hdate'] = [generate_hdate(copy['date'][0], v) for v in copy['hdate']]
 
         out.selection = copy
         return out

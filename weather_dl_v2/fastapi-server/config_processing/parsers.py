@@ -456,6 +456,11 @@ def process_config(file: t.IO, config_name: str) -> Config:
             """If 'all' is used for a selection value, it cannot appear as a partition key.""",
         )
 
+    if 'hdate' in selection:
+        require('date' in partition_keys,
+                """"If 'hdate' is specified in the 'selection' section,
+                then 'date' is required as a partition keys.""")
+
     # Ensure consistent lookup.
     config["parameters"]["partition_keys"] = partition_keys
     # Add config file name.
