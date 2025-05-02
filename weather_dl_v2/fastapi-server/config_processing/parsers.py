@@ -261,11 +261,12 @@ def parse_mars_syntax(block: str, key: str) -> t.List[str]:
         raise SyntaxError(f"Improper range syntax in '{block}'.")
 
     # Return a range of values with appropriate data type.
-    if key == 'year-month' and isinstance(start, datetime.date) and isinstance(end, datetime.date) and isinstance(increment, int):
+    if (key == 'year-month' and isinstance(start, datetime.date) and isinstance(end, datetime.date)
+            and isinstance(increment, int)):
         result = []
         offset = 1 if start <= end else -1
         if increment >= 0:
-            increment *= offset # ensure increment has correct direction
+            increment *= offset  # ensure increment has correct direction
         current = start
         while current <= end if offset > 0 else current >= end:
             result.append(current.strftime("%Y-%m"))
