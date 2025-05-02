@@ -25,6 +25,7 @@ import textwrap
 import typing as t
 import numpy as np
 from collections import OrderedDict
+from dateutil.relativedelta import relativedelta
 from .config import Config
 
 CLIENTS = ["cds", "mars", "ecpublic"]
@@ -176,10 +177,13 @@ def _splitlines(block: str) -> t.List[str]:
     return [line.strip() for line in block.strip().splitlines()]
 
 
-def mars_range_value(token: str) -> t.Union[datetime.date, int, float]:
+def mars_range_value(token: str, key: str) -> t.Union[datetime.date, int, float]:
     """Converts a range token into either a date, int, or float."""
     try:
-        return date(token)
+        if key == 'year-month':
+            return datetime.datetime.strptime(token, "%Y-%m").date()
+        else:
+            return date(token)
     except ValueError:
         pass
 
@@ -207,7 +211,7 @@ def mars_increment_value(token: str) -> t.Union[int, float]:
         raise ValueError("Token string must be an 'int' or a 'float'.")
 
 
-def parse_mars_syntax(block: str) -> t.List[str]:
+def parse_mars_syntax(block: str, key: str) -> t.List[str]:
     """Parses MARS list or range into a list of arguments; ranges are inclusive.
 
     Types for the range and value are inferred.
@@ -245,7 +249,7 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         to_idx = tokens.index("to")
         assert to_idx != 0, "There must be a start token."
         start_token, end_token = tokens[to_idx - 1], tokens[to_idx + 1]
-        start, end = mars_range_value(start_token), mars_range_value(end_token)
+        start, end = mars_range_value(start_token, key), mars_range_value(end_token, key)
 
         # Parse increment token, or choose default increment.
         increment_token = "1"
@@ -257,7 +261,18 @@ def parse_mars_syntax(block: str) -> t.List[str]:
         raise SyntaxError(f"Improper range syntax in '{block}'.")
 
     # Return a range of values with appropriate data type.
-    if isinstance(start, datetime.date) and isinstance(end, datetime.date):
+    if key == 'year-month' and isinstance(start, datetime.date) and isinstance(end, datetime.date) and isinstance(increment, int):
+        result = []
+        offset = 1 if start <= end else -1
+        if increment >= 0:
+            increment *= offset # ensure increment has correct direction
+        current = start
+        while current <= end if offset > 0 else current >= end:
+            result.append(current.strftime("%Y-%m"))
+            current += relativedelta(months=increment)
+        return result
+    elif isinstance(start, datetime.date) and isinstance(end, datetime.date) and key != 'year-month':
+        increment *= -1 if start > end and increment > 0 else 1
         if not isinstance(increment, int):
             raise ValueError(
                 f"Increments on a date range must be integer number of days, '{increment_token}' is invalid."
@@ -305,7 +320,7 @@ def _parse_lists(config: dict, section: str = "") -> t.Dict:
             continue
 
         if "/" in val and "parameters" not in section:
-            config[key] = parse_mars_syntax(val)
+            config[key] = parse_mars_syntax(val, key)
         elif "\n" in val:
             config[key] = _splitlines(val)
 
