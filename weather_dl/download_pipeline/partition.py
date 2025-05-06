@@ -149,6 +149,7 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
 def skip_partition(config: Config, store: Store, manifest: Manifest) -> bool:
     """Return true if partition should be skipped."""
 
+    logger.info('inside skip_partition()')
     if config.force_download:
         return False
 
