@@ -197,6 +197,8 @@ class GribSplitterV2(GribSplitter):
             skipped_paths = []
             for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
                 splits = dict(zip(split_dims, line.split(' ')))
+                if 'time' in splits:
+                    splits['time'] = splits['time'].zfill(4)
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
                     skipped_paths.append(output_path)
