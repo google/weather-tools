@@ -28,6 +28,7 @@ beam_gcp_requirements = [
     "google-cloud-spanner==1.19.3",
     "google-cloud-videointelligence==1.16.3",
     "google-cloud-vision==1.0.2",
+    "google-cloud-secret-manager==2.16.2",
     "apache-beam[gcp]==2.40.0",
 ]
 

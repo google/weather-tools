@@ -198,15 +198,14 @@ target_template=gs://ecmwf-downloads/hres-single-level/{}.nc
 partition_keys=
     date
 [parameters.deepmind]
-api_key=KKKKK1
-api_url=UUUUU1
+secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
 [parameters.research]
-api_key=KKKKK2
-api_url=UUUUU2
+secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
 [parameters.cloud]
-api_key=KKKKK3
-api_url=UUUUU3
+secret_key=projects/PROJECT_NAME/secrets/SECRET_NAME/versions/1
 ```
+
+Note: Here, secret_key is the resource value of [secret-manager](https://cloud.google.com/secret-manager) like: `"projects/my-project/secrets/my-secret/versions/latest"` and it's actual value which store there is looks like this dict: {"api_url": "URL", "api_key": "KEY"}.
 
 ## `selection` Section
 
