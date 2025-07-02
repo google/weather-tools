@@ -518,6 +518,116 @@ class ParseConfigTest(unittest.TestCase):
             self._assert_no_newlines_in_section(actual)
             self.assertListEqual(actual['section']['list'], ['1', '2', '3', '4', '5'])
 
+    def test_json_parse_year_mon_one(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2024-10"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10']
+            )
+
+    def test_json_parse_year_mon_one_by_one(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2024-10/by/1"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10']
+            )
+
+    def test_json_parse_year_mon_one_by_two(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2024-10/by/2"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10']
+            )
+
+    def test_json_parse_year_mon_six(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2025-3"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03']
+            )
+
+    def test_json_parse_year_mon_six_by_one(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2025-3/by/1"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03']
+            )
+
+    def test_json_parse_year_mon_six_by_three(self):
+        with io.StringIO('{"section": {"year-month": "2024-10/to/2025-3/by/3"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2024-10', '2025-01']
+            )
+
+    def test_json_parse_year_mon_six_rev(self):
+        with io.StringIO('{"section": {"year-month": "2025-3/to/2024-10"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2025-03', '2025-02', '2025-01', '2024-12', '2024-11', '2024-10']
+            )
+
+    def test_json_parse_year_mon_six_by_one_rev(self):
+        with io.StringIO('{"section": {"year-month": "2025-3/to/2024-10/by/-1"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2025-03', '2025-02', '2025-01', '2024-12', '2024-11', '2024-10']
+            )
+
+    def test_json_parse_year_mon_six_by_three_rev(self):
+        with io.StringIO('{"section": {"year-month": "2025-3/to/2024-10/by/-3"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2025-03', '2024-12']
+            )
+
+    def test_json_parse_year_mon_eighteen(self):
+        with io.StringIO('{"section": {"year-month": "2023-10/to/2025-3"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2023-10', '2023-11', '2023-12', '2024-01', '2024-02', '2024-03', '2024-04', '2024-05',
+                 '2024-06', '2024-07', '2024-08', '2024-09', '2024-10', '2024-11', '2024-12', '2025-01',
+                 '2025-02', '2025-03']
+            )
+
+    def test_json_parse_year_mon_eighteen_by_two(self):
+        with io.StringIO('{"section": {"year-month": "2023-10/to/2025-3/by/2"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2023-10', '2023-12', '2024-02', '2024-04', '2024-06', '2024-08', '2024-10', '2024-12', '2025-02']
+            )
+
+    def test_json_parse_year_mon_eighteen_by_six(self):
+        with io.StringIO('{"section": {"year-month": "2023-10/to/2025-3/by/6"}}') as f:
+            actual = parse_config(f)
+            self._assert_no_newlines_in_section(actual)
+            self.assertListEqual(
+                actual['section']['year-month'],
+                ['2023-10', '2024-04', '2024-10']
+            )
+
     def test_cfg_parses_parameter_subsections(self):
         with io.StringIO(
                 """
