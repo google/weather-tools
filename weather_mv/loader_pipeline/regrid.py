@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 try:
     import metview as mv
     Fieldset = mv.bindings.Fieldset
-except (ModuleNotFoundError, ImportError, FileNotFoundError, ValueError):
+except (ModuleNotFoundError, ImportError, FileNotFoundError):
     logger.error('Metview could not be imported.')
     mv = None  # noqa
     Fieldset = t.Any
@@ -264,7 +264,7 @@ class Regrid(ToDataSink):
                         return
                     logger.info(f"No issues found with {uri}.")
 
-                    logger.info(f'Regridding {uri!r}.')
+                    logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
                     fs = mv.bindings.Fieldset(path=local_grib)
                     fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
 
@@ -280,7 +280,7 @@ class Regrid(ToDataSink):
                     _clear_metview()
 
                     logger.info(f'Uploading {self.target_from(uri)!r}.')
-                    copy(src.name, self.target_from(uri))
+                    copy(src.name, self.target_from(uri), apply_bz2_compression=True)
             except Exception as e:
                 logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 

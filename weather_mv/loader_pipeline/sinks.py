@@ -397,12 +397,25 @@ def path_exists(path: str, force_regrid: bool = False) -> bool:
     assert len(matches) == 1
     return len(matches[0].metadata_list) > 0
 
-def copy(src: str, dst: str) -> None:
+def copy(src: str, dst: str, apply_bz2_compression: bool = False) -> None:
     """Copy data via `gsutil`."""
+    logger.info(f'Copying {src} to {dst} ...')
     errors: t.List[subprocess.CalledProcessError] = []
+
+    if apply_bz2_compression:
+        logger.info(f'Applying bz2 compression over the {src} file ...')
+        subprocess.run(
+            f"bzip2 -k {src}".split()
+        )
+        # Now it would have .bz2 file...
+        src = src + '.bz2'
+
     for cmd in ['gsutil -m cp']:
         try:
             subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
+            if apply_bz2_compression:
+                logger.info(f'Cleaning up {src} ...')
+                os.remove(src)
             return
         except subprocess.CalledProcessError as e:
             errors.append(e)
