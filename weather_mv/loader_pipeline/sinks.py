@@ -399,7 +399,6 @@ def path_exists(path: str, force_regrid: bool = False) -> bool:
 
 def copy(src: str, dst: str, apply_bz2_compression: bool = False) -> None:
     """Copy data via `gsutil`."""
-    logger.info(f'Copying {src} to {dst} ...')
     errors: t.List[subprocess.CalledProcessError] = []
 
     if apply_bz2_compression:
@@ -413,6 +412,7 @@ def copy(src: str, dst: str, apply_bz2_compression: bool = False) -> None:
             subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
             if apply_bz2_compression:
                 logger.info(f'Cleaning up {src} ...')
+                # Deleting the tempfile explicitly as it's name is changed.
                 os.remove(src)
             return
         except subprocess.CalledProcessError as e:
