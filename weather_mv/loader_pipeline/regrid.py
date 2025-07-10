@@ -198,7 +198,7 @@ class Regrid(ToDataSink):
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
         subparser.add_argument('-bz2', '--apply_bz2_compression', action='store_true', default=False,
-                               help='Compress the regrided file with bz2 compression. Default: off')
+                               help='Enable bzip2 (.bz2) compression for the regridded file. Default: off.')
         subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
                                help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
         subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default=None,

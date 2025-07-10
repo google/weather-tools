@@ -272,6 +272,7 @@ _Command options_:
 * `-k, --regrid_kwargs`: Keyword-args to pass into `metview.regrid()` in the form of a JSON string. Will default to
   '{"grid": [0.25, 0.25]}'.
 * `--to_netcdf`: Write output file in NetCDF via XArray. Default: off
+* `-bz2`, `--apply_bz2_compression`: Enable bzip2 (.bz2) compression for the regridded file. Default: off.
 
 For a full range of grid options, please
 consult [this documentation.](https://metview.readthedocs.io/en/latest/metview/using_metview/regrid_intro.html?highlight=grid#grid)
