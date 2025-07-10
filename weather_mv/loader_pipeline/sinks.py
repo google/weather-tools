@@ -403,11 +403,9 @@ def copy(src: str, dst: str, apply_bz2_compression: bool = False) -> None:
     errors: t.List[subprocess.CalledProcessError] = []
 
     if apply_bz2_compression:
-        logger.info(f'Applying bz2 compression over the {src} file ...')
-        subprocess.run(
-            f"bzip2 -k {src}".split()
-        )
-        # Now it would have .bz2 file...
+        logger.info(f'Applying bzip2 compression before copying to {dst} ...')
+        subprocess.run(f"bzip2 -k {src}".split())  # -k is for keeping the original file.
+        # Now we would have a .bz2 file...
         src = src + '.bz2'
 
     for cmd in ['gsutil -m cp']:

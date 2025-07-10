@@ -182,6 +182,7 @@ class Regrid(ToDataSink):
     regrid_kwargs: t.Dict
     force_regrid: bool = False
     to_netcdf: bool = False
+    apply_bz2_compression: bool = False
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
 
@@ -196,6 +197,8 @@ class Regrid(ToDataSink):
                                help='Force regrid all files even if file is present at output_path.')
         subparser.add_argument('--to_netcdf', action='store_true', default=False,
                                help='Write output file in NetCDF via XArray. Default: off')
+        subparser.add_argument('-bz2', '--apply_bz2_compression', action='store_true', default=False,
+                               help='Compress the regrided file with bz2 compression. Default: off')
         subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
                                help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
         subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default=None,
@@ -280,7 +283,10 @@ class Regrid(ToDataSink):
                     _clear_metview()
 
                     logger.info(f'Uploading {self.target_from(uri)!r}.')
-                    copy(src.name, self.target_from(uri), apply_bz2_compression=True)
+                    copy(
+                        src.name, self.target_from(uri),
+                        apply_bz2_compression=self.apply_bz2_compression
+                    )
             except Exception as e:
                 logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
