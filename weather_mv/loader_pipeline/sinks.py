@@ -400,7 +400,6 @@ def path_exists(path: str, force_regrid: bool = False) -> bool:
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil`."""
     errors: t.List[subprocess.CalledProcessError] = []
-
     for cmd in ['gsutil -m cp']:
         try:
             subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
