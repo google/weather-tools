@@ -283,10 +283,13 @@ class Regrid(ToDataSink):
                     _clear_metview()
 
                     logger.info(f'Uploading {self.target_from(uri)!r}.')
-                    copy(
-                        src.name, self.target_from(uri),
-                        apply_bz2_compression=self.apply_bz2_compression
-                    )
+
+                    if self.apply_bz2_compression:
+                        logger.info(f'Applying bzip2 compression before copying to {self.target_from(uri)!r} ...')
+                        subprocess.run(f"bzip2 {src.name}".split())
+                        os.rename(src.name + '.bz2', src.name)  # Removing the .bz2 extension from filename.
+
+                    copy(src.name, self.target_from(uri))
             except Exception as e:
                 logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
