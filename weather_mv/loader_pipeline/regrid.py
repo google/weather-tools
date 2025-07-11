@@ -285,11 +285,17 @@ class Regrid(ToDataSink):
                     logger.info(f'Uploading {self.target_from(uri)!r}.')
 
                     if self.apply_bz2_compression:
-                        logger.info(f'Applying bzip2 compression before copying to {self.target_from(uri)!r} ...')
-                        subprocess.run(f"bzip2 {src.name}".split())
-                        os.rename(src.name + '.bz2', src.name)  # Removing the .bz2 extension from filename.
+                        logger.info(
+                            f'Applying bzip2 compression before copying to {self.target_from(uri)!r} ...'
+                        )
+                        subprocess.run(f"bzip2 -k {src.name}".split())
 
-                    copy(src.name, self.target_from(uri))
+                        copy(src.name + '.bz2', self.target_from(uri))
+
+                        logger.info(f'Cleaning up {src.name}.bz2 ...')
+                        os.unlink(src.name + '.bz2')  # Deleting the tempfile.bz2 file.
+                    else:
+                        copy(src.name, self.target_from(uri))
             except Exception as e:
                 logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
