@@ -28,8 +28,9 @@ import apache_beam as beam
 import dask
 import xarray as xr
 import xarray_beam as xbeam
+from apache_beam.io.filesystems import FileSystems
 
-from .sinks import ToDataSink, open_local, copy, path_exists
+from .sinks import ToDataSink, open_local, copy
 
 logger = logging.getLogger(__name__)
 
@@ -246,13 +247,21 @@ class Regrid(ToDataSink):
             logger.info(f"Encountered error while reading GRIB: {e}.")
             return True
 
+    def path_exists(self, path: str, force_regrid: bool = False) -> bool:
+        """Check if path exists. Pass force_regrid to skip checking."""
+        if force_regrid:
+            return False
+        matches = FileSystems().match([path])
+        assert len(matches) == 1
+        return len(matches[0].metadata_list) > 0
+
     def apply(self, uri: str) -> None:
         logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
 
         if self.dry_run:
             return
 
-        if path_exists(self.target_from(uri), self.force_regrid):
+        if self.path_exists(self.target_from(uri), self.force_regrid):
             logger.info(f"Skipping {uri}.")
             return
 
