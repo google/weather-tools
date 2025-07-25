@@ -42,6 +42,7 @@ def split_file(input_file: str,
                output_dir: t.Optional[str],
                formatting: str,
                dry_run: bool,
+               grib_filter_expression: t.Optional[str],
                force_split: bool = False,
                logging_level: int = logging.INFO):
     output_base_name = get_output_base_name(input_path=input_file,
@@ -57,7 +58,8 @@ def split_file(input_file: str,
                             output_base_name,
                             dry_run,
                             force_split,
-                            level)
+                            level,
+                            grib_filter_expression)
     splitter.split_data()
 
 
@@ -119,7 +121,15 @@ def run(argv: t.List[str], save_main_session: bool = True):
     parser.add_argument('-f', '--force', action='store_true', default=False,
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
     parser.add_argument('--log-level', type=int, default=2,
-                      help='An integer to configure log level. Default: 2(INFO)')
+                        help='An integer to configure log level. Default: 2(INFO)')
+    parser.add_argument('-w', '--where', default=None,
+                        help='Optional GRIB filter expression to apply during'
+                        'file splitting using grib_copy.'
+                        'This allows filtering GRIB messages based on'
+                        'key-value pairs, such as level, type of level,'
+                        'or date.'
+                        'Example: typeOfLevel=isobaricInhPa,level=1000')
+
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
 
     configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
@@ -132,6 +142,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
     output_dir = known_args.output_dir
     formatting = known_args.formatting
     dry_run = known_args.dry_run
+    grib_filter_expression = known_args.where
 
     if not output_template and not output_dir:
         raise ValueError('No output specified')
@@ -160,6 +171,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                                        output_dir,
                                        formatting,
                                        dry_run,
+                                       grib_filter_expression,
                                        known_args.force,
                                        known_args.log_level)
         )
