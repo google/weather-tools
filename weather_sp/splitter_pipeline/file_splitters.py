@@ -191,11 +191,10 @@ class GribSplitterV2(GribSplitter):
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
             grib_fields = mv.read(local_file.name)
-            split_values = [tuple(mv.grib_get(grib_fields[i], split_dims)[0]) for i in range(len(grib_fields))]
-            uniq_output = list(dict.fromkeys(split_values))
+            split_values = mv.grib_get(grib_fields, split_dims)
             output_paths = []
             skipped_paths = []
-            for line in uniq_output:
+            for line in split_values:
                 splits = dict(zip(split_dims, line))
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
