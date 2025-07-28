@@ -22,6 +22,7 @@ import string
 import subprocess
 import tempfile
 import typing as t
+import metview as mv
 from contextlib import contextmanager
 
 import apache_beam.metrics as metrics
@@ -186,21 +187,16 @@ class GribSplitterV2(GribSplitter):
         slash = '/'
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
-
         split_dims = self.output_info.split_dims()
-        split_dims_arg = ','.join(split_dims)
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
-            grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
-                                                stdout=subprocess.PIPE)
-            uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+            grib_fields = mv.read(local_file.name)
+            split_values = [tuple(mv.grib_get(grib_fields[i], split_dims)[0]) for i in range(len(grib_fields))]
+            uniq_output = list(dict.fromkeys(split_values))
             output_paths = []
             skipped_paths = []
-            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
-                splits = dict(zip(split_dims, line.split(' ')))
-                # Ensure time values like '600' or '0' are zero-padded to 4 digits (e.g. '0600', '0000')
-                if 'time' in splits:
-                    splits['time'] = splits['time'].zfill(4)
+            for line in uniq_output:
+                splits = dict(zip(split_dims, line))
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
                     skipped_paths.append(output_path)
@@ -315,7 +311,7 @@ def get_splitter(file_path: str,
                  dry_run: bool,
                  force_split: bool = False,
                  logging_level: int = logging.INFO,
-                 grib_filter_expression: str = None) -> FileSplitter:
+                 grib_filter_expression: t.Optional[str] = None) -> FileSplitter:
     if dry_run:
         logger.info('Using splitter: DrySplitter')
         return DrySplitter(file_path, output_info, logging_level=logging_level)
