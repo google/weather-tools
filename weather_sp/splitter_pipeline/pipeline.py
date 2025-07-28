@@ -122,7 +122,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         help='Force re-splitting of the pipeline. Turns of skipping of already split data.')
     parser.add_argument('--log-level', type=int, default=2,
                         help='An integer to configure log level. Default: 2(INFO)')
-    parser.add_argument('-w', '--where', default=None,
+    parser.add_argument('-w', '--where', type=str, default=None,
                         help='Optional GRIB filter expression to apply during'
                         'file splitting using grib_copy.'
                         'This allows filtering GRIB messages based on'

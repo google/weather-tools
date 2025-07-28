@@ -50,7 +50,8 @@ class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
     def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO, grib_filter_expression: str = None):
+                 force_split: bool = False, logging_level: int = logging.INFO,
+                 grib_filter_expression: t.Optional[str] = None):
         self.input_path = input_path
         self.output_info = output_info
         self.force_split = force_split
