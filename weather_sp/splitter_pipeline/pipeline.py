@@ -42,9 +42,9 @@ def split_file(input_file: str,
                output_dir: t.Optional[str],
                formatting: str,
                dry_run: bool,
-               grib_filter_expression: t.Optional[str],
                force_split: bool = False,
-               logging_level: int = logging.INFO):
+               logging_level: int = logging.INFO,
+               grib_filter_expression: t.Optional[str] = None):
     output_base_name = get_output_base_name(input_path=input_file,
                                             input_base=input_base_dir,
                                             output_template=output_template,
@@ -128,6 +128,9 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         'This allows filtering GRIB messages based on'
                         'key-value pairs, such as level, type of level,'
                         'or date.'
+                        'This flag is only applicable to GRIB files and is'
+                        'specifically supported by the GribSplitterV2'
+                        'implementation.'
                         'Example: typeOfLevel=isobaricInhPa,level=1000')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
@@ -171,7 +174,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                                        output_dir,
                                        formatting,
                                        dry_run,
-                                       grib_filter_expression,
                                        known_args.force,
-                                       known_args.log_level)
+                                       known_args.log_level,
+                                       grib_filter_expression)
         )

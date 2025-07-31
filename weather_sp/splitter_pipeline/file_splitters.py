@@ -22,7 +22,6 @@ import string
 import subprocess
 import tempfile
 import typing as t
-import metview as mv
 from contextlib import contextmanager
 
 import apache_beam.metrics as metrics
@@ -189,14 +188,16 @@ class GribSplitterV2(GribSplitter):
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
         split_dims = self.output_info.split_dims()
+        split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
-            grib_fields = mv.read(local_file.name)
-            split_values = mv.grib_get(grib_fields, split_dims)
+            grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
+                                                stdout=subprocess.PIPE)
+            uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
             output_paths = []
             skipped_paths = []
-            for line in split_values:
-                splits = dict(zip(split_dims, line))
+            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+                splits = dict(zip(split_dims, line.split(' ')))
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
                     skipped_paths.append(output_path)

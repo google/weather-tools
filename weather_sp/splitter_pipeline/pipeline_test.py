@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from .file_name_utils import OutFileInfo
 from .pipeline import _get_base_input_directory
@@ -60,6 +60,28 @@ class PipelineTest(unittest.TestCase):
                                                          ending='',
                                                          template_folders=[]),
                                              True)
+
+    @patch('weather_sp.splitter_pipeline.pipeline.get_splitter')
+    def test_split_file_with_filter(self, mock_get_splitter):
+        split_file(
+            input_file='somewhere/somefile',
+            input_base_dir='somewhere',
+            output_dir='out/there',
+            output_template=None,
+            formatting='_{variable}',
+            dry_run=True,
+            grib_filter_expression='typeOfLevel=isobaricInhPa,level=200',
+        )
+        mock_get_splitter.assert_called_with(
+            'somewhere/somefile',
+            OutFileInfo('out/there/somefile',
+                        formatting='_{variable}',
+                        ending='',
+                        template_folders=[]),
+            True,
+            False,
+            ANY,
+            'typeOfLevel=isobaricInhPa,level=200')
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ _Common options_:
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 * `--log-level`: An integer to configure log level. Default: 2(INFO).
 * `--use-local-code`: Supply local code to the Runner. Default: False.
-* `-w, --where`: Optional GRIB filter expression to apply during file splitting using grib_copy. This allows filtering GRIB messages based on key-value pairs, such as level, type of level, or date. Example: 'typeOfLevel=isobaricInhPa,level=1000'. More details can be found [here](https://confluence.ecmwf.int/display/ECC/grib_copy).
+* `-w, --where`: Optional GRIB filter expression to apply during file splitting using grib_copy. This allows filtering GRIB messages based on key-value pairs, such as level, type of level, or date. Example: 'typeOfLevel=isobaricInhPa,level=1000'. This flag is only applicable to GRIB files and is specifically supported by the GribSplitterV2 implementation. More details can be found [here](https://confluence.ecmwf.int/display/ECC/grib_copy).
 
 Invoke with `-h` or `--help` to see the full range of options.
 

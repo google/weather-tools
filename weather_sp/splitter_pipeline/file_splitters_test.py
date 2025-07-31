@@ -48,6 +48,11 @@ def grib_splitter(request):
     return request.param
 
 
+@pytest.fixture(params=[GribSplitterV2])
+def grib_splitter_v2(request):
+    return request.param
+
+
 class TestGetSplitter:
 
     def test_get_splitter_grib(self, data_dir):
@@ -105,6 +110,42 @@ class TestGribSplitter:
         out = splitter.output_info.formatted_output_path(
             {'typeOfLevel': 'surface', 'shortName': 'cc'})
         assert out == 'path/output/file.surface_cc.grib'
+
+    def test_split_data_with_filter(self, data_dir, grib_splitter_v2):
+        input_path = f'{data_dir}/era5_sample.grib'
+        output_base = f'{data_dir}/split_files/era5_sample'
+        splitter = grib_splitter_v2(
+            input_path,
+            OutFileInfo(
+                output_base,
+                formatting='_{typeOfLevel}_{shortName}',
+                ending='.grib',
+                template_folders=[]),
+            grib_filter_expression="typeOfLevel=isobaricInhPa,level=200"
+        )
+        splitter.split_data()
+        assert os.path.exists(f'{data_dir}/split_files/') is True
+
+        short_names = ['d', 'cc', 'z', 'r']
+        input_data = defaultdict(list)
+        split_data = defaultdict(list)
+
+        input_grbs = pygrib.open(input_path)
+        for grb in input_grbs:
+            if grb.typeOfLevel == 'isobaricInhPa' and grb.level == 200:
+                input_data[grb.shortName].append(grb.values)
+
+        for sn in short_names:
+            split_file = f'{data_dir}/split_files/era5_sample_isobaricInhPa_{sn}.grib'
+            split_grbs = pygrib.open(split_file)
+            for grb in split_grbs:
+                split_data[sn].append(grb.values)
+
+        for sn in short_names:
+            orig = np.array(input_data[sn])
+            split = np.array(split_data[sn])
+            assert orig.shape == split.shape
+            np.testing.assert_allclose(orig, split)
 
     def test_split_data(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
