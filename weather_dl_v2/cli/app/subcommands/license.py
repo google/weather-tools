@@ -137,7 +137,15 @@ def redeploy_license(
             "--client_name",
             help="Redeploy all licenses of a particular client."
             )
-        ] = None
+        ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "-y",
+            "-yes",
+            help="Skip confirmation prompt."
+        )
+    ] = False
 ):
     if license_id is not None and client_name is not None:
         print("Can't pass both license_id and client_name. Please pass only one.")
@@ -148,11 +156,13 @@ def redeploy_license(
         return
 
     if license_id is not None:
-        confirm_action(f"Are you sure you want to redeploy {license_id}?")
+        if not yes:
+            confirm_action(f"Are you sure you want to redeploy {license_id}?")
         print(license_service._redeploy_license_by_license_id(license_id))
         return
 
     if client_name is not None:
-        confirm_action(f"Are you sure you want to redeploy licenses from {client_name}?")
+        if not yes:
+            confirm_action(f"Are you sure you want to redeploy licenses from {client_name}?")
         print(license_service._redeploy_licenses_by_client(client_name))
         return
