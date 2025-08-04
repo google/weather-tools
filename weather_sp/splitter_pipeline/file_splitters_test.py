@@ -48,11 +48,6 @@ def grib_splitter(request):
     return request.param
 
 
-@pytest.fixture(params=[GribSplitterV2])
-def grib_splitter_v2(request):
-    return request.param
-
-
 class TestGetSplitter:
 
     def test_get_splitter_grib(self, data_dir):
@@ -111,10 +106,10 @@ class TestGribSplitter:
             {'typeOfLevel': 'surface', 'shortName': 'cc'})
         assert out == 'path/output/file.surface_cc.grib'
 
-    def test_split_data_with_filter(self, data_dir, grib_splitter_v2):
+    def test_split_data_with_filter(self, data_dir):
         input_path = f'{data_dir}/era5_sample.grib'
         output_base = f'{data_dir}/split_files/era5_sample'
-        splitter = grib_splitter_v2(
+        splitter = GribSplitterV2(
             input_path,
             OutFileInfo(
                 output_base,

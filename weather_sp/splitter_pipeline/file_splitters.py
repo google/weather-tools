@@ -188,6 +188,8 @@ class GribSplitterV2(GribSplitter):
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
         split_dims = self.output_info.split_dims()
+        # Construct a string where each split dimension is "dim:s".
+        # This ensures dims like time are represented as 0600 instead of 600.
         split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
