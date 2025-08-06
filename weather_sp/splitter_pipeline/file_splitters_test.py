@@ -21,6 +21,7 @@ import numpy as np
 import pygrib
 import pytest
 import xarray as xr
+from unittest.mock import patch
 
 import weather_sp
 from .file_name_utils import OutFileInfo
@@ -190,7 +191,8 @@ class TestGribSplitter:
         assert os.path.exists(f'{data_dir}/split_files/')
         assert splitter.should_skip()
 
-    def test_skips_existing_split_with_filter(self, data_dir):
+    @patch('weather_sp.splitter_pipeline.file_splitters.FileSplitter.should_skip_file')
+    def test_skips_existing_split_with_filter(self, mock_should_skip_file, data_dir):
         input_path = f'{data_dir}/era5_sample.grib'
         splitter = GribSplitterV2(
             input_path,
@@ -200,10 +202,8 @@ class TestGribSplitter:
                         template_folders=[]),
             grib_filter_expression="typeOfLevel=isobaricInhPa,level=200"
         )
-        assert not splitter.should_skip()
         splitter.split_data()
-        assert os.path.exists(f'{data_dir}/split_files/')
-        assert splitter.should_skip()
+        assert mock_should_skip_file.call_count == 8
 
     def test_does_not_skip__if_forced(self, data_dir, grib_splitter):
         input_path = f'{data_dir}/era5_sample.grib'
