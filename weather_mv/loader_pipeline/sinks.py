@@ -422,6 +422,7 @@ def open_local(uri: str) -> t.Iterator[str]:
         with tempfile.NamedTemporaryFile() as dest_uncompressed:
             with CompressedFile(open(dest_file.name, 'rb'), compression_type=compression_type) as dcomp:
                 shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
+                dest_uncompressed.seek(0)  # Reposition the file pointer to the start.
                 yield dest_uncompressed.name
 
 
