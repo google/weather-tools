@@ -193,11 +193,11 @@ class GribSplitterV2(GribSplitter):
         split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
-            grib_get_args = [grib_get_cmd, '-p', split_dims_arg]
             # Append -w flag to filter GRIB messages matching the given expression
             if self.grib_filter_expression:
-                grib_get_args.extend(['-w', self.grib_filter_expression])
-            grib_get_args.append(local_file.name)
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, '-w', self.grib_filter_expression, local_file.name]
+            else:
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
             grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
             uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
             output_paths = []
