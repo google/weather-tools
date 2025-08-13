@@ -29,6 +29,7 @@ _Common options_:
 * `-d, --dry-run`: Test the input file matching and the output file scheme without splitting.
 * `--log-level`: An integer to configure log level. Default: 2(INFO).
 * `--use-local-code`: Supply local code to the Runner. Default: False.
+* `-w, --where`: Optional GRIB filter expression to apply during file splitting using grib_copy. This allows filtering GRIB messages based on key-value pairs, such as level, type of level, or date. Example: 'typeOfLevel=isobaricInhPa,level=1000'. This flag is only applicable to GRIB files and is specifically supported by the GribSplitterV2 implementation. More details can be found [here](https://confluence.ecmwf.int/display/ECC/grib_copy).
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -72,6 +73,18 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2015/**' \
            --temp_location gs://$BUCKET/tmp  \
            --job_name $JOB_NAME \
            --use-local-code
+```
+
+Using DataflowRunner with using --where flag
+
+```bash
+weather-sp --input-pattern 'gs://test-tmp/2015/*.gb' \
+           --output-template 'gs://temp/domain_{domain}/class_{class}/stream_{stream}/expver_{expver}/levtype_{levtype}/date_{date}/time_{time}/step_{step}/{shortName}.gb' \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --temp_location gs://$BUCKET/tmp  \
+           --job_name $JOB_NAME \
+           --where "typeOfLevel=surface,shortName=lcc"
 ```
 
 Using ecCodes-powered grib splitting on Dataflow (this is often more robust, especially when splitting multiple 

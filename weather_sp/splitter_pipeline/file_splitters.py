@@ -49,7 +49,8 @@ class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
     def __init__(self, input_path: str, output_info: OutFileInfo,
-                 force_split: bool = False, logging_level: int = logging.INFO):
+                 force_split: bool = False, logging_level: int = logging.INFO,
+                 grib_filter_expression: t.Optional[str] = None):
         self.input_path = input_path
         self.output_info = output_info
         self.force_split = force_split
@@ -57,6 +58,7 @@ class FileSplitter(abc.ABC):
         self.logger.setLevel(logging_level)
         self.logger.debug('Splitter for path=%s, output base=%s',
                           self.input_path, self.output_info)
+        self.grib_filter_expression = grib_filter_expression
 
     @abc.abstractmethod
     def split_data(self) -> None:
@@ -185,13 +187,18 @@ class GribSplitterV2(GribSplitter):
         slash = '/'
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
-
         split_dims = self.output_info.split_dims()
-        split_dims_arg = ','.join(split_dims)
+        # Construct a string where each split dimension is "dim:s".
+        # This ensures dims like time are represented as 0600 instead of 600.
+        split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
         with self._copy_to_local_file() as local_file:
             self.logger.info('Skipping as needed...')
-            grib_get_process = subprocess.Popen((grib_get_cmd, '-p', split_dims_arg, local_file.name),
-                                                stdout=subprocess.PIPE)
+            # Append -w flag to filter GRIB messages matching the given expression
+            if self.grib_filter_expression:
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, '-w', self.grib_filter_expression, local_file.name]
+            else:
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
+            grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
             uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
             output_paths = []
             skipped_paths = []
@@ -211,7 +218,13 @@ class GribSplitterV2(GribSplitter):
             with tempfile.TemporaryDirectory() as tmpdir:
                 self.logger.info('Performing split.')
                 dest = os.path.join(tmpdir, flat_output_template)
-                subprocess.run([grib_copy_cmd, local_file.name, dest], check=True)
+                if self.grib_filter_expression:
+                    subprocess.run([grib_copy_cmd, "-w",
+                                    self.grib_filter_expression,
+                                    local_file.name, dest], check=True)
+                else:
+                    subprocess.run([grib_copy_cmd, local_file.name, dest],
+                                   check=True)
 
                 self.logger.info('Uploading %r...', self.input_path)
                 for flat_target in os.listdir(tmpdir):
@@ -304,7 +317,8 @@ def get_splitter(file_path: str,
                  output_info: OutFileInfo,
                  dry_run: bool,
                  force_split: bool = False,
-                 logging_level: int = logging.INFO) -> FileSplitter:
+                 logging_level: int = logging.INFO,
+                 grib_filter_expression: t.Optional[str] = None) -> FileSplitter:
     if dry_run:
         logger.info('Using splitter: DrySplitter')
         return DrySplitter(file_path, output_info, logging_level=logging_level)
@@ -321,10 +335,12 @@ def get_splitter(file_path: str,
         cmd = shutil.which('grib_copy')
         if cmd:
             logger.info('Using splitter: GribSplitterV2')
-            return GribSplitterV2(file_path, output_info, force_split, logging_level)
+            return GribSplitterV2(file_path, output_info, force_split,
+                                  logging_level, grib_filter_expression)
         else:
             logger.info('Using splitter: GribSplitter')
-            return GribSplitter(file_path, output_info, force_split, logging_level)
+            return GribSplitter(file_path, output_info, force_split,
+                                logging_level)
 
     # See the NetCDF Spec docs:
     # https://docs.unidata.ucar.edu/netcdf-c/current/faq.html#How-can-I-tell-which-format-a-netCDF-file-uses
