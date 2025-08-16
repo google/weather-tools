@@ -409,6 +409,10 @@ _Command options_:
   takes extra time in COG creation. Default:False.
 * `--use_metrics`: A flag that allows you to add Beam metrics to the pipeline. Default: False.
 * `--use_monitoring_metrics`: A flag that allows you to to add Google Cloud Monitoring metrics to the pipeline. Default: False.
+* `--partition_dims`: If the dataset contains other dimensions apart from latitude and longitude, partition the dataset into multiple datasets based on these dimensions. A separate COG file will be created for each partition and ingested into Earth Engine. Any unspecified dimensions will be flattened in the resulting COG.
+* `--asset_name_format`: The asset name format for each partitioned COG file. This should contain the dimensions no other than partition_dims (along with init_time and valid_time). The dimension names should be enclosed in {} (e.g. a valid format is {init_time}_{valid_time}_{number})
+* `--forecast_dim_mapping`: A JSON string containing init_time and valid_time as keys and corresponding dimension names for each key. It is required if init_time or valid_time is used in asset_name_format.
+* `--date_format`: A string containing datetime.strftime codes. It is used if the dimension mentioned in asset_name_format is a datetime. Default: %Y%m%d%H%M
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
@@ -482,6 +486,28 @@ weather-mv ee --uris "gs://your-bucket/*.grib" \
            --ee_asset "projects/$PROJECT/assets/test_dir"
            --xarray_open_dataset_kwargs '{"engine": "cfgrib", "indexpath": "", "backend_kwargs": {"filter_by_keys": {"typeOfLevel": "surface", "edition": 1}}}' \
            --temp_location "gs://$BUCKET/tmp"
+```
+
+Create separate COG files for every value of time and number dimensions:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --partition_dims time number
+           --asset_name_format "{time}_{number}"
+```
+
+Create COG files with name of init_time and valid_time (in datetime format) with 'YYYYMMDD' format:
+
+```bash
+weather-mv ee --uris "gs://your-bucket/*.grib" \
+           --asset_location "gs://$BUCKET/assets" \  # Needed to store assets generated from *.grib
+           --ee_asset "projects/$PROJECT/assets/test_dir" \
+           --partition_dims time step number \       # step is in timedelta
+           --forecast_dim_mapping '{"init_time": "time", "valid_time": "step"}'
+           --asset_name_format "{init_time}_{valid_time}_{number}"
+           --date_format "%Y%m%D"
 ```
 
 Limit EE requests:
