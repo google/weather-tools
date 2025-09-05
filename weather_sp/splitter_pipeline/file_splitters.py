@@ -28,6 +28,8 @@ import apache_beam.metrics as metrics
 import numpy as np
 import pygrib
 import xarray as xr
+
+from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
 
 from .file_name_utils import OutFileInfo
@@ -69,7 +71,20 @@ class FileSplitter(abc.ABC):
         self.logger.info(f'Copying {self.input_path!r} locally.')
         with tempfile.NamedTemporaryFile() as dest_file:
             copy(self.input_path, dest_file.name)
-            yield dest_file
+
+            # Check if data is compressed. Decompress the data using the same methods that beam's
+            # FileSystems interface uses.
+            compression_type = FileSystem._get_compression_type(self.input_path, CompressionTypes.AUTO)
+            if compression_type == CompressionTypes.UNCOMPRESSED:
+                yield dest_file
+                return
+
+            dest_file.seek(0)
+            with tempfile.NamedTemporaryFile() as dest_uncompressed:
+                with CompressedFile(open(dest_file.name, 'rb'), compression_type=compression_type) as dcomp:
+                    shutil.copyfileobj(dcomp, dest_uncompressed, DEFAULT_READ_BUFFER_SIZE)
+                    dest_uncompressed.seek(0)  # Reposition the file pointer to the start.
+                    yield dest_uncompressed
 
     def should_skip(self):
         """Skip splitting if the data was already split."""
