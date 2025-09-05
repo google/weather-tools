@@ -1,4 +1,3 @@
 global-exclude *_test.py
 include README.md
-# Removing this line to fix the warning message issue #243
-# prune test_data
+global-exclude test_data/*
