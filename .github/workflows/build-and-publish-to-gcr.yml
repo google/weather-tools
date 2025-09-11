@@ -1,0 +1,49 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: Build and Publish to GCR on environment.yml changes
+    
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'environment.yml'
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - 'environment.yml'
+
+jobs:
+  build_and_publish_if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Set up Google Cloud SDK
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: '356.0.0'
+          project_id: ${{ secrets.GCLOUD_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCLOUD_SERVICE_KEY }}
+
+      - name: Build and Push Docker Image
+        run: |
+          gcloud config set project ${{ secrets.GCLOUD_PROJECT_ID }}
+          gcloud builds submit --tag gcr.io/${{ secrets.GCLOUD_PROJECT_ID }}/weather-tools:latest
