@@ -769,6 +769,16 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 if response.status_code != 200:
                     logger.info(f"Failed to ingest asset '{asset_name}' in Earth Engine: {response.text}")
                     raise ee.EEException(response.text)
+                if self.ingest_as_virtual_asset:
+                    response_json = response.json()
+                    ingestion_state = (
+                        response_json
+                        .get("metadata", {})
+                        .get("state", "STATE_UNSPECIFIED")
+                        .upper()
+                    )
+                    if ingestion_state != "SUCCEEDED":
+                        raise ee.EEException(f"Ingestion failed with state: {ingestion_state}")
                 return asset_name
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
