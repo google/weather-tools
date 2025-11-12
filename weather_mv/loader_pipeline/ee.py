@@ -382,7 +382,7 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             output = (
                 paths
-                | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
+                # | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
@@ -778,7 +778,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         .upper()
                     )
                     if ingestion_state != "SUCCEEDED":
-                        raise ee.EEException(f"Ingestion failed with state: {ingestion_state}")
+                        raise ee.EEException(
+                            f"Ingestion failed with state: {ingestion_state}.\n"
+                            f"Error details:\n{response.text}"
+                        )
                 return asset_name
             elif self.ee_asset_type == 'TABLE':  # ingest a feature collection.
                 self.wait_for_task_queue()
