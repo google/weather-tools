@@ -382,7 +382,7 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             output = (
                 paths
-                # | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
+                | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
                 | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
