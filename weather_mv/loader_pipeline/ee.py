@@ -801,6 +801,11 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 logger.info(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
 
+            error_text = repr(e).lower()
+            if "property" in error_text or "type does not match" in error_text:
+                logger.error(f"Failed to ingest asset '{asset_name}' due to property mismatch. Moving on...")
+                return ""
+
             logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
