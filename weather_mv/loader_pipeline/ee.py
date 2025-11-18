@@ -798,7 +798,11 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
 
-            if "whose type does not match the type of the same property of existing assets in the same collection" in repr(e):
+            if (
+                "whose type does not match the type of the same property of existing "
+                "assets in the same collection"
+                in repr(e)
+            ):
                 logger.error(f"Failed to ingest asset '{asset_name}' due to property mismatch: {e} Moving on...")
                 return ""
 
