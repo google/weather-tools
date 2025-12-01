@@ -777,6 +777,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         .get("state", "STATE_UNSPECIFIED")
                         .upper()
                     )
+                    logger.info(f"Virtual asset response: {response_json}")
                     if ingestion_state != "SUCCEEDED":
                         raise ee.EEException(response.text)
                 return asset_name
