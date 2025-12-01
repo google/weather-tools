@@ -806,6 +806,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 logger.error(f"Failed to ingest asset '{asset_name}' due to property mismatch: {e} Moving on...")
                 return ""
 
+            if "The metadata of the TIFF could not be read in the first 10000000 bytes." in repr(e):
+                logger.error(f"Faild to ingest asset '{asset_name}', check the tiff file: {e} Moving on...")
+                return ""
+
             logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
