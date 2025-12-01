@@ -765,6 +765,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                     )
                 # Send API request
                 response = session.post(url=url, data=data, headers=headers)
+                logger.info(f"EE Asset ingestion response for {asset_name}: {response.text}")
 
                 if response.status_code != 200:
                     logger.info(f"Failed to ingest asset '{asset_name}' in Earth Engine: {response.text}")
@@ -777,7 +778,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         .get("state", "STATE_UNSPECIFIED")
                         .upper()
                     )
-                    logger.info(f"Virtual asset response for {asset_name}: {response.text}")
                     if ingestion_state != "SUCCEEDED":
                         raise ee.EEException(response.text)
                 return asset_name
