@@ -14,6 +14,7 @@
 import argparse
 import csv
 import dataclasses
+import itertools
 import json
 import logging
 import math
@@ -29,6 +30,7 @@ from multiprocessing import Process, Queue
 import apache_beam as beam
 import ee
 import numpy as np
+import xarray as xr
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.metrics import metric
 from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
@@ -39,8 +41,15 @@ from google.auth.transport import requests
 from google.auth.transport.requests import AuthorizedSession
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
-from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload, _to_utc_timestring
+from .util import (
+    make_attrs_ee_compatible,
+    RateLimit,
+    validate_region,
+    get_utc_timestamp,
+    get_dims_from_name_format,
+    convert_to_string
+)
 from .metrics import timeit, AddTimer, AddMetrics
 
 logger = logging.getLogger(__name__)
@@ -135,6 +144,139 @@ def ee_initialize(use_personal_account: bool = False,
         )
     else:
         ee.Initialize(creds)
+
+
+def construct_asset_name(attrs: t.Dict, asset_name_format: str) -> str:
+    """Generate asset_name based on the format by using dataset attributes."""
+    dims = get_dims_from_name_format(asset_name_format)
+    dim_values = {}
+
+    # Get the init_time and valid_time from normal key and get other dimensions
+    # values from '_value' keys of attributes.
+    for dim in dims:
+        dim_values[dim] = attrs[dim + '_value'] if dim + '_value' in attrs else attrs[dim]
+
+    asset_name = asset_name_format.format(**dim_values)
+    return asset_name
+
+
+def add_additional_attrs(ds: xr.Dataset, forecast_dim_mapping: t.Dict[str, str], date_format: str) -> t.Dict:
+    """
+    Adds additional attributes (start_time, end_time, forecast_seconds) in the dataset
+    if the forecast_dim_mapping is provided.
+    """
+    attrs = {}
+    if (forecast_dim_mapping['init_time'] not in ds) or (forecast_dim_mapping['valid_time'] not in ds):
+        raise ValueError('The dimension passed for init_time/valid_time is not present in dataset.')
+
+    init_time_da, valid_time_da = ds[forecast_dim_mapping['init_time']], ds[forecast_dim_mapping['valid_time']]
+    start_time = init_time_da.values
+
+    if isinstance(valid_time_da.values, np.timedelta64):
+        end_time = start_time + valid_time_da.values
+    elif isinstance(valid_time_da.values, np.datetime64):
+        end_time = valid_time_da.values
+    else:
+        end_time = start_time + np.timedelta64(valid_time_da.values, 'h')
+
+    attrs['forecast_seconds'] = int((end_time - start_time) / np.timedelta64(1, 's'))
+    attrs['start_time'] = _to_utc_timestring(start_time)
+    attrs['end_time'] = _to_utc_timestring(end_time)
+
+    attrs['init_time'] = convert_to_string(start_time, date_format)
+    attrs['valid_time'] = convert_to_string(end_time, date_format)
+
+    return attrs
+
+
+def partition_dataset(ds: xr.Dataset,
+                      partition_dims: t.List[str],
+                      forecast_dim_mapping: t.Dict[str, str],
+                      asset_name_format: str,
+                      date_format: str) -> t.List[xr.Dataset]:
+    """
+    Partitions a dataset based on the specified dimensions and flattens other dimensions into variable names.
+
+    Args:
+        ds (xr.Dataset): Input xarray dataset.
+        partition_dims (list): List of dimensions to partition by (e.g., ['time', 'step']).
+        forecast_dim_mapping (dict): Dictionary containing init_time and valid_time as keys. This is used to add
+                            start_time, end_time and forecast_seconds attributes in dataset.
+                            It also helps to calculate the valid_time if the step value is in timedelta format.
+        asset_name_format (str): Specifies the format for the asset name of resulting COG,
+                                 containing dimensions enclosed in {} (e.g., '{init_time}_{valid_time}')
+        date_format (str): Datetime format to use in the asset name if the dimension is of type datetime
+
+    Returns:
+        list: A list of partitioned xarray datasets.
+    """
+    # Ensure partition_dims are valid dimensions
+    all_dims = list(ds.dims.keys())
+    for dim in partition_dims:
+        if dim not in all_dims:
+            raise ValueError(f"Dimension '{dim}' is not present in the dataset.")
+
+    # Dimensions to flatten (all except latitude, longitude, and partition_dims)
+    to_flatten = [dim for dim in all_dims if dim not in partition_dims + ['latitude', 'longitude']]
+
+    partition_indices = itertools.product(*[range(ds.sizes[dim]) for dim in partition_dims])
+    partitioned_datasets = []
+
+    for idx in partition_indices:
+        # Partition the dataset based on the partition_dims
+        selector = {dim: idx[i] for i, dim in enumerate(partition_dims)}
+        sliced_ds = ds.isel(selector)
+
+        # Add attributes (init_time, valid_time, forecast_seconds) in dataset
+        sliced_ds.attrs.update(**add_additional_attrs(sliced_ds, forecast_dim_mapping, date_format))
+
+        # Flatten the remaining dimensions into variable names
+        new_data_vars = {}
+        for var_name, data_array in sliced_ds.data_vars.items():
+            # Iterate over the indexes created for the dimension that needs to be flatten
+            for flat_idx in itertools.product(*[range(sliced_ds.sizes[dim]) for dim in to_flatten]):
+                flat_selector = {dim: flat_idx[i] for i, dim in enumerate(to_flatten)}
+                flat_data_array = data_array.isel(flat_selector).squeeze()
+
+                # Construct the variable name with the values of flattened dimensions
+                parts = []
+                for dim in to_flatten:
+                    value = sliced_ds[dim].values[flat_selector[dim]]
+                    parts.append(f"{dim}_{convert_to_string(value, date_format, make_ee_safe=True)}")
+                parts.append(var_name)
+
+                flat_var_name = f"{'_'.join(parts)}"
+                new_data_vars[flat_var_name] = xr.DataArray(
+                    flat_data_array.values,
+                    dims=['latitude', 'longitude'],
+                    coords={'latitude': flat_data_array.latitude, 'longitude': flat_data_array.longitude},
+                    attrs=flat_data_array.attrs
+                )
+
+        # Create the new dataset with only latitude and longitude dimensions
+        new_ds = xr.Dataset(
+            new_data_vars,
+            coords={
+                'latitude': sliced_ds.latitude,
+                'longitude': sliced_ds.longitude
+            },
+            attrs=sliced_ds.attrs
+        )
+
+        # Add the values of partitioned dimensions as attributes
+        new_ds.attrs.update(
+            **{
+                f"{dim}_value": convert_to_string(sliced_ds[dim].values, date_format)
+                for dim in partition_dims
+            }
+        )
+
+        # Create asset_name and store it in attributes
+        asset_name = construct_asset_name(new_ds.attrs, asset_name_format)
+        new_ds.attrs['asset_name'] = asset_name
+        partitioned_datasets.append(new_ds)
+
+    return partitioned_datasets
 
 
 class SetupEarthEngine(RateLimit):
@@ -260,6 +402,10 @@ class ToEarthEngine(ToDataSink):
     use_metrics: bool
     use_monitoring_metrics: bool
     topic: str
+    partition_dims: t.List[str]
+    asset_name_format: str
+    forecast_dim_mapping: t.Dict[str, str]
+    date_format: str
     # Pipeline arguments.
     job_name: str
     project: str
@@ -312,6 +458,25 @@ class ToEarthEngine(ToDataSink):
                                help='If you want to add Beam metrics to your pipeline. Default: False')
         subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
                                help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
+        subparser.add_argument('--partition_dims', nargs='*', default=None,
+                               help='If the dataset contains other dimensions apart from latitude and longitude,'
+                                    ' partition the dataset into multiple datasets based on these dimensions.'
+                                    ' A separate COG file will be created for each partition.'
+                                    ' Any unspecified dimensions will be flattened in the resulting COG.')
+        subparser.add_argument('--asset_name_format', type=str, default=None,
+                               help='The asset name format for each partitioned COG file.'
+                                    ' This should contain the dimensions no other than partition_dims'
+                                    ' (Although you can add init_time and valid_time provided that'
+                                    ' you have given forecast_dim_mapping). The dimension names should be'
+                                    ' enclosed in {} (e.g. a valid format is {init_time}_{valid_time}_{number})')
+        subparser.add_argument('--forecast_dim_mapping', type=json.loads, default=None,
+                               help='A JSON string containing init_time and valid_time as keys and '
+                                    'corresponding dimension names for each key.'
+                                    ' It is required if init_time or valid_time is used in asset_name_format.')
+        subparser.add_argument('--date_format', type=str, default='%Y%m%d%H%M',
+                               help='A string containing datetime.strftime codes.'
+                                    ' It is used if the dimension mentioned in asset_name_format is a datetime.'
+                                    ' Default: %Y%m%d%H%M')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -365,6 +530,39 @@ class ToEarthEngine(ToDataSink):
         # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
+
+        if bool(known_args.partition_dims) ^ bool(known_args.asset_name_format):
+            raise RuntimeError("Both --partition_dims & --asset_name_format flags need to be present")
+
+        if not known_args.partition_dims and bool(known_args.forecast_dim_mapping):
+            raise RuntimeError("forecast_dim_mapping can only be specified when partition_dims are passed.")
+
+        # Check whether forecast_dim_mapping contains both init_time and valid_time
+        if (
+            known_args.forecast_dim_mapping
+            and not (
+                'init_time' in known_args.forecast_dim_mapping
+                and 'valid_time' in known_args.forecast_dim_mapping
+            )
+        ):
+            raise RuntimeError('forecast_dim_mapping should contain both init_time and valid_time as keys.')
+
+        # Perform the checks when partition_dims are specified.
+        if known_args.partition_dims and known_args.ee_asset_type != "IMAGE":
+            raise RuntimeError('partition_dims should be specified for "IMAGE" asset_type only.')
+
+        # Check whether the asset name format contains valid dimensions.
+        if known_args.asset_name_format:
+            dims = get_dims_from_name_format(known_args.asset_name_format)
+            for dim in dims:
+                if dim not in known_args.partition_dims + ['init_time', 'valid_time']:
+                    raise RuntimeError('Only the dimensions used for partitioning can be used in the asset name.'
+                                        f'{dim} is not used to partition dataset.')
+
+            if ('init_time' in dims or 'valid_time' in dims) ^ bool(known_args.forecast_dim_mapping):
+                raise RuntimeError('If asset_name_format contains init_time or valid_time, then forecast_dim_mapping'
+                                   'is required. Conversely, if forecast_dim_mapping is provided, asset_name_format '
+                                   'must include either init_time or valid_time or both.')
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
@@ -482,6 +680,10 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
     forecast_time_regex: t.Optional[str] = None
     use_deflate: t.Optional[bool] = False
     use_metrics: t.Optional[bool] = False
+    partition_dims: t.Optional[list] = None
+    asset_name_format: t.Optional[str] = None
+    forecast_dim_mapping: t.Optional[t.Dict] = None
+    date_format: str = '%Y%m%d%H%M'
 
     def add_to_queue(self, queue: Queue, item: t.Any):
         """Adds a new item to the queue.
@@ -508,119 +710,131 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
             if not isinstance(ds_list, list):
                 ds_list = [ds_list]
 
-            for ds in ds_list:
-                attrs = ds.attrs
-                data = list(ds.values())
-                asset_name = get_ee_safe_name(uri)
-                channel_names = [
-                    self.band_names_dict.get(da.name, da.name) if self.band_names_dict
-                    else da.name for da in data
-                ]
+            for dataset in ds_list:
+                if self.partition_dims and self.ee_asset_type == 'IMAGE':
+                    partitioned_datasets = partition_dataset(
+                        dataset,
+                        self.partition_dims,
+                        self.forecast_dim_mapping,
+                        self.asset_name_format,
+                        self.date_format
+                    )
+                else:
+                    partitioned_datasets = [dataset]
+                for ds in partitioned_datasets:
+                    attrs = ds.attrs
+                    data = list(ds.values())
+                    asset_name = attrs.pop('asset_name') if 'asset_name' in attrs else get_ee_safe_name(uri)
+                    channel_names = [
+                        self.band_names_dict.get(da.name, da.name) if self.band_names_dict
+                        else da.name for da in data
+                    ]
 
-                dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
-                # Adding job_start_time to properites.
-                attrs["job_start_time"] = job_start_time
-                # Make attrs EE ingestable.
-                attrs = make_attrs_ee_compatible(attrs)
-                start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
+                    dtype, crs, transform = (attrs.pop(key) for key in ['dtype', 'crs', 'transform'])
+                    # Adding job_start_time to properites.
+                    attrs["job_start_time"] = job_start_time
+                    # Make attrs EE ingestable.
+                    attrs = make_attrs_ee_compatible(attrs)
+                    start_time, end_time = (attrs.get(key) for key in ('start_time', 'end_time'))
 
-                if self.group_common_hypercubes:
-                    level, height = (attrs.pop(key) for key in ['level', 'height'])
-                    safe_level_name = get_ee_safe_name(level)
-                    asset_name = f'{asset_name}_{safe_level_name}'
+                    if self.group_common_hypercubes:
+                        level, height = (attrs.pop(key) for key in ['level', 'height'])
+                        safe_level_name = get_ee_safe_name(level)
+                        asset_name = f'{asset_name}_{safe_level_name}'
 
-                compression = 'lzw'
-                predictor = 'NO'
-                if self.use_deflate:
-                    compression = 'deflate'
-                    # Depending on dtype select predictor value.
-                    # Predictor is a method of storing only the difference from the
-                    # previous value instead of the actual value.
-                    predictor = 2 if np.issubdtype(dtype, np.integer) else 3
+                    compression = 'lzw'
+                    predictor = 'NO'
+                    if self.use_deflate:
+                        compression = 'deflate'
+                        # Depending on dtype select predictor value.
+                        # Predictor is a method of storing only the difference from the
+                        # previous value instead of the actual value.
+                        predictor = 2 if np.issubdtype(dtype, np.integer) else 3
 
-                # For tiff ingestions.
-                if self.ee_asset_type == 'IMAGE':
-                    file_name = f'{asset_name}.tiff'
+                    # For tiff ingestions.
+                    if self.ee_asset_type == 'IMAGE':
+                        file_name = f'{asset_name}.tiff'
 
-                    with MemoryFile() as memfile:
-                        with memfile.open(driver='COG',
-                                          dtype=dtype,
-                                          width=data[0].data.shape[1],
-                                          height=data[0].data.shape[0],
-                                          count=len(data),
-                                          nodata=np.nan,
-                                          crs=crs,
-                                          transform=transform,
-                                          compress=compression,
-                                          predictor=predictor) as f:
-                            for i, da in enumerate(data):
-                                f.write(da, i+1)
-                                # Making the channel name EE-safe before adding it as a band name.
-                                f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
-                                f.update_tags(i+1, band_name=channel_names[i])
-                                f.update_tags(i+1, **da.attrs)
+                        with MemoryFile() as memfile:
+                            with memfile.open(driver='COG',
+                                            dtype=dtype,
+                                            width=data[0].data.shape[1],
+                                            height=data[0].data.shape[0],
+                                            count=len(data),
+                                            nodata=np.nan,
+                                            crs=crs,
+                                            transform=transform,
+                                            compress=compression,
+                                            predictor=predictor) as f:
+                                for i, da in enumerate(data):
+                                    f.write(da, i+1)
+                                    # Making the channel name EE-safe before adding it as a band name.
+                                    f.set_band_description(i+1, get_ee_safe_name(channel_names[i]))
+                                    f.update_tags(i+1, band_name=channel_names[i])
+                                    f.update_tags(i+1, **da.attrs)
 
-                            # Write attributes as tags in tiff.
-                            f.update_tags(**attrs)
+                                # Write attributes as tags in tiff.
+                                f.update_tags(**attrs)
 
-                        # Copy in-memory tiff to gcs.
+                            # Copy in-memory tiff to gcs.
+                            target_path = os.path.join(self.asset_location, file_name)
+                            with FileSystems().create(target_path) as dst:
+                                shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
+                                child_logger.info(f"Uploaded {uri!r}'s COG to {target_path}")
+
+                    # For feature collection ingestions.
+                    elif self.ee_asset_type == 'TABLE':
+                        channel_names = []
+                        file_name = f'{asset_name}.csv'
+
+                        shape = math.prod(list(ds.dims.values()))
+                        # Names of dimesions, coordinates and data variables.
+                        dims = list(ds.dims)
+                        coords = [c for c in list(ds.coords) if c not in dims]
+                        vars = list(ds.data_vars)
+                        header = dims + coords + vars
+
+                        # Data of dimesions, coordinates and data variables.
+                        dims_data = [ds[dim].data for dim in dims]
+                        coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
+                        vars_data = [ds[var].data.flatten() for var in vars]
+                        data = coords_data + vars_data
+
+                        dims_shape = [len(ds[dim].data) for dim in dims]
+
+                        def get_dims_data(index: int) -> t.List[t.Any]:
+                            """Returns dimensions for the given flattened index."""
+                            return [
+                                dim[int(index / math.prod(dims_shape[i + 1 :])) % len(dim)]
+                                for i, dim in enumerate(dims_data)
+                            ]
+
+                        # Copy CSV to gcs.
                         target_path = os.path.join(self.asset_location, file_name)
-                        with FileSystems().create(target_path) as dst:
-                            shutil.copyfileobj(memfile, dst, WRITE_CHUNK_SIZE)
-                            child_logger.info(f"Uploaded {uri!r}'s COG to {target_path}")
+                        with tempfile.NamedTemporaryFile() as temp:
+                            with open(temp.name, 'w', newline='') as f:
+                                writer = csv.writer(f)
+                                writer.writerows([header])
+                                # Write rows in batches.
+                                for i in range(0, shape, ROWS_PER_WRITE):
+                                    writer.writerows(
+                                        [get_dims_data(i) + list(row) for row in zip(
+                                            *[d[i:i + ROWS_PER_WRITE] for d in data]
+                                        )]
+                                    )
 
-                # For feature collection ingestions.
-                elif self.ee_asset_type == 'TABLE':
-                    channel_names = []
-                    file_name = f'{asset_name}.csv'
+                            upload(temp.name, target_path)
 
-                    shape = math.prod(list(ds.dims.values()))
-                    # Names of dimesions, coordinates and data variables.
-                    dims = list(ds.dims)
-                    coords = [c for c in list(ds.coords) if c not in dims]
-                    vars = list(ds.data_vars)
-                    header = dims + coords + vars
+                    asset_data = AssetData(
+                        name=asset_name,
+                        target_path=target_path,
+                        channel_names=channel_names,
+                        start_time=start_time,
+                        end_time=end_time,
+                        properties=attrs
+                    )
 
-                    # Data of dimesions, coordinates and data variables.
-                    dims_data = [ds[dim].data for dim in dims]
-                    coords_data = [np.full((shape,), ds[coord].data) for coord in coords]
-                    vars_data = [ds[var].data.flatten() for var in vars]
-                    data = coords_data + vars_data
-
-                    dims_shape = [len(ds[dim].data) for dim in dims]
-
-                    def get_dims_data(index: int) -> t.List[t.Any]:
-                        """Returns dimensions for the given flattened index."""
-                        return [
-                            dim[int(index/math.prod(dims_shape[i+1:])) % len(dim)] for (i, dim) in enumerate(dims_data)
-                        ]
-
-                    # Copy CSV to gcs.
-                    target_path = os.path.join(self.asset_location, file_name)
-                    with tempfile.NamedTemporaryFile() as temp:
-                        with open(temp.name, 'w', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerows([header])
-                            # Write rows in batches.
-                            for i in range(0, shape, ROWS_PER_WRITE):
-                                writer.writerows(
-                                    [get_dims_data(i) + list(row) for row in zip(
-                                        *[d[i:i + ROWS_PER_WRITE] for d in data]
-                                    )]
-                                )
-
-                        upload(temp.name, target_path)
-
-                asset_data = AssetData(
-                    name=asset_name,
-                    target_path=target_path,
-                    channel_names=channel_names,
-                    start_time=start_time,
-                    end_time=end_time,
-                    properties=attrs
-                )
-
-                self.add_to_queue(queue, asset_data)
+                    self.add_to_queue(queue, asset_data)
             self.add_to_queue(queue, None)  # Indicates end of the subprocess.
 
     @timeit('ConvertToAsset')

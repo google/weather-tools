@@ -225,7 +225,7 @@ def _preprocess_tif(
 def _to_utc_timestring(np_time: np.datetime64) -> str:
     """Turn a numpy datetime64 into UTC timestring."""
     timestamp = float((np_time - np.datetime64(0, 's')) / np.timedelta64(1, 's'))
-    return datetime.datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def _add_is_normalized_attr(ds: xr.Dataset, value: bool) -> xr.Dataset:
