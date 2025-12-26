@@ -15,20 +15,20 @@
 from setuptools import find_packages, setup
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.39.0",
+    "google-cloud-bigquery-storage==2.36.0",
+    "google-cloud-bigtable==2.35.0",
+    "google-cloud-core==2.5.0",
+    "google-cloud-datastore==2.23.0",
+    "google-cloud-dlp==3.33.0",
+    "google-cloud-language==2.18.0",
+    "google-cloud-pubsub==2.34.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",
+    "google-cloud-spanner==3.61.0",
+    "google-cloud-videointelligence==2.17.0",
+    "google-cloud-vision==3.11.0",
+    "apache-beam[gcp]==2.69.0",
 ]
 
 weather_dl_requirements = [
@@ -39,7 +39,7 @@ weather_dl_requirements = [
     "requests>=2.24.0",
     "google-cloud-firestore",
     "firebase-admin",
-    "urllib3==1.26.5",
+    "urllib3==2.6.2",
 ]
 
 weather_mv_requirements = [
@@ -56,9 +56,9 @@ weather_mv_requirements = [
     "earthengine-api>=0.1.263",
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
-    "xarray-beam==0.6.2",
-    "gcsfs==2022.11.0",
-    "zarr==2.15.0",
+    "xarray-beam==0.6.3",
+    "gcsfs==2025.12.0",
+    "zarr==3.1.5",
 ]
 
 weather_sp_requirements = [
@@ -69,8 +69,8 @@ weather_sp_requirements = [
 ]
 
 test_requirements = [
-    "pytype==2021.11.29",
-    "ruff==0.1.2",
+    "pytype==2024.02.09",
+    "ruff==0.14.10",
     "pytest",
     "pytest-subtests",
     "netcdf4",
@@ -115,8 +115,8 @@ setup(
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    python_requires='>=3.8, <3.10',
-    install_requires=['apache-beam[gcp]==2.40.0', 'gcsfs==2022.11.0'],
+    python_requires='>=3.11',
+    install_requires=['apache-beam[gcp]==2.69.0', 'gcsfs==2025.12.0'],
     dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],  # TODO([
         #474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     use_scm_version=True,
