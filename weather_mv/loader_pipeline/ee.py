@@ -31,7 +31,6 @@ import ee
 import numpy as np
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.metrics import metric
-from apache_beam.io.gcp.gcsio import WRITE_CHUNK_SIZE
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.utils import retry
 from google.auth import compute_engine, default, credentials
@@ -56,6 +55,7 @@ ASSET_TYPE_TO_EXTENSION_MAPPING = {
     'TABLE': '.csv'
 }
 ROWS_PER_WRITE = 10_000  # Number of rows per feature collection write.
+WRITE_CHUNK_SIZE = 8 * 1024 * 1024
 
 
 def is_compute_engine() -> bool:
@@ -382,12 +382,12 @@ class ToEarthEngine(ToDataSink):
         if not self.dry_run:
             output = (
                 paths
-                | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
-                | 'ReshuffleFiles' >> beam.Reshuffle()
+                # | 'FilterFiles' >> FilterFilesTransform.from_kwargs(**vars(self))
+                # | 'ReshuffleFiles' >> beam.Reshuffle()
                 | 'ConvertToAsset' >> beam.ParDo(
                     ConvertToAsset.from_kwargs(band_names_dict=band_names_dict, **vars(self))
                     )
-                | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
+                # | 'IngestIntoEE' >> IngestIntoEETransform.from_kwargs(**vars(self))
             )
 
             if self.use_metrics:
