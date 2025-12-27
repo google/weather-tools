@@ -1,4 +1,4 @@
-name: weather-tools-updated
+name: weather-tools
 channels:
   - conda-forge
 dependencies:
