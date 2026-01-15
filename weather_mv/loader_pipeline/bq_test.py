@@ -229,8 +229,6 @@ class ExtractRowsTestBase(TestDataBase):
         self.assertTrue(np.allclose(actual_json['coordinates'], expected_json['coordinates']))
 
     def assertRowsEqual(self, actual: t.Dict, expected: t.Dict):
-        a = expected.keys()
-        b = actual.keys()
         self.assertEqual(expected.keys(), actual.keys())
         for key in expected.keys():
             if isinstance(expected[key], str):
