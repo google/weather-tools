@@ -110,13 +110,12 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         # 'Operating System :: Microsoft :: Windows',  # TODO(#64): Fully support Windows.
         'Operating System :: POSIX',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
     python_requires='>=3.11',
-    install_requires=['apache-beam[gcp]==2.69.0', 'gcsfs==2025.12.0'],
+    install_requires=['apache-beam[gcp]==2.70.0', 'gcsfs==2025.12.0'],
     dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],  # TODO([
         #474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     use_scm_version=True,
@@ -124,7 +123,7 @@ setup(
     scripts=['weather_dl/weather-dl', 'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'docs': ['tox', 'sphinx>=2.1', 'myst-parser', 'Jinja2<3.1'],
+        'docs': ['tox', 'sphinx>=2.1', 'myst-parser', 'Jinja2<3.2'],
         'test': all_test_requirements,
         'dev': ['google-weather-tools[docs,test]'],
         'regrid': ['metview']

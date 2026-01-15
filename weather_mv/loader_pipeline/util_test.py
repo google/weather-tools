@@ -200,7 +200,7 @@ class ToJsonSerializableTypeTests(unittest.TestCase):
     def test_to_json_serializable_type_none(self):
         self.assertIsNone(self._convert(None))
         self.assertIsNone(self._convert(float('NaN')))
-        self.assertIsNone(self._convert(np.NaN))
+        self.assertIsNone(self._convert(np.nan))
         self.assertIsNone(self._convert(np.datetime64('NaT')))
         self.assertIsNotNone(self._convert(np.array([])))
 
