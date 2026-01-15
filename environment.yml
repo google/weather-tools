@@ -1,4 +1,4 @@
-name: weather-tools
+name: weather-tools-updated-2
 channels:
   - conda-forge
 dependencies:
@@ -32,7 +32,7 @@ dependencies:
     - earthengine-api==1.7.4
     - firebase-admin==6.9.0
     - setuptools==80.9.0
-    - apache-beam[dill]=2.70.0  # Need this to run metview on dataflow.
+    - apache-beam[dill]==2.70.0  # Need this to run metview on dataflow.
     - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     - pyparsing==3.3.1
     - .
