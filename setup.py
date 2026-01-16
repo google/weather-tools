@@ -115,7 +115,7 @@ setup(
 
     ],
     python_requires='>=3.11',
-    install_requires=['apache-beam[gcp]==2.70.0', 'gcsfs==2025.12.0'],
+    install_requires=['apache-beam[gcp]==2.70.0', 'apache-beam[dill]==2.70.0', 'gcsfs==2025.12.0'],
     dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],  # TODO([
         #474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     use_scm_version=True,

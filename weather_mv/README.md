@@ -336,6 +336,8 @@ weather-mv rg --uris "gs://your-bucket/*.gb" \
 
 Using DataflowRunner:
 
+> Note: When running `weather-mv regrid` on Dataflow, ensure you are using `dill` as the pickling library. You can set it using `--pickle_library dill`.
+
 ```bash
 weather-mv rg --uris "gs://your-bucket/*.nc" \
            --output_path "gs://regrid-bucket/" \
