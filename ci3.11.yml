@@ -1,0 +1,42 @@
+name: weather-tools
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - apache-beam=2.70.0
+  - pytest=9.0.2
+  - pytest-subtests=0.15.0
+  - cfgrib=0.9.15.1
+  - dask=2025.12.0
+  - dataclasses=0.8
+  - distributed=2025.12.0
+  - eccodes=2.42.0
+  - requests=2.32.5
+  - netcdf4=1.7.2
+  - rioxarray=0.19.0
+  - xarray-beam=0.6.3
+  - ecmwf-api-client=1.6.5
+  - fsspec=2025.12.0
+  - gcsfs=2025.12.0
+  - gdal=3.10.0
+  - pyproj=3.7.1
+  - geojson=3.2.0=py_0
+  - simplejson=3.20.2
+  - metview-batch=5.23.0
+  - numpy=2.2.6
+  - pandas=2.3.3
+  - pip=25.3
+  - pygrib=2.1.8
+  - google-cloud-sdk=550.0.0
+  - aria2=1.37.0
+  - xarray==2025.08.0
+  - ruff==0.14.10
+  - zarr=3.1.5
+  - google-cloud-monitoring=2.28.0
+  - pip:
+    - cython==3.2.3
+    - earthengine-api==1.7.4
+    - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
+    - pyparsing==3.3.1
+    - .[test]

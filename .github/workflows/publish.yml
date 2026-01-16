@@ -25,7 +25,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2.3.1
         with:
-          python-version: 3.8
+          python-version: 3.11
 
       - name: Install dependencies
         run: |
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/setup-python@v2.3.1
         name: Install Python
         with:
-          python-version: 3.8
+          python-version: 3.11
       - uses: actions/download-artifact@v4.1.7
         with:
           name: releases
