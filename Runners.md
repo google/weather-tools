@@ -25,7 +25,7 @@ weather-mv -i gs://netcdf_file.nc \
 
 **NOTE:** By default, for direct runner `job_server_timeout` is set to 5 mins, meaning If gRPC connection
 is idle for more than 5 mins, it will be cut off and a "DEADLINE_EXCEEDED" error will be issued. You can
-use the `--job_server_timeout <sec>` flag to override the default deadline.
+use the `--job_server_timeout <sec>` or `--job-server-timeout <sec>` flag to override the default deadline.
 
 For a full list of how to configure the direct runner, please review
 [this page](https://beam.apache.org/documentation/runners/direct/).
