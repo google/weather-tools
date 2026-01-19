@@ -27,7 +27,7 @@ from .stores import Store, FSStore
 from .util import ichunked, generate_hdate
 
 Partition = t.Tuple[str, t.Dict, Config]
-Index = t.Tuple[int]
+Index = t.Tuple[int, ...]
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ class PartitionConfig(beam.PTransform):
 
         return (
                 config_idxs
+                # | beam.Map(lambda x: print(type(x), x))
                 | beam.Reshuffle()
                 | 'To configs' >> beam.FlatMapTuple(prepare_partitions_from_index)
                 | 'Skip existing' >> beam.Filter(new_downloads_only,

@@ -15,31 +15,31 @@
 from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.39.0",
+    "google-cloud-bigquery-storage==2.36.0",
+    "google-cloud-bigtable==2.35.0",
+    "google-cloud-core==2.5.0",
+    "google-cloud-datastore==2.23.0",
+    "google-cloud-dlp==3.33.0",
+    "google-cloud-language==2.18.0",
+    "google-cloud-pubsub==2.34.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",
+    "google-cloud-spanner==3.61.0",
+    "google-cloud-videointelligence==2.17.0",
+    "google-cloud-vision==3.11.0",
+    "apache-beam[gcp]==2.70.0",
 ]
 
 base_requirements = [
-    "ecmwf-api-client==1.6.3",
+    "ecmwf-api-client==1.6.5",
     "numpy>=1.19.1",
-    "pandas==1.5.1",
-    "xarray==2023.1.0",
+    "pandas==2.3.3",
+    "xarray==2025.12.0",
     "requests>=2.24.0",
-    "urllib3==1.26.5",
-    "google-cloud-firestore==2.6.0",
-    "firebase-admin==6.0.1",
+    "urllib3==2.6.2",
+    "google-cloud-firestore==2.22.0",
+    "firebase-admin==6.9.0",
     # "gcloud" should already be installed in the host image.
     # If we install it here, we'll hit auth issues.
 ]
@@ -47,7 +47,7 @@ base_requirements = [
 setup(
     name='download_pipeline',
     packages=find_packages(),
-    version='0.1.22',
+    version='0.2.0',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',

@@ -24,40 +24,40 @@ Please see this documentation and example code:
 from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.39.0",
+    "google-cloud-bigquery-storage==2.36.0",
+    "google-cloud-bigtable==2.35.0",
+    "google-cloud-core==2.5.0",
+    "google-cloud-datastore==2.23.0",
+    "google-cloud-dlp==3.33.0",
+    "google-cloud-language==2.18.0",
+    "google-cloud-pubsub==2.34.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",
+    "google-cloud-spanner==3.61.0",
+    "google-cloud-videointelligence==2.17.0",
+    "google-cloud-vision==3.11.0",
+    "apache-beam[gcp]==2.70.0",
 ]
 
 base_requirements = [
     "dataclasses",
-    "numpy==1.22.4",
-    "pandas==1.5.1",
-    "xarray==2023.1.0",
-    "xarray-beam==0.6.2",
-    "cfgrib==0.9.10.2",
-    "netcdf4==1.6.1",
-    "geojson==2.5.0",
-    "simplejson==3.17.6",
-    "rioxarray==0.13.4",
-    "metview==1.13.1",
-    "rasterio==1.3.1",
+    "numpy==2.2.6",
+    "pandas==2.3.3",
+    "xarray==2025.12.0",
+    "xarray-beam==0.6.3",
+    "cfgrib==0.9.15.1",
+    "netcdf4==1.7.2",
+    "geojson==3.2.0",
+    "simplejson==3.20.2",
+    "rioxarray==0.19.0",
+    "metview==1.16.2",
+    "rasterio==1.4.3",
     "earthengine-api>=0.1.263",
-    "pyproj==3.4.0",  # requires separate binary installation!
-    "gdal==3.5.1",  # requires separate binary installation!
-    "gcsfs==2022.11.0",
-    "zarr==2.15.0",
+    "pyproj==3.7.1",  # requires separate binary installation!
+    "gdal==3.10.0",  # requires separate binary installation!
+    "gcsfs==2025.12.0",
+    "zarr==3.1.5",
 ]
 
 setup(
@@ -65,7 +65,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.40',
+    version='0.3.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=beam_gcp_requirements + base_requirements,

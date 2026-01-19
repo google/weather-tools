@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9"]
+        python-version: ["3.11"]
     steps:
     - name: Cancel previous
       uses: styfle/cancel-workflow-action@0.7.0
@@ -47,7 +47,7 @@ jobs:
       with:
         path: ~/conda_pkgs_dir
         key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.8.yml') }}
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.11.yml') }}
     - name: Setup conda environment
       uses: conda-incubator/setup-miniconda@v3
       with:
@@ -86,7 +86,7 @@ jobs:
           echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
       - name: Install linter
         run: |
-          pip install ruff==0.1.2
+          pip install ruff==0.14.10
       - name: Lint project
         run: ruff check .
   type-check:
@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8"]
+        python-version: ["3.11"]
     steps:
       - name: Cancel previous
         uses: styfle/cancel-workflow-action@0.7.0
@@ -110,7 +110,7 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.8.yml') }}
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.11.yml') }}
       - name: Setup conda environment
         uses: conda-incubator/setup-miniconda@v3
         with:

@@ -15,28 +15,28 @@
 from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.39.0",
+    "google-cloud-bigquery-storage==2.36.0",
+    "google-cloud-bigtable==2.35.0",
+    "google-cloud-core==2.5.0",
+    "google-cloud-datastore==2.23.0",
+    "google-cloud-dlp==3.33.0",
+    "google-cloud-language==2.18.0",
+    "google-cloud-pubsub==2.34.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",
+    "google-cloud-spanner==3.61.0",
+    "google-cloud-videointelligence==2.17.0",
+    "google-cloud-vision==3.11.0",
+    "apache-beam[gcp]==2.70.0",
 ]
 
 base_requirements = [
-    "pygrib==2.1.4",
+    "pygrib==2.1.8",
     "eccodes",
     "numpy>=1.20.3",
-    "xarray==2023.1.0",
-    "scipy==1.9.3",
+    "xarray==2025.12.0",
+    "scipy==1.16.3",
 ]
 
 setup(
@@ -44,7 +44,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.3.4',
+    version='0.4.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_sp/',
     description='A tool to split weather data files into per-variable files.',
     install_requires=beam_gcp_requirements + base_requirements,
