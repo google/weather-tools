@@ -8,7 +8,7 @@ like [Google BigQuery](https://cloud.google.com/bigquery) (_alpha_).
 * **Rapid Querability**: After geospatial data is in BigQuery, data wranging becomes as simple as writing SQL. This
   allows for rapid data exploration, visualization, and model pipeline prototyping.
 * **Simple Versioning**: All rows in the table come with a `data_import_time` column. This provides some notion of how
-  the data is versioned. Downstream analysis can adapt to data ingested at differen times by updating a `WHERE` clause.
+  the data is versioned. Downstream analysis can adapt to data ingested at different times by updating a `WHERE` clause.
 * **Parallel Upload**: Each file will be processed in parallel. With Dataflow autoscaling, even large datasets can be
   processed in a reasonable amount of time.
 * **Streaming support**: When running the mover in streaming mode, it will automatically process files as they appear in
