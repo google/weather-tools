@@ -39,7 +39,7 @@ from google.auth.transport import requests
 from google.auth.transport.requests import AuthorizedSession
 from rasterio.io import MemoryFile
 
-from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, upload
+from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, copy
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
 from .metrics import timeit, AddTimer, AddMetrics
 
@@ -609,7 +609,7 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
                                     )]
                                 )
 
-                        upload(temp.name, target_path)
+                        copy(temp.name, target_path)
 
                 asset_data = AssetData(
                     name=asset_name,

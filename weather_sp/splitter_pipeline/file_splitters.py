@@ -39,12 +39,22 @@ logger = logging.getLogger(__name__)
 
 # TODO(#245): Group with common utilities (duplicated)
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil cp`."""
-    try:
-        subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
-        raise
+    """Copy data via `gsutil`."""
+    errors: t.List[subprocess.CalledProcessError] = []
+    for cmd in ['gsutil cp', shutil.copy]:
+        try:
+            if isinstance(cmd, str):
+                subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
+            else:
+                cmd(src, dst)
+            return
+        except subprocess.CalledProcessError as e:
+            errors.append(e)
+
+    msg = f'Failed to copy file {src!r} to {dst!r}'
+    err_msgs = ', '.join(map(lambda err: repr(err.stderr), errors))
+    logger.error(f'{msg} due to {err_msgs}.')
+    raise EnvironmentError(msg, errors)
 
 
 class FileSplitter(abc.ABC):
