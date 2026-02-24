@@ -38,9 +38,8 @@ from .file_splitters import (
 @pytest.fixture()
 def data_dir():
     data_dir = f'{next(iter(weather_sp.__path__))}/test_data'
-    split_dir = f'{data_dir}/split_files/'
-    os.mkdir(split_dir)
     yield data_dir
+    split_dir = f'{data_dir}/split_files/'
     if os.path.exists(split_dir):
         shutil.rmtree(split_dir)
 

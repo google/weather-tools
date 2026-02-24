@@ -392,6 +392,7 @@ def copy(src: str, dst: str) -> None:
             if isinstance(cmd, str):
                 subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
             else:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
                 cmd(src, dst)
             return
         except subprocess.CalledProcessError as e:
