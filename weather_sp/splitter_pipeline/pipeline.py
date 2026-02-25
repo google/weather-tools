@@ -24,6 +24,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
 from .file_name_utils import OutFileInfo, get_output_file_info
 from .file_splitters import get_splitter
+from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
 SDK_CONTAINER_IMAGE='gcr.io/weather-tools-prod/weather-tools:0.0.0'
@@ -132,8 +133,22 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         'specifically supported by the GribSplitterV2'
                         'implementation.'
                         'Example: typeOfLevel=isobaricInhPa,level=1000')
+    parser.add_argument('--topic', type=str, default=None,
+                        help='Pub/Sub topic to read from for streaming mode.')
+    parser.add_argument('--subscription', type=str, default=None,
+                        help='Pub/Sub subscription to read from for streaming mode.')
+    parser.add_argument('--window-size', type=int, default=1,
+                        help='Window size in minutes for grouping Pub/Sub messages.')
+    parser.add_argument('--num-shards', type=int, default=5,
+                        help='Number of shards for partitioning windowed data.')
 
     known_args, pipeline_args = parser.parse_known_args(argv[1:])
+
+    # If a Pub/Sub is used, then the pipeline must be a streaming pipeline.
+    if known_args.topic or known_args.subscription:
+        if known_args.topic and known_args.subscription:
+            raise ValueError('only one argument can be provided at a time: `topic` or `subscription`.')
+        pipeline_args.extend('--streaming true'.split())
 
     configure_logger(known_args.log_level)  # 0 = error, 1 = warn, 2 = info, 3 = debug
 
@@ -161,20 +176,44 @@ def run(argv: t.List[str], save_main_session: bool = True):
     if output_dir:
         logger.debug('output_dir: %s', output_dir)
     logger.debug('dry_run: %s', known_args.dry_run)
+
     with beam.Pipeline(options=pipeline_options) as p:
+        if known_args.topic or known_args.subscription:
+            paths = (
+                p
+                # Windowing is based on this code sample:
+                # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
+                | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(
+                    known_args.topic, known_args.subscription
+                )
+                | 'WindowInto' >> GroupMessagesByFixedWindows(
+                    known_args.window_size, known_args.num_shards
+                )
+                | 'ParsePaths' >> beam.ParDo(
+                    ParsePaths(known_args.input_pattern)
+                )
+            )
+        else:
+            paths = (
+                p
+                | 'MatchFiles' >> MatchFiles(input_pattern)
+                | 'ReadMatchedFiles' >> ReadMatches()
+                | 'Shuffle' >> beam.Reshuffle()
+                | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
+            )
         (
-            p
-            | 'MatchFiles' >> MatchFiles(input_pattern)
-            | 'ReadMatches' >> ReadMatches()
-            | 'Shuffle' >> beam.Reshuffle()
-            | 'GetPath' >> beam.Map(lambda x: x.metadata.path)
-            | 'SplitFiles' >> beam.Map(split_file,
-                                       input_base_dir,
-                                       output_template,
-                                       output_dir,
-                                       formatting,
-                                       dry_run,
-                                       known_args.force,
-                                       known_args.log_level,
-                                       grib_filter_expression)
+            paths
+            | 'SplitFiles' >> beam.Map(
+                split_file,
+                input_base_dir,
+                output_template,
+                output_dir,
+                formatting,
+                dry_run,
+                known_args.force,
+                known_args.log_level,
+                grib_filter_expression,
+            )
         )
+
+    logger.info('Pipeline is finished.')
