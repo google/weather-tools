@@ -21,6 +21,7 @@ import apache_beam as beam
 import apache_beam.metrics as metrics
 from apache_beam.io.fileio import MatchFiles, ReadMatches
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+from apache_beam.io.gcp.pubsub import ReadFromPubSub
 
 from .file_name_utils import OutFileInfo, get_output_file_info
 from .file_splitters import get_splitter
@@ -183,7 +184,7 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 p
                 # Windowing is based on this code sample:
                 # https://cloud.google.com/pubsub/docs/pubsub-dataflow#code_sample
-                | 'ReadUploadEvent' >> beam.io.ReadFromPubSub(
+                | 'ReadUploadEvent' >> ReadFromPubSub(
                     known_args.topic, known_args.subscription
                 )
                 | 'WindowInto' >> GroupMessagesByFixedWindows(
