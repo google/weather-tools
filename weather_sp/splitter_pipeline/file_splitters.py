@@ -47,7 +47,6 @@ def copy(src: str, dst: str) -> None:
         else:
             os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
             shutil.copy(src, dst)
-        return
     except (subprocess.CalledProcessError, OSError) as e:
         error_detail = getattr(e, "stderr", str(e)).strip()
         msg = f"Failed to copy {src!r} to {dst!r} due to {error_detail}"
