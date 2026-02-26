@@ -385,17 +385,20 @@ def __open_dataset_file(filename: str,
 
 
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil`."""
+    """Copy data via `gsutil` or local filesystem."""
+    is_gs = src.startswith("gs://") or dst.startswith("gs://")
     try:
-        if any(s.startswith("gs://") for s in (src, dst)):
+        if is_gs:
             subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True, text=True, input="n/n")
         else:
             os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
             shutil.copy(src, dst)
-    except Exception as e:
-        msg = f'Failed to copy file {src!r} to {dst!r}'
-        logger.error(f'{msg} due to {repr(e.stderr)}.')
-        raise EnvironmentError(msg, e)
+        return
+    except (subprocess.CalledProcessError, OSError) as e:
+        error_detail = getattr(e, "stderr", str(e)).strip()
+        msg = f"Failed to copy {src!r} to {dst!r} due to {error_detail}"
+        logger.error(msg)
+        raise EnvironmentError(msg) from e
 
 
 @contextlib.contextmanager
