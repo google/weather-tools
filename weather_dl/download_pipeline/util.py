@@ -86,22 +86,16 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
 # TODO(#245): Group with common utilities (duplicated)
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil`."""
-    errors: t.List[subprocess.CalledProcessError] = []
-    for cmd in ['gsutil cp', shutil.copy]:
-        try:
-            if isinstance(cmd, str):
-                subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
-            else:
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                cmd(src, dst)
-            return
-        except subprocess.CalledProcessError as e:
-            errors.append(e)
-
-    msg = f'Failed to copy file {src!r} to {dst!r}'
-    err_msgs = ', '.join(map(lambda err: repr(err.stderr), errors))
-    logger.error(f'{msg} due to {err_msgs}.')
-    raise EnvironmentError(msg, errors)
+    try:
+        if any(s.startswith("gs://") for s in (src, dst)):
+            subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True, text=True, input="n/n")
+        else:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy(src, dst)
+    except Exception as e:
+        msg = f'Failed to copy file {src!r} to {dst!r}'
+        logger.error(f'{msg} due to {repr(e.stderr)}.')
+        raise EnvironmentError(msg, e)
 
 
 # TODO(#245): Group with common utilities (duplicated)
