@@ -30,6 +30,10 @@ dependencies:
     - cython==0.29.34
     - earthengine-api==0.1.329
     - firebase-admin==6.0.1
+    - contourpy==1.1.1
+    - pillow==10.4.0
+    - google-crc32c==1.1.2
+    - MarkupSafe==2.1.5
     - setuptools==70.3.0
     - git+https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi # TODO([#474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
     - pyparsing==3.1.4
