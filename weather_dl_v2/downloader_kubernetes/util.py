@@ -86,9 +86,9 @@ def ichunked(iterable: t.Iterable, n: int) -> t.Iterator[t.Iterable]:
 
 # TODO(#245): Group with common utilities (duplicated)
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil cp`."""
+    """Copy data via `gcloud storage cp`."""
     try:
-        subprocess.run(["gsutil", "cp", src, dst], check=True, capture_output=True)
+        subprocess.run(["gcloud", "storage", "cp", src, dst], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         print(
             f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}'
