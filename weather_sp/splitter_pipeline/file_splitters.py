@@ -43,7 +43,8 @@ def copy(src: str, dst: str) -> None:
     is_gs = src.startswith("gs://") or dst.startswith("gs://")
     try:
         if is_gs:
-            subprocess.run(['gcloud', 'storage', 'cp', src, dst], check=True, capture_output=True, text=True, input="n/n")
+            subprocess.run(['gcloud', 'storage', 'cp', src, dst], check=True,
+                           capture_output=True, text=True, input="n/n")
         else:
             os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
             shutil.copy(src, dst)
