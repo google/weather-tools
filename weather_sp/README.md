@@ -30,6 +30,10 @@ _Common options_:
 * `--log-level`: An integer to configure log level. Default: 2(INFO).
 * `--use-local-code`: Supply local code to the Runner. Default: False.
 * `-w, --where`: Optional GRIB filter expression to apply during file splitting using grib_copy. This allows filtering GRIB messages based on key-value pairs, such as level, type of level, or date. Example: 'typeOfLevel=isobaricInhPa,level=1000'. This flag is only applicable to GRIB files and is specifically supported by the GribSplitterV2 implementation. More details can be found [here](https://confluence.ecmwf.int/display/ECC/grib_copy).
+* `--topic`: A Pub/Sub topic for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. E.g. 'projects/<PROJECT_ID>/topics/<TOPIC_ID>'. Cannot be used with --subscription.
+* `--subscription`: A Pub/Sub subscription for GCS OBJECT_FINALIZE events, or equivalent, of a cloud bucket. Cannot be used with `--topic`.
+* `--window_size`: Output file's window size in minutes. Only used with the `topic` flag. Default: 1.0 minute.
+* `--num_shards`: Number of shards to use when writing windowed elements to cloud storage. Only used with the `topic` flag. Default: 5 shards.
 
 Invoke with `-h` or `--help` to see the full range of options.
 
@@ -99,6 +103,25 @@ weather-sp --input-pattern 'gs://test-tmp/era5/2017/**' \
            --temp_location gs://$BUCKET/tmp  \
            --experiment=use_runner_v2 \
            --sdk_container_image="gcr.io/$PROJECT/$REPO:latest"  \
+           --job_name $JOB_NAME
+```
+
+### Streaming mode example
+
+Run a streaming pipeline that reads file paths from a Pub/Sub topic and splits the files:
+
+```bash
+weather-sp --input-pattern 'gs://bucket/data/**' \
+           --topic 'projects/my-project/topics/my-topic' \
+            --window_size 5 \
+           --num_shards 10 \
+           --output-template 'gs://output/grid_0p1/domain_{domain}/class_{class}/{shortName}.gb' \
+           --runner DataflowRunner \
+           --project $PROJECT \
+           --region us-west4 \
+           --temp_location gs://$BUCKET/tmp \
+           --experiment use_runner_v2 \
+           --sdk_container_image="gcr.io/$PROJECT/$REPO:latest" \
            --job_name $JOB_NAME
 ```
 _Consult [this documentation](../Runtime-Container.md) for steps on how to create a sufficient image._

@@ -384,24 +384,20 @@ def __open_dataset_file(filename: str,
         False)
 
 
-def upload(src: str, dst: str) -> None:
-    """Uploads a file to the specified GCS bucket destination."""
-    subprocess.run(f'gcloud storage cp {src} {dst}'.split(), check=True, capture_output=True, text=True, input="n/n")
-
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gsutil`."""
-    errors: t.List[subprocess.CalledProcessError] = []
-    for cmd in ['gcloud storage cp']:
-        try:
-            subprocess.run(cmd.split() + [src, dst], check=True, capture_output=True, text=True, input="n/n")
-            return
-        except subprocess.CalledProcessError as e:
-            errors.append(e)
-
-    msg = f'Failed to copy file {src!r} to {dst!r}'
-    err_msgs = ', '.join(map(lambda err: repr(err.stderr), errors))
-    logger.error(f'{msg} due to {err_msgs}.')
-    raise EnvironmentError(msg, errors)
+    """Copy data via `gsutil` or local filesystem."""
+    is_gs = src.startswith("gs://") or dst.startswith("gs://")
+    try:
+        if is_gs:
+            subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True, text=True, input="n/n")
+        else:
+            os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
+            shutil.copy(src, dst)
+    except Exception as e:
+        error_detail = getattr(e, "stderr", str(e)).strip()
+        msg = f"Failed to copy {src!r} to {dst!r} due to {error_detail}"
+        logger.error(msg)
+        raise EnvironmentError(msg) from e
 
 
 @contextlib.contextmanager

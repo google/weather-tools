@@ -39,12 +39,19 @@ logger = logging.getLogger(__name__)
 
 # TODO(#245): Group with common utilities (duplicated)
 def copy(src: str, dst: str) -> None:
-    """Copy data via `gcloud storage cp`."""
+    """Copy data via `gsutil` or local filesystem."""
+    is_gs = src.startswith("gs://") or dst.startswith("gs://")
     try:
-        subprocess.run(['gcloud', 'storage', 'cp', src, dst], check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f'Failed to copy file {src!r} to {dst!r} due to {e.stderr.decode("utf-8")}')
-        raise
+        if is_gs:
+            subprocess.run(['gsutil', 'cp', src, dst], check=True, capture_output=True, text=True, input="n/n")
+        else:
+            os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
+            shutil.copy(src, dst)
+    except Exception as e:
+        error_detail = getattr(e, "stderr", str(e)).strip()
+        msg = f"Failed to copy {src!r} to {dst!r} due to {error_detail}"
+        logger.error(msg)
+        raise EnvironmentError(msg) from e
 
 
 class FileSplitter(abc.ABC):
