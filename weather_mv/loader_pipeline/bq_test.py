@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import datetime
 import json
 import logging
@@ -18,6 +19,7 @@ import os
 import tempfile
 import typing as t
 import unittest
+from unittest import mock
 
 import geojson
 import numpy as np
@@ -413,6 +415,116 @@ class ExtractRowsTest(ExtractRowsTestBase):
             'v10': 0.03294110298156738,
             'geo_point': geojson.dumps(geojson.Point((-108.0, 49.0))),
             'geo_polygon': None
+        }
+        self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows_with_lat_lon_aliases(self):
+        lat = np.array([12.0])
+        lon = np.array([34.0])
+        temps = np.array([[[250.0]]], dtype=np.float32)
+        ds = xr.Dataset(
+            {"temp": (('time', 'lat', 'lon'), temps)},
+            coords={
+                'time': np.array(['2018-01-02T06:00:00'], dtype='datetime64[ns]'),
+                'lat': lat,
+                'lon': lon,
+            },
+            attrs={'is_normalized': False},
+        )
+        geo_df = pd.DataFrame({
+            'lat': [lat[0]],
+            'lon': [lon[0]],
+            'geo_point': [geojson.dumps(geojson.Point((lon[0], lat[0])))],
+            'geo_polygon': [None],
+        })
+        temp_parquet = tempfile.NamedTemporaryFile(suffix='.parquet', delete=False)
+        temp_parquet.close()
+        self.addCleanup(lambda: os.path.exists(temp_parquet.name) and os.remove(temp_parquet.name))
+        geo_df.to_parquet(temp_parquet.name, index=False)
+
+        @contextlib.contextmanager
+        def _fake_open_dataset(*args, **kwargs):
+            yield ds.copy(deep=True)
+
+        @contextlib.contextmanager
+        def _fake_open_local(*args, **kwargs):
+            yield temp_parquet.name
+
+        with mock.patch('weather_mv.loader_pipeline.bq.open_dataset', side_effect=_fake_open_dataset), \
+                mock.patch('weather_mv.loader_pipeline.bq.open_local', side_effect=_fake_open_local):
+            actual = next(
+                self.extract(
+                    self.test_data_path,
+                    geo_data_parquet_path=temp_parquet.name,
+                    skip_creating_polygon=True,
+                    skip_creating_geo_data_parquet=True,
+                )
+            )
+        expected = {
+            'temp': 250.0,
+            'data_import_time': DEFAULT_IMPORT_TIME,
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': lat[0],
+            'longitude': lon[0],
+            'time': '2018-01-02T06:00:00+00:00',
+            'geo_point': geo_df.iloc[0]['geo_point'],
+            'geo_polygon': None,
+        }
+        self.assertRowsEqual(actual, expected)
+
+    def test_extract_rows_with_xy_coordinates_and_lat_lon_parquet(self):
+        lat = np.array([12.0])
+        lon = np.array([34.0])
+        temps = np.array([[[250.0]]], dtype=np.float32)
+        ds = xr.Dataset(
+            {"temp": (('time', 'y', 'x'), temps)},
+            coords={
+                'time': np.array(['2018-01-02T06:00:00'], dtype='datetime64[ns]'),
+                'y': lat,
+                'x': lon,
+            },
+            attrs={'is_normalized': False},
+        )
+        geo_df = pd.DataFrame({
+            'latitude': [lat[0]],
+            'longitude': [lon[0]],
+            'geo_point': [geojson.dumps(geojson.Point((lon[0], lat[0])))],
+            'geo_polygon': [None],
+        })
+        temp_parquet = tempfile.NamedTemporaryFile(suffix='.parquet', delete=False)
+        temp_parquet.close()
+        self.addCleanup(lambda: os.path.exists(temp_parquet.name) and os.remove(temp_parquet.name))
+        geo_df.to_parquet(temp_parquet.name, index=False)
+
+        @contextlib.contextmanager
+        def _fake_open_dataset(*args, **kwargs):
+            yield ds.copy(deep=True)
+
+        @contextlib.contextmanager
+        def _fake_open_local(*args, **kwargs):
+            yield temp_parquet.name
+
+        with mock.patch('weather_mv.loader_pipeline.bq.open_dataset', side_effect=_fake_open_dataset), \
+                mock.patch('weather_mv.loader_pipeline.bq.open_local', side_effect=_fake_open_local):
+            actual = next(
+                self.extract(
+                    self.test_data_path,
+                    geo_data_parquet_path=temp_parquet.name,
+                    skip_creating_polygon=True,
+                    skip_creating_geo_data_parquet=True,
+                )
+            )
+        expected = {
+            'temp': 250.0,
+            'data_import_time': DEFAULT_IMPORT_TIME,
+            'data_first_step': '2018-01-02T06:00:00+00:00',
+            'data_uri': self.test_data_path,
+            'latitude': lat[0],
+            'longitude': lon[0],
+            'time': '2018-01-02T06:00:00+00:00',
+            'geo_point': geo_df.iloc[0]['geo_point'],
+            'geo_polygon': None,
         }
         self.assertRowsEqual(actual, expected)
 

@@ -25,7 +25,6 @@ from apache_beam.options.pipeline_options import PipelineOptions
 
 from .bq import ToBigQuery
 from .regrid import Regrid
-from .ee import ToEarthEngine
 from .streaming import GroupMessagesByFixedWindows, ParsePaths
 
 logger = logging.getLogger(__name__)
@@ -76,6 +75,7 @@ def pipeline(known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None
         elif known_args.subcommand == 'regrid' or known_args.subcommand == 'rg':
             paths | "Regrid" >> Regrid.from_kwargs(**vars(known_args))
         elif known_args.subcommand == 'earthengine' or known_args.subcommand == 'ee':
+            from .ee import ToEarthEngine
             pipeline_options = PipelineOptions(pipeline_args)
             pipeline_options_dict = pipeline_options.get_all_options()
             # all_args stores all arguments passed to the pipeline.
