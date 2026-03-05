@@ -30,7 +30,8 @@ RUN git clone https://github.com/google/weather-tools.git /weather
 WORKDIR /weather
 RUN git checkout "${weather_tools_git_rev}"
 RUN rm -r /weather/weather_*/test_data/
-RUN conda env create -f environment.yml --debug && conda clean --all -f --yes
+RUN conda env create -f environment.yml --debug && \
+    conda clean --all -f --yes
 
 # Activate the conda env and update the PATH
 ARG CONDA_ENV_NAME=weather-tools
