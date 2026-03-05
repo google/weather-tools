@@ -132,7 +132,7 @@ inspect the progress of your downloads. For example:
 
 ```shell
 # Check that the file-sizes of your downloads look alright
-gsutil du -h gs://your-cloud-bucket/mars-data/*T00z.nc 
+gcloud storage du --readable-sizes gs://your-cloud-bucket/mars-data/*T00z.nc 
 # See how many downloads have finished
-gsutil du -h gs://your-cloud-bucket/mars-data/*T00z.nc | wc -l
+gcloud storage du --readable-sizes gs://your-cloud-bucket/mars-data/*T00z.nc | wc -l
 ```
