@@ -1,4 +1,4 @@
-name: weather-tools
+name: weather-tools-2
 channels:
   - conda-forge
   - defaults
@@ -26,7 +26,7 @@ dependencies:
   - metview-batch=5.17.0
   - numpy=1.22.4
   - pandas=1.5.1
-  - pip=22.3
+  - pip=24.3.1
   - pygrib=2.1.4
   - google-cloud-sdk=410.0.0
   - aria2=1.36.0
@@ -34,6 +34,7 @@ dependencies:
   - ruff==0.1.2
   - zarr=2.15.0
   - google-cloud-monitoring=2.22.2
+  - pillow=10.4.0
   - pip:
     - cython==0.29.34
     - earthengine-api==0.1.329
