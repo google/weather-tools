@@ -85,6 +85,10 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
     """
     selection_ = copy.deepcopy(selection)
 
+    if "date_range" in selection_.keys():
+        selection_["date"] = selection_["date_range"][0]
+        del selection_["date_range"]
+
     if "day" in selection_.keys() and selection_["day"] == "all":
         year, month = selection_["year"], selection_["month"]
 

@@ -114,7 +114,8 @@ def day_month_year(candidate: t.Any) -> int:
         ) from e
 
 
-def date_range_converter(candidate: str):
+def date_range_converter(candidate: str) -> str:
+    """Replace / with _ to avoid directory creation."""
     return candidate.replace('/', '_')
 
 
