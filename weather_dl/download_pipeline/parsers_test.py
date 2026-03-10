@@ -1153,6 +1153,20 @@ class PrepareTargetNameTest(unittest.TestCase):
                  }
              },
              expected='somewhere/expver-1/2017/01/15-pressure-500.nc'),
+        dict(case='Has date_range',
+             config={
+                 'parameters': {
+                     'partition_keys': ['date_range', 'time'],
+                     'target_path': 'somewhere/{date_range}-{time}.nc',
+                     'force_download': False
+                 },
+                 'selection': {
+                     'features': ['pressure'],
+                     'date_range': ['2017-01-01/to/2017-01-10'],
+                     'time': ['00']
+                 }
+             },
+             expected='somewhere/2017-01-01_to_2017-01-10-00:00:00.nc'),
 
     ]
 

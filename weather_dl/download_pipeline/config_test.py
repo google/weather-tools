@@ -118,3 +118,8 @@ class SelectionSyntaxTest(unittest.TestCase):
         selection_with_multiple_years = {'year': '2020', 'month': ['1', '2', '3'], 'day': 'all'}
         with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'month's."):
             optimize_selection_partition(selection_with_multiple_years)
+
+    def test_date_range(self):
+        selection_with_date_range = {'date_range': ['2017-01-01/to/2017-01-10']}
+        actual = optimize_selection_partition(selection_with_date_range)
+        self.assertEqual(actual['date'], selection_with_date_range['date_range'][0])

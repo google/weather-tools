@@ -116,6 +116,10 @@ def day_month_year(candidate: t.Any) -> int:
         ) from e
 
 
+def date_range_converter(candidate: str):
+    return candidate.replace('/', '_')
+
+
 def parse_literal(candidate: t.Any) -> t.Any:
     try:
         # Support parsing ints with leading zeros, e.g. '01'
@@ -142,6 +146,7 @@ def typecast(key: str, value: t.Any) -> t.Any:
         'day': day_month_year,
         'month': day_month_year,
         'year': day_month_year,
+        'date_range': date_range_converter,
     }
     converted = SWITCHER.get(key, parse_literal)(value)
     validate(key, converted)
@@ -326,7 +331,7 @@ def _parse_lists(config: dict, section: str = '') -> t.Dict:
         if not isinstance(val, str):
             continue
 
-        if '/' in val and 'parameters' not in section:
+        if '/' in val and 'parameters' not in section and key != 'date_range':
             config[key] = parse_mars_syntax(val, key)
         elif '\n' in val:
             config[key] = _splitlines(val)
