@@ -1031,6 +1031,24 @@ class ProcessConfigTest(unittest.TestCase):
             ) as f:
                 process_config(f, 'test.cfg')
 
+    def test_partition_key_contains_date_range(self):
+        with self.assertRaisesRegex(ValueError, """If 'date_range' is specified in the 'selection' section,
+                then it is also required as a partition keys."""):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=ecpublic
+                    target_path=bar-{}
+                    partition_keys=
+                        time
+                    [selection]
+                    date_range=2017-01-01/to/2017-01-10
+                    time=00/12
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
     def test_partition_key_contains_date__in_case_of_hdate(self):
         with self.assertRaisesRegex(ValueError, "'date' is required as a partition keys."):
             with io.StringIO(
