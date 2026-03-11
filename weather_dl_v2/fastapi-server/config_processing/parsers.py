@@ -482,7 +482,7 @@ def process_config(file: t.IO, config_name: str) -> Config:
         require('date' in partition_keys,
                 """"If 'hdate' is specified in the 'selection' section,
                 then 'date' is required as a partition keys.""")
-        
+
     if 'date_range' in selection:
         require('date_range' in partition_keys,
                 """"If 'date_range' is specified in the 'selection' section,
