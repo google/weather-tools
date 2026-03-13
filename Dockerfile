@@ -15,14 +15,11 @@
 # ==============================================================================
 ARG py_version=3.8
 FROM apache/beam_python${py_version}_sdk:2.40.0 as beam_sdk
-FROM continuumio/miniconda3:latest
+FROM continuumio/miniconda3:v25.11.1
 
 # Add the mamba solver for faster builds
 RUN conda install -n base conda-libmamba-solver
 RUN conda config --set solver libmamba
-
-RUN apt-get update && apt-get upgrade -y && \
-    rm -rf /var/lib/apt/lists/*
 
 # Create conda env using environment.yml
 ARG weather_tools_git_rev=main

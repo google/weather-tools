@@ -1,4 +1,4 @@
-name: weather-tools-2
+name: weather-tools
 channels:
   - conda-forge
   - defaults
