@@ -185,7 +185,7 @@ def prepare_partition_index(config: Config,
         chunk_size = 1000
 
     if not dims:
-        yield config, dims
+        yield config, []
     else:
         for option_idx in ichunked(itertools.product(*dims), chunk_size):
             yield config, list(option_idx)
@@ -198,7 +198,7 @@ def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.I
         A partition `Config` from an option index.
     """
     if not indexes:
-        yield config
+        yield _create_partition_config((), config)
     else:
         for index in indexes:
             option = tuple(
