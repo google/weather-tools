@@ -184,8 +184,11 @@ def prepare_partition_index(config: Config,
     if chunk_size is None:
         chunk_size = 1000
 
-    for option_idx in ichunked(itertools.product(*dims), chunk_size):
-        yield config, list(option_idx)
+    if not dims:
+        yield config, dims
+    else:
+        for option_idx in ichunked(itertools.product(*dims), chunk_size):
+            yield config, list(option_idx)
 
 
 def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.Iterator[Config]:
@@ -194,11 +197,14 @@ def prepare_partitions_from_index(config: Config, indexes: t.List[Index]) -> t.I
     Returns: from an option index.
         A partition `Config` from an option index.
     """
-    for index in indexes:
-        option = tuple(
-            config.selection[config.partition_keys[key_idx]][val_idx] for key_idx, val_idx in enumerate(index)
-        )
-        yield _create_partition_config(option, config)
+    if not indexes:
+        yield config
+    else:
+        for index in indexes:
+            option = tuple(
+                config.selection[config.partition_keys[key_idx]][val_idx] for key_idx, val_idx in enumerate(index)
+            )
+            yield _create_partition_config(option, config)
 
 
 def new_downloads_only(candidate: Config, store: t.Optional[Store] = None,

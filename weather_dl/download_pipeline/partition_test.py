@@ -569,6 +569,22 @@ class PreparePartitionTest(unittest.TestCase):
                     ]
         self.assertListEqual([d.selection for d in actual], [{**config.selection, **e} for e in expected])
 
+    def test_partition_with_no_keys(self):
+        config = Config.from_dict({
+                'parameters': {
+                    'target_path': 'download.nc',
+                },
+                'selection': {
+                    'features': ['2m_temperature'],
+                    'date': ['2017-01-01', '2016-01-02', '2016-01-03'],
+                }
+            })
+
+        actual = self.create_partition_configs([config])
+
+        expected = [config]
+        self.assertListEqual(actual, expected)
+
 
 class SkipPartitionsTest(unittest.TestCase):
 
