@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import calendar
-import copy
+import itertools
 import os
 import unittest
 
@@ -62,64 +62,55 @@ if __name__ == '__main__':
 
 class SelectionSyntaxTest(unittest.TestCase):
 
-    ALL_DAYS = [
-        ({'year': f'{y:04d}', 'month': f'{m:02d}', 'day': 'all'}, calendar.monthrange(y, m)[1])
-        for y in range(1900, 2023)
-        for m in range(1, 13)
-    ]
-
-    def test_all_days__as_strings(self):
-        for selection, n_days in self.ALL_DAYS:
-            year, month = selection["year"], selection["month"]
-            expected = f'{year}-{month}-01/to/{year}-{month}-{n_days:02d}'
-            with self.subTest(msg=f'{year}-{month} == {n_days}'):
-                actual = optimize_selection_partition(selection)
-                self.assertEqual(actual['date'], expected)
-                self.assertNotIn('day', actual)
-                self.assertNotIn('month', actual)
-                self.assertNotIn('year', actual)
-
-    def test_all_days__as_lists(self):
-        for selection_, n_days in self.ALL_DAYS:
-            selection = copy.deepcopy(selection_)
-            year, month = selection["year"], selection["month"]
-            expected = f'{year}-{month}-01/to/{year}-{month}-{n_days:02d}'
-            selection['year'] = [year]
-            selection['month'] = [month]
-            with self.subTest(msg=f'{year}-{month} == {n_days}'):
-                actual = optimize_selection_partition(selection)
-                self.assertEqual(actual['date'], expected)
-                self.assertNotIn('day', actual)
-                self.assertNotIn('month', actual)
-                self.assertNotIn('year', actual)
-
-    def test_all_days__invalid_year(self):
-        selection_with_multiple_years = {'year': '2020/2021', 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
-        selection_with_multiple_years = {'year': ['2020/2021'], 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
-        selection_with_multiple_years = {'year': ['2020', '2021'], 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'year's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
-    def test_all_days__invalid_month(self):
-        selection_with_multiple_years = {'year': '2020', 'month': '1/2/3', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'month's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
-        selection_with_multiple_years = {'year': '2020', 'month': ['1/2/3'], 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'month's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
-        selection_with_multiple_years = {'year': '2020', 'month': ['1', '2', '3'], 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "Cannot use keyword .* 'month's."):
-            optimize_selection_partition(selection_with_multiple_years)
-
     def test_date_range(self):
         selection_with_date_range = {'date_range': ['2017-01-01/to/2017-01-10']}
         actual = optimize_selection_partition(selection_with_date_range)
         self.assertEqual(actual['date'], selection_with_date_range['date_range'][0])
+
+    def test_with_year_month_as_string(self):
+        selection_with_multiple_months = {'year': '2017', 'month': '12', 'day':'all'}
+        actual = optimize_selection_partition(selection_with_multiple_months)
+
+        expected = []
+        for y, m in itertools.product(selection_with_multiple_months['year'], selection_with_multiple_months['month']):
+            y, m = int(y), int(m)
+            _, n_days_in_month = calendar.monthrange(y, m)
+            date_range = [f'{y:04d}-{m:02d}-{day:02d}' for day in range(1, n_days_in_month + 1)]
+            expected.extend(date_range)
+
+        self.assertEqual(actual['date'], expected)
+        self.assertNotIn('day', actual)
+        self.assertNotIn('month', actual)
+        self.assertNotIn('year', actual)
+
+    def test_with_multiple_months(self):
+        selection_with_multiple_months = {'year': ['2017'], 'month': ['2', '4', '6', '8'], 'day':'all'}
+        actual = optimize_selection_partition(selection_with_multiple_months)
+
+        expected = []
+        for y, m in itertools.product(selection_with_multiple_months['year'], selection_with_multiple_months['month']):
+            y, m = int(y), int(m)
+            _, n_days_in_month = calendar.monthrange(y, m)
+            date_range = [f'{y:04d}-{m:02d}-{day:02d}' for day in range(1, n_days_in_month + 1)]
+            expected.extend(date_range)
+
+        self.assertEqual(actual['date'], expected)
+        self.assertNotIn('day', actual)
+        self.assertNotIn('month', actual)
+        self.assertNotIn('year', actual)
+
+    def test_with_multiple_years(self):
+        selection_with_multiple_years = {'year': ['2017', '2018'], 'month': ['2', '4', '6', '8'], 'day':'all'}
+        actual = optimize_selection_partition(selection_with_multiple_years)
+
+        expected = []
+        for y, m in itertools.product(selection_with_multiple_years['year'], selection_with_multiple_years['month']):
+            y, m = int(y), int(m)
+            _, n_days_in_month = calendar.monthrange(y, m)
+            date_range = [f'{y:04d}-{m:02d}-{day:02d}' for day in range(1, n_days_in_month + 1)]
+            expected.extend(date_range)
+
+        self.assertEqual(actual['date'], expected)
+        self.assertNotIn('day', actual)
+        self.assertNotIn('month', actual)
+        self.assertNotIn('year', actual)
