@@ -91,16 +91,25 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
     if 'day' in selection_.keys() and selection_['day'] == 'all':
         years, months = selection_['year'], selection_['month']
 
+        multiples_error = "/ is not allowed in {type}."
+
         if isinstance(years, str):
-            years = list(years)
+            years = [years]
 
         if isinstance(months, str):
-            months = list(months)
+            months = [months]
 
         date_ranges = []
 
         # Generating dates for every year-month.
         for year, month in itertools.product(years, months):
+
+            if isinstance(year, str):
+                assert '/' not in year, multiples_error.format(type='year')
+
+            if isinstance(month, str):
+                assert '/' not in month, multiples_error.format(type='month')
+
             year, month = int(year), int(month)
 
             _, n_days_in_month = calendar.monthrange(year, month)

@@ -62,6 +62,24 @@ if __name__ == '__main__':
 
 class SelectionSyntaxTest(unittest.TestCase):
 
+    def test_all_days__invalid_year(self):
+        selection_with_multiple_years = {'year': '2020/2021', 'month': '2', 'day': 'all'}
+        with self.assertRaisesRegex(AssertionError, "/ is not allowed in year."):
+            optimize_selection_partition(selection_with_multiple_years)
+
+        selection_with_multiple_years = {'year': ['2020/2021'], 'month': '2', 'day': 'all'}
+        with self.assertRaisesRegex(AssertionError, "/ is not allowed in year."):
+            optimize_selection_partition(selection_with_multiple_years)
+
+    def test_all_days__invalid_month(self):
+        selection_with_multiple_years = {'year': '2020', 'month': '1/2/3', 'day': 'all'}
+        with self.assertRaisesRegex(AssertionError, "/ is not allowed in month."):
+            optimize_selection_partition(selection_with_multiple_years)
+
+        selection_with_multiple_years = {'year': '2020', 'month': ['1/2/3'], 'day': 'all'}
+        with self.assertRaisesRegex(AssertionError, "/ is not allowed in month."):
+            optimize_selection_partition(selection_with_multiple_years)
+
     def test_date_range(self):
         selection_with_date_range = {'date_range': ['2017-01-01/to/2017-01-10']}
         actual = optimize_selection_partition(selection_with_date_range)
@@ -72,11 +90,8 @@ class SelectionSyntaxTest(unittest.TestCase):
         actual = optimize_selection_partition(selection_with_multiple_months)
 
         expected = []
-        for y, m in itertools.product(selection_with_multiple_months['year'], selection_with_multiple_months['month']):
-            y, m = int(y), int(m)
-            _, n_days_in_month = calendar.monthrange(y, m)
-            date_range = [f'{y:04d}-{m:02d}-{day:02d}' for day in range(1, n_days_in_month + 1)]
-            expected.extend(date_range)
+        _, n_days_in_month = calendar.monthrange(2017, 12)
+        expected = [f'2017-12-{day:02d}' for day in range(1, n_days_in_month + 1)]
 
         self.assertEqual(actual['date'], expected)
         self.assertNotIn('day', actual)
