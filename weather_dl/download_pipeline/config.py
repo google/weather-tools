@@ -91,7 +91,7 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
     if 'day' in selection_.keys() and selection_['day'] == 'all':
         years, months = selection_['year'], selection_['month']
 
-        multiples_error = "/ is not allowed in {type}."
+        multiples_error = "When using day='all' in selection, '/' is not allowed in {type}."
 
         if isinstance(years, str):
             years = [years]

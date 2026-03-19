@@ -64,20 +64,20 @@ class SelectionSyntaxTest(unittest.TestCase):
 
     def test_all_days__invalid_year(self):
         selection_with_multiple_years = {'year': '2020/2021', 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "/ is not allowed in year."):
+        with self.assertRaisesRegex(AssertionError, "When using day='all' in selection, '/' is not allowed in year."):
             optimize_selection_partition(selection_with_multiple_years)
 
         selection_with_multiple_years = {'year': ['2020/2021'], 'month': '2', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "/ is not allowed in year."):
+        with self.assertRaisesRegex(AssertionError, "When using day='all' in selection, '/' is not allowed in year."):
             optimize_selection_partition(selection_with_multiple_years)
 
     def test_all_days__invalid_month(self):
         selection_with_multiple_years = {'year': '2020', 'month': '1/2/3', 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "/ is not allowed in month."):
+        with self.assertRaisesRegex(AssertionError, "When using day='all' in selection, '/' is not allowed in month."):
             optimize_selection_partition(selection_with_multiple_years)
 
         selection_with_multiple_years = {'year': '2020', 'month': ['1/2/3'], 'day': 'all'}
-        with self.assertRaisesRegex(AssertionError, "/ is not allowed in month."):
+        with self.assertRaisesRegex(AssertionError, "When using day='all' in selection, '/' is not allowed in month."):
             optimize_selection_partition(selection_with_multiple_years)
 
     def test_date_range(self):
