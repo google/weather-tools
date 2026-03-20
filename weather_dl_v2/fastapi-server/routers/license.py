@@ -203,7 +203,6 @@ async def delete_license(
     background_tasks.add_task(terminate_license_deployment, license_id)
     return {"license_id": license_id, "message": "License removed successfully."}
 
-# TODO: Create a better response for this route.
 @router.patch("/redeploy")
 async def redeploy_licenses(
     license_id: str = None,
@@ -223,22 +222,57 @@ async def redeploy_licenses(
     if client_name is not None:
         licenses = await license_handler._get_license_by_client_name(client_name)
 
+    # Filter out missing records when a single invalid license_id is requested.
+    licenses = [license for license in licenses if license]
+
     if len(licenses) == 0:
         return {"message": "No license found."}
 
+    # Track step-by-step outcome per license so callers can handle partial failures.
+    results = []
     for license in licenses:
         license_id = license['license_id']
+        deployment_id = license.get('k8s_deployment_id', '')
+        result = {
+            "license_id": license_id,
+            "client_name": license.get('client_name'),
+            "previous_k8s_deployment_id": deployment_id,
+            "terminate": "skipped",
+            "create": "skipped",
+            "status": "failed",
+            "errors": [],
+        }
         logger.info(f"Terminating deployment {license['k8s_deployment_id']}.")
         try:
             terminate_license_deployment(license_id)
+            result["terminate"] = "success"
         except Exception as e:
             logger.error(f"Couldn't terminate Deployment {license_id}. Error: {e}.")
+            result["terminate"] = "failed"
+            result["errors"].append(f"terminate: {e}")
 
         logger.info(f"Creating deployment for {license_id}.")
         try:
             await create_deployment(license_id, license_handler)
             await mark_license_active(license_id, license_handler)
+            result["create"] = "success"
         except Exception as e:
             logger.error(f"Couldn't create Deployment {license_id}. Error: {e}.")
+            result["create"] = "failed"
+            result["errors"].append(f"create: {e}")
 
-    return {"message": "Licenses redeployed."}
+        if result["terminate"] == "success" and result["create"] == "success":
+            result["status"] = "success"
+        results.append(result)
+
+    # Provide aggregate counters for quick checks in automation.
+    success_count = len([result for result in results if result["status"] == "success"])
+    failed_count = len(results) - success_count
+
+    return {
+        "message": "Licenses redeployed.",
+        "total": len(results),
+        "succeeded": success_count,
+        "failed": failed_count,
+        "results": results,
+    }
