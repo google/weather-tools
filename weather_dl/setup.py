@@ -47,12 +47,10 @@ base_requirements = [
 setup(
     name='download_pipeline',
     packages=find_packages(),
-    version='0.1.27',
+    version='0.1.28',
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
     url='https://weather-tools.readthedocs.io/en/latest/weather_dl/',
     description='A tool to download weather data.',
     install_requires=beam_gcp_requirements + base_requirements,
-    dependency_links=['https://github.com/dabhicusp/cdsapi-beta-google-weather-tools.git@master#egg=cdsapi'],  # TODO([
-        #474](https://github.com/google/weather-tools/issues/474)): Compatible cdsapi with weather-dl.
 )

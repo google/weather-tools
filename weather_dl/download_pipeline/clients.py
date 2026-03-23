@@ -27,7 +27,6 @@ import warnings
 from urllib.parse import urljoin
 
 from cdsapi import api as cds_api
-from cads_api_client import legacy_api_client
 import urllib3
 from ecmwfapi import api
 
@@ -74,21 +73,24 @@ class Client(abc.ABC):
         pass
 
 
-class SplitCDSRequest(legacy_api_client.LegacyApiClient):
+class SplitCDSRequest():
     """Extended CDS class that separates fetch and download stage."""
+    def __init__(self, *args, **kwargs):
+        self.__cds_client = cds_api.Client(*args, **kwargs)
+
     @retry_with_exponential_backoff
     def _download(self, url, path: str, size: int) -> None:
-        self.info("Downloading %s to %s (%s)", url, path, cds_api.bytes_to_string(size))
+        self.__cds_client.info("Downloading %s to %s (%s)", url, path, cds_api.bytes_to_string(size))
         start = time.time()
 
         download_with_aria2(url, path)
 
         elapsed = time.time() - start
         if elapsed:
-            self.info("Download rate %s/s", cds_api.bytes_to_string(size / elapsed))
+            self.__cds_client.info("Download rate %s/s", cds_api.bytes_to_string(size / elapsed))
 
     def fetch(self, request: t.Dict, dataset: str) -> t.Dict:
-        result = self.retrieve(dataset, request)
+        result = self.__cds_client.retrieve(dataset, request)
         return {'href': result.location, 'size': result.content_length}
 
     def download(self, result: cds_api.Result, target: t.Optional[str] = None) -> None:
