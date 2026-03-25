@@ -261,3 +261,74 @@ to discover the kinds of requests that can be made.
 
 > **NOTE**: MARS data is stored on tape drives. It takes longer for multiple workers to request data than a single
 > worker. Thus, it's recommended _not_ to set a partition key when writing MARS data configurations.
+
+**Supported Date Formats**: Weather-DL supports multiple date input formats, ranging from a single date/time to an entire month or year. The table below summarizes the various supported input formats.
+
+<table>
+  <colgroup>
+    <col style="width:15%">
+    <col style="width:35">
+    <col style="width:25%">
+    <col style="width:25%">
+  </colgroup>
+  <thead>
+    <tr>
+      <td><h5>Keyword</h5></td>
+      <td><h5>Description</h5></td>
+      <td><h5>Sample Config</h5></td>
+      <td><h5>Output Partitions</h5></td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/528 -->
+      <td>(no partition keys specified)</td>
+      <td>Introduced support for creating a single output-file when no partition_keys are specified, ensuring that all data is written into one consolidated file.</td>
+      <td>[parameters]<br/>target_path=data.nc<br/>[selection]<br/>format=netcdf<br/>date=2017-01-01<br/>time=00/06/12/18</td>
+      <td>data.nc</td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/525 -->
+      <td>date_range</td>
+      <td>Added support for specifying one or more date-range values, enabling users to download data across multiple date intervals in a single run.<br/><br/>Note: partition_key must be specified.</td>
+      <td>[parameters]<br/>target_path={date_range}.nc<br/>[selection]<br/>format=netcdf<br/>date_range=<br/>2017-01-01/to/2017-01-10<br/>2017-01-21/to/2017-01-31<br/>time=00/06/12/18</td>
+      <td>2017-01-01_to_2017-01-10.nc<br/>2017-01-21_to_2017-01-31.nc</td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/529 -->
+      <td>year</td>
+      <td>Added ability to accept and process multiple month & multiple year inputs in configuration, enabling users to specify broad time-spans without listing each period separately.</td>
+      <td>
+        <h5>Case-1</h5>target_path={year}.nc<br/>partition_keys=year<br/>[selection]<br/>format=netcdf<br/>year=2001/to/2003<br/>month=1/to/12<br/>day=all<br/>
+        <h5>Case-2</h5>target_path={year}.nc<br/>partition_keys=year<br/>[selection]<br/>format=netcdf<br/>year=2001/to/2003<br/>month=2/to/8/by/2<br/>day=all<br/>
+        <h5>Case-3</h5>target_path={year}.nc<br/>partition_keys=year<br/>[selection]<br/>format=netcdf<br/>year=2001/to/2003<br/>month=1/4/11<br/>day=all<br/>
+      </td>
+      <td>
+        <h5>Case-1</h5>2001.nc<br/>2002.nc<br/>2003.nc<br/>
+        <h5>Case-2</h5>2001.nc<br/>2002.nc<br/>2003.nc<br/>
+        <h5>Case-3</h5>2001.nc<br/>2002.nc<br/>2003.nc<br/>
+      </td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/issues/262 -->
+      <!-- https://github.com/google/weather-tools/issues/334 -->
+      <!-- https://github.com/google/weather-tools/blob/main/configs/s2s_operational_forecast_example.cfg -->
+      <!-- https://critique.corp.google.com/cl/748174885/depot/google3/research/weather/anthromet/download_configs/enstrophy/ifs-ext-reforecast-pressure-levels-inst-all-levs.cfg -->
+      <td>hdate</td>
+      <td>This parameter allows weather‑dl to explicitly specify historical target dates for downloads, giving users precise control over which past dates are retrieved.</td>
+      <td>
+        <h5>Case-1</h5>target_path={date}.gb<br/>[selection]<br/>date=2020-01-02<br/>hdate=1/to/3<br/>
+        <h5>Case-2</h5>target_path={date}.gb<br/>[selection]<br/>date=2016-01-04/2016-01-07<br/>hdate=1/to/2<br/>
+      </td>
+      <td>
+        <h5>Case-1</h5>2019-01-02<br/>2018-01-02<br/>2017-01-02<br/>
+        <h5>Case-2</h5><br/>
+      </td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/503 -->
+      <td>year-month</td>
+      <td>Added support for a year‑month key, allowing users to specify downloads using month granularity (e.g., “2025‑09”) instead of only daily or ranged formats.</td>
+      <td>target_path={year-month}.gb<br/>year-month=2024-10/to/2024-12</td>
+      <td>2024-10.gb<br/>2024-11.gb<br/>2024-12.gb</td>
+    </tr>
+  </thead>
+</table>
