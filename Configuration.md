@@ -212,7 +212,7 @@ In addition to the above, the table below presents further partitioning examples
     </tr>
     <tr>
       <td>year, month, day</td>
-      <td>Specifies dates in a decomposed form (separate fields) for ECMWF MARS requests, enabling flexible selection across ranges and combinations. Supports multiple **year** and **month** inputs, allowing users to define broad time spans without enumerating each period.</td>
+      <td>Specifies dates in a decomposed form (separate fields) for ECMWF MARS requests, enabling flexible selection across ranges and combinations. Supports multiple <b>year</b> and <b>month</b> inputs, allowing users to define broad time spans without enumerating each period.</td>
       <td>
         <h5>Case-1</h5>[parameters]<br/>target_path={year}/{year}-{month:02d}.grb2<br/>partition_keys=<br/>year<br/>month<br/>[selection]<br/>year=2021<br/>month=1/to/2<br/>day=all<br/>
         <h5>Case-2: Full year</h5>[parameters]<br/>target_path=full_{year}.nc<br/>partition_keys=year<br/>[selection]<br/>year=2001/to/2002<br/>month=1/to/12<br/>day=all<br/>
