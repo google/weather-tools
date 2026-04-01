@@ -176,6 +176,90 @@ will create
 > `gs://ecmwf-output-test/era5/2017/1/1-pressure-500.nc` and  
 > `gs://ecmwf-output-test/era5/2017/1/2-pressure-500.nc`.
 
+In addition to the above, the table below presents further partitioning examples based on recent enhancements to the weather-dl tool, particularly around date and related keywords.
+
+<table>
+  <colgroup>
+    <col style="width:15%">
+    <col style="width:35%">
+    <col style="width:25%">
+    <col style="width:25%">
+  </colgroup>
+  <thead>
+    <tr>
+      <td><h5>Keyword</h5></td>
+      <td><h5>Description</h5></td>
+      <td><h5>Sample Config</h5></td>
+      <td><h5>Output Partitions</h5></td>
+    </tr>
+    <tr>
+      <td>date</td>
+      <td>Specifies the calendar date(s) for which data is retrieved in an ECMWF MARS request.</td>
+      <td>[parameters]<br/>target_path={date}.nc<br/>partition_keys=date<br/>[selection]<br/>date=2017-01-01/to/2017-01-02</td>
+      <td>2017-01-01.nc<br/>2017-01-02.nc</td>
+    </tr>
+    <tr>
+      <td>date [step] [time] [var]</td>
+      <td>Along with specifying date in the ECMWF MARS request, users can also partition data using one or more of [forecast-step, initialization-time, or varirable].</td>
+      <td>
+        <h5>Case-1</h5>[parameters]<br/>target_path={date}_{time}.nc<br/>partition_keys=<br/>date<br/>time<br/>[selection]<br/>date=2025-01-01/to/2025-01-08/by/5<br/>time=00/12<br/>
+        <h5>Case-2</h5>[parameters]<br/>target_path={date}_{step}.nc<br/>partition_keys=<br/>date<br/>step<br/>[selection]<br/>date=2024-12-31/to/2024-01-26/by/-3<br/>step=0<br/>
+      </td>
+      <td>
+        <h5>Case-1</h5>2025-01-01_00:00:00.nc<br/>2025-01-01_12:00:00.nc<br/>2025-01-06_00:00:00.nc<br/>2025-01-06_12:00:00.nc<br/>
+        <h5>Case-2</h5>2024-12-31_0.nc<br/>2024-12-28_0.nc<br/>
+      </td>
+    </tr>
+    <tr>
+      <td>year, month, day</td>
+      <td>Specifies dates in a decomposed form (separate fields) for ECMWF MARS requests, enabling flexible selection across ranges and combinations. Supports multiple <b>year</b> and <b>month</b> inputs, allowing users to define broad time spans without enumerating each period.</td>
+      <td>
+        <h5>Case-1</h5>[parameters]<br/>target_path={year}/{year}-{month:02d}.grb2<br/>partition_keys=<br/>year<br/>month<br/>[selection]<br/>year=2021<br/>month=1/to/2<br/>day=all<br/>
+        <h5>Case-2: Full year</h5>[parameters]<br/>target_path=full_{year}.nc<br/>partition_keys=year<br/>[selection]<br/>year=2001/to/2002<br/>month=1/to/12<br/>day=all<br/>
+        <h5>Case-3: Odd months</h5>[parameters]<br/>target_path=odd_{year}.nc<br/>partition_keys=year<br/>[selection]<br/>year=2001/to/2002<br/>month=1/to/12/by/2<br/>day=all<br/>
+        <h5>Case-4: Specific days</h5>[parameters]<br/>target_path=misc_{year}.nc<br/>partition_keys=year<br/>[selection]<br/>year=2001/to/2002<br/>month=1/to/12<br/>day=1/5/10/15<br/>
+      </td>
+      <td>
+        <h5>Case-1</h5>2021/2021-01.grb2<br/>2021/2021-02.grb2<br/>
+        <h5>Case-2</h5>full_2001.nc<br/>full_2002.nc<br/>
+        <h5>Case-3</h5>odd_2001.nc<br/>odd_2002.nc<br/>
+        <h5>Case-4</h5>misc_2001.nc<br/>misc_2002.nc<br/>
+      </td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/503 -->
+      <td>year-month</td>
+      <td>Added support for a year‑month key, allowing users to specify downloads using month granularity instead of ranged formats.</td>
+      <td>[parameters]<br/>target_path={year-month}.gb<br/>partition_keys=year-month<br/>[selection]<br/>year-month=2024-11/to/2025-02</td>
+      <td>2024-11.gb<br/>2024-12.gb<br/>2025-01.gb<br/>2025-02.gb</td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/525 -->
+      <td>date_range</td>
+      <td>Added support for specifying one or more date-range values, enabling users to download data across multiple date intervals in a single run.<br/><br/>Note: date_range must be specified in partition_keys.</td>
+      <td>[parameters]<br/>target_path={date_range}.nc<br/>partition_keys=date_range<br/>[selection]<br/>date_range=<br/>2017-01-01/to/2017-01-10<br/>2017-01-21/to/2017-01-31</td>
+      <td>2017-01-01_to_2017-01-10.nc<br/>2017-01-21_to_2017-01-31.nc</td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/issues/262 -->
+      <!-- https://github.com/google/weather-tools/issues/334 -->
+      <!-- https://github.com/google/weather-tools/blob/main/configs/s2s_operational_forecast_example.cfg -->
+      <!-- https://critique.corp.google.com/cl/748174885/depot/google3/research/weather/anthromet/download_configs/enstrophy/ifs-ext-reforecast-pressure-levels-inst-all-levs.cfg -->
+      <td>hdate</td>
+      <td>This parameter allows weather‑dl to explicitly specify historical target dates for downloads, giving users precise control over which past dates are retrieved.</td>
+      <td>[parameters]<br/>target_path={date}.gb<br/>[selection]<br/>date=2020-01-02<br/>hdate=1/to/3</td>
+      <td>2019-01-02<br/>2018-01-02<br/>2017-01-02</td>
+    </tr>
+    <tr>
+      <!-- https://github.com/google/weather-tools/pull/528 -->
+      <td>(no partition keys specified)</td>
+      <td>Introduced support for creating a single output-file when no partition_keys are specified, ensuring that all data is written into one consolidated file.</td>
+      <td>[parameters]<br/>target_path=data.nc<br/>[selection]<br/>date=2017-01-01/to/2017-01-05<br/>time=00/06/12/18</td>
+      <td>data.nc</td>
+    </tr>
+  </thead>
+</table>
+
 </details>
 
 ### Subsections
