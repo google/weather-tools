@@ -181,7 +181,7 @@ In addition to the above, the table below presents further partitioning examples
 <table>
   <colgroup>
     <col style="width:15%">
-    <col style="width:35">
+    <col style="width:35%">
     <col style="width:25%">
     <col style="width:25%">
   </colgroup>
@@ -236,7 +236,7 @@ In addition to the above, the table below presents further partitioning examples
     <tr>
       <!-- https://github.com/google/weather-tools/pull/525 -->
       <td>date_range</td>
-      <td>Added support for specifying one or more date-range values, enabling users to download data across multiple date intervals in a single run.<br/><br/>Note: partition_key must be specified.</td>
+      <td>Added support for specifying one or more date-range values, enabling users to download data across multiple date intervals in a single run.<br/><br/>Note: date_range must be specified in partition_keys.</td>
       <td>[parameters]<br/>target_path={date_range}.nc<br/>partition_keys=date_range<br/>[selection]<br/>date_range=<br/>2017-01-01/to/2017-01-10<br/>2017-01-21/to/2017-01-31</td>
       <td>2017-01-01_to_2017-01-10.nc<br/>2017-01-21_to_2017-01-31.nc</td>
     </tr>
