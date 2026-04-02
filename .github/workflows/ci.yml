@@ -38,9 +38,9 @@ jobs:
       with:
         access_token: ${{ github.token }}
       if: ${{github.ref != 'refs/head/main'}}
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
     - name: conda cache
-      uses: actions/cache@v3
+      uses: actions/cache@v5
       env:
         # Increase this value to reset cache if etc/example-environment.yml has not changed
         CACHE_NUMBER: 0
@@ -74,9 +74,9 @@ jobs:
         with:
           access_token: ${{ github.token }}
         if: ${{github.ref != 'refs/head/main'}}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Get pip cache dir
@@ -101,9 +101,9 @@ jobs:
         with:
           access_token: ${{ github.token }}
         if: ${{github.ref != 'refs/head/main'}}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - name: conda cache
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         env:
           # Increase this value to reset cache if etc/example-environment.yml has not changed
           CACHE_NUMBER: 0
