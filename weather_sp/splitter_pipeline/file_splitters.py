@@ -31,13 +31,25 @@ import xarray as xr
 
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
 from apache_beam.io.filesystems import FileSystems
+from apache_beam.utils import retry
 
 from .file_name_utils import OutFileInfo
+
+# For uploading / downloading retry logic.
+INITIAL_DELAY = 1.0  # Initial delay in seconds.
+MAX_DELAY = 600  # Maximum delay before giving up in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
 
 logger = logging.getLogger(__name__)
 
 
 # TODO(#245): Group with common utilities (duplicated)
+@retry.with_exponential_backoff(
+    num_retries=NUM_RETRIES,
+    logger=logger.warning,
+    initial_delay_secs=INITIAL_DELAY,
+    max_delay_secs=MAX_DELAY
+)
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil` or local filesystem."""
     is_gs = src.startswith("gs://") or dst.startswith("gs://")

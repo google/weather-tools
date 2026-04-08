@@ -35,6 +35,7 @@ import rasterio
 import rioxarray
 import xarray as xr
 from apache_beam.io.filesystem import CompressionTypes, FileSystem, CompressedFile, DEFAULT_READ_BUFFER_SIZE
+from apache_beam.utils import retry
 from google.cloud import storage
 from pyproj import Transformer
 
@@ -42,6 +43,10 @@ TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
 DEFAULT_TIME_ORDER_LIST = ['%Y', '%m', '%d', '%H', '%M', '%S']
+# For uploading / downloading retry logic.
+INITIAL_DELAY = 1.0  # Initial delay in seconds.
+MAX_DELAY = 600  # Maximum delay before giving up in seconds.
+NUM_RETRIES = 10  # Number of tries with exponential backoff.
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +389,12 @@ def __open_dataset_file(filename: str,
         False)
 
 
+@retry.with_exponential_backoff(
+    num_retries=NUM_RETRIES,
+    logger=logger.warning,
+    initial_delay_secs=INITIAL_DELAY,
+    max_delay_secs=MAX_DELAY
+)
 def copy(src: str, dst: str) -> None:
     """Copy data via `gsutil` or local filesystem."""
     is_gs = src.startswith("gs://") or dst.startswith("gs://")
