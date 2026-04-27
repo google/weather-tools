@@ -126,3 +126,40 @@ jobs:
           conda run -n weather-tools pip install -e .[test] --use-deprecated=legacy-resolver
       - name: Run type checker
         run: conda run -n weather-tools pytype
+  check-version:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Check if VERSION.txt is updated
+        run: |
+          # Fetch the base branch to ensure it is available for diffing
+          git fetch origin ${{ github.base_ref }}
+          
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check if any file outside weather_dl_v2 was changed
+          MODIFIED_CORE=false
+          for file in $CHANGED_FILES; do
+            if [[ "$file" != weather_dl_v2/* ]]; then
+              MODIFIED_CORE=true
+              break
+            fi
+          done
+          
+          if [ "$MODIFIED_CORE" = true ]; then
+            echo "Core files modified. Checking if VERSION.txt is updated..."
+            if echo "$CHANGED_FILES" | grep -q "^VERSION.txt$"; then
+              echo "VERSION.txt is updated."
+            else
+              echo "Error: Core files modified but VERSION.txt was not updated."
+              exit 1
+            fi
+          else
+            echo "Only weather_dl_v2 files modified or no changes. Skipping VERSION.txt check."
+          fi
