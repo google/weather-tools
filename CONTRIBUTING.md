@@ -183,7 +183,7 @@ will abide by the following pattern:
 
 - When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file.
 - We also maintain a  single `VERSION.txt` file at the root level for the repository. This version is used to tag
-  the Docker image for the repository (e.g., `weather-tools-$VER`).
+  the Docker image for the repository (e.g., `$TAG-$VER`).
 - Therefore, for any code change in any tool, you must also increment the version in `VERSION.txt`.
 - The representation for the version of all of `google-weather-tools` is
   via [git tags](https://git-scm.com/book/en/v2/Git-Basics-Tagging). To update the version of the package, please make

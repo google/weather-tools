@@ -50,4 +50,4 @@ export VER=$(cat VERSION.txt)
 gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT=$PROJECT,_REPO=$REPO,_TAG=$TAG,_VER=$VER
 ```
 
-This will build the image and tag it with both `weather-tools` (floating tag) and `weather-tools-$VER` (immutable tag).
+This will build the image and tag it with both `$TAG` (floating tag e.g. `weather-tools`) and `$TAG-$VER` (immutable tag e.g. `weather-tools-$VER`).
