@@ -1,12 +1,12 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$_PROJECT_ID/$_REPO:weather-tools', '.']
+  args: ['build', '-t', 'gcr.io/$_PROJECT/$_REPO:weather-tools', '.']
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$_PROJECT_ID/$_REPO:weather-tools']
+  args: ['push', 'gcr.io/$_PROJECT/$_REPO:weather-tools']
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['tag', 'gcr.io/$_PROJECT_ID/$_REPO:weather-tools', 'gcr.io/$_PROJECT_ID/$_REPO:weather-tools-$_VER']
+  args: ['tag', 'gcr.io/$_PROJECT/$_REPO:weather-tools', 'gcr.io/$_PROJECT/$_REPO:weather-tools-$_VER']
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$_PROJECT_ID/$_REPO:weather-tools-$_VER']
+  args: ['push', 'gcr.io/$_PROJECT/$_REPO:weather-tools-$_VER']
 timeout: 79200s
 options:
   machineType: E2_HIGHCPU_32

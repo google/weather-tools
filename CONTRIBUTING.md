@@ -182,8 +182,9 @@ We aim to represent the version of each tool using [semver.org](https://semver.o
 will abide by the following pattern:
 
 - We maintain a single `VERSION.txt` file at the root level for the repository.
-- When making a change or Pull Request (except changes solely in `weather_dl_v2/`), you **must** increment the version in `VERSION.txt`. The CI pipeline will fail if this file is not updated when core files are modified.
-- This version is used to tag the Docker image for the repository (e.g., `weather-tools-with-aria2:$VER`).
+- When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file,
+  you **must** also increment the version in `VERSION.txt`. 
+- This version is used to tag the Docker image for the repository (e.g., `weather-tools-$VER`).
 - The representation for the version of all of `google-weather-tools` is
   via [git tags](https://git-scm.com/book/en/v2/Git-Basics-Tagging). To update the version of the package, please make
   an annotated tag with a short description of the change.

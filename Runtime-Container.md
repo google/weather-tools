@@ -25,11 +25,11 @@ will help you configure your project to use Cloud Build.
 To build the Docker image for the repository using Google Cloud Build:
 
 ```shell
-export PROJECT_ID=<your-project-here>
+export PROJECT=<your-project-here>
 export REPO=<repo> # e.g., weather-tools
 export VER=$(cat VERSION.txt)
 
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT_ID=$PROJECT_ID,_REPO=$REPO,_VER=$VER
+gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT=$PROJECT,_REPO=$REPO,_VER=$VER
 ```
 
 This will build the image and tag it with both `weather-tools` (floating tag) and `weather-tools-$VER` (immutable tag).
