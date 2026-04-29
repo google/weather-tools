@@ -181,10 +181,11 @@ python -m http.server -d docs/_build/html
 We aim to represent the version of each tool using [semver.org](https://semver.org/) semantic versions. To that end, we
 will abide by the following pattern:
 
-- We maintain a single `VERSION.txt` file at the root level for the repository.
-- When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file,
-  you **must** also increment the version in `VERSION.txt`. 
-- This version is used to tag the Docker image for the repository (e.g., `weather-tools-$VER`).
+- When making a change to a particular tool, please remember to update its semantic version in the `setup.py` file.
+- We also maintain a  single `VERSION.txt` file at the root level for the repository. This version is used to tag
+  the Docker image for the repository (e.g., `weather-tools-$VER`). You **must** also increment the version in `VERSION.txt`
+- The version for _all the tools_ should be incremented on update to _any_ tool. If one tool changes, the
+  whole `google-weather-tools` package should have its version incremented.
 - The representation for the version of all of `google-weather-tools` is
   via [git tags](https://git-scm.com/book/en/v2/Git-Basics-Tagging). To update the version of the package, please make
   an annotated tag with a short description of the change.
