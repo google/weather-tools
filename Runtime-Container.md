@@ -44,9 +44,10 @@ Developers can build their private Docker image for the repository using `cloudb
 ```shell
 export PROJECT=<your-project-here>
 export REPO=<repo> # e.g., weather-tools
+export TAG=<your-tag>
 export VER=$(cat VERSION.txt)
 
-gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT=$PROJECT,_REPO=$REPO,_VER=$VER
+gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT=$PROJECT,_REPO=$REPO,_TAG=$TAG,_VER=$VER
 ```
 
 This will build the image and tag it with both `weather-tools` (floating tag) and `weather-tools-$VER` (immutable tag).
