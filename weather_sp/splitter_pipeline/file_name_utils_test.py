@@ -97,3 +97,23 @@ class FileNameUtilsTest(unittest.TestCase):
                                       out_dir=None,
                                       input_base_dir='ignored')
         self.assertEqual(actual.split_dims(), ['variable'])
+
+    def test_formatted_output_path_supports_datetime_expression(self):
+        actual = get_output_file_info(
+            filename='gs://test-input/test-file.grib',
+            out_pattern='gs://test-output/splits/test-file_{date}-{datetime.strptime(f"{time}", "%H%M").strftime("%H:%M:%S")}.grib',
+            out_dir=None,
+            input_base_dir='ignored')
+
+        self.assertEqual(
+            actual.formatted_output_path({'date': '20200101', 'time': '1200'}),
+            'gs://test-output/splits/test-file_20200101-12:00:00.grib')
+
+    def test_split_dims_includes_names_used_by_expression(self):
+        actual = get_output_file_info(
+            filename='gs://test-input/test-file.grib',
+            out_pattern='gs://test-output/splits/test-file_{date}-{datetime.strptime(f"{time}", "%H%M").strftime("%H:%M:%S")}.grib',
+            out_dir=None,
+            input_base_dir='ignored')
+
+        self.assertEqual(actual.split_dims(), ['date', 'time'])
