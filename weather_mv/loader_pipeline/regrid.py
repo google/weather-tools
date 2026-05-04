@@ -29,6 +29,7 @@ import dask
 import xarray as xr
 import xarray_beam as xbeam
 from apache_beam.io.filesystems import FileSystems
+from pathlib import Path
 
 from .sinks import ToDataSink, open_local, copy
 
@@ -184,6 +185,7 @@ class Regrid(ToDataSink):
     force_regrid: bool = False
     to_netcdf: bool = False
     apply_bz2_compression: bool = False
+    use_yearwise_directories: bool = False
     zarr_input_chunks: t.Optional[t.Dict] = None
     zarr_output_chunks: t.Optional[t.Dict] = None
 
@@ -200,6 +202,8 @@ class Regrid(ToDataSink):
                                help='Write output file in NetCDF via XArray. Default: off')
         subparser.add_argument('-bz2', '--apply_bz2_compression', action='store_true', default=False,
                                help='Enable bzip2 (.bz2) compression for the regridded file. Default: off.')
+        subparser.add_argument('--use_yearwise_directories', action='store_true', default=False,
+                               help='Output the regridded files in their respective yearwise folders. Default: off.')
         subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
                                help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
         subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default=None,
@@ -256,13 +260,15 @@ class Regrid(ToDataSink):
         return len(matches[0].metadata_list) > 0
 
     def apply(self, uri: str) -> None:
-        logger.info(f'Regridding from {uri!r} to {self.target_from(uri)!r}.')
+        logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
-        if self.dry_run:
+        regrid_target_path = self.target_from(uri)
+
+        if not self.use_yearwise_directories and self.path_exists(regrid_target_path, self.force_regrid):
+            logger.info(f"Skipping {uri}.")
             return
 
-        if self.path_exists(self.target_from(uri), self.force_regrid):
-            logger.info(f"Skipping {uri}.")
+        if self.dry_run:
             return
 
         with _metview_op():
@@ -276,12 +282,28 @@ class Regrid(ToDataSink):
                         return
                     logger.info(f"No issues found with {uri}.")
 
-                    logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
                     fs = mv.bindings.Fieldset(path=local_grib)
+
+                    if self.use_yearwise_directories:
+                        file_years = {d.year for d in fs.base_date()}
+                        if len(file_years) != 1:
+                            raise ValueError(
+                                f"File contains data for multiple years: {file_years}. "
+                                "This is not allowed when 'use_yearwise_directories' is enabled."
+                            )
+
+                        original_path = Path(regrid_target_path)
+                        file_year = str(next(iter(file_years)))
+                        regrid_target_path = str(original_path.parent / file_year / original_path.name)
+
+                    if self.path_exists(regrid_target_path, self.force_regrid):
+                        logger.info(f"Skipping {uri}.")
+                        return
+
                     fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
 
                 with tempfile.NamedTemporaryFile() as src:
-                    logger.info(f'Writing {self.target_from(uri)!r} to local disk.')
+                    logger.info(f'Writing {regrid_target_path!r} to local disk.')
                     if self.to_netcdf:
                         fieldset.to_dataset().to_netcdf(src.name)
                     else:
@@ -291,20 +313,20 @@ class Regrid(ToDataSink):
 
                     _clear_metview()
 
-                    logger.info(f'Uploading {self.target_from(uri)!r}.')
+                    logger.info(f'Uploading {regrid_target_path!r}.')
 
                     if self.apply_bz2_compression:
                         logger.info(
-                            f'Applying bzip2 compression before copying to {self.target_from(uri)!r} ...'
+                            f'Applying bzip2 compression before copying to {regrid_target_path!r} ...'
                         )
                         subprocess.run(f"bzip2 -k {src.name}".split())
 
-                        copy(src.name + '.bz2', self.target_from(uri))
+                        copy(src.name + '.bz2', regrid_target_path)
 
                         logger.info(f'Cleaning up {src.name}.bz2 ...')
                         os.unlink(src.name + '.bz2')  # Deleting the tempfile.bz2 file.
                     else:
-                        copy(src.name, self.target_from(uri))
+                        copy(src.name, regrid_target_path)
             except Exception as e:
                 logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
