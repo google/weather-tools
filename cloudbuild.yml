@@ -7,6 +7,6 @@ steps:
   args: ['tag', 'gcr.io/$_PROJECT/$_REPO:$_TAG', 'gcr.io/$_PROJECT/$_REPO:$_TAG-$_VER']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$_PROJECT/$_REPO:$_TAG-$_VER']
-timeout: 79200s
+timeout: 3600s
 options:
   machineType: E2_HIGHCPU_32
