@@ -17,7 +17,7 @@ import dataclasses
 import glob
 import json
 import logging
-import os.path
+import os
 import shutil
 import subprocess
 import tempfile
@@ -29,7 +29,6 @@ import dask
 import xarray as xr
 import xarray_beam as xbeam
 from apache_beam.io.filesystems import FileSystems
-from pathlib import Path
 
 from .sinks import ToDataSink, open_local, copy
 
@@ -217,6 +216,9 @@ class Regrid(ToDataSink):
         if not known_args.zarr and (known_args.zarr_input_chunks or known_args.zarr_output_chunks):
             raise ValueError('chunks can only be set when input URI is a Zarr.')
 
+        if known_args.zarr and known_args.use_yearwise_directories:
+            raise ValueError('Yearwise directories are not supported for Zarr datasets!')
+
         if known_args.zarr:
             # Encourage use of correct output_path format.
             _, out_ext = os.path.splitext(known_args.output_path)
@@ -287,18 +289,22 @@ class Regrid(ToDataSink):
                     if self.use_yearwise_directories:
                         file_years = {d.year for d in fs.base_date()}
                         if len(file_years) != 1:
-                            raise ValueError(
-                                f"File contains data for multiple years: {file_years}. "
+                            logger.error(
+                                f"{uri!r} contains data for multiple years: {file_years}. "
                                 "This is not allowed when 'use_yearwise_directories' is enabled."
                             )
+                            return
 
-                        original_path = Path(regrid_target_path)
                         file_year = str(next(iter(file_years)))
-                        regrid_target_path = str(original_path.parent / file_year / original_path.name)
+                        regrid_target_path = os.path.join(
+                            os.path.dirname(regrid_target_path),
+                            file_year,  # Added for yearwise directories.
+                            os.path.basename(regrid_target_path)
+                        )
 
-                    if self.path_exists(regrid_target_path, self.force_regrid):
-                        logger.info(f"Skipping {uri}.")
-                        return
+                        if self.path_exists(regrid_target_path, self.force_regrid):
+                            logger.info(f"Skipping {uri}.")
+                            return
 
                     fieldset = mv.regrid(data=fs, **self.regrid_kwargs)
 
