@@ -264,13 +264,13 @@ class Regrid(ToDataSink):
     def apply(self, uri: str) -> None:
         logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
+        if self.dry_run:
+            return
+
         regrid_target_path = self.target_from(uri)
 
         if not self.use_yearwise_directories and self.path_exists(regrid_target_path, self.force_regrid):
             logger.info(f"Skipping {uri}.")
-            return
-
-        if self.dry_run:
             return
 
         with _metview_op():
