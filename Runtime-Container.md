@@ -35,3 +35,19 @@ gcloud builds submit . --tag "$IMAGE_URI:dev"
 # release:
 gcloud builds submit . --tag "$IMAGE_URI:$TAG"  && gcloud builds submit weather_mv/ --tag "$IMAGE_URI:latest"
 ```
+
+
+## Building Docker Images for developers
+
+Developers can build their private Docker image for the repository using `cloudbuild.yml`:
+
+```shell
+export PROJECT=<your-project-here>
+export REPO=<repo> # e.g., weather-tools
+export TAG=<your-tag>
+export VER=$(cat VERSION.txt)
+
+gcloud builds submit --config=cloudbuild.yml --substitutions=_PROJECT=$PROJECT,_REPO=$REPO,_TAG=$TAG,_VER=$VER
+```
+
+This will build the image and tag it with both `$TAG` (floating tag e.g. `weather-tools`) and `$TAG-$VER` (immutable tag e.g. `weather-tools-$VER`).
