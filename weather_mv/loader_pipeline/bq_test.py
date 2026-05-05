@@ -70,15 +70,15 @@ class SchemaCreationTests(TestDataBase):
         ds = xr.Dataset.from_dict(self.test_dataset)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('b', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -86,15 +86,15 @@ class SchemaCreationTests(TestDataBase):
         ds = xr.Dataset.from_dict(self.test_dataset__with_schema_normalization)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -103,14 +103,14 @@ class SchemaCreationTests(TestDataBase):
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -119,14 +119,14 @@ class SchemaCreationTests(TestDataBase):
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset__with_schema_normalization), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -135,15 +135,15 @@ class SchemaCreationTests(TestDataBase):
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('b', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('b', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -152,15 +152,15 @@ class SchemaCreationTests(TestDataBase):
         ds = _only_target_vars(xr.Dataset.from_dict(self.test_dataset__with_schema_normalization), target_variables)
         schema = dataset_to_table_schema(ds)
         expected_schema = [
-            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('a', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_b', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_c', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('e_0_00_instant_d', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
         ]
         self.assertListEqual(schema, expected_schema)
 
@@ -182,19 +182,19 @@ class SchemaCreationTests(TestDataBase):
         )
         schema = dataset_to_table_schema(test_single_var)
         expected_schema = [
-            SchemaField('number', 'INT64', 'NULLABLE', None, (), None),
-            SchemaField('time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('step', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('surface', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('latitude', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('longitude', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('valid_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('z', 'FLOAT64', 'NULLABLE', None, (), None),
-            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('data_uri', 'STRING', 'NULLABLE', None, (), None),
-            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, (), None),
-            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, (), None),
-            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, (), None)
+            SchemaField('number', 'INT64', 'NULLABLE', None, None, None),
+            SchemaField('time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('step', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('surface', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('latitude', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('longitude', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('valid_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('z', 'FLOAT64', 'NULLABLE', None, None, None),
+            SchemaField('data_import_time', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('data_uri', 'STRING', 'NULLABLE', None, None, None),
+            SchemaField('data_first_step', 'TIMESTAMP', 'NULLABLE', None, None, None),
+            SchemaField('geo_point', 'GEOGRAPHY', 'NULLABLE', None, None, None),
+            SchemaField('geo_polygon', 'GEOGRAPHY', 'NULLABLE', None, None, None)
 
         ]
         self.assertListEqual(schema, expected_schema)
@@ -787,7 +787,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'mcc': 0.0,
             'msl': 99867.3125,
             'number': 0,
-            'p3020': 20306.701171875,
+            'vis': 20306.701171875,
             'sd': 0.0,
             'sf': 1.049041748046875e-05,
             'sp': 99867.15625,
@@ -852,7 +852,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'surface_0_00_instant_mcc': 0.0,
             'surface_0_00_instant_msl': 99867.3125,
             'number': 0,
-            'surface_0_00_instant_p3020': 20306.701171875,
+            'surface_0_00_instant_vis': 20306.701171875,
             'surface_0_00_instant_sd': 0.0,
             'surface_0_00_instant_sf': 1.049041748046875e-05,
             'surface_0_00_instant_sp': 99867.15625,
@@ -898,7 +898,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
                 self.test_data_path,
                 geo_data_parquet_path=self.geo_data_parquet_path,
                 skip_creating_geo_data_parquet=True,
-                variables=['p3020', 'depthBelowLandLayer', 'step']
+                variables=['vis', 'depthBelowLandLayer', 'step']
             )
         )
         expected = {
@@ -908,7 +908,7 @@ class ExtractRowsGribSupportTest(ExtractRowsTestBase):
             'latitude': 90.0,
             'longitude': -180.0,
             'step': 28800.0,
-            'surface_0_00_instant_p3020': 20306.701171875,
+            'surface_0_00_instant_vis': 20306.701171875,
             'depthBelowLandLayer_0_00_instant_swvl1': -1.9539930654413618e-13,
             'depthBelowLandLayer_0_00_instant_stl1': 251.02520751953125,
             'depthBelowLandLayer_7_00_instant_stl2': 253.54124450683594,
