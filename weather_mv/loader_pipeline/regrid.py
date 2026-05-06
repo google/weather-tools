@@ -202,7 +202,7 @@ class Regrid(ToDataSink):
         subparser.add_argument('-bz2', '--apply_bz2_compression', action='store_true', default=False,
                                help='Enable bzip2 (.bz2) compression for the regridded file. Default: off.')
         subparser.add_argument('--use_yearwise_directories', action='store_true', default=False,
-                               help='Output the regridded files in their respective yearwise folders. Default: off.')
+                               help='Output the regridded files in their respective year-wise folders. Default: off.')
         subparser.add_argument('-zi', '--zarr_input_chunks', type=json.loads, default=None,
                                help='When reading a Zarr, break up the data into chunks. Takes a JSON string.')
         subparser.add_argument('-zo', '--zarr_output_chunks', type=json.loads, default=None,
@@ -217,7 +217,7 @@ class Regrid(ToDataSink):
             raise ValueError('chunks can only be set when input URI is a Zarr.')
 
         if known_args.zarr and known_args.use_yearwise_directories:
-            raise ValueError('Yearwise directories are not supported for Zarr datasets!')
+            raise ValueError('Year-wise directories are not supported for Zarr datasets!')
 
         if known_args.zarr:
             # Encourage use of correct output_path format.
@@ -269,6 +269,7 @@ class Regrid(ToDataSink):
 
         regrid_target_path = self.target_from(uri)
 
+        # Skip early if the regrid output path is fixed and file exists.
         if not self.use_yearwise_directories and self.path_exists(regrid_target_path, self.force_regrid):
             logger.info(f"Skipping {uri}.")
             return
