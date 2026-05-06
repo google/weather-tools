@@ -262,16 +262,17 @@ class Regrid(ToDataSink):
         return len(matches[0].metadata_list) > 0
 
     def apply(self, uri: str) -> None:
-        logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
-
-        if self.dry_run:
-            return
-
         regrid_target_path = self.target_from(uri)
 
-        # Skip early if the regrid output path is fixed and file exists.
-        if not self.use_yearwise_directories and self.path_exists(regrid_target_path, self.force_regrid):
-            logger.info(f"Skipping {uri}.")
+        if not self.use_yearwise_directories:
+            logger.info(f'Regridding from {uri!r} to {regrid_target_path!r} using {self.regrid_kwargs}.')
+
+            # Skip early if the regrid output path is fixed and file exists.
+            if self.path_exists(regrid_target_path, self.force_regrid):
+                logger.info(f"Skipping {uri}.")
+                return
+
+        if self.dry_run:
             return
 
         with _metview_op():
@@ -303,6 +304,7 @@ class Regrid(ToDataSink):
                             os.path.basename(regrid_target_path)
                         )
 
+                        logger.info(f'Regridding from {uri!r} to {regrid_target_path!r} using {self.regrid_kwargs}.')
                         if self.path_exists(regrid_target_path, self.force_regrid):
                             logger.info(f"Skipping {uri}.")
                             return
