@@ -16,9 +16,7 @@ import abc
 import itertools
 import logging
 import os
-import re
 import shutil
-import string
 import subprocess
 import tempfile
 import typing as t
@@ -196,10 +194,6 @@ class GribSplitterV2(GribSplitter):
     See https://confluence.ecmwf.int/display/ECC/grib_copy.
     """
 
-    def replace_non_numeric_bracket(self, match: re.Match) -> str:
-        value = match.group(1)
-        return f"[{value}]" if not value.isdigit() else "{" + value + "}"
-
     def split_data(self) -> None:
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
@@ -212,17 +206,9 @@ class GribSplitterV2(GribSplitter):
                 raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
         unformatted_output_path = self.output_info.unformatted_output_path()
-        prefix, _ = os.path.split(next(iter(string.Formatter().parse(unformatted_output_path)))[0])
-        _, tail = unformatted_output_path.split(prefix)
-
-        # Replace { with [ and } with ] only for non-numeric values inside {} of tail
-        output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
-        output_template = output_str.format(*self.output_info.template_folders)
-
-        slash = '/'
         delimiter = 'DELIMITER'
-        flat_output_template = output_template.replace('/', delimiter)
         split_dims = self.output_info.split_dims()
+        flat_output_template = delimiter.join(f'[{dim}]' for dim in split_dims)
         # Construct a string where each split dimension is "dim:s".
         # This ensures dims like time are represented as 0600 instead of 600.
         split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
@@ -262,10 +248,14 @@ class GribSplitterV2(GribSplitter):
                                    check=True)
 
                 self.logger.info('Uploading %r...', self.input_path)
+                output_paths_set = set(output_paths)
                 for flat_target in os.listdir(tmpdir):
-                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
-                    self.logger.info([prefix, dest_file_path, local_file.name,
-                                      self.output_info.unformatted_output_path()])
+                    splits = dict(zip(split_dims, flat_target.split(delimiter)))
+                    dest_file_path = self.output_info.formatted_output_path(splits)
+                    if dest_file_path not in output_paths_set:
+                        continue
+                    self.logger.info([dest_file_path, local_file.name,
+                                      unformatted_output_path])
 
                     copy(os.path.join(tmpdir, flat_target), dest_file_path)
                 self.logger.info('Finished uploading %r', self.input_path)
