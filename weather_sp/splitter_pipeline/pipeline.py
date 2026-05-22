@@ -46,8 +46,7 @@ def split_file(input_file: str,
                dry_run: bool,
                force_split: bool = False,
                logging_level: int = logging.INFO,
-               grib_filter_expression: t.Optional[str] = None,
-               skip_on_invalid_grib_filter_expression: bool = False):
+               grib_filter_expression: t.Optional[str] = None):
     output_base_name = get_output_base_name(input_path=input_file,
                                             input_base=input_base_dir,
                                             output_template=output_template,
@@ -62,8 +61,7 @@ def split_file(input_file: str,
                             dry_run,
                             force_split,
                             level,
-                            grib_filter_expression,
-                            skip_on_invalid_grib_filter_expression)
+                            grib_filter_expression)
     splitter.split_data()
 
 
@@ -136,10 +134,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                         'specifically supported by the GribSplitterV2'
                         'implementation.'
                         'Example: typeOfLevel=isobaricInhPa,level=1000')
-    parser.add_argument('--skip-on-invalid-grib-filter-expression', action='store_true', default=False,
-                        help='If provided (True), files that do not contain the key-values specified '
-                             'in the --where filter will be logged and skipped. By default (False), '
-                             'the pipeline will raise an error and break.')
     parser.add_argument('--topic', type=str, default=None,
                         help='Pub/Sub topic to read from for streaming mode.')
     parser.add_argument('--subscription', type=str, default=None,
@@ -168,7 +162,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
     formatting = known_args.formatting
     dry_run = known_args.dry_run
     grib_filter_expression = known_args.where
-    skip_on_invalid_grib_filter_expression = known_args.skip_on_invalid_grib_filter_expression
 
     if not output_template and not output_dir:
         raise ValueError('No output specified')
@@ -221,7 +214,6 @@ def run(argv: t.List[str], save_main_session: bool = True):
                 known_args.force,
                 known_args.log_level,
                 grib_filter_expression,
-                skip_on_invalid_grib_filter_expression,
             )
         )
 

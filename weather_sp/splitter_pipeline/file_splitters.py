@@ -72,7 +72,7 @@ class FileSplitter(abc.ABC):
 
     def __init__(self, input_path: str, output_info: OutFileInfo,
                  force_split: bool = False, logging_level: int = logging.INFO,
-                 grib_filter_expression: t.Optional[str] = None, skip_on_invalid_grib_filter_expression:bool = False):
+                 grib_filter_expression: t.Optional[str] = None):
         self.input_path = input_path
         self.output_info = output_info
         self.force_split = force_split
@@ -81,7 +81,6 @@ class FileSplitter(abc.ABC):
         self.logger.debug('Splitter for path=%s, output base=%s',
                           self.input_path, self.output_info)
         self.grib_filter_expression = grib_filter_expression
-        self.skip_on_invalid_grib_filter_expression = skip_on_invalid_grib_filter_expression
 
     @abc.abstractmethod
     def split_data(self) -> None:
@@ -208,7 +207,7 @@ class GribSplitterV2(GribSplitter):
         grib_copy_cmd = shutil.which('grib_copy')
         grib_get_cmd = shutil.which('grib_get')
         uniq_cmd = shutil.which('uniq')
-        for cmd, name in [(grib_copy_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
+        for cmd, name in [(grib_get_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
             if not cmd:
                 raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
@@ -228,61 +227,49 @@ class GribSplitterV2(GribSplitter):
         # This ensures dims like time are represented as 0600 instead of 600.
         split_dims_arg = ','.join(f'{dim}:s' for dim in split_dims)
         with self._copy_to_local_file() as local_file:
-            try:
-                self.logger.info('Skipping as needed...')
-                # Append -w flag to filter GRIB messages matching the given expression
+            self.logger.info('Skipping as needed...')
+            # Append -w flag to filter GRIB messages matching the given expression
+            if self.grib_filter_expression:
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, '-w', self.grib_filter_expression, local_file.name]
+            else:
+                grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
+            grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
+            uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+            output_paths = []
+            skipped_paths = []
+            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+                splits = dict(zip(split_dims, line.split(' ')))
+                output_path = self.output_info.formatted_output_path(splits)
+                if self.should_skip_file(output_path):
+                    skipped_paths.append(output_path)
+                    continue
+                output_paths.append(output_path)
+            if not output_paths:
+                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                self.logger.info('Skipping %s, file already split into: %s',
+                                 repr(self.input_path), ', '.join(skipped_paths))
+                return
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self.logger.info('Performing split.')
+                dest = os.path.join(tmpdir, flat_output_template)
                 if self.grib_filter_expression:
-                    grib_get_args = [grib_get_cmd, '-p', split_dims_arg, '-w', self.grib_filter_expression, local_file.name]
+                    subprocess.run([grib_copy_cmd, "-w",
+                                    self.grib_filter_expression,
+                                    local_file.name, dest], check=True)
                 else:
-                    grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
-                grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
-                uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
-                output_paths = []
-                skipped_paths = []
-                for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
-                    splits = dict(zip(split_dims, line.split(' ')))
-                    output_path = self.output_info.formatted_output_path(splits)
-                    if self.should_skip_file(output_path):
-                        skipped_paths.append(output_path)
-                        continue
-                    output_paths.append(output_path)
-                if not output_paths:
-                    metrics.Metrics.counter('file_splitters', 'skipped').inc()
-                    self.logger.info('Skipping %s, file already split into: %s',
-                                    repr(self.input_path), ', '.join(skipped_paths))
-                    return
+                    subprocess.run([grib_copy_cmd, local_file.name, dest],
+                                   check=True)
 
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    self.logger.info('Performing split.')
-                    dest = os.path.join(tmpdir, flat_output_template)
-                    if self.grib_filter_expression:
-                        subprocess.run([grib_copy_cmd, "-w",
-                                        self.grib_filter_expression,
-                                        local_file.name, dest], check=True)
-                    else:
-                        subprocess.run([grib_copy_cmd, local_file.name, dest],
-                                    check=True)
+                self.logger.info('Uploading %r...', self.input_path)
+                for flat_target in os.listdir(tmpdir):
+                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    self.logger.info([prefix, dest_file_path, local_file.name,
+                                      self.output_info.unformatted_output_path()])
 
-                    self.logger.info('Uploading %r...', self.input_path)
-                    for flat_target in os.listdir(tmpdir):
-                        dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
-                        self.logger.info([prefix, dest_file_path, local_file.name,
-                                        self.output_info.unformatted_output_path()])
+                    copy(os.path.join(tmpdir, flat_target), dest_file_path)
+                self.logger.info('Finished uploading %r', self.input_path)
 
-                        copy(os.path.join(tmpdir, flat_target), dest_file_path)
-                    self.logger.info('Finished uploading %r', self.input_path)
-            except Exception as e:
-                log_msg = (
-                    f"GRIB tool failed for {self.input_path!r}. This means the requested "
-                    f"filter expression {self.grib_filter_expression!r} does not exist in this file. "
-                    f"Error: {e}"
-                )
-                if self.skip_on_invalid_grib_filter_expression:
-                    self.logger.warning(f"{log_msg} | Flag 'skip_on_invalid_grib_filter_expression' is True. Skipping file.")
-                    return
-                else:
-                    self.logger.error(f"{log_msg} | Flag 'skip_on_invalid_grib_filter_expression' is False. Error raised")
-                    raise
 
 class NetCdfSplitter(FileSplitter):
 
@@ -366,8 +353,7 @@ def get_splitter(file_path: str,
                  dry_run: bool,
                  force_split: bool = False,
                  logging_level: int = logging.INFO,
-                 grib_filter_expression: t.Optional[str] = None,
-                 skip_on_invalid_grib_filter_expression: bool = False) -> FileSplitter:
+                 grib_filter_expression: t.Optional[str] = None) -> FileSplitter:
     if dry_run:
         logger.info('Using splitter: DrySplitter')
         return DrySplitter(file_path, output_info, logging_level=logging_level)
@@ -385,7 +371,7 @@ def get_splitter(file_path: str,
         if cmd:
             logger.info('Using splitter: GribSplitterV2')
             return GribSplitterV2(file_path, output_info, force_split,
-                                  logging_level, grib_filter_expression, skip_on_invalid_grib_filter_expression)
+                                  logging_level, grib_filter_expression)
         else:
             logger.info('Using splitter: GribSplitter')
             return GribSplitter(file_path, output_info, force_split,
