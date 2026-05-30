@@ -288,8 +288,17 @@ class Regrid(ToDataSink):
                     fs = mv.bindings.Fieldset(path=local_grib)
 
                     if self.use_yearwise_directories:
-                        file_years = {d.year for d in fs.base_date()}
-                        if len(file_years) != 1:
+                        base_date = fs.base_date()
+                        if base_date is None:
+                            logger.error(f"Could not retrieve a valid date from {uri!r}.")
+                            return
+
+                        if isinstance(base_date, t.Iterable) and not isinstance(base_date, (str, bytes)):
+                            file_years = {d.year for d in base_date}
+                        else:
+                            file_years = {base_date.year}
+
+                        if len(file_years) > 1:
                             logger.error(
                                 f"{uri!r} contains data for multiple years: {file_years}. "
                                 "This is not allowed when 'use_yearwise_directories' is enabled."
@@ -336,7 +345,7 @@ class Regrid(ToDataSink):
                     else:
                         copy(src.name, regrid_target_path)
             except Exception as e:
-                logger.info(f'Regrid failed for {uri!r}. Error: {str(e)}')
+                logger.error(f'Regrid failed for {uri!r}. Error: {str(e)}')
 
     def expand(self, paths):
         if not self.zarr:
