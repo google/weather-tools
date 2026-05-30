@@ -200,15 +200,15 @@ class AssetData:
         name: The EE-safe name of the asset.
         target_path: The location of the asset in GCS.
         channel_names: A list of channel names in the asset.
-        start_time: Image start time in floating point seconds since epoch.
-        end_time: Image end time in floating point seconds since epoch.
+        start_time: Image start time in '%Y-%m-%dT%H:%M:%SZ' format.
+        end_time: Image end time in '%Y-%m-%dT%H:%M:%SZ' format.
         properties: A dictionary of asset metadata.
     """
     name: str
     target_path: str
     channel_names: t.List[str]
-    start_time: float
-    end_time: float
+    start_time: str
+    end_time: str
     properties: t.Dict[str, t.Union[str, float, int]]
 
 
