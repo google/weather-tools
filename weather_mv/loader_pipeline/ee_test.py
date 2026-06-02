@@ -13,12 +13,18 @@
 # limitations under the License.
 import logging
 import os
+from pathlib import PurePosixPath
 import tempfile
 import unittest
+from unittest.mock import patch, MagicMock
+
+import ee
 
 from .ee import (
     get_ee_safe_name,
-    ConvertToAsset
+    ConvertToAsset,
+    IngestIntoEETransform,
+    AssetData
 )
 from .sinks_test import TestDataBase
 
@@ -106,6 +112,132 @@ class ConvertToAssetTests(TestDataBase):
 
         # The size of tiff is expected to be more than grib.
         self.assertTrue(os.path.getsize(asset_path) > os.path.getsize(data_path))
+
+
+class IngestIntoEETransformTests(unittest.TestCase):
+
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset_recursive')
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset')
+    @patch('weather_mv.loader_pipeline.ee.AuthorizedSession')
+    @patch('weather_mv.loader_pipeline.ee.get_creds')
+    def test_start_ingestion__create_folder_true(self, mock_get_creds, mock_session_class, mock_create_asset, mock_create_recursive):
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"name": "operation-id"}'
+        mock_session.post.return_value = mock_response
+
+        transform = IngestIntoEETransform(
+            ee_asset='projects/my-project/assets/my-collection',
+            ee_asset_type='IMAGE',
+            ee_qps=10,
+            ee_latency=0.5,
+            ee_max_concurrent=10,
+            private_key='',
+            service_account='',
+            use_personal_account=False,
+            ingest_as_virtual_asset=False,
+            use_metrics=False,
+            create_folder_instead_of_image_collection=True
+        )
+        transform.check_setup = MagicMock()
+
+        asset_data = AssetData(
+            name='my_asset',
+            target_path='gs://my-bucket/my_asset.tiff',
+            channel_names=['b1'],
+            start_time=0,
+            end_time=0,
+            properties={}
+        )
+
+        transform.start_ingestion(asset_data)
+
+        mock_create_recursive.assert_called_once_with(PurePosixPath('projects/my-project/assets/my-collection'))
+        mock_create_asset.assert_not_called()
+
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset_recursive')
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset')
+    @patch('weather_mv.loader_pipeline.ee.AuthorizedSession')
+    @patch('weather_mv.loader_pipeline.ee.get_creds')
+    def test_start_ingestion__create_folder_false_with_subfolder(self, mock_get_creds, mock_session_class, mock_create_asset, mock_create_recursive):
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"name": "operation-id"}'
+        mock_session.post.return_value = mock_response
+
+        transform = IngestIntoEETransform(
+            ee_asset='projects/my-project/assets/folder1/my-collection',
+            ee_asset_type='IMAGE',
+            ee_qps=10,
+            ee_latency=0.5,
+            ee_max_concurrent=10,
+            private_key='',
+            service_account='',
+            use_personal_account=False,
+            ingest_as_virtual_asset=False,
+            use_metrics=False,
+            create_folder_instead_of_image_collection=False
+        )
+        transform.check_setup = MagicMock()
+
+        asset_data = AssetData(
+            name='my_asset',
+            target_path='gs://my-bucket/my_asset.tiff',
+            channel_names=['b1'],
+            start_time=0,
+            end_time=0,
+            properties={}
+        )
+
+        transform.start_ingestion(asset_data)
+
+        mock_create_recursive.assert_called_once_with(PurePosixPath('projects/my-project/assets/folder1'))
+        mock_create_asset.assert_called_once_with(PurePosixPath('projects/my-project/assets/folder1/my-collection'), ee.data.ASSET_TYPE_IMAGE_COLL)
+
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset_recursive')
+    @patch('weather_mv.loader_pipeline.ee.create_ee_asset')
+    @patch('weather_mv.loader_pipeline.ee.AuthorizedSession')
+    @patch('weather_mv.loader_pipeline.ee.get_creds')
+    def test_start_ingestion__create_folder_false_without_subfolder(self, mock_get_creds, mock_session_class, mock_create_asset, mock_create_recursive):
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"name": "operation-id"}'
+        mock_session.post.return_value = mock_response
+
+        transform = IngestIntoEETransform(
+            ee_asset='projects/my-project/assets/my-collection',
+            ee_asset_type='IMAGE',
+            ee_qps=10,
+            ee_latency=0.5,
+            ee_max_concurrent=10,
+            private_key='',
+            service_account='',
+            use_personal_account=False,
+            ingest_as_virtual_asset=False,
+            use_metrics=False,
+            create_folder_instead_of_image_collection=False
+        )
+        transform.check_setup = MagicMock()
+
+        asset_data = AssetData(
+            name='my_asset',
+            target_path='gs://my-bucket/my_asset.tiff',
+            channel_names=['b1'],
+            start_time=0,
+            end_time=0,
+            properties={}
+        )
+
+        transform.start_ingestion(asset_data)
+
+        mock_create_recursive.assert_not_called()
+        mock_create_asset.assert_called_once_with(PurePosixPath('projects/my-project/assets/my-collection'), ee.data.ASSET_TYPE_IMAGE_COLL)
 
 
 if __name__ == '__main__':

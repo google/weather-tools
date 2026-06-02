@@ -38,6 +38,7 @@ from google.auth import compute_engine, default, credentials
 from google.auth.transport import requests
 from google.auth.transport.requests import AuthorizedSession
 from rasterio.io import MemoryFile
+from pathlib import PurePosixPath
 
 from .sinks import ToDataSink, open_dataset, open_local, KwargsFactoryMixin, copy
 from .util import make_attrs_ee_compatible, RateLimit, validate_region, get_utc_timestamp
@@ -91,6 +92,7 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
             raise RuntimeError(f'Unable to open the private key {private_key}.')
     elif use_personal_account:
         ee.Authenticate()
+        # ee.Authenticate(auth_mode='localhost')
         creds, _ = default()
     elif is_compute_engine():
         creds = compute_engine.Credentials()
@@ -105,7 +107,7 @@ def ee_initialize(use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
                   private_key: t.Optional[str] = None,
-                  project_id: t.Optional[str] = None) -> None:
+                  project_id: t.Optional[str] = "anthromet-prod") -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
@@ -135,6 +137,51 @@ def ee_initialize(use_personal_account: bool = False,
         )
     else:
         ee.Initialize(creds)
+
+
+# Define the allowed types for hinting
+# AllowedAssetTypes = Literal[ee.data.ASSET_TYPE_FOLDER, ee.data.ASSET_TYPE_IMAGE_COLL]
+
+
+def create_ee_asset(dir_path: PurePosixPath, asset_type: str = ee.data.ASSET_TYPE_IMAGE_COLL):
+    """Creates an asset in Earth Engine for the given directory path (if not present).
+    Args:
+        dir_path: The directory path to create an asset for.
+        asset_type: The type of asset to create ("Folder" or "ImageCollection").
+    """
+    if asset_type not in [ee.data.ASSET_TYPE_FOLDER, ee.data.ASSET_TYPE_IMAGE_COLL]:
+        raise ValueError("Invalid asset type. Must be "
+                         f"{ee.data.ASSET_TYPE_FOLDER} or "
+                         f"{ee.data.ASSET_TYPE_IMAGE_COLL}.")
+
+    try:
+        logger.info(f"Attempting to create EE asset {asset_type}: {dir_path}")
+        ee.data.createAsset({
+            'type': asset_type,
+            'name': str(dir_path),
+        })
+        logger.info(f"Successfully created EE asset {asset_type}: {dir_path}")
+    except ee.ee_exception.EEException as e:
+        # If the error is because the folder already exists, ignore it.
+        if "already exists" in str(e) or "Cannot overwrite" in str(e):
+            logger.info(f"{asset_type} {dir_path} already exists.")
+        else:
+            # Re-raise the exception if it's a different error (e.g., permission denied)
+            raise ee.ee_exception.EEException(f"Error creating {asset_type} {dir_path}: {e}")
+
+
+def create_ee_folder_recursive(dir_path: PurePosixPath):
+    """Recursively creates the given directory path and all its parent directories in Earth Engine.
+    Args:
+        dir_path: The directory path to create an asset for.
+    """
+    logger.info(f"Trying to create EE asset recursively: {dir_path}")
+    try:
+        create_ee_asset(dir_path, asset_type=ee.data.ASSET_TYPE_FOLDER)
+    except ee.ee_exception.EEException:
+        logger.info(f"Failed to create EE asset: {dir_path}. Attempting to create parent assets.")
+        create_ee_folder_recursive(dir_path.parent)
+        create_ee_asset(dir_path, asset_type=ee.data.ASSET_TYPE_FOLDER)
 
 
 class SetupEarthEngine(RateLimit):
@@ -260,6 +307,8 @@ class ToEarthEngine(ToDataSink):
     use_metrics: bool
     use_monitoring_metrics: bool
     topic: str
+    force_create_ee_asset: bool
+    create_folder_instead_of_image_collection: bool
     # Pipeline arguments.
     job_name: str
     project: str
@@ -312,6 +361,11 @@ class ToEarthEngine(ToDataSink):
                                help='If you want to add Beam metrics to your pipeline. Default: False')
         subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
                                help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
+        subparser.add_argument('--force_create_ee_asset', action='store_true', default=False,
+                               help='Create ee asset if not present. Default: False')
+        subparser.add_argument('--create_folder_instead_of_image_collection', action='store_true', default=False,
+                               help='Create an folder instead of a image collection. Note: force_create_ee_asset has to be true for this to work. Default: False')
+
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -365,6 +419,10 @@ class ToEarthEngine(ToDataSink):
         # Check the initialization_time_regex and forecast_time_regex strings.
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
+
+        # Check force_create_ee_asset and create_folder_instead_of_image_collection flags
+        if known_args.create_folder_instead_of_image_collection and not known_args.force_create_ee_asset:
+            raise RuntimeError("--force_create_ee_asset has to be true if --create_folder_instead_of_image_collection is true")
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
@@ -680,7 +738,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                  service_account: str,
                  use_personal_account: bool,
                  ingest_as_virtual_asset: bool,
-                 use_metrics: bool):
+                 use_metrics: bool,
+                 force_create_ee_asset: bool,
+                 create_folder_instead_of_image_collection: bool
+                 ):
         """Sets up rate limit."""
         super().__init__(ee_qps=ee_qps,
                          ee_latency=ee_latency,
@@ -693,12 +754,14 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
         self.use_metrics = use_metrics
+        self.force_create_ee_asset = force_create_ee_asset
+        self.create_folder_instead_of_image_collection = create_folder_instead_of_image_collection
 
     def get_project_id(self) -> str:
         return self.ee_asset.split('/')[1]
 
     def ee_tasks_remaining(self) -> int:
-        """Returns the remaining number of tasks in the tassk queue of earth engine."""
+        """Returns the remaining number of tasks in the task queue of earth engine."""
         return len([task for task in ee.data.getTaskList()
                     if task['state'] in ['UNSUBMITTED', 'READY', 'RUNNING']])
 
@@ -726,6 +789,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
         try:
             logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
+            logger.info(f"Checking if parent folder exists for {asset_name}.")
 
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
 
@@ -763,6 +827,21 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{project_id}/'
                         f'image:importExternal'
                     )
+                # Check and create parent folder for the image if required.
+                # This is done for force_create_ee_asset flag.
+                if self.force_create_ee_asset:
+                    logger.info(f"Checking parent folder for asset {asset_name}.")
+                    asset_parent = PurePosixPath(asset_name).parent
+
+                    # If create_folder_instead_of_image_collection flag is set, create folder recursively.
+                    # Else only create EE image collection. Parent folders will be created recursively
+                    if self.create_folder_instead_of_image_collection:
+                        create_ee_folder_recursive(asset_parent)
+                    else:
+                        pattern = r'projects/[^/]+/assets/.+'
+                        if re.fullmatch(pattern, str(asset_parent.parent)):
+                            create_ee_folder_recursive(asset_parent.parent)
+                        create_ee_asset(asset_parent, ee.data.ASSET_TYPE_IMAGE_COLL)
                 # Send API request
                 response = session.post(url=url, data=data, headers=headers)
                 logger.info(f"EE Asset ingestion response for {asset_name}: {response.text}")
@@ -808,7 +887,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 return ""
 
             if "The metadata of the TIFF could not be read in the first 10000000 bytes." in repr(e):
-                logger.error(f"Faild to ingest asset '{asset_name}', check the tiff file: {e} Moving on...")
+                logger.error(f"Failed to ingest asset '{asset_name}', check the tiff file: {e} Moving on...")
                 return ""
 
             logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
