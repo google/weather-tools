@@ -138,10 +138,6 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
-# Define the allowed types for hinting
-# AllowedAssetTypes = Literal[ee.data.ASSET_TYPE_FOLDER, ee.data.ASSET_TYPE_IMAGE_COLL]
-
-
 def create_ee_asset(dir_path: PurePosixPath, asset_type: str = ee.data.ASSET_TYPE_IMAGE_COLL):
     """Creates an asset in Earth Engine for the given directory path (if not present).
     Args:
@@ -727,6 +723,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         private_key: A private key path to authenticate earth engine using private key. Default: None.
         service_account: Service account address when using a private key for earth engine authentication.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+        ingest_as_virtual_asset: A flag to ingest image as virtual asset. Default: False.
+        use_metrics: A flag to add Beam metrics to your pipeline. Default: False.
+        force_create_ee_asset: A flag to force create ee asset. Default: False.
+        create_folder_instead_of_image_collection: A flag to create folder instead of image collection. Default: False.
     """
 
     def __init__(self,
