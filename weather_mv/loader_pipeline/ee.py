@@ -92,7 +92,6 @@ def get_creds(use_personal_account: bool, service_account: str, private_key: str
             raise RuntimeError(f'Unable to open the private key {private_key}.')
     elif use_personal_account:
         ee.Authenticate()
-        # ee.Authenticate(auth_mode='localhost')
         creds, _ = default()
     elif is_compute_engine():
         creds = compute_engine.Credentials()
@@ -107,7 +106,7 @@ def ee_initialize(use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
                   private_key: t.Optional[str] = None,
-                  project_id: t.Optional[str] = "anthromet-prod") -> None:
+                  project_id: t.Optional[str] = None,) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
@@ -364,8 +363,8 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--force_create_ee_asset', action='store_true', default=False,
                                help='Create ee asset if not present. Default: False')
         subparser.add_argument('--create_folder_instead_of_image_collection', action='store_true', default=False,
-                               help='Create an folder instead of a image collection. Note: force_create_ee_asset has to be true for this to work. Default: False')
-
+                               help='Create an folder instead of a image collection.'
+                               'Note: force_create_ee_asset has to be true for this to work. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -422,7 +421,9 @@ class ToEarthEngine(ToDataSink):
 
         # Check force_create_ee_asset and create_folder_instead_of_image_collection flags
         if known_args.create_folder_instead_of_image_collection and not known_args.force_create_ee_asset:
-            raise RuntimeError("--force_create_ee_asset has to be true if --create_folder_instead_of_image_collection is true")
+            raise RuntimeError(
+                "--force_create_ee_asset has to be true if --create_folder_instead_of_image_collection is true"
+                )
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
