@@ -106,7 +106,7 @@ def ee_initialize(use_personal_account: bool = False,
                   enforce_high_volume: bool = False,
                   service_account: t.Optional[str] = None,
                   private_key: t.Optional[str] = None,
-                  project_id: t.Optional[str] = None,) -> None:
+                  project_id: t.Optional[str] = None) -> None:
     """Initializes earth engine with the high volume API when using a compute engine VM.
 
     Args:
