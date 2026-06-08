@@ -150,19 +150,15 @@ def create_ee_asset(dir_path: PurePosixPath, asset_type: str = ee.data.ASSET_TYP
                          f"{ee.data.ASSET_TYPE_IMAGE_COLL}.")
 
     try:
+        logger.info(f"Check if EE asset {asset_type}: {dir_path} exists")
+        ee.data.getAsset(str(dir_path))
+    except ee.ee_exception.EEException:
         logger.info(f"Attempting to create EE asset {asset_type}: {dir_path}")
         ee.data.createAsset({
             'type': asset_type,
             'name': str(dir_path),
         })
         logger.info(f"Successfully created EE asset {asset_type}: {dir_path}")
-    except ee.ee_exception.EEException as e:
-        # If the error is because the folder already exists, ignore it.
-        if "already exists" in str(e) or "Cannot overwrite" in str(e):
-            logger.info(f"{asset_type} {dir_path} already exists.")
-        else:
-            # Re-raise the exception if it's a different error (e.g., permission denied)
-            raise ee.ee_exception.EEException(f"Error creating {asset_type} {dir_path}: {e}")
 
 
 def create_ee_folder_recursive(dir_path: PurePosixPath):
@@ -177,6 +173,23 @@ def create_ee_folder_recursive(dir_path: PurePosixPath):
         logger.info(f"Failed to create EE asset: {dir_path}. Attempting to create parent assets.")
         create_ee_folder_recursive(dir_path.parent)
         create_ee_asset(dir_path, asset_type=ee.data.ASSET_TYPE_FOLDER)
+
+
+def create_ee_asset_wrapper(asset_name: str, create_folder_instead_of_image_collection: bool):
+    # Check and create asset parent if required.
+    # This is done for create_asset_parent flag.
+    logger.info(f"Checking parent folder for asset {asset_name}.")
+    asset_parent = PurePosixPath(asset_name).parent
+
+    # If create_folder_instead_of_image_collection flag is set, create folder recursively.
+    # Else only create EE image collection. Parent folders will be created recursively
+    if create_folder_instead_of_image_collection:
+        create_ee_folder_recursive(asset_parent)
+    else:
+        pattern = r'projects/[^/]+/assets/.+'
+        if re.fullmatch(pattern, str(asset_parent.parent)):
+            create_ee_folder_recursive(asset_parent.parent)
+        create_ee_asset(asset_parent, ee.data.ASSET_TYPE_IMAGE_COLL)
 
 
 class SetupEarthEngine(RateLimit):
@@ -302,7 +315,7 @@ class ToEarthEngine(ToDataSink):
     use_metrics: bool
     use_monitoring_metrics: bool
     topic: str
-    force_create_ee_asset: bool
+    create_asset_parent: bool
     create_folder_instead_of_image_collection: bool
     # Pipeline arguments.
     job_name: str
@@ -356,11 +369,11 @@ class ToEarthEngine(ToDataSink):
                                help='If you want to add Beam metrics to your pipeline. Default: False')
         subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
                                help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
-        subparser.add_argument('--force_create_ee_asset', action='store_true', default=False,
+        subparser.add_argument('--create_asset_parent', action='store_true', default=False,
                                help='Create ee asset if not present. Default: False')
         subparser.add_argument('--create_folder_instead_of_image_collection', action='store_true', default=False,
                                help='Create an folder instead of a image collection.'
-                               'Note: force_create_ee_asset has to be true for this to work. Default: False')
+                               'Note: create_asset_parent has to be true for this to work. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -415,10 +428,10 @@ class ToEarthEngine(ToDataSink):
         if bool(known_args.initialization_time_regex) ^ bool(known_args.forecast_time_regex):
             raise RuntimeError("Both --initialization_time_regex & --forecast_time_regex flags need to be present")
 
-        # Check force_create_ee_asset and create_folder_instead_of_image_collection flags
-        if known_args.create_folder_instead_of_image_collection and not known_args.force_create_ee_asset:
+        # Check create_asset_parent and create_folder_instead_of_image_collection flags
+        if known_args.create_folder_instead_of_image_collection and not known_args.create_asset_parent:
             raise RuntimeError(
-                "--force_create_ee_asset has to be true if --create_folder_instead_of_image_collection is true"
+                "--create_asset_parent has to be true if --create_folder_instead_of_image_collection is true"
                 )
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
@@ -725,7 +738,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
         ingest_as_virtual_asset: A flag to ingest image as virtual asset. Default: False.
         use_metrics: A flag to add Beam metrics to your pipeline. Default: False.
-        force_create_ee_asset: A flag to force create ee asset. Default: False.
+        create_asset_parent: A flag to force create ee asset. Default: False.
         create_folder_instead_of_image_collection: A flag to create folder instead of image collection. Default: False.
     """
 
@@ -740,7 +753,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                  use_personal_account: bool,
                  ingest_as_virtual_asset: bool,
                  use_metrics: bool,
-                 force_create_ee_asset: bool,
+                 create_asset_parent: bool,
                  create_folder_instead_of_image_collection: bool
                  ):
         """Sets up rate limit."""
@@ -755,7 +768,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         self.ee_asset_type = ee_asset_type
         self.ingest_as_virtual_asset = ingest_as_virtual_asset
         self.use_metrics = use_metrics
-        self.force_create_ee_asset = force_create_ee_asset
+        self.create_asset_parent = create_asset_parent
         self.create_folder_instead_of_image_collection = create_folder_instead_of_image_collection
 
     def get_project_id(self) -> str:
@@ -828,21 +841,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                         f'https://earthengine-highvolume.googleapis.com/v1alpha/projects/{project_id}/'
                         f'image:importExternal'
                     )
-                # Check and create parent folder for the image if required.
-                # This is done for force_create_ee_asset flag.
-                if self.force_create_ee_asset:
-                    logger.info(f"Checking parent folder for asset {asset_name}.")
-                    asset_parent = PurePosixPath(asset_name).parent
 
-                    # If create_folder_instead_of_image_collection flag is set, create folder recursively.
-                    # Else only create EE image collection. Parent folders will be created recursively
-                    if self.create_folder_instead_of_image_collection:
-                        create_ee_folder_recursive(asset_parent)
-                    else:
-                        pattern = r'projects/[^/]+/assets/.+'
-                        if re.fullmatch(pattern, str(asset_parent.parent)):
-                            create_ee_folder_recursive(asset_parent.parent)
-                        create_ee_asset(asset_parent, ee.data.ASSET_TYPE_IMAGE_COLL)
                 # Send API request
                 response = session.post(url=url, data=data, headers=headers)
                 logger.info(f"EE Asset ingestion response for {asset_name}: {response.text}")
@@ -875,6 +874,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
+            logger.debug(f"repr(e): {repr(e)}")
+            logger.debug(f"str(e): {str(e)}")
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
@@ -891,6 +892,15 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 logger.error(f"Failed to ingest asset '{asset_name}', check the tiff file: {e} Moving on...")
                 return ""
 
+            # Skip if the asset does not exist instead of going in the retry loop and getting same error.
+            if "does not exist or doesn't allow this operation." in str(e):
+                logger.error(
+                    f"Failed to create asset '{asset_name}', "
+                    "parent folder does not exist or doesn't allow this operation. "
+                    "Consider using --create_asset_parent flag to create assets automatically. Moving on..."
+                )
+                return ""
+
             logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}")
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
@@ -902,6 +912,13 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('IngestIntoEE')
     def process(self, asset_data: AssetData) -> t.Iterator[t.Tuple[str, float]]:
         """Uploads an asset into the earth engine."""
+
+        if self.create_asset_parent:
+            create_ee_asset_wrapper(
+                asset_name=os.path.join(self.ee_asset, asset_data.name),
+                create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
+            )
+
         asset_name = self.start_ingestion(asset_data)
         if asset_name:
             metric.Metrics.counter('Success', 'IngestIntoEE').inc()
