@@ -18,13 +18,12 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-import ee
-
 from .ee import (
     get_ee_safe_name,
     ConvertToAsset,
     IngestIntoEETransform,
-    AssetData
+    AssetData,
+    create_ee_asset_parent_wrapper
 )
 from .sinks_test import TestDataBase
 
@@ -117,7 +116,7 @@ class ConvertToAssetTests(TestDataBase):
 class IngestIntoEETransformTests(unittest.TestCase):
 
     @patch("weather_mv.loader_pipeline.ee.create_ee_folder_recursive")
-    @patch("weather_mv.loader_pipeline.ee.create_ee_asset")
+    @patch("weather_mv.loader_pipeline.ee.create_ee_image_collection")
     @patch("weather_mv.loader_pipeline.ee.AuthorizedSession")
     @patch("weather_mv.loader_pipeline.ee.get_creds")
     def test_start_ingestion__force_create_false(
@@ -145,7 +144,7 @@ class IngestIntoEETransformTests(unittest.TestCase):
             use_personal_account=False,
             ingest_as_virtual_asset=False,
             use_metrics=False,
-            force_create_ee_asset=False,
+            create_asset_parent=False,
             create_folder_instead_of_image_collection=False,
         )
         transform.check_setup = MagicMock()
@@ -159,13 +158,17 @@ class IngestIntoEETransformTests(unittest.TestCase):
             properties={},
         )
 
-        transform.start_ingestion(asset_data)
+        if transform.create_asset_parent:
+            create_ee_asset_parent_wrapper(
+                asset_name=os.path.join(transform.ee_asset, asset_data.name),
+                create_folder_instead_of_image_collection=transform.create_folder_instead_of_image_collection
+            )
 
         mock_create_folder_recursive.assert_not_called()
         mock_create_asset.assert_not_called()
 
     @patch("weather_mv.loader_pipeline.ee.create_ee_folder_recursive")
-    @patch("weather_mv.loader_pipeline.ee.create_ee_asset")
+    @patch("weather_mv.loader_pipeline.ee.create_ee_image_collection")
     @patch("weather_mv.loader_pipeline.ee.AuthorizedSession")
     @patch("weather_mv.loader_pipeline.ee.get_creds")
     def test_start_ingestion__force_create_true_create_folder_true(
@@ -193,7 +196,7 @@ class IngestIntoEETransformTests(unittest.TestCase):
             use_personal_account=False,
             ingest_as_virtual_asset=False,
             use_metrics=False,
-            force_create_ee_asset=True,
+            create_asset_parent=True,
             create_folder_instead_of_image_collection=True,
         )
         transform.check_setup = MagicMock()
@@ -207,7 +210,11 @@ class IngestIntoEETransformTests(unittest.TestCase):
             properties={},
         )
 
-        transform.start_ingestion(asset_data)
+        if transform.create_asset_parent:
+            create_ee_asset_parent_wrapper(
+                asset_name=os.path.join(transform.ee_asset, asset_data.name),
+                create_folder_instead_of_image_collection=transform.create_folder_instead_of_image_collection
+            )
 
         mock_create_folder_recursive.assert_called_once_with(
             PurePosixPath("projects/my-project/assets/my-collection")
@@ -215,7 +222,7 @@ class IngestIntoEETransformTests(unittest.TestCase):
         mock_create_asset.assert_not_called()
 
     @patch("weather_mv.loader_pipeline.ee.create_ee_folder_recursive")
-    @patch("weather_mv.loader_pipeline.ee.create_ee_asset")
+    @patch("weather_mv.loader_pipeline.ee.create_ee_image_collection")
     @patch("weather_mv.loader_pipeline.ee.AuthorizedSession")
     @patch("weather_mv.loader_pipeline.ee.get_creds")
     def test_start_ingestion__force_create_true_create_folder_false_with_subfolder(
@@ -243,7 +250,7 @@ class IngestIntoEETransformTests(unittest.TestCase):
             use_personal_account=False,
             ingest_as_virtual_asset=False,
             use_metrics=False,
-            force_create_ee_asset=True,
+            create_asset_parent=True,
             create_folder_instead_of_image_collection=False,
         )
         transform.check_setup = MagicMock()
@@ -257,18 +264,21 @@ class IngestIntoEETransformTests(unittest.TestCase):
             properties={}
         )
 
-        transform.start_ingestion(asset_data)
+        if transform.create_asset_parent:
+            create_ee_asset_parent_wrapper(
+                asset_name=os.path.join(transform.ee_asset, asset_data.name),
+                create_folder_instead_of_image_collection=transform.create_folder_instead_of_image_collection
+            )
 
         mock_create_folder_recursive.assert_called_once_with(
             PurePosixPath("projects/my-project/assets/folder1")
         )
         mock_create_asset.assert_called_once_with(
-            PurePosixPath("projects/my-project/assets/folder1/my-collection"),
-            ee.data.ASSET_TYPE_IMAGE_COLL,
+            PurePosixPath("projects/my-project/assets/folder1/my-collection")
         )
 
     @patch("weather_mv.loader_pipeline.ee.create_ee_folder_recursive")
-    @patch("weather_mv.loader_pipeline.ee.create_ee_asset")
+    @patch("weather_mv.loader_pipeline.ee.create_ee_image_collection")
     @patch("weather_mv.loader_pipeline.ee.AuthorizedSession")
     @patch("weather_mv.loader_pipeline.ee.get_creds")
     def test_start_ingestion__force_create_true_create_folder_false_without_subfolder(
@@ -296,7 +306,7 @@ class IngestIntoEETransformTests(unittest.TestCase):
             use_personal_account=False,
             ingest_as_virtual_asset=False,
             use_metrics=False,
-            force_create_ee_asset=True,
+            create_asset_parent=True,
             create_folder_instead_of_image_collection=False,
         )
         transform.check_setup = MagicMock()
@@ -310,12 +320,15 @@ class IngestIntoEETransformTests(unittest.TestCase):
             properties={}
         )
 
-        transform.start_ingestion(asset_data)
+        if transform.create_asset_parent:
+            create_ee_asset_parent_wrapper(
+                asset_name=os.path.join(transform.ee_asset, asset_data.name),
+                create_folder_instead_of_image_collection=transform.create_folder_instead_of_image_collection
+            )
 
         mock_create_folder_recursive.assert_not_called()
         mock_create_asset.assert_called_once_with(
-            PurePosixPath('projects/my-project/assets/my-collection'),
-            ee.data.ASSET_TYPE_IMAGE_COLL
+            PurePosixPath('projects/my-project/assets/my-collection')
         )
 
 

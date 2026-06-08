@@ -138,58 +138,74 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
-def create_ee_asset(dir_path: PurePosixPath, asset_type: str = ee.data.ASSET_TYPE_IMAGE_COLL):
-    """Creates an asset in Earth Engine for the given directory path (if not present).
+def create_ee_folder(dir_path: PurePosixPath):
+    """Creates a folder in Earth Engine for the given directory path (if not present).
     Args:
-        dir_path: The directory path to create an asset for.
-        asset_type: The type of asset to create ("Folder" or "ImageCollection").
+        dir_path: The absolute path to folder in EE.
     """
-    if asset_type not in [ee.data.ASSET_TYPE_FOLDER, ee.data.ASSET_TYPE_IMAGE_COLL]:
-        raise ValueError("Invalid asset type. Must be "
-                         f"{ee.data.ASSET_TYPE_FOLDER} or "
-                         f"{ee.data.ASSET_TYPE_IMAGE_COLL}.")
-
     try:
-        logger.info(f"Check if EE asset {asset_type}: {dir_path} exists")
+        logger.info(f"Check if EE asset folder {dir_path} exists")
         ee.data.getAsset(str(dir_path))
     except ee.ee_exception.EEException:
-        logger.info(f"Attempting to create EE asset {asset_type}: {dir_path}")
+        logger.info(f"Attempting to create EE asset folder {dir_path}")
         ee.data.createAsset({
-            'type': asset_type,
-            'name': str(dir_path),
+            'type': ee.data.ASSET_TYPE_FOLDER,
+            'name': str(dir_path)
         })
-        logger.info(f"Successfully created EE asset {asset_type}: {dir_path}")
+        logger.info(f"Successfully created EE asset folder {dir_path}")
 
 
-def create_ee_folder_recursive(dir_path: PurePosixPath):
+def create_ee_image_collection(dir_path: PurePosixPath) -> None:
+    """Creates an image collection in Earth Engine for the given directory path (if not present).
+    Args:
+        dir_path: The absolute path to image collection in EE.
+    """
+    try:
+        logger.info(f"Check if EE image collection {dir_path} exists")
+        ee.data.getAsset(str(dir_path))
+    except ee.ee_exception.EEException:
+        logger.info(f"Attempting to create EE image collection: {dir_path}")
+        ee.data.createAsset({
+            'type': ee.data.ASSET_TYPE_IMAGE_COLL,
+            'name': str(dir_path)
+        })
+        logger.info(f"Successfully created EE image collection: {dir_path}")
+
+
+def create_ee_folder_recursive(dir_path: PurePosixPath) -> None:
     """Recursively creates the given directory path and all its parent directories in Earth Engine.
     Args:
-        dir_path: The directory path to create an asset for.
+        dir_path: The absolute path to folder in EE.
     """
-    logger.info(f"Trying to create EE asset recursively: {dir_path}")
+    logger.info(f"Trying to create EE folder recursively: {dir_path}")
     try:
-        create_ee_asset(dir_path, asset_type=ee.data.ASSET_TYPE_FOLDER)
+        create_ee_folder(dir_path)
     except ee.ee_exception.EEException:
-        logger.info(f"Failed to create EE asset: {dir_path}. Attempting to create parent assets.")
+        logger.info(f"Failed to create EE folder: {dir_path}. Attempting to create parent folder(s).")
         create_ee_folder_recursive(dir_path.parent)
-        create_ee_asset(dir_path, asset_type=ee.data.ASSET_TYPE_FOLDER)
+        create_ee_folder(dir_path)
 
 
-def create_ee_asset_wrapper(asset_name: str, create_folder_instead_of_image_collection: bool):
+def create_ee_asset_parent_wrapper(asset_name: str, create_folder_instead_of_image_collection: bool) -> None:
+    """Wrapper function to create asset parent if required.
+    Args:
+        asset_name: The name of the asset.
+        create_folder_instead_of_image_collection: A flag to create folder instead of image collection.
+    """
     # Check and create asset parent if required.
     # This is done for create_asset_parent flag.
     logger.info(f"Checking parent folder for asset {asset_name}.")
     asset_parent = PurePosixPath(asset_name).parent
 
-    # If create_folder_instead_of_image_collection flag is set, create folder recursively.
-    # Else only create EE image collection. Parent folders will be created recursively
+    # Create an asset folder recursively if the flag is enabled;
+    # otherwise, create the EE Image Collection (parent folders are created recursively).
     if create_folder_instead_of_image_collection:
         create_ee_folder_recursive(asset_parent)
     else:
         pattern = r'projects/[^/]+/assets/.+'
         if re.fullmatch(pattern, str(asset_parent.parent)):
             create_ee_folder_recursive(asset_parent.parent)
-        create_ee_asset(asset_parent, ee.data.ASSET_TYPE_IMAGE_COLL)
+        create_ee_image_collection(asset_parent)
 
 
 class SetupEarthEngine(RateLimit):
@@ -370,10 +386,11 @@ class ToEarthEngine(ToDataSink):
         subparser.add_argument('--use_monitoring_metrics', action='store_true', default=False,
                                help='If you want to add GCP Monitoring metrics to your pipeline. Default: False')
         subparser.add_argument('--create_asset_parent', action='store_true', default=False,
-                               help='Create ee asset if not present. Default: False')
+                               help='Recursively create the parent Earth Engine folder(s) or collection path(s) '
+                                    'if it does not exist. Default: False')
         subparser.add_argument('--create_folder_instead_of_image_collection', action='store_true', default=False,
-                               help='Create an folder instead of a image collection.'
-                               'Note: create_asset_parent has to be true for this to work. Default: False')
+                               help='Create an Earth Engine Folder instead of an ImageCollection. '
+                                    'Requires --create_asset_parent to be enabled. Default: False')
 
     @classmethod
     def validate_arguments(cls, known_args: argparse.Namespace, pipeline_args: t.List[str]) -> None:
@@ -803,7 +820,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
         try:
             logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
-            logger.info(f"Checking if parent folder exists for {asset_name}.")
 
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
 
@@ -874,8 +890,8 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
-            logger.debug(f"repr(e): {repr(e)}")
-            logger.debug(f"str(e): {str(e)}")
+            logger.info(f"repr(e): {repr(e)}")
+            logger.info(f"str(e): {str(e)}")
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
@@ -914,8 +930,10 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         """Uploads an asset into the earth engine."""
 
         if self.create_asset_parent:
-            create_ee_asset_wrapper(
-                asset_name=os.path.join(self.ee_asset, asset_data.name),
+            ee_asset_name = os.path.join(self.ee_asset, asset_data.name)
+            logger.info(f"Checking if parent folder exists for {ee_asset_name}.")
+            create_ee_asset_parent_wrapper(
+                asset_name=ee_asset_name,
                 create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
             )
 
