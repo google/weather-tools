@@ -302,9 +302,32 @@ class ToEarthEngine(ToDataSink):
         ee_asset_type: The type of asset to ingest in the earth engine. Default: IMAGE.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
-        skip_region_validation: Turn off validation that checks if all Cloud resources
-          are in the same region.
+        skip_region_validation: A flag to turn off validation that checks if all Cloud resources
+          are in the same region. Default: False.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+        force: A flag that allows overwriting of existing asset files in the GCS bucket. Default: False.
+        service_account: Service account address when using a private key for earth engine authentication. Default: None
+        private_key: To use a private key for earth engine authentication. Default: None
+        ee_qps: Maximum queries per second allowed by EE for your project. Default: 10
+        ee_latency: The expected latency per requests, in seconds. Default: 0.5
+        ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project. Default: 10
+        group_common_hypercubes: A flag to group common hypercubes into image collections
+          when loading grib data. Default: False
+        band_names_mapping: A JSON file which contains the band names for the TIFF file. Default: None
+        initialization_time_regex: A Regex string to get the initialization time from the filename. Default: None
+        forecast_time_regex: A Regex string to get the forecast/end time from the filename. Default: None
+        ingest_as_virtual_asset: A flag to ingest image as a virtual asset. Default: False
+        use_deflate: A flag to use deflate compression algorithm. Default: False
+        use_metrics: A flag to add Beam metrics to your pipeline. Default: False
+        use_monitoring_metrics: A flag to add GCP Monitoring metrics to your pipeline. Default: False
+        topic: Pub-Sub topic.
+        create_asset_parent: A flag to recursively create the parent Earth Engine folder(s) or collection path(s)
+          if it does not exist. Default: False
+        create_folder_instead_of_image_collection: A flag to create an Earth Engine Folder instead of an
+          ImageCollection. Requires --create_asset_parent to be enabled. Default: False
+        job_name: Name of the dataflow job.
+        project: GCP project.
+        region: GCP region.
 
     .. _here: https://signup.earthengine.google.com/#!/service_accounts
     .. _this doc: https://developers.google.com/earth-engine/guides/service_account
@@ -558,6 +581,12 @@ class ConvertToAsset(beam.DoFn, KwargsFactoryMixin):
         asset_location: The bucket location at which asset files will be pushed.
         xarray_open_dataset_kwargs: A dictionary of kwargs to pass to xr.open_dataset().
         disable_grib_schema_normalization: A flag to turn grib schema normalization off; Default: on.
+        group_common_hypercubes: A flag to group common hypercubes into image collections for grib data. Default: False.
+        band_names_dict: A dict containing the band names mapping for Tiff files.
+        initialization_time_regex: A Regex string to get the initialization time from the filename. Default: None.
+        forecast_time_regex: A Regex string to get the forecast/end time from the filename. Default: None.
+        use_deflate: A flag to use deflate compression algorithm. Default: False.
+        use_metrics: A flag to add Beam metrics to your pipeline. Default: False.
     """
 
     asset_location: str
@@ -826,6 +855,13 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
 
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
 
+                if self.create_asset_parent:
+                    logger.info(f"Checking if parent folder exists for {asset_name}.")
+                    create_ee_asset_parent_wrapper(
+                        asset_name=asset_name,
+                        create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
+                    )
+
                 creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
                 session = AuthorizedSession(creds)
 
@@ -893,6 +929,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
+            # TODO: Replace repr(e) with str(e). Using repr may fail if string contains unescaped special characters.
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
@@ -929,14 +966,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
     @timeit('IngestIntoEE')
     def process(self, asset_data: AssetData) -> t.Iterator[t.Tuple[str, float]]:
         """Uploads an asset into the earth engine."""
-
-        if self.create_asset_parent:
-            ee_asset_name = os.path.join(self.ee_asset, asset_data.name)
-            logger.info(f"Checking if parent folder exists for {ee_asset_name}.")
-            create_ee_asset_parent_wrapper(
-                asset_name=ee_asset_name,
-                create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
-            )
 
         asset_name = self.start_ingestion(asset_data)
         if asset_name:
