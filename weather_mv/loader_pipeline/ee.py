@@ -114,7 +114,7 @@ def ee_initialize(use_personal_account: bool = False,
         enforce_high_volume: A flag to use the high volume API when using a compute engine VM. Default: False.
         service_account: Service account address when using a private key for earth engine authentication.
         private_key: A private key path to authenticate earth engine using private key. Default: None.
-        Project ID: An identifier that represents the name of a project present in Earth Engine.
+        project_id: An identifier that represents the name of a project present in Earth Engine.
     Raises:
         RuntimeError: Earth Engine did not initialize.
     """
@@ -138,7 +138,7 @@ def ee_initialize(use_personal_account: bool = False,
         ee.Initialize(creds)
 
 
-def create_ee_folder(dir_path: PurePosixPath):
+def create_ee_folder(dir_path: PurePosixPath) -> None:
     """Creates a folder in Earth Engine for the given directory path (if not present).
     Args:
         dir_path: The absolute path to folder in EE.
@@ -488,7 +488,9 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
     """Filters out paths for which the assets that are already in the earth engine.
 
     Attributes:
+        asset_location: The GCS location of the assets.
         ee_asset: The asset folder path in earth engine project where the asset files will be pushed.
+        ee_asset_type: The type of asset to be created [IMAGE | TABLE].
         ee_qps: Maximum queries per second allowed by EE for your project.
         ee_latency: The expected latency per requests, in seconds.
         ee_max_concurrent: Maximum concurrent api requests to EE allowed for your project.
@@ -496,6 +498,7 @@ class FilterFilesTransform(SetupEarthEngine, KwargsFactoryMixin):
         private_key: A private key path to authenticate earth engine using private key. Default: None.
         service_account: Service account address when using a private key for earth engine authentication.
         use_personal_account: A flag to authenticate earth engine using personal account. Default: False.
+        use_metrics: A flag to add Beam metrics to your pipeline. Default: False.
     """
 
     def __init__(self,
@@ -890,8 +893,6 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
-            logger.info(f"repr(e): {repr(e)}")
-            logger.info(f"str(e): {str(e)}")
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
