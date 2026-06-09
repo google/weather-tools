@@ -472,7 +472,15 @@ class ToEarthEngine(ToDataSink):
         if known_args.create_folder_instead_of_image_collection and not known_args.create_asset_parent:
             raise RuntimeError(
                 "--create_asset_parent has to be true if --create_folder_instead_of_image_collection is true"
-                )
+            )
+
+        # For ee_asset_type = 'TABLE', we will always create a folder to store the table.
+        if known_args.ee_asset_type == 'TABLE' and known_args.create_asset_parent \
+                and not known_args.create_folder_instead_of_image_collection:
+            raise RuntimeError(
+                "--create_folder_instead_of_image_collection has to be true if --ee_asset_type is TABLE "
+                "and --create_asset_parent is true"
+            )
 
         logger.info(f"Add metrics to pipeline: {known_args.use_metrics}")
         logger.info(f"Add Google Cloud Monitoring metrics to pipeline: {known_args.use_monitoring_metrics}")
@@ -853,15 +861,14 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
         try:
             logger.info(f"Uploading asset {asset_data.target_path} to Asset ID '{asset_name}'.")
 
+            if self.create_asset_parent:
+                logger.info(f"Checking if parent folder exists for {asset_name}.")
+                create_ee_asset_parent_wrapper(
+                    asset_name=asset_name,
+                    create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
+                )
+
             if self.ee_asset_type == 'IMAGE':  # Ingest an image.
-
-                if self.create_asset_parent:
-                    logger.info(f"Checking if parent folder exists for {asset_name}.")
-                    create_ee_asset_parent_wrapper(
-                        asset_name=asset_name,
-                        create_folder_instead_of_image_collection=self.create_folder_instead_of_image_collection
-                    )
-
                 creds = get_creds(self.use_personal_account, self.service_account, self.private_key)
                 session = AuthorizedSession(creds)
 
