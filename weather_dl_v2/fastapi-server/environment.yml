@@ -7,12 +7,12 @@ dependencies:
   - geojson
   - pip=22.3
   - google-cloud-sdk=410.0.0
+  - apache-beam[gcp]
   - pip:
     - kubernetes
     - fastapi[all]==0.97.0
     - python-multipart
     - numpy
-    - apache-beam[gcp]
     - aiohttp
     - firebase-admin
     - gcloud
