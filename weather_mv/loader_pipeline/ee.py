@@ -936,7 +936,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
-            # TODO: Replace repr(e) with str(e). Using repr may fail if string contains unescaped special characters.
+            # TODO(#542): Replace repr(e) with str(e)
             if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
