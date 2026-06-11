@@ -936,20 +936,19 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
                 })
                 return asset_name
         except ee.EEException as e:
-            # TODO(#542): Replace repr(e) with str(e)
-            if "Could not parse a valid CRS from the first overview of the GeoTIFF" in repr(e):
+            if "Could not parse a valid CRS from the first overview of the GeoTIFF" in str(e):
                 logger.error(f"Failed to create asset '{asset_name}' in earth engine: {e}. Moving on...")
                 return ""
 
             if (
                 "whose type does not match the type of the same property of existing "
                 "assets in the same collection"
-                in repr(e)
+                in str(e)
             ):
                 logger.error(f"Failed to ingest asset '{asset_name}' due to property mismatch: {e} Moving on...")
                 return ""
 
-            if "The metadata of the TIFF could not be read in the first 10000000 bytes." in repr(e):
+            if "The metadata of the TIFF could not be read in the first 10000000 bytes." in str(e):
                 logger.error(f"Failed to ingest asset '{asset_name}', check the tiff file: {e} Moving on...")
                 return ""
 
@@ -966,7 +965,7 @@ class IngestIntoEETransform(SetupEarthEngine, KwargsFactoryMixin):
             # We do have logic for skipping the already created assets in FilterFilesTransform but
             # somehow we are observing that streaming pipeline reports "Cannot overwrite ..." error
             # so this will act as a quick fix for this issue.
-            if f"Cannot overwrite asset '{asset_name}'" in repr(e):
+            if f"Cannot overwrite asset '{asset_name}'" in str(e):
                 ee.data.deleteAsset(asset_name)
             raise
 
