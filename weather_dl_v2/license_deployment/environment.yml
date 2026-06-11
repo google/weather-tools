@@ -7,7 +7,7 @@ dependencies:
   - ecmwf-api-client=1.6.3
   - pip=22.3
   - cdsapi=0.7.5
-  - apache-beam[gcp]
+  - apache-beam-with-gcp
   - pip:
     - kubernetes
     - google-cloud-logging

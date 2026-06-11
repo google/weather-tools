@@ -9,7 +9,7 @@ dependencies:
   - xarray=2022.11.0
   - google-apitools
   - pip=22.3
-  - apache-beam[gcp]
+  - apache-beam-with-gcp
   - pip:
     - firebase-admin
     - google-cloud-pubsub

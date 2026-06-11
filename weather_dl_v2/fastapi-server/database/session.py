@@ -21,7 +21,7 @@ from google.cloud import firestore
 from firebase_admin import credentials
 from config_processing.util import get_wait_interval
 from server_config import get_config
-from gcloud import storage
+from google.cloud import storage
 
 logger = logging.getLogger(__name__)
 
