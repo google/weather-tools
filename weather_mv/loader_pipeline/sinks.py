@@ -42,6 +42,12 @@ from pyproj import Transformer
 TIF_TRANSFORM_CRS_TO = "EPSG:4326"
 # A constant for all the things in the coords key set that aren't the level name.
 DEFAULT_COORD_KEYS = frozenset(('latitude', 'time', 'step', 'valid_time', 'longitude', 'number'))
+# Common aliases for the canonical 'latitude' / 'longitude' coordinate names (matched case-insensitively).
+LATITUDE_ALIASES = frozenset(('lat',))
+LONGITUDE_ALIASES = frozenset(('lon', 'long', 'lng'))
+# CF-convention units that identify geospatial coordinates (e.g. for datasets using 'x' / 'y' names).
+CF_LATITUDE_UNITS = frozenset(('degrees_north', 'degree_north', 'degrees_n', 'degree_n'))
+CF_LONGITUDE_UNITS = frozenset(('degrees_east', 'degree_east', 'degrees_e', 'degree_e'))
 DEFAULT_TIME_ORDER_LIST = ['%Y', '%m', '%d', '%H', '%M', '%S']
 # For uploading / downloading retry logic.
 INITIAL_DELAY = 1.0  # Initial delay in seconds.
@@ -144,6 +150,52 @@ def match_datetime(file_name: str, regex_expression: str) -> datetime.datetime:
             time_list.insert(idx, val)
 
     return datetime.datetime(*time_list)
+
+
+def _coordinate_renames(ds: xr.Dataset) -> t.Dict[str, str]:
+    """Returns a mapping of coordinate names in 'ds' to the canonical 'latitude' / 'longitude' names.
+
+    A coordinate is identified as a latitude (or longitude) coordinate if either:
+    * its name is a known alias, e.g. 'lat', 'Lon' (matched case-insensitively), or
+    * its CF-convention metadata identifies it, i.e. a 'standard_name' attribute of
+      'latitude' / 'longitude' or a 'units' attribute like 'degrees_north' / 'degrees_east'.
+      This also covers datasets that name their geospatial coordinates 'x' / 'y'.
+
+    Coordinates already using canonical names are left untouched.
+    """
+
+    def _find_coordinate(canonical: str, aliases: t.FrozenSet[str], cf_units: t.FrozenSet[str]) -> t.Optional[str]:
+        for coord in ds.coords:
+            name = str(coord)
+            if name.lower() in aliases or name.lower() == canonical:
+                return name
+        for coord in ds.coords:
+            attrs = ds[coord].attrs
+            standard_name = str(attrs.get('standard_name', '')).strip().lower()
+            units = str(attrs.get('units', '')).strip().lower()
+            if standard_name == canonical or units in cf_units:
+                return str(coord)
+        return None
+
+    renames = {}
+    for canonical, aliases, cf_units in [('latitude', LATITUDE_ALIASES, CF_LATITUDE_UNITS),
+                                         ('longitude', LONGITUDE_ALIASES, CF_LONGITUDE_UNITS)]:
+        if canonical in ds.coords:
+            continue
+        found = _find_coordinate(canonical, aliases, cf_units)
+        if found is not None:
+            renames[found] = canonical
+    return renames
+
+
+def standardize_coordinate_names(ds: xr.Dataset) -> xr.Dataset:
+    """Renames latitude / longitude coordinate aliases (e.g. 'lat' / 'lon') to their canonical names.
+    """
+    renames = _coordinate_renames(ds)
+    if renames:
+        logger.info(f'Renaming coordinates to their canonical names: {renames}.')
+        ds = ds.rename(renames)
+    return ds
 
 
 def _preprocess_tif(
