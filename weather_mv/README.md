@@ -409,6 +409,10 @@ _Command options_:
   takes extra time in COG creation. Default:False.
 * `--use_metrics`: A flag that allows you to add Beam metrics to the pipeline. Default: False.
 * `--use_monitoring_metrics`: A flag that allows you to to add Google Cloud Monitoring metrics to the pipeline. Default: False.
+* `--create_asset_parent`: Recursively create the parent Earth Engine folder(s) or collection path(s) if it does not exist.
+  Default: False.
+* `--create_folder_instead_of_image_collection`: Create an Earth Engine Folder instead of an ImageCollection. Requires
+  `--create_asset_parent` to be enabled. Default: False.
 
 Invoke with `ee -h` or `earthengine --help` to see the full range of options.
 
