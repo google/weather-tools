@@ -207,7 +207,7 @@ class GribSplitterV2(GribSplitter):
         grib_copy_cmd = shutil.which('grib_copy')
         grib_get_cmd = shutil.which('grib_get')
         uniq_cmd = shutil.which('uniq')
-        for cmd, name in [(grib_get_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
+        for cmd, name in [(grib_copy_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
             if not cmd:
                 raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
@@ -235,9 +235,22 @@ class GribSplitterV2(GribSplitter):
                 grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
             grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
             uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+
+            # Filter out empty strings that might result from trailing newlines.
+            decoded_text = uniq_output.decode('utf-8').strip()
+            if not decoded_text:
+                self.logger.warning(
+                    'No GRIB messages in %r matched the filter expression: %r. Skipping...',
+                    self.input_path, self.grib_filter_expression
+                )
+                metrics.Metrics.counter('file_splitters', 'skipped_empty_filter').inc()
+                return
+
+            decoded_uniq = decoded_text.splitlines()
+
             output_paths = []
             skipped_paths = []
-            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+            for line in decoded_uniq:
                 splits = dict(zip(split_dims, line.split(' ')))
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
