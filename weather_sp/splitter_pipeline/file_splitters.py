@@ -244,6 +244,7 @@ class GribSplitterV2(GribSplitter):
                     self.input_path, self.grib_filter_expression
                 )
                 metrics.Metrics.counter('file_splitters', 'skipped_empty_filter').inc()
+                metrics.Metrics.counter('file_splitters', 'total_skipped').inc()
                 return
 
             decoded_uniq = decoded_text.splitlines()
@@ -258,7 +259,7 @@ class GribSplitterV2(GribSplitter):
                     continue
                 output_paths.append(output_path)
             if not output_paths:
-                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                metrics.Metrics.counter('file_splitters', 'total_skipped').inc()
                 self.logger.info('Skipping %s, file already split into: %s',
                                  repr(self.input_path), ', '.join(skipped_paths))
                 return
