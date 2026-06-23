@@ -346,6 +346,10 @@ class Regrid(ToDataSink):
                         copy(src.name, regrid_target_path)
             except Exception as e:
                 logger.error(f'Regrid failed for {uri!r}. Error: {str(e)}')
+            finally:
+                # Explicitly release metview objects to free memory.
+                fs = None
+                fieldset = None
 
     def expand(self, paths):
         if not self.zarr:
