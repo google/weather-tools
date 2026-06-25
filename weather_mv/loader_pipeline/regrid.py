@@ -14,10 +14,12 @@
 import argparse
 import contextlib
 import dataclasses
+import datetime
 import glob
 import json
 import logging
 import os
+import psutil
 import shutil
 import subprocess
 import tempfile
@@ -36,11 +38,33 @@ logger = logging.getLogger(__name__)
 
 try:
     import metview as mv
+    from metview.metviewpy import utils
     Fieldset = mv.bindings.Fieldset
 except (ModuleNotFoundError, ImportError, FileNotFoundError, ValueError):
     logger.error('Metview could not be imported.')
     mv = None  # noqa
     Fieldset = t.Any
+
+
+def get_safe_base_date(fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
+    """
+    Safely extracts the base date(s) from a Fieldset without triggering 
+    the C-level memory leaks present in native fs.base_date().
+    """
+    if len(fs) == 0:
+        return None
+
+    result = []
+    for d, t_val in fs.grib_get(["dataDate", "dataTime"]):
+        result.append(utils.date_from_ecc_keys(d, t_val))
+
+    # Replicate Metview's default behavior
+    return result[0] if len(result) == 1 else result
+
+
+def memory_usage_mb():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / 1024 / 1024
 
 
 def _clear_metview():
@@ -262,6 +286,7 @@ class Regrid(ToDataSink):
         return len(matches[0].metadata_list) > 0
 
     def apply(self, uri: str) -> None:
+        print(f"Initial Memory: {memory_usage_mb():.2f} MB")
         logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
         if self.dry_run:
@@ -288,7 +313,9 @@ class Regrid(ToDataSink):
                     fs = mv.bindings.Fieldset(path=local_grib)
 
                     if self.use_yearwise_directories:
-                        base_date = fs.base_date()
+                        base_date = get_safe_base_date(fs)
+                        # base_date = fs.base_date()
+
                         if base_date is None:
                             logger.error(f"Could not retrieve a valid date from {uri!r}.")
                             return
@@ -346,10 +373,8 @@ class Regrid(ToDataSink):
                         copy(src.name, regrid_target_path)
             except Exception as e:
                 logger.error(f'Regrid failed for {uri!r}. Error: {str(e)}')
-            finally:
-                # Explicitly release metview objects to free memory.
-                fs = None
-                fieldset = None
+
+        print(f"Final Memory: {memory_usage_mb():.2f} MB")
 
     def expand(self, paths):
         if not self.zarr:
