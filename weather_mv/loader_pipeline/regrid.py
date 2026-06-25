@@ -48,7 +48,7 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError, ValueError):
 
 def get_safe_base_date(fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
     """
-    Safely extracts the base date(s) from a Fieldset without triggering 
+    Safely extracts the base date(s) from a Fieldset without triggering
     the C-level memory leaks present in native fs.base_date().
     """
     if len(fs) == 0:
