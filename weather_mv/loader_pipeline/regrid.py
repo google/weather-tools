@@ -46,27 +46,6 @@ except (ModuleNotFoundError, ImportError, FileNotFoundError, ValueError):
     Fieldset = t.Any
 
 
-def get_safe_base_date(fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
-    """
-    Safely extracts the base date(s) from a Fieldset without triggering
-    the C-level memory leaks present in native fs.base_date().
-    """
-    if len(fs) == 0:
-        return None
-
-    result = []
-    for d, t_val in fs.grib_get(["dataDate", "dataTime"]):
-        result.append(utils.date_from_ecc_keys(d, t_val))
-
-    # Replicate Metview's default behavior
-    return result[0] if len(result) == 1 else result
-
-
-def memory_usage_mb():
-    process = psutil.Process(os.getpid())
-    return process.memory_info().rss / 1024 / 1024
-
-
 def _clear_metview():
     """Clear the metview temporary directory.
 
@@ -285,7 +264,26 @@ class Regrid(ToDataSink):
         assert len(matches) == 1
         return len(matches[0].metadata_list) > 0
 
+    def get_memory_safe_base_date(self, fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
+        """
+        Safely extracts the base date(s) from a Fieldset without triggering
+        the C-level memory leaks present in native fs.base_date().
+        """
+        if len(fs) == 0:
+            return None
+
+        result = []
+        for d, t_val in fs.grib_get(["dataDate", "dataTime"]):
+            result.append(utils.date_from_ecc_keys(d, t_val))
+
+        # Replicate Metview's default behavior
+        return result[0] if len(result) == 1 else result
+
     def apply(self, uri: str) -> None:
+        def memory_usage_mb():
+            process = psutil.Process(os.getpid())
+            return process.memory_info().rss / 1024 / 1024
+
         print(f"Initial Memory: {memory_usage_mb():.2f} MB")
         logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
@@ -313,7 +311,7 @@ class Regrid(ToDataSink):
                     fs = mv.bindings.Fieldset(path=local_grib)
 
                     if self.use_yearwise_directories:
-                        base_date = get_safe_base_date(fs)
+                        base_date = self.get_memory_safe_base_date(fs)
                         # base_date = fs.base_date()
 
                         if base_date is None:
