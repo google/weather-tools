@@ -306,7 +306,6 @@ class Regrid(ToDataSink):
 
                     if self.use_yearwise_directories:
                         base_date = self.get_memory_safe_base_date(fs)
-
                         if base_date is None:
                             logger.error(f"Could not retrieve a valid date from {uri!r}.")
                             return
