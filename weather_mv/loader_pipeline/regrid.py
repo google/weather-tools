@@ -19,7 +19,6 @@ import glob
 import json
 import logging
 import os
-import psutil
 import shutil
 import subprocess
 import tempfile
@@ -267,7 +266,7 @@ class Regrid(ToDataSink):
     def get_memory_safe_base_date(self, fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
         """
         Safely extracts the base date(s) from a Fieldset without triggering
-        the C-level memory leaks present in native fs.base_date().
+        the C-level memory leaks present in the native fs.base_date() call.
         """
         if len(fs) == 0:
             return None
@@ -276,15 +275,10 @@ class Regrid(ToDataSink):
         for d, t_val in fs.grib_get(["dataDate", "dataTime"]):
             result.append(utils.date_from_ecc_keys(d, t_val))
 
-        # Replicate Metview's default behavior
+        # Replicating Metview's default behavior.
         return result[0] if len(result) == 1 else result
 
     def apply(self, uri: str) -> None:
-        def memory_usage_mb():
-            process = psutil.Process(os.getpid())
-            return process.memory_info().rss / 1024 / 1024
-
-        print(f"Initial Memory: {memory_usage_mb():.2f} MB")
         logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
         if self.dry_run:
@@ -312,7 +306,6 @@ class Regrid(ToDataSink):
 
                     if self.use_yearwise_directories:
                         base_date = self.get_memory_safe_base_date(fs)
-                        # base_date = fs.base_date()
 
                         if base_date is None:
                             logger.error(f"Could not retrieve a valid date from {uri!r}.")
@@ -371,8 +364,6 @@ class Regrid(ToDataSink):
                         copy(src.name, regrid_target_path)
             except Exception as e:
                 logger.error(f'Regrid failed for {uri!r}. Error: {str(e)}')
-
-        print(f"Final Memory: {memory_usage_mb():.2f} MB")
 
     def expand(self, paths):
         if not self.zarr:
