@@ -67,6 +67,38 @@ def copy(src: str, dst: str) -> None:
         raise EnvironmentError(msg) from e
 
 
+@retry.with_exponential_backoff(
+    num_retries=NUM_RETRIES,
+    logger=logger.warning,
+    initial_delay_secs=INITIAL_DELAY,
+    max_delay_secs=MAX_DELAY
+)
+def copy_dir(src: str, dst: str) -> None:
+    """Copy directory contents recursively via gcloud storage or local filesystem."""
+    for f in os.listdir(src):
+        if 'DELIMITER' in f:
+            new_rel_path = f.replace('DELIMITER', '/').lstrip('/')
+            new_path = os.path.join(src, new_rel_path)
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            shutil.move(os.path.join(src, f), new_path)
+
+    try:
+        if dst.startswith("gs://"):
+            files = [os.path.join(src, f) for f in os.listdir(src)]
+            if files:
+                dst = dst if dst.endswith('/') else dst + '/'
+                subprocess.run(['gcloud', 'storage', 'cp', '-r', *files, dst],
+                               check=True, capture_output=True, text=True, input="n/n")
+                logger.info(f"Successfully copied {len(files)} files from {src} to {dst}")
+        else:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+    except Exception as e:
+        err = getattr(e, "stderr", str(e)).strip()
+        msg = f"Failed to copy directory {src!r} to {dst!r} due to {err}"
+        logger.error(msg)
+        raise EnvironmentError(msg) from e
+
+
 class FileSplitter(abc.ABC):
     """Base class for weather file splitters."""
 
@@ -219,7 +251,6 @@ class GribSplitterV2(GribSplitter):
         output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
         output_template = output_str.format(*self.output_info.template_folders)
 
-        slash = '/'
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
         split_dims = self.output_info.split_dims()
@@ -276,12 +307,7 @@ class GribSplitterV2(GribSplitter):
                                    check=True)
 
                 self.logger.info('Uploading %r...', self.input_path)
-                for flat_target in os.listdir(tmpdir):
-                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
-                    self.logger.info([prefix, dest_file_path, local_file.name,
-                                      self.output_info.unformatted_output_path()])
-
-                    copy(os.path.join(tmpdir, flat_target), dest_file_path)
+                copy_dir(tmpdir, prefix)
                 self.logger.info('Finished uploading %r', self.input_path)
 
 
