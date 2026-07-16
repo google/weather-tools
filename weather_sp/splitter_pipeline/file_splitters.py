@@ -75,21 +75,13 @@ def copy(src: str, dst: str) -> None:
 )
 def copy_dir(src: str, dst: str) -> None:
     """Copy directory contents recursively via gcloud storage or local filesystem."""
-    for f in os.listdir(src):
-        if 'DELIMITER' in f:
-            new_rel_path = f.replace('DELIMITER', '/').lstrip('/')
-            new_path = os.path.join(src, new_rel_path)
-            os.makedirs(os.path.dirname(new_path), exist_ok=True)
-            shutil.move(os.path.join(src, f), new_path)
-
     try:
         if dst.startswith("gs://"):
-            files = [os.path.join(src, f) for f in os.listdir(src)]
-            if files:
+            if os.listdir(src):
                 dst = dst if dst.endswith('/') else dst + '/'
-                subprocess.run(['gcloud', 'storage', 'cp', '-r', *files, dst],
+                subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
                                check=True, capture_output=True, text=True, input="n/n")
-                logger.info(f"Successfully copied {len(files)} files from {src} to {dst}")
+                logger.info(f"Successfully copied files from {src} to {dst}")
         else:
             shutil.copytree(src, dst, dirs_exist_ok=True)
     except Exception as e:
@@ -305,6 +297,13 @@ class GribSplitterV2(GribSplitter):
                 else:
                     subprocess.run([grib_copy_cmd, local_file.name, dest],
                                    check=True)
+
+                for f in os.listdir(tmpdir):
+                    if delimiter in f:
+                        new_rel_path = f.replace(delimiter, '/').lstrip('/')
+                        new_path = os.path.join(tmpdir, new_rel_path)
+                        os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                        shutil.move(os.path.join(tmpdir, f), new_path)
 
                 self.logger.info('Uploading %r...', self.input_path)
                 copy_dir(tmpdir, prefix)
