@@ -82,6 +82,8 @@ def copy_dir(src: str, dst: str) -> None:
                 subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
                                check=True, capture_output=True, text=True, input="n/n")
                 logger.info(f"Successfully copied files from {src} to {dst}")
+            else:
+                logger.warning(f"Source directory {src} is empty. Skipping copy to {dst}.")
         else:
             shutil.copytree(src, dst, dirs_exist_ok=True)
     except Exception as e:
