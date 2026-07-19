@@ -56,7 +56,21 @@ class OutFileInfo:
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
-        return self.unformatted_output_path().format(*self.template_folders, **splits)
+        import datetime
+        template = self.unformatted_output_path()
+        
+        # Safe globals dictionary containing only datetime
+        safe_globals = {"datetime": datetime}
+        
+        try:
+            # First, substitute the positional args (if any) to avoid invalid f-string syntax like {0}
+            formatted_positionals = template.format(*self.template_folders, **{k: '{'+k+'}' for k in splits.keys()})
+            
+            # Then evaluate as an f-string with splits as locals
+            return eval(f'f"""{formatted_positionals}"""', safe_globals, splits)
+        except Exception:
+            # Fallback to standard formatting
+            return template.format(*self.template_folders, **splits)
 
 
 def get_output_file_info(filename: str,
