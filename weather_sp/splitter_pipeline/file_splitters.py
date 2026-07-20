@@ -77,13 +77,10 @@ def copy_dir(src: str, dst: str) -> None:
     """Copy directory contents recursively via gcloud storage or local filesystem."""
     try:
         if dst.startswith("gs://"):
-            if os.listdir(src):
-                dst = dst if dst.endswith('/') else dst + '/'
-                subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
-                               check=True, capture_output=True, text=True, input="n/n")
-                logger.info(f"Successfully copied files from {src} to {dst}")
-            else:
-                logger.warning(f"Source directory {src} is empty. Skipping copy to {dst}.")
+            dst = dst if dst.endswith('/') else dst + '/'
+            subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
+                           check=True, capture_output=True, text=True, input="n/n")
+            logger.info(f"Successfully copied files from {src} to {dst}")
         else:
             shutil.copytree(src, dst, dirs_exist_ok=True)
     except Exception as e:
@@ -307,9 +304,13 @@ class GribSplitterV2(GribSplitter):
                         os.makedirs(os.path.dirname(new_path), exist_ok=True)
                         shutil.move(os.path.join(tmpdir, f), new_path)
 
-                self.logger.info('Uploading %r...', self.input_path)
-                copy_dir(tmpdir, prefix)
-                self.logger.info('Finished uploading %r', self.input_path)
+                if os.listdir(tmpdir):
+                    self.logger.info('Uploading %r...', self.input_path)
+                    copy_dir(tmpdir, prefix)
+                    self.logger.info('Finished uploading %r', self.input_path)
+                else:
+                    raise RuntimeError(
+                            'No files generated for %r. Splitting failed.' % self.input_path)
 
 
 class NetCdfSplitter(FileSplitter):
