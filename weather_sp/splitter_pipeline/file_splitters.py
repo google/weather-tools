@@ -56,7 +56,7 @@ def copy(src: str, dst: str) -> None:
     try:
         if is_gs:
             subprocess.run(['gcloud', 'storage', 'cp', src, dst], check=True,
-                           capture_output=True, text=True, input="n/n")
+                           capture_output=True, text=True, input="n\n")
         else:
             os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
             shutil.copy(src, dst)
@@ -79,7 +79,7 @@ def copy_dir(src: str, dst: str) -> None:
         if dst.startswith("gs://"):
             dst = dst if dst.endswith('/') else dst + '/'
             subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
-                           check=True, capture_output=True, text=True, input="n/n")
+                           check=True, capture_output=True, text=True, input="n\n")
             logger.info(f"Successfully copied files from {src} to {dst}")
         else:
             shutil.copytree(src, dst, dirs_exist_ok=True)
