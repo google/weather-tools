@@ -140,17 +140,12 @@ class GribSplitter(FileSplitter):
         if not self.output_info.split_dims():
             raise ValueError('No splitting specified in template.')
 
-        if self.should_skip():
-            metrics.Metrics.counter('file_splitters', 'skipped').inc()
-            self.logger.info('Skipping %s, file already split.',
-                             repr(self.input_path))
-            return
-
         # Here, we keep a map of open file objects (`outputs`). We need these since
         # each output grib file (named `key`) will include multiple `grb` messages
         # each. By writing data to the cache of open file objects, we can keep a
         # minimal amount of data in memory at a time.
         outputs = dict()
+        skipped_keys = set()
         with self._open_grib_locally() as grbs:
             self.logger.info('Splitting & uploading %r...', self.input_path)
             try:
@@ -166,10 +161,19 @@ class GribSplitter(FileSplitter):
                                 'Variable not found in grib: %s', dim)
                     key = self.output_info.formatted_output_path(splits)
 
+                    if key in skipped_keys:
+                        del grb
+                        continue
+
                     # Append the current grib message to a set number of output files.
                     # If the target shard doesn't exist, create it.
                     if key not in outputs:
+                        if self.should_skip_file(key):
+                            skipped_keys.add(key)
+                            del grb
+                            continue
                         outputs[key] = FileSystems.create(key)
+
                     outputs[key].write(grb.tostring())
                     outputs[key].flush()
 
@@ -180,6 +184,12 @@ class GribSplitter(FileSplitter):
             finally:
                 for out in outputs.values():
                     out.close()
+
+        if not outputs:
+            metrics.Metrics.counter('file_splitters', 'skipped').inc()
+            self.logger.info('Skipping %s, file already split.',
+                             repr(self.input_path))
+        else:
             self.logger.info('Split %s into %d files',
                              self.input_path, len(outputs))
 
@@ -264,6 +274,7 @@ class GribSplitterV2(GribSplitter):
                                  repr(self.input_path), ', '.join(skipped_paths))
                 return
 
+            output_paths_set = set(output_paths)
             with tempfile.TemporaryDirectory() as tmpdir:
                 self.logger.info('Performing split.')
                 dest = os.path.join(tmpdir, flat_output_template)
@@ -278,6 +289,8 @@ class GribSplitterV2(GribSplitter):
                 self.logger.info('Uploading %r...', self.input_path)
                 for flat_target in os.listdir(tmpdir):
                     dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                    if dest_file_path not in output_paths_set:
+                        continue
                     self.logger.info([prefix, dest_file_path, local_file.name,
                                       self.output_info.unformatted_output_path()])
 
@@ -294,11 +307,6 @@ class NetCdfSplitter(FileSplitter):
             raise ValueError('No splitting specified in template.')
         if any(dim in self._UNSUPPORTED_DIMENSIONS for dim in self.output_info.split_dims()):
             raise ValueError('Unsupported split dimension (lat, lng).')
-        if self.should_skip():
-            metrics.Metrics.counter('file_splitters', 'skipped').inc()
-            self.logger.info('Skipping %s, file already split.',
-                             repr(self.input_path))
-            return
 
         with self._open_dataset_locally() as dataset:
             if any(split not in dataset.dims and split not in ('variable') for split in self.output_info.split_dims()):
@@ -316,13 +324,20 @@ class NetCdfSplitter(FileSplitter):
                 iterlists.append(dataset[dim])
             combinations = itertools.product(*iterlists)
             self.logger.info('Splitting & uploading %r...', self.input_path)
+            files_written = 0
             for comb in combinations:
                 selected = comb[0]
                 for da in comb[1:]:
                     for dim in da.coords:
                         selected = selected.sel({dim: getattr(da, dim)})
-                self._write_dataset(selected, filtered_split_dims)
-            self.logger.info('Finished splitting & uploading %r.', self.input_path)
+                if self._write_dataset(selected, filtered_split_dims):
+                    files_written += 1
+            if files_written == 0:
+                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                self.logger.info('Skipping %s, file already split.',
+                                 repr(self.input_path))
+            else:
+                self.logger.info('Finished splitting & uploading %r.', self.input_path)
 
     @contextmanager
     def _open_dataset_locally(self) -> t.Iterator[xr.Dataset]:
@@ -331,14 +346,18 @@ class NetCdfSplitter(FileSplitter):
             yield ds
             ds.close()
 
-    def _write_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> None:
-        """Write destination NetCDF file in NETCDF4 format."""
+    def _write_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> bool:
+        """Write destination NetCDF file in NETCDF4 format. Returns True if the file was written."""
         # Here, we need to write the file locally, since only the scipy engine supports file objects or
         # returning bytes. Further, the scipy engine does not support NETCDF4 (which is HDF5 compliant).
         # Storing data in HDF5 is advantageous since it allows opening NetCDF files with buffered readers.
+        output_path = self._get_output_for_dataset(dataset, split_dims)
+        if self.should_skip_file(output_path):
+            return False
         with tempfile.NamedTemporaryFile() as tmp:
             dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')
-            copy(tmp.name, self._get_output_for_dataset(dataset, split_dims))
+            copy(tmp.name, output_path)
+        return True
 
     def _get_output_for_dataset(self, dataset: xr.Dataset, split_dims: t.List[str]) -> str:
         splits = {'variable': list(dataset.data_vars.keys())[0]}
