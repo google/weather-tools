@@ -97,3 +97,39 @@ class FileNameUtilsTest(unittest.TestCase):
                                       out_dir=None,
                                       input_base_dir='ignored')
         self.assertEqual(actual.split_dims(), ['variable'])
+
+    def test_formatted_output_path_datetime(self):
+        file_info = get_output_file_info(filename='gs://my_bucket/data/20200121.nc',
+                                         out_pattern='gs://my_bucket/splits/{datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S").strftime("%Y%m%d")}_{variable}.nc',
+                                         out_dir=None,
+                                         input_base_dir='ignored')
+        splits = {'time': '2020-01-21T00:00:00', 'variable': 'temperature'}
+        actual = file_info.formatted_output_path(splits)
+        self.assertEqual(actual, 'gs://my_bucket/splits/20200121_temperature.nc')
+
+    def test_formatted_output_path_quotes(self):
+        splits = {'time': '2020-01-21', 'variable': 'temperature'}
+        
+        # single quotes
+        file_info = get_output_file_info(filename='gs://my_bucket/data/20200121.nc',
+                                         out_pattern="gs://my_bucket/splits/'{variable}'_{time}.nc",
+                                         out_dir=None,
+                                         input_base_dir='ignored')
+        self.assertEqual(file_info.formatted_output_path(splits), "gs://my_bucket/splits/'temperature'_2020-01-21.nc")
+        
+        # double quotes
+        file_info = get_output_file_info(filename='gs://my_bucket/data/20200121.nc',
+                                         out_pattern='gs://my_bucket/splits/"{variable}"_{time}.nc',
+                                         out_dir=None,
+                                         input_base_dir='ignored')
+        self.assertEqual(file_info.formatted_output_path(splits), 'gs://my_bucket/splits/"temperature"_2020-01-21.nc')
+        
+        # no quotes
+        file_info = get_output_file_info(filename='gs://my_bucket/data/20200121.nc',
+                                         out_pattern='gs://my_bucket/splits/{variable}_{time}.nc',
+                                         out_dir=None,
+                                         input_base_dir='ignored')
+        self.assertEqual(file_info.formatted_output_path(splits), 'gs://my_bucket/splits/temperature_2020-01-21.nc')
+
+if __name__ == '__main__':
+    unittest.main()

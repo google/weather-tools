@@ -17,6 +17,7 @@ import logging
 import os
 import string
 import typing as t
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +57,27 @@ class OutFileInfo:
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
-        import datetime
+        import re
         template = self.unformatted_output_path()
+        
+        # Replace empty braces {} with {_0}, {_1}, etc. sequentially
+        for i in range(len(self.template_folders)):
+            template = template.replace('{}', f'{{_{i}}}', 1)
+            
+        # Replace numbered braces {0}, {0:02d}, etc.
+        for i in range(len(self.template_folders)):
+            template = re.sub(r'\{' + str(i) + r'([!:}\.])', r'{_' + str(i) + r'\1', template)
         
         # Safe globals dictionary containing only datetime
         safe_globals = {"datetime": datetime}
         
-        try:
-            # First, substitute the positional args (if any) to avoid invalid f-string syntax like {0}
-            formatted_positionals = template.format(*self.template_folders, **{k: '{'+k+'}' for k in splits.keys()})
+        splits_with_pos = splits.copy()
+        for i, folder in enumerate(self.template_folders):
+            splits_with_pos[f'_{i}'] = folder
             
-            # Then evaluate as an f-string with splits as locals
-            return eval(f'f"""{formatted_positionals}"""', safe_globals, splits)
+        try:
+            # evaluate as an f-string using repr to handle quotes correctly
+            return eval('f' + repr(template), safe_globals, splits_with_pos)
         except Exception:
             # Fallback to standard formatting
             return template.format(*self.template_folders, **splits)
