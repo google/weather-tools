@@ -98,6 +98,13 @@ class FileNameUtilsTest(unittest.TestCase):
                                       input_base_dir='ignored')
         self.assertEqual(actual.split_dims(), ['variable'])
 
+    def test_split_dims_with_datetime(self):
+        actual = get_output_file_info(filename='gs://my_bucket/data_to_split/20200121.nc',
+                                      out_pattern='gs://my_bucket/splits/{datetime.datetime.strptime(time, "%Y-%m").strftime("%Y")}_{variable}.nc',
+                                      out_dir=None,
+                                      input_base_dir='ignored')
+        self.assertEqual(actual.split_dims(), ['time', 'variable'])
+
     def test_formatted_output_path_datetime(self):
         file_info = get_output_file_info(filename='gs://my_bucket/data/20200121.nc',
                                          out_pattern='gs://my_bucket/splits/{datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S").strftime("%Y%m%d")}_{variable}.nc',

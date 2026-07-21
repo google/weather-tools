@@ -51,9 +51,18 @@ class OutFileInfo:
         return self.file_name_template + self.formatting + self.ending
 
     def split_dims(self) -> t.List[str]:
-        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self.unformatted_output_path())]))
-        return [key for key in all_format if not key.isdigit()]
+        import ast
+        keys = []
+        for field in string.Formatter().parse(self.unformatted_output_path()):
+            if field[1] is not None and not field[1].isdigit():
+                try:
+                    tree = ast.parse(field[1], mode='eval')
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Name) and node.id not in ('datetime',):
+                            keys.append(node.id)
+                except Exception:
+                    keys.append(field[1])
+        return list(dict.fromkeys(keys))
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
