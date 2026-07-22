@@ -68,22 +68,22 @@ class OutFileInfo:
         """Construct output file name with formatting applied"""
         import re
         template = self.unformatted_output_path()
-        
+
         # Replace empty braces {} with {_0}, {_1}, etc. sequentially
         for i in range(len(self.template_folders)):
             template = template.replace('{}', f'{{_{i}}}', 1)
-            
+
         # Replace numbered braces {0}, {0:02d}, etc.
         for i in range(len(self.template_folders)):
             template = re.sub(r'\{' + str(i) + r'([!:}\.])', r'{_' + str(i) + r'\1', template)
-        
+
         # Safe globals dictionary containing only datetime
         safe_globals = {"datetime": datetime}
-        
+
         splits_with_pos = splits.copy()
         for i, folder in enumerate(self.template_folders):
             splits_with_pos[f'_{i}'] = folder
-            
+
         try:
             # evaluate as an f-string using repr to handle quotes correctly
             return eval('f' + repr(template), safe_globals, splits_with_pos)
