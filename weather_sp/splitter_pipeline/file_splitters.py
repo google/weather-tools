@@ -80,7 +80,6 @@ def copy_dir(src: str, dst: str) -> None:
             dst = dst if dst.endswith('/') else dst + '/'
             subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
                            check=True, capture_output=True, text=True, input="n\n")
-            logger.info(f"Successfully copied files from {src} to {dst}")
         else:
             shutil.copytree(src, dst, dirs_exist_ok=True)
     except Exception as e:
@@ -297,20 +296,21 @@ class GribSplitterV2(GribSplitter):
                     subprocess.run([grib_copy_cmd, local_file.name, dest],
                                    check=True)
 
-                for f in os.listdir(tmpdir):
+                files = os.listdir(tmpdir)
+                num_files = len(files)
+                for f in files:
                     if delimiter in f:
                         new_rel_path = f.replace(delimiter, '/').lstrip('/')
                         new_path = os.path.join(tmpdir, new_rel_path)
                         os.makedirs(os.path.dirname(new_path), exist_ok=True)
                         shutil.move(os.path.join(tmpdir, f), new_path)
 
-                if os.listdir(tmpdir):
-                    self.logger.info('Uploading %r...', self.input_path)
+                if num_files:
+                    self.logger.info('Uploading %d split files for %r.', num_files, self.input_path)
                     copy_dir(tmpdir, prefix)
                     self.logger.info('Finished uploading %r', self.input_path)
                 else:
-                    raise RuntimeError(
-                            'No files generated for %r. Splitting failed.' % self.input_path)
+                    self.logger.error('No files generated for %r. Splitting failed.', self.input_path)
 
 
 class NetCdfSplitter(FileSplitter):
