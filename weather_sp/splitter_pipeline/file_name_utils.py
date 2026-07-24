@@ -17,6 +17,7 @@ import logging
 import os
 import string
 import typing as t
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +51,45 @@ class OutFileInfo:
         return self.file_name_template + self.formatting + self.ending
 
     def split_dims(self) -> t.List[str]:
-        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self.unformatted_output_path())]))
-        return [key for key in all_format if not key.isdigit()]
+        import ast
+        keys = []
+        for field in string.Formatter().parse(self.unformatted_output_path()):
+            if field[1] is not None and not field[1].isdigit():
+                try:
+                    tree = ast.parse(field[1], mode='eval')
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Name) and node.id not in ('datetime',):
+                            keys.append(node.id)
+                except Exception:
+                    keys.append(field[1])
+        return list(dict.fromkeys(keys))
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
-        return self.unformatted_output_path().format(*self.template_folders, **splits)
+        import re
+        template = self.unformatted_output_path()
+
+        # Replace empty braces {} with {_0}, {_1}, etc. sequentially
+        for i in range(len(self.template_folders)):
+            template = template.replace('{}', f'{{_{i}}}', 1)
+
+        # Replace numbered braces {0}, {0:02d}, etc.
+        for i in range(len(self.template_folders)):
+            template = re.sub(r'\{' + str(i) + r'([!:}\.])', r'{_' + str(i) + r'\1', template)
+
+        # Safe globals dictionary containing only datetime
+        safe_globals = {"datetime": datetime}
+
+        splits_with_pos = splits.copy()
+        for i, folder in enumerate(self.template_folders):
+            splits_with_pos[f'_{i}'] = folder
+
+        try:
+            # evaluate as an f-string using repr to handle quotes correctly
+            return eval('f' + repr(template), safe_globals, splits_with_pos)
+        except Exception:
+            # Fallback to standard formatting
+            return template.format(*self.template_folders, **splits)
 
 
 def get_output_file_info(filename: str,
