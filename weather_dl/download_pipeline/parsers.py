@@ -466,6 +466,16 @@ def process_config(file: t.IO, config_name: str) -> Config:
                 """"If 'date_range' is specified in the 'selection' section,
                 then it is also required as a partition keys.""")
 
+    if 'no_cache' in selection:
+        no_cache = selection['no_cache'].lower()
+        require(no_cache in ["true", "false"],
+                """no_cache can only be true or false.""")
+        if selection['no_cache'] == "true":
+            # To download the fresh data and not from cache.
+            # https://forum.ecmwf.int/t/how-to-avoid-the-cds-cache-issue/905
+            config['selection']['nocache'] = '123'
+        del config['selection']['no_cache']
+
     # Ensure consistent lookup.
     config['parameters']['partition_keys'] = partition_keys
     # Add config file name.

@@ -1085,6 +1085,41 @@ class ProcessConfigTest(unittest.TestCase):
             config = process_config(f, 'test.cfg')
             self.assertEqual(config.selection['month'], ['01'])
             self.assertEqual(config.selection['year'], ['2018'])
+    def test_nochche_paramete(self):
+        with io.StringIO(
+                """
+                [parameters]
+                client=cds
+                target_path=bar
+                [selection]
+                no_cache=true
+                """
+        ) as f:
+            config = process_config(f, 'test.cfg')
+            self.assertEqual(config.selection['nocache'], "123")
+        with self.assertRaisesRegex(KeyError, "'no_cache'"):
+            with io.StringIO(
+                """
+                [parameters]
+                client=cds
+                target_path=bar
+                [selection]
+                no_cache=false
+                """
+            ) as f:
+                config = process_config(f, 'test.cfg')
+                self.assertEqual(config.selection['no_cache'], "true")
+        with self.assertRaisesRegex(ValueError, "no_cache can only be true or false."):
+            with io.StringIO(
+                """
+                [parameters]
+                client=cds
+                target_path=bar
+                [selection]
+                no_cache=abc
+                """
+            ) as f:
+                config = process_config(f, 'test.cfg')
 
 
 class PrepareTargetNameTest(unittest.TestCase):
