@@ -37,6 +37,7 @@ dependencies:
     - MarkupSafe==2.1.5
     - setuptools==70.3.0
     - pyparsing==3.1.4
+    - findlibs==0.1.2
     - .
     - ./weather_dl
     - ./weather_mv

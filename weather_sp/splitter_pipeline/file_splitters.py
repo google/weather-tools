@@ -56,13 +56,35 @@ def copy(src: str, dst: str) -> None:
     try:
         if is_gs:
             subprocess.run(['gcloud', 'storage', 'cp', src, dst], check=True,
-                           capture_output=True, text=True, input="n/n")
+                           capture_output=True, text=True, input="n\n")
         else:
             os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
             shutil.copy(src, dst)
     except Exception as e:
         error_detail = getattr(e, "stderr", str(e)).strip()
         msg = f"Failed to copy {src!r} to {dst!r} due to {error_detail}"
+        logger.error(msg)
+        raise EnvironmentError(msg) from e
+
+
+@retry.with_exponential_backoff(
+    num_retries=NUM_RETRIES,
+    logger=logger.warning,
+    initial_delay_secs=INITIAL_DELAY,
+    max_delay_secs=MAX_DELAY
+)
+def copy_dir(src: str, dst: str) -> None:
+    """Copy directory contents recursively via gcloud storage or local filesystem."""
+    try:
+        if dst.startswith("gs://"):
+            dst = dst if dst.endswith('/') else dst + '/'
+            subprocess.run(['gcloud', 'storage', 'cp', '-r', '.', dst], cwd=src,
+                           check=True, capture_output=True, text=True, input="n\n")
+        else:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+    except Exception as e:
+        err = getattr(e, "stderr", str(e)).strip()
+        msg = f"Failed to copy directory {src!r} to {dst!r} due to {err}"
         logger.error(msg)
         raise EnvironmentError(msg) from e
 
@@ -169,6 +191,7 @@ class GribSplitter(FileSplitter):
                     # If the target shard doesn't exist, create it.
                     if key not in outputs:
                         if self.should_skip_file(key):
+                            self.logger.info('Skipping %s, file already split.', repr(key))
                             skipped_keys.add(key)
                             del grb
                             continue
@@ -217,7 +240,7 @@ class GribSplitterV2(GribSplitter):
         grib_copy_cmd = shutil.which('grib_copy')
         grib_get_cmd = shutil.which('grib_get')
         uniq_cmd = shutil.which('uniq')
-        for cmd, name in [(grib_get_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
+        for cmd, name in [(grib_copy_cmd, 'grib_copy'), (grib_get_cmd, 'grib_get'), (uniq_cmd, 'uniq')]:
             if not cmd:
                 raise EnvironmentError(f'binary {name!r} is not available in the current environment!')
 
@@ -229,7 +252,6 @@ class GribSplitterV2(GribSplitter):
         output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
         output_template = output_str.format(*self.output_info.template_folders)
 
-        slash = '/'
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
         split_dims = self.output_info.split_dims()
@@ -245,17 +267,32 @@ class GribSplitterV2(GribSplitter):
                 grib_get_args = [grib_get_cmd, '-p', split_dims_arg, local_file.name]
             grib_get_process = subprocess.Popen(grib_get_args, stdout=subprocess.PIPE)
             uniq_output = subprocess.check_output((uniq_cmd,), stdin=grib_get_process.stdout)
+
+            # Filter out empty strings that might result from trailing newlines.
+            decoded_text = uniq_output.decode('utf-8').strip()
+            if not decoded_text:
+                self.logger.warning(
+                    'No GRIB messages in %r matched the filter expression: %r. Skipping...',
+                    self.input_path, self.grib_filter_expression
+                )
+                metrics.Metrics.counter('file_splitters', 'skipped_empty_filter').inc()
+                metrics.Metrics.counter('file_splitters', 'total_skipped').inc()
+                return
+
+            decoded_uniq = decoded_text.splitlines()
+
             output_paths = []
             skipped_paths = []
-            for line in uniq_output.decode('utf-8').rstrip('\n').split('\n'):
+            for line in decoded_uniq:
                 splits = dict(zip(split_dims, line.split(' ')))
                 output_path = self.output_info.formatted_output_path(splits)
                 if self.should_skip_file(output_path):
+                    self.logger.info('Skipping %s, file already split.', repr(output_path))
                     skipped_paths.append(output_path)
                     continue
                 output_paths.append(output_path)
             if not output_paths:
-                metrics.Metrics.counter('file_splitters', 'skipped').inc()
+                metrics.Metrics.counter('file_splitters', 'total_skipped').inc()
                 self.logger.info('Skipping %s, file already split into: %s',
                                  repr(self.input_path), ', '.join(skipped_paths))
                 return
@@ -272,16 +309,29 @@ class GribSplitterV2(GribSplitter):
                     subprocess.run([grib_copy_cmd, local_file.name, dest],
                                    check=True)
 
-                self.logger.info('Uploading %r...', self.input_path)
-                for flat_target in os.listdir(tmpdir):
-                    dest_file_path = f'{prefix}{flat_target.replace(delimiter, slash)}'
+                # grib_copy generates a file for every message, including ones
+                # that were already split. Drop those so copy_dir won't re-upload
+                # them (issue #538), then flatten the DELIMITER-encoded names back
+                # into their nested directory structure for the recursive copy.
+                num_files = 0
+                for f in os.listdir(tmpdir):
+                    dest_file_path = f'{prefix}{f.replace(delimiter, "/")}'
                     if dest_file_path not in output_paths_set:
+                        os.remove(os.path.join(tmpdir, f))
                         continue
-                    self.logger.info([prefix, dest_file_path, local_file.name,
-                                      self.output_info.unformatted_output_path()])
+                    num_files += 1
+                    if delimiter in f:
+                        new_rel_path = f.replace(delimiter, '/').lstrip('/')
+                        new_path = os.path.join(tmpdir, new_rel_path)
+                        os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                        shutil.move(os.path.join(tmpdir, f), new_path)
 
-                    copy(os.path.join(tmpdir, flat_target), dest_file_path)
-                self.logger.info('Finished uploading %r', self.input_path)
+                if num_files:
+                    self.logger.info('Uploading %d split files for %r.', num_files, self.input_path)
+                    copy_dir(tmpdir, prefix)
+                    self.logger.info('Finished uploading %r', self.input_path)
+                else:
+                    self.logger.error('No files generated for %r. Splitting failed.', self.input_path)
 
 
 class NetCdfSplitter(FileSplitter):
@@ -339,6 +389,7 @@ class NetCdfSplitter(FileSplitter):
         # Storing data in HDF5 is advantageous since it allows opening NetCDF files with buffered readers.
         output_path = self._get_output_for_dataset(dataset, split_dims)
         if self.should_skip_file(output_path):
+            self.logger.info('Skipping %s, file already split.', repr(output_path))
             return False
         with tempfile.NamedTemporaryFile() as tmp:
             dataset.to_netcdf(path=tmp.name, engine='netcdf4', format='NETCDF4')

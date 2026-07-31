@@ -320,6 +320,10 @@ the [Copernicus documentation](https://cds.climate.copernicus.eu/datasets).
 See [this example](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
 for what kind of requests one can make.
 
+**Bypassing CDS Cache (`no_cache`)**:
+To download fresh data and bypass the CDS server-side request cache (see [CDS cache issue discussion](https://forum.ecmwf.int/t/how-to-avoid-the-cds-cache-issue/905)), set `no_cache = true` in the `[selection]` section of your configuration file.
+* `no_cache`: (optional) Accepts `true` or `false`. When set to `true`, `weather-dl` automatically includes the `nocache` parameter in the CDS request payload to force downloading fresh data instead of retrieving cached data.
+
 ### MARS
 
 **License**: By using MARS Dataset, users agree to the terms and conditions specified in [License](https://www.ecmwf.int/en/forecasts/accessing-forecasts/licences-available) document.

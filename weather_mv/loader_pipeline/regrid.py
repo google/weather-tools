@@ -14,6 +14,7 @@
 import argparse
 import contextlib
 import dataclasses
+import datetime
 import glob
 import json
 import logging
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import metview as mv
+    from metview.metviewpy import utils
     Fieldset = mv.bindings.Fieldset
 except (ModuleNotFoundError, ImportError, FileNotFoundError, ValueError):
     logger.error('Metview could not be imported.')
@@ -261,6 +263,21 @@ class Regrid(ToDataSink):
         assert len(matches) == 1
         return len(matches[0].metadata_list) > 0
 
+    def get_memory_safe_base_date(self, fs: Fieldset) -> t.Union[datetime.datetime, t.List[datetime.datetime], None]:
+        """
+        Safely extracts the base date(s) from a Fieldset without triggering
+        the C-level memory leaks present in the native fs.base_date() call.
+        """
+        if len(fs) == 0:
+            return None
+
+        result = []
+        for d, t_val in fs.grib_get(["dataDate", "dataTime"]):
+            result.append(utils.date_from_ecc_keys(d, t_val))
+
+        # Replicating Metview's default behavior.
+        return result[0] if len(result) == 1 else result
+
     def apply(self, uri: str) -> None:
         logger.info(f'Regridding {uri!r} using {self.regrid_kwargs}.')
 
@@ -288,7 +305,7 @@ class Regrid(ToDataSink):
                     fs = mv.bindings.Fieldset(path=local_grib)
 
                     if self.use_yearwise_directories:
-                        base_date = fs.base_date()
+                        base_date = self.get_memory_safe_base_date(fs)
                         if base_date is None:
                             logger.error(f"Could not retrieve a valid date from {uri!r}.")
                             return
