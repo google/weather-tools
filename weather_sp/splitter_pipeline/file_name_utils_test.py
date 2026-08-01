@@ -148,5 +148,25 @@ class FileNameUtilsTest(unittest.TestCase):
                                          input_base_dir='ignored')
         self.assertEqual(file_info.formatted_output_path(splits), 'gs://my_bucket/splits/temperature_2020-01-21.nc')
 
+    def test_formatted_output_path_datetime_wildcard_fallback(self):
+        """When wildcard values are used with datetime templates, the eval fallback
+        should not crash and should return a path with datetime expressions as
+        literal text."""
+        file_info = get_output_file_info(
+            filename='gs://my_bucket/data/20200121.nc',
+            out_pattern=(
+                'gs://my_bucket/splits/'
+                '{datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S").strftime("%Y%m%d")}'
+                '_{variable}.nc'
+            ),
+            out_dir=None,
+            input_base_dir='ignored'
+        )
+        splits = {'time': '*', 'variable': '*'}
+        actual = file_info.formatted_output_path(splits)
+        self.assertIn('*', actual)
+        self.assertIn('{datetime', actual)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+import ast
+import datetime
 import logging
 import os
+import re
 import string
 import typing as t
-import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,6 @@ class OutFileInfo:
         return self.file_name_template + self.formatting + self.ending
 
     def split_dims(self) -> t.List[str]:
-        import ast
         keys = []
         for field in string.Formatter().parse(self.unformatted_output_path()):
             if field[1] is not None and not field[1].isdigit():
@@ -66,7 +67,6 @@ class OutFileInfo:
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
         """Construct output file name with formatting applied"""
-        import re
         template = self.unformatted_output_path()
 
         # Replace empty braces {} with {_0}, {_1}, etc. sequentially
@@ -88,8 +88,20 @@ class OutFileInfo:
             # evaluate as an f-string using repr to handle quotes correctly
             return eval('f' + repr(template), safe_globals, splits_with_pos)
         except Exception:
-            # Fallback to standard formatting
-            return template.format(*self.template_folders, **splits)
+            # Fallback: try standard formatting with only the simple split keys.
+            # Templates with datetime expressions (e.g. {datetime.strptime(...)})
+            # are not compatible with str.format, so we try standard formatting
+            # and then manually substitute any remaining simple {key} patterns,
+            # leaving datetime expressions as literal text.
+            try:
+                return template.format(*self.template_folders, **splits)
+            except (KeyError, ValueError, IndexError):
+                # str.format can't handle datetime expressions; manually
+                # replace only the simple {key} patterns we have values for.
+                result = template
+                for key, value in {**splits, **{f'_{i}': f for i, f in enumerate(self.template_folders)}}.items():
+                    result = result.replace('{' + str(key) + '}', str(value))
+                return result
 
 
 def get_output_file_info(filename: str,

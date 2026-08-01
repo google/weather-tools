@@ -133,6 +133,11 @@ class FileSplitter(abc.ABC):
         if self.force_split:
             return False
 
+        if "datetime" in self.output_info.unformatted_output_path():
+            # Templates with datetime expressions cannot be reliably glob-matched
+            # with wildcard values, so we skip the pre-split check.
+            return False
+
         for match in FileSystems().match([
             self.output_info.formatted_output_path(
                 {var: '*' for var in self.output_info.split_dims()}),
@@ -239,7 +244,14 @@ class GribSplitterV2(GribSplitter):
 
         # Replace { with [ and } with ] only for non-numeric values inside {} of tail
         output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
-        output_template = output_str.format(*self.output_info.template_folders)
+        try:
+            output_template = output_str.format(*self.output_info.template_folders)
+        except (KeyError, ValueError, IndexError):
+            # Template may contain datetime expressions (e.g. {datetime.datetime.strptime(...)})
+            # that str.format cannot handle. Manually fill positional template folders.
+            output_template = output_str
+            for i, folder in enumerate(self.output_info.template_folders):
+                output_template = output_template.replace('{' + str(i) + '}', folder, 1)
 
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)
