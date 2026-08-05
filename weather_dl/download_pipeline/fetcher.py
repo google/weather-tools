@@ -69,6 +69,8 @@ class Fetcher(beam.DoFn):
 
         client = CLIENTS[self.client_name](config, self.log_level)
         target = prepare_target_name(config)
+        if 'year-month' in config.selection:
+            del config.selection['year-month']
 
         with tempfile.NamedTemporaryFile() as temp:
             logger.info(f'[{worker_name}] Fetching data for {target!r}.')
