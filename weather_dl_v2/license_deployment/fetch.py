@@ -63,8 +63,6 @@ def make_fetch_request(request, error_map: ThreadSafeDict):
 
     target = request["location"]
     selection = json.loads(request["selection"])
-    if "year-month" in selection:
-        del selection["year-month"]
 
     logger.info(f"Fetching data for {target!r}.")
 

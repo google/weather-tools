@@ -84,6 +84,13 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
     """
     selection_ = copy.deepcopy(selection)
 
+    if 'year-month' in selection_.keys():
+        ym = selection_['year-month'][0]
+        year, month = map(int, ym.split('-'))
+        last_day = calendar.monthrange(year, month)[1]
+        selection_['date'] = [f'{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{last_day:02d}']
+        del selection_['year-month']
+
     if 'date_range' in selection_.keys():
         selection_['date'] = selection_['date_range'][0]
         del selection_['date_range']

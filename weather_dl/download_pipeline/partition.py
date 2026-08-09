@@ -139,13 +139,6 @@ def _create_partition_config(option: t.Tuple, config: Config) -> Config:
     for idx, key in enumerate(config.partition_keys):
         copy[key] = [option[idx]]
 
-    # Replace year-month with actual dates.
-    if 'year-month' in copy:
-        ym = copy['year-month'][0]
-        year, month = map(int, ym.split('-'))
-        last_day = calendar.monthrange(year, month)[1]
-        copy['date'] = [f'{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{last_day:02d}']
-
     # Replace hdate with actual value.
     if 'hdate' in copy:
         copy['hdate'] = [generate_hdate(copy['date'][0], v) for v in copy['hdate']]
