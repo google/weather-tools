@@ -489,9 +489,9 @@ def process_config(file: t.IO, config_name: str) -> Config:
                 then it is also required as a partition keys.""")
 
     if 'no_cache' in selection:
-            no_cache = selection['no_cache'].lower()
-            require(no_cache in ["true", "false"],
-                    """no_cache can only be true or false.""")
+        no_cache = selection['no_cache'].lower()
+        require(no_cache in ["true", "false"],
+                """no_cache can only be true or false.""")
 
         if selection['no_cache'] == "true":
             # To download the fresh data and not from cache.
