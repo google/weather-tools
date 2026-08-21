@@ -315,7 +315,7 @@ class GribSplitterV2(GribSplitter):
                 # into their nested directory structure for the recursive copy.
                 num_files = 0
                 for f in os.listdir(tmpdir):
-                    dest_file_path = f'{prefix}{f.replace(delimiter, "/")}'
+                    dest_file_path = os.path.join(prefix, *f.split(delimiter))
                     if dest_file_path not in output_paths_set:
                         os.remove(os.path.join(tmpdir, f))
                         continue
