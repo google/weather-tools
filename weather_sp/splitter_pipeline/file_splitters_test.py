@@ -193,7 +193,7 @@ class TestGribSplitter:
 
     def test_splits_only_missing_files(self, data_dir, grib_splitter):
         input_path = os.path.join(data_dir, 'era5_sample.grib')
-        split_dir = os.path.join(data_dir, 'split_files', '')
+        split_dir = os.path.join(data_dir, 'split_files')
         out_file_prefix = os.path.join(split_dir, 'era5_sample')
         splitter = grib_splitter(
             input_path,
@@ -338,7 +338,7 @@ class TestNetCdfSplitter:
 
     def test_splits_only_missing_files(self, data_dir):
         input_path = os.path.join(data_dir, 'era5_sample.nc')
-        split_dir = os.path.join(data_dir, 'split_files', '')
+        split_dir = os.path.join(data_dir, 'split_files')
         out_file_prefix = os.path.join(split_dir, 'era5_sample')
         splitter = NetCdfSplitter(
             input_path,
