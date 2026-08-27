@@ -14,6 +14,7 @@
 import dataclasses
 import glob
 import os.path
+import psutil
 import tempfile
 import unittest
 
@@ -110,6 +111,42 @@ class RegridTest(TestDataBase):
             xr.open_dataset(expected)
         except:  # noqa
             self.fail('Cannot open netCDF with Xarray.')
+
+    def _run_memory_leak_check(self, use_yearwise: bool):
+        input_grib = os.path.join(self.test_data_folder, 'test_data_202608101200.gb')
+
+        Op1 = dataclasses.replace(
+            self.Op,
+            regrid_kwargs={'grid': [0.1, 0.1]},
+            use_yearwise_directories=use_yearwise,
+        )
+
+        process = psutil.Process(os.getpid())
+
+        # Run a few times to warm up caches, buffers, etc.
+        for _ in range(5):
+            Op1.apply(input_grib)
+
+        mem_baseline = process.memory_info().rss / (1024 * 1024)
+
+        # Run 20 times to check for memory leaks.
+        for _ in range(20):
+            Op1.apply(input_grib)
+
+        mem_after = process.memory_info().rss / (1024 * 1024)
+        memory_increase = mem_after - mem_baseline
+
+        self.assertLess(
+            memory_increase,
+            10.0,  # Allow 10 MB overhead.
+            f"Memory leak detected! Memory grew by {memory_increase:.2f} MB after warmup."
+        )
+
+    def test_apply__does_not_leak_memory_with_yearwise(self):
+        self._run_memory_leak_check(use_yearwise=True)
+
+    def test_apply__does_not_leak_memory_without_yearwise(self):
+        self._run_memory_leak_check(use_yearwise=False)
 
     def test_zarr__coarsen(self):
         input_zarr = os.path.join(self.input_dir, 'input.zarr')
