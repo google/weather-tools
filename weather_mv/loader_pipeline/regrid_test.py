@@ -113,7 +113,7 @@ class RegridTest(TestDataBase):
             self.fail('Cannot open netCDF with Xarray.')
 
     def _run_memory_leak_check(self, use_yearwise: bool):
-        input_grib = os.path.join(self.test_data_folder, 'test_data_202608101200.gb')
+        input_grib = os.path.join(self.test_data_folder, 'test_data_grib_single_timestep')
 
         Op1 = dataclasses.replace(
             self.Op,
