@@ -244,14 +244,30 @@ class GribSplitterV2(GribSplitter):
 
         # Replace { with [ and } with ] only for non-numeric values inside {} of tail
         output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
-        try:
-            output_template = output_str.format(*self.output_info.template_folders)
-        except (KeyError, ValueError, IndexError):
-            # Template may contain datetime expressions (e.g. {datetime.datetime.strptime(...)})
-            # that str.format cannot handle. Manually fill positional template folders.
-            output_template = output_str
-            for i, folder in enumerate(self.output_info.template_folders):
-                output_template = output_template.replace('{' + str(i) + '}', folder, 1)
+
+        # Build variables dict for template substitution
+        variables = {}
+        for i, folder in enumerate(self.output_info.template_folders):
+            variables[str(i)] = folder
+            variables[f'_{i}'] = folder
+
+        # Substitute template folders, leaving datetime expressions intact
+        output_template = []
+        last_end = 0
+        for match in re.finditer(r'\{([^{}]*)\}', output_str):
+            output_template.append(output_str[last_end:match.start()])
+            field_expr = match.group(1)
+            if not field_expr:
+                output_template.append(match.group(0))
+            elif field_expr.isdigit() and int(field_expr) < len(self.output_info.template_folders):
+                output_template.append(self.output_info.template_folders[int(field_expr)])
+            else:
+                # Keep datetime expressions and other non-positional fields as-is
+                # for grib_copy to handle
+                output_template.append(match.group(0))
+            last_end = match.end()
+        output_template.append(output_str[last_end:])
+        output_template = ''.join(output_template)
 
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)

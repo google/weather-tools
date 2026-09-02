@@ -54,7 +54,11 @@ class OutFileInfo:
 
     def split_dims(self) -> t.List[str]:
         keys = []
-        for field in string.Formatter().parse(self.unformatted_output_path()):
+        try:
+            parsed = list(string.Formatter().parse(self.unformatted_output_path()))
+        except ValueError:
+            parsed = []
+        for field in parsed:
             if field[1] is not None and not field[1].isdigit():
                 try:
                     tree = ast.parse(field[1], mode='eval')
@@ -65,43 +69,59 @@ class OutFileInfo:
                     keys.append(field[1])
         return list(dict.fromkeys(keys))
 
-    def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
-        """Construct output file name with formatting applied"""
-        template = self.unformatted_output_path()
+    def _eval_field(self, field_expr: str, variables: t.Dict[str, str]) -> str:
+        """Evaluate a single template field expression safely.
 
-        # Replace empty braces {} with {_0}, {_1}, etc. sequentially
-        for i in range(len(self.template_folders)):
-            template = template.replace('{}', f'{{_{i}}}', 1)
+        Supports both simple variable references and datetime expressions
+        like ``datetime.datetime.strptime(time, "%Y-%m").strftime("%Y")``.
+        """
+        try:
+            tree = ast.parse(field_expr, mode='eval')
+        except SyntaxError:
+            return '{' + field_expr + '}'
 
-        # Replace numbered braces {0}, {0:02d}, etc.
-        for i in range(len(self.template_folders)):
-            template = re.sub(r'\{' + str(i) + r'([!:}\.])', r'{_' + str(i) + r'\1', template)
-
-        # Safe globals dictionary containing only datetime
         safe_globals = {"datetime": datetime}
 
-        splits_with_pos = splits.copy()
-        for i, folder in enumerate(self.template_folders):
-            splits_with_pos[f'_{i}'] = folder
-
         try:
-            # evaluate as an f-string using repr to handle quotes correctly
-            return eval('f' + repr(template), safe_globals, splits_with_pos)
+            result = eval(compile(tree, '<template>', 'eval'), safe_globals, variables)
+            return str(result)
         except Exception:
-            # Fallback: try standard formatting with only the simple split keys.
-            # Templates with datetime expressions (e.g. {datetime.strptime(...)})
-            # are not compatible with str.format, so we try standard formatting
-            # and then manually substitute any remaining simple {key} patterns,
-            # leaving datetime expressions as literal text.
-            try:
-                return template.format(*self.template_folders, **splits)
-            except (KeyError, ValueError, IndexError):
-                # str.format can't handle datetime expressions; manually
-                # replace only the simple {key} patterns we have values for.
-                result = template
-                for key, value in {**splits, **{f'_{i}': f for i, f in enumerate(self.template_folders)}}.items():
-                    result = result.replace('{' + str(key) + '}', str(value))
-                return result
+            return '{' + field_expr + '}'
+
+    def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
+        """Construct output file name with formatting applied.
+
+        Handles:
+        - Simple variable substitution: ``{variable}``
+        - Positional template folders: ``{0}``, ``{}``
+        - Datetime expressions: ``{datetime.datetime.strptime(time, "%Y").strftime("%Y%m%d")}``
+        - Mixed templates with quotes and special characters
+        """
+        template = self.unformatted_output_path()
+
+        variables = dict(splits)
+        for i, folder in enumerate(self.template_folders):
+            variables[str(i)] = folder
+            variables[f'_{i}'] = folder
+
+        result = []
+        last_end = 0
+
+        for match in re.finditer(r'\{([^{}]*)\}', template):
+            result.append(template[last_end:match.start()])
+            field_expr = match.group(1)
+
+            if not field_expr:
+                result.append(match.group(0))
+            elif field_expr.isdigit() and int(field_expr) < len(self.template_folders):
+                result.append(self.template_folders[int(field_expr)])
+            else:
+                result.append(self._eval_field(field_expr, variables))
+
+            last_end = match.end()
+
+        result.append(template[last_end:])
+        return ''.join(result)
 
 
 def get_output_file_info(filename: str,
