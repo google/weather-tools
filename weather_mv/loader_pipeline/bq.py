@@ -54,6 +54,8 @@ GEO_POINT_COLUMN = 'geo_point'
 GEO_POLYGON_COLUMN = 'geo_polygon'
 LATITUDE_RANGE = (-90, 90)
 LONGITUDE_RANGE = (-180, 180)
+LATITUDE_COORD_CANDIDATES: t.Tuple[str, ...] = ('latitude', 'lat', 'y')
+LONGITUDE_COORD_CANDIDATES: t.Tuple[str, ...] = ('longitude', 'lon', 'x')
 
 
 @dataclasses.dataclass
@@ -115,6 +117,9 @@ class ToBigQuery(ToDataSink):
     skip_creating_geo_data_parquet: bool = False
     lat_grid_resolution: t.Optional[float] = None
     lon_grid_resolution: t.Optional[float] = None
+    lat_coord_name: str = dataclasses.field(init=False, default='latitude')
+    lon_coord_name: str = dataclasses.field(init=False, default='longitude')
+    _coord_rename_map: t.Dict[str, str] = dataclasses.field(init=False, repr=False)
 
     @classmethod
     def add_parser_arguments(cls, subparser: argparse.ArgumentParser):
@@ -202,6 +207,8 @@ class ToBigQuery(ToDataSink):
         lat_grid_resolution: float,
         lon_grid_resolution: float,
         skip_creating_polygon: bool = False,
+        lat_column_name: str = 'latitude',
+        lon_column_name: str = 'longitude',
     ):
         """Generates geo data parquet."""
         logger.info("Generating geo data parquet ...")
@@ -210,7 +217,7 @@ class ToBigQuery(ToDataSink):
         # Create a temp parquet file for writing.
         with tempfile.NamedTemporaryFile(suffix='.parquet', mode='w+', newline='') as temp:
             # Define header.
-            header = ['latitude', 'longitude', GEO_POINT_COLUMN, GEO_POLYGON_COLUMN]
+            header = [lat_column_name, lon_column_name, GEO_POINT_COLUMN, GEO_POLYGON_COLUMN]
             data = []
             for lat, lon in lat_lon_pairs:
                 lat = float(lat)
@@ -244,17 +251,23 @@ class ToBigQuery(ToDataSink):
         with open_dataset(self.first_uri, self.xarray_open_dataset_kwargs,
                           self.disable_grib_schema_normalization, self.tif_metadata_for_start_time,
                           self.tif_metadata_for_end_time, is_zarr=self.zarr) as open_ds:
+            source_lat, source_lon = self._resolve_spatial_coordinate_names(open_ds)
+            self._coord_rename_map = self._build_coord_rename_map(source_lat, source_lon)
+            open_ds = self._normalize_dataset_coords(open_ds)
 
             if not self.skip_creating_polygon:
-                logger.warning("Assumes that equal distance between consecutive points of latitude "
-                               "and longitude for the entire grid.")
+                logger.warning(
+                    "Assumes that equal distance between consecutive points of %s and %s for the entire grid.",
+                    self.lat_coord_name,
+                    self.lon_coord_name,
+                )
                 # Find the grid_resolution.
-                if open_ds['latitude'].size > 1 and open_ds['longitude'].size > 1:
-                    latitude_length = len(open_ds['latitude'])
-                    longitude_length = len(open_ds['longitude'])
+                if open_ds[self.lat_coord_name].size > 1 and open_ds[self.lon_coord_name].size > 1:
+                    latitude_length = len(open_ds[self.lat_coord_name])
+                    longitude_length = len(open_ds[self.lon_coord_name])
 
-                    latitude_range = np.ptp(open_ds["latitude"].values)
-                    longitude_range = np.ptp(open_ds["longitude"].values)
+                    latitude_range = np.ptp(open_ds[self.lat_coord_name].values)
+                    longitude_range = np.ptp(open_ds[self.lon_coord_name].values)
 
                     self.lat_grid_resolution = abs(latitude_range / latitude_length) / 2
                     self.lon_grid_resolution = abs(longitude_range / longitude_length) / 2
@@ -268,10 +281,15 @@ class ToBigQuery(ToDataSink):
             if not self.skip_creating_geo_data_parquet:
                 if self.area:
                     n, w, s, e = self.area
-                    open_ds = open_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                    open_ds = open_ds.sel(
+                        {
+                            self.lat_coord_name: slice(n, s),
+                            self.lon_coord_name: slice(w, e),
+                        }
+                    )
 
-                lats = open_ds["latitude"].values.tolist()
-                lons = open_ds["longitude"].values.tolist()
+                lats = open_ds[self.lat_coord_name].values.tolist()
+                lons = open_ds[self.lon_coord_name].values.tolist()
                 self.generate_parquet(
                     self.geo_data_parquet_path,
                     [lats] if isinstance(lats, float) else lats,
@@ -279,6 +297,8 @@ class ToBigQuery(ToDataSink):
                     self.lat_grid_resolution,
                     self.lon_grid_resolution,
                     self.skip_creating_polygon,
+                    lat_column_name=self.lat_coord_name,
+                    lon_column_name=self.lon_coord_name,
                 )
             else:
                 logger.info("geo data parquet is not created as '--skip_creating_geo_data_parquet' flag passed.")
@@ -287,7 +307,7 @@ class ToBigQuery(ToDataSink):
             if self.variables and not self.infer_schema and not open_ds.attrs['is_normalized']:
                 logger.info('Creating schema from input variables.')
                 table_schema = to_table_schema(
-                    [('latitude', 'FLOAT64'), ('longitude', 'FLOAT64'), ('time', 'TIMESTAMP')] +
+                    [(self.lat_coord_name, 'FLOAT64'), (self.lon_coord_name, 'FLOAT64'), ('time', 'TIMESTAMP')] +
                     [(var, 'FLOAT64') for var in self.variables]
                 )
             else:
@@ -314,6 +334,7 @@ class ToBigQuery(ToDataSink):
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
                           self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
+            ds = self._normalize_dataset_coords(ds)
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             for coordinate in get_coordinates(data_ds, uri):
                 yield uri, coordinate
@@ -328,10 +349,16 @@ class ToBigQuery(ToDataSink):
 
         with open_dataset(uri, self.xarray_open_dataset_kwargs, self.disable_grib_schema_normalization,
                           self.tif_metadata_for_start_time, self.tif_metadata_for_end_time, is_zarr=self.zarr) as ds:
+            ds = self._normalize_dataset_coords(ds)
             data_ds: xr.Dataset = _only_target_vars(ds, self.variables)
             if self.area:
                 n, w, s, e = self.area
-                data_ds = data_ds.sel(latitude=slice(n, s), longitude=slice(w, e))
+                data_ds = data_ds.sel(
+                    {
+                        self.lat_coord_name: slice(n, s),
+                        self.lon_coord_name: slice(w, e),
+                    }
+                )
                 logger.info(f'Data filtered by area, size: {data_ds.nbytes}')
             yield from self.to_rows(coordinate, data_ds, uri)
 
@@ -345,10 +372,12 @@ class ToBigQuery(ToDataSink):
             selected_ds = ds.loc[coordinate]
 
             # Ensure that the latitude and longitude dimensions are in sync with the geo data parquet.
-            if not BQ_EXCLUDE_COORDS - set(selected_ds.dims.keys()):
-                selected_ds = selected_ds.transpose('latitude', 'longitude')
+            coord_pair = {self.lat_coord_name, self.lon_coord_name}
+            if coord_pair.issubset(set(selected_ds.sizes.keys())):
+                selected_ds = selected_ds.transpose(self.lat_coord_name, self.lon_coord_name)
 
             vector_df = pd.read_parquet(master_lat_lon)
+            vector_df = self._align_vector_coordinate_columns(vector_df)
             if self.skip_creating_polygon:
                 vector_df[GEO_POLYGON_COLUMN] = None
 
@@ -358,7 +387,9 @@ class ToBigQuery(ToDataSink):
 
             # Add un-indexed coordinates.
             # Filter out excluded coordinates from coords.
-            filtered_coords = (c for c in selected_ds.coords if c not in BQ_EXCLUDE_COORDS)
+            filtered_coords = (
+                c for c in selected_ds.coords if c not in {self.lat_coord_name, self.lon_coord_name}
+            )
             for c in filtered_coords:
                 if c not in coordinate and (not self.variables or c in self.variables):
                     vector_df[c] = to_json_serializable_type(ensure_us_time_resolution(selected_ds[c].values))
@@ -391,8 +422,80 @@ class ToBigQuery(ToDataSink):
         if not self.import_time or self.zarr:
             self.import_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
 
+        ds = self._normalize_dataset_coords(ds)
+
         for coordinate in get_coordinates(ds, uri):
             yield from self.to_rows(coordinate, ds, uri)
+
+    def _build_coord_rename_map(self, source_lat: str, source_lon: str) -> t.Dict[str, str]:
+        rename_map: t.Dict[str, str] = {}
+        if source_lat and source_lat != self.lat_coord_name:
+            rename_map[source_lat] = self.lat_coord_name
+        if source_lon and source_lon != self.lon_coord_name:
+            rename_map[source_lon] = self.lon_coord_name
+        return rename_map
+
+    def _normalize_dataset_coords(self, ds: xr.Dataset) -> xr.Dataset:
+        """Rename dataset coordinates to the internal latitude/longitude names."""
+        if not getattr(self, "_coord_rename_map", None):
+            return ds
+        missing = [source for source in self._coord_rename_map if source not in ds.coords]
+        if missing:
+            raise ValueError(
+                f"Dataset is missing expected coordinate(s) {missing} required for normalization."
+            )
+        return ds.rename(self._coord_rename_map)
+
+    def _align_vector_coordinate_columns(self, vector_df: pd.DataFrame) -> pd.DataFrame:
+        """Ensures the geo parquet uses the same coordinate column names as the dataset."""
+
+        def _find_alias(candidates: t.Tuple[str, ...]) -> t.Optional[str]:
+            for candidate in candidates:
+                if candidate in vector_df.columns:
+                    return candidate
+            return None
+
+        rename_map: t.Dict[str, str] = {}
+        if self.lat_coord_name not in vector_df.columns:
+            source = _find_alias(LATITUDE_COORD_CANDIDATES)
+            if source:
+                rename_map[source] = self.lat_coord_name
+        if self.lon_coord_name not in vector_df.columns:
+            source = _find_alias(LONGITUDE_COORD_CANDIDATES)
+            if source:
+                rename_map[source] = self.lon_coord_name
+
+        if rename_map:
+            vector_df = vector_df.rename(columns=rename_map)
+
+        missing = [
+            coord for coord in (self.lat_coord_name, self.lon_coord_name) if coord not in vector_df.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"Geo data parquet {self.geo_data_parquet_path} is missing coordinate columns: {missing}"
+            )
+
+        return vector_df
+
+    def _resolve_spatial_coordinate_names(self, ds: xr.Dataset) -> t.Tuple[str, str]:
+        """Detects the dataset's latitude and longitude coordinate names."""
+
+        def _find_candidate(candidates: t.Tuple[str, ...]) -> t.Optional[str]:
+            for candidate in candidates:
+                if candidate in ds.coords or candidate in ds.dims:
+                    return candidate
+            return None
+
+        lat_name = _find_candidate(LATITUDE_COORD_CANDIDATES)
+        lon_name = _find_candidate(LONGITUDE_COORD_CANDIDATES)
+        if not lat_name or not lon_name:
+            raise ValueError(
+                f"Unable to identify spatial coordinate names. "
+                f"Checked latitude aliases {LATITUDE_COORD_CANDIDATES} and longitude aliases {LONGITUDE_COORD_CANDIDATES}."
+            )
+
+        return lat_name, lon_name
 
     def expand(self, paths):
         """Extract rows of variables from data paths into a BigQuery table."""
