@@ -22,7 +22,7 @@ import unittest
 import xarray as xr
 
 import weather_mv
-from .sinks import match_datetime, open_dataset
+from .sinks import match_datetime, open_dataset, standardize_coordinate_names
 
 
 class TestDataBase(unittest.TestCase):
@@ -124,6 +124,87 @@ class OpenDatasetTest(TestDataBase):
         with open_dataset(self.test_grib_path,
                           group_common_hypercubes=True) as ds:
             self.assertEqual(isinstance(ds, list), True)
+
+
+class StandardizeCoordinateNamesTest(unittest.TestCase):
+
+    def _dataset_with_coords(self, lat_name: str, lon_name: str,
+                             lat_attrs: dict = None, lon_attrs: dict = None) -> xr.Dataset:
+        return xr.Dataset(
+            {'temperature': ((lat_name, lon_name), np.zeros((3, 2)))},
+            coords={
+                lat_name: ((lat_name,), np.array([0.0, 1.0, 2.0]), lat_attrs or {}),
+                lon_name: ((lon_name,), np.array([10.0, 11.0]), lon_attrs or {}),
+            })
+
+    def assertCanonicalCoords(self, ds: xr.Dataset):
+        self.assertIn('latitude', ds.coords)
+        self.assertIn('longitude', ds.coords)
+
+    def test_renames_lat_lon(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords('lat', 'lon'))
+        self.assertCanonicalCoords(ds)
+
+    def test_renames_long_alias(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords('lat', 'long'))
+        self.assertCanonicalCoords(ds)
+
+    def test_renames_case_insensitively(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords('Lat', 'LON'))
+        self.assertCanonicalCoords(ds)
+
+    def test_renames_capitalized_canonical_names(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords('Latitude', 'Longitude'))
+        self.assertCanonicalCoords(ds)
+
+    def test_canonical_names_left_untouched(self):
+        original = self._dataset_with_coords('latitude', 'longitude')
+        ds = standardize_coordinate_names(original)
+        self.assertCanonicalCoords(ds)
+        xr.testing.assert_identical(original, ds)
+
+    def test_renames_x_y_with_cf_units(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords(
+            'y', 'x', lat_attrs={'units': 'degrees_north'}, lon_attrs={'units': 'degrees_east'}))
+        self.assertCanonicalCoords(ds)
+
+    def test_renames_x_y_with_cf_standard_names(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords(
+            'y', 'x', lat_attrs={'standard_name': 'latitude'}, lon_attrs={'standard_name': 'longitude'}))
+        self.assertCanonicalCoords(ds)
+
+    def test_renames_cf_metadata_case_insensitively_and_strips_whitespace(self):
+        ds = standardize_coordinate_names(self._dataset_with_coords(
+            'y', 'x',
+            lat_attrs={'standard_name': ' Latitude '},
+            lon_attrs={'units': ' Degrees_East '}))
+        self.assertCanonicalCoords(ds)
+
+    def test_x_y_without_cf_metadata_left_untouched(self):
+        # Bare 'x' / 'y' coordinates may be projected (non-degree) values; without
+        # CF metadata identifying them, they must not be relabeled.
+        ds = standardize_coordinate_names(self._dataset_with_coords('y', 'x'))
+        self.assertNotIn('latitude', ds.coords)
+        self.assertNotIn('longitude', ds.coords)
+
+    def test_alias_ignored_when_canonical_name_present(self):
+        ds = xr.Dataset(
+            {'temperature': (('latitude', 'longitude'), np.zeros((3, 2)))},
+            coords={
+                'latitude': np.array([0.0, 1.0, 2.0]),
+                'longitude': np.array([10.0, 11.0]),
+                'lat': (('latitude',), np.array([5.0, 6.0, 7.0])),
+            })
+        ds = standardize_coordinate_names(ds)
+        self.assertCanonicalCoords(ds)
+        self.assertIn('lat', ds.coords)
+
+    def test_dataset_without_spatial_coords_left_untouched(self):
+        original = xr.Dataset(
+            {'temperature': (('time',), np.zeros(3))},
+            coords={'time': np.array([0, 1, 2])})
+        ds = standardize_coordinate_names(original)
+        xr.testing.assert_identical(original, ds)
 
 
 class DatetimeTest(unittest.TestCase):
