@@ -133,6 +133,11 @@ class FileSplitter(abc.ABC):
         if self.force_split:
             return False
 
+        if "datetime" in self.output_info.unformatted_output_path():
+            # Templates with datetime expressions cannot be reliably glob-matched
+            # with wildcard values, so we skip the pre-split check.
+            return False
+
         for match in FileSystems().match([
             self.output_info.formatted_output_path(
                 {var: '*' for var in self.output_info.split_dims()}),
@@ -250,7 +255,30 @@ class GribSplitterV2(GribSplitter):
 
         # Replace { with [ and } with ] only for non-numeric values inside {} of tail
         output_str = re.sub(r'\{(\w+)\}', self.replace_non_numeric_bracket, tail)
-        output_template = output_str.format(*self.output_info.template_folders)
+
+        # Build variables dict for template substitution
+        variables = {}
+        for i, folder in enumerate(self.output_info.template_folders):
+            variables[str(i)] = folder
+            variables[f'_{i}'] = folder
+
+        # Substitute template folders, leaving datetime expressions intact
+        output_template = []
+        last_end = 0
+        for match in re.finditer(r'\{([^{}]*)\}', output_str):
+            output_template.append(output_str[last_end:match.start()])
+            field_expr = match.group(1)
+            if not field_expr:
+                output_template.append(match.group(0))
+            elif field_expr.isdigit() and int(field_expr) < len(self.output_info.template_folders):
+                output_template.append(self.output_info.template_folders[int(field_expr)])
+            else:
+                # Keep datetime expressions and other non-positional fields as-is
+                # for grib_copy to handle
+                output_template.append(match.group(0))
+            last_end = match.end()
+        output_template.append(output_str[last_end:])
+        output_template = ''.join(output_template)
 
         delimiter = 'DELIMITER'
         flat_output_template = output_template.replace('/', delimiter)

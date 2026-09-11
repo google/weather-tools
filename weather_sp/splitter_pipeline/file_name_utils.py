@@ -13,8 +13,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+import ast
+import datetime
 import logging
 import os
+import re
 import string
 import typing as t
 
@@ -50,13 +53,75 @@ class OutFileInfo:
         return self.file_name_template + self.formatting + self.ending
 
     def split_dims(self) -> t.List[str]:
-        all_format = list(filter(None, [field[1] for field in string.Formatter().parse(
-            self.unformatted_output_path())]))
-        return [key for key in all_format if not key.isdigit()]
+        keys = []
+        try:
+            parsed = list(string.Formatter().parse(self.unformatted_output_path()))
+        except ValueError:
+            parsed = []
+        for field in parsed:
+            if field[1] is not None and not field[1].isdigit():
+                try:
+                    tree = ast.parse(field[1], mode='eval')
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Name) and node.id not in ('datetime',):
+                            keys.append(node.id)
+                except Exception:
+                    keys.append(field[1])
+        return list(dict.fromkeys(keys))
+
+    def _eval_field(self, field_expr: str, variables: t.Dict[str, str]) -> str:
+        """Evaluate a single template field expression safely.
+
+        Supports both simple variable references and datetime expressions
+        like ``datetime.datetime.strptime(time, "%Y-%m").strftime("%Y")``.
+        """
+        try:
+            tree = ast.parse(field_expr, mode='eval')
+        except SyntaxError:
+            return '{' + field_expr + '}'
+
+        safe_globals = {"datetime": datetime}
+
+        try:
+            result = eval(compile(tree, '<template>', 'eval'), safe_globals, variables)
+            return str(result)
+        except Exception:
+            return '{' + field_expr + '}'
 
     def formatted_output_path(self, splits: t.Dict[str, str]) -> str:
-        """Construct output file name with formatting applied"""
-        return self.unformatted_output_path().format(*self.template_folders, **splits)
+        """Construct output file name with formatting applied.
+
+        Handles:
+        - Simple variable substitution: ``{variable}``
+        - Positional template folders: ``{0}``, ``{}``
+        - Datetime expressions: ``{datetime.datetime.strptime(time, "%Y").strftime("%Y%m%d")}``
+        - Mixed templates with quotes and special characters
+        """
+        template = self.unformatted_output_path()
+
+        variables = dict(splits)
+        for i, folder in enumerate(self.template_folders):
+            variables[str(i)] = folder
+            variables[f'_{i}'] = folder
+
+        result = []
+        last_end = 0
+
+        for match in re.finditer(r'\{([^{}]*)\}', template):
+            result.append(template[last_end:match.start()])
+            field_expr = match.group(1)
+
+            if not field_expr:
+                result.append(match.group(0))
+            elif field_expr.isdigit() and int(field_expr) < len(self.template_folders):
+                result.append(self.template_folders[int(field_expr)])
+            else:
+                result.append(self._eval_field(field_expr, variables))
+
+            last_end = match.end()
+
+        result.append(template[last_end:])
+        return ''.join(result)
 
 
 def get_output_file_info(filename: str,
