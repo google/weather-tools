@@ -62,8 +62,7 @@ setup.py  # Project is pip-installable, project requirements managed here.
 
     * On a Mac, you can run `brew install miniconda`.
 
-    * Use Python version 3.8.5+ for development. We have not yet upgraded the project to use Python 3.9
-      (see [#166](https://github.com/google/weather-tools/issues/166)).
+    * Use Python version 3.8.5+ for development. 
 
 3. Clone the repo and install dependencies with anaconda.
 
