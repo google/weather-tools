@@ -59,14 +59,15 @@ class OutFileInfo:
         except ValueError:
             parsed = []
         for field in parsed:
-            if field[1] is not None and not field[1].isdigit():
+            field_name = field[1]
+            if field_name is not None and not str(field_name).isdigit():
                 try:
-                    tree = ast.parse(field[1], mode='eval')
+                    tree = ast.parse(str(field_name), mode='eval')
                     for node in ast.walk(tree):
                         if isinstance(node, ast.Name) and node.id not in ('datetime',):
-                            keys.append(node.id)
+                            keys.append(str(node.id))
                 except Exception:
-                    keys.append(field[1])
+                    keys.append(str(field_name))
         return list(dict.fromkeys(keys))
 
     def _eval_field(self, field_expr: str, variables: t.Dict[str, str]) -> str:
