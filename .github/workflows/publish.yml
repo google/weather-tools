@@ -21,9 +21,9 @@ jobs:
   build-artifacts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
       - name: Set up Python
-        uses: actions/setup-python@v2.3.1
+        uses: actions/setup-python@e9aba2c848f5ebd159c070c61ea2c4e2b122355e # v2.3.1
         with:
           python-version: 3.8
 
@@ -47,7 +47,7 @@ jobs:
           else
             echo "✅ Looks good"
           fi
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2
         with:
           name: releases
           path: dist
@@ -56,11 +56,11 @@ jobs:
     needs: build-artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v2.3.1
+      - uses: actions/setup-python@e9aba2c848f5ebd159c070c61ea2c4e2b122355e # v2.3.1
         name: Install Python
         with:
           python-version: 3.8
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: releases
           path: dist
@@ -70,7 +70,7 @@ jobs:
           ls -ltrh dist
       - name: Publish package to TestPyPI
         if: github.event_name == 'push'
-        uses: pypa/gh-action-pypi-publish@v1.4.2
+        uses: pypa/gh-action-pypi-publish@de28d9ba77687207b06b3b209062202e973a6cd9 # v1.4.2
         with:
           user: __token__
           password: ${{ secrets.TESTPYPI_TOKEN }}
@@ -90,12 +90,12 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: releases
           path: dist
       - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
+        uses: pypa/gh-action-pypi-publish@de28d9ba77687207b06b3b209062202e973a6cd9 # v1.4.2
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}

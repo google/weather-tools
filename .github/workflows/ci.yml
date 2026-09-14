@@ -38,7 +38,7 @@ jobs:
       with:
         access_token: ${{ github.token }}
       if: ${{github.ref != 'refs/head/main'}}
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
     - name: conda cache
       uses: actions/cache@v3
       env:
@@ -74,7 +74,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
         if: ${{github.ref != 'refs/head/main'}}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -101,7 +101,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
         if: ${{github.ref != 'refs/head/main'}}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
       - name: conda cache
         uses: actions/cache@v3
         env:
