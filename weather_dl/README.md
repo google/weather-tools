@@ -46,8 +46,9 @@ _Common options_:
   (stdout for direct runner). You can set the name of the manifest as the hostname of a URL with the 'cli' protocol.
   For example, `cli://manifest` will prefix all the manifest logs as '[manifest]'. In addition, users can specify 
   either a Firestore collection URI (`fs://<my-collection>?projectId=<my-project-id>`), or 
-  BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`), or `noop://<name>` 
-  for an in-memory location.
+  BigQuery table (`bq://<project-id>.<dataset-name>.<table-name>`), or 
+  PostgreSQL table (`postgresql://<user>:<password>@<host>:<port>/<database>?table=<table-name>`), or 
+  `noop://<name>` for an in-memory location.
 * `-n, --num-requests-per-key`: Number of concurrent requests to make per API key. Default: make an educated guess per
   client & config. Please see the client documentation for more details.
 * `-p, --partition-chunks`: Group shards into chunks of this size when computing the partitions. Specifically, this 
@@ -63,6 +64,10 @@ _Common options_:
 > Note: 
 >  * In case of BigQuery manifest tool will create the BQ table itself, if not already present. 
 >    Or it will use the existing table but can report errors in case of schema mismatch.
+>  * In case of PostgreSQL manifest tool will create the table (and an index on `config_name`) itself, if not
+>    already present. The table is upserted on the `location` column, so the latest row per location represents
+>    the current state of a download. This works with any PostgreSQL-compatible database, including
+>    [Cloud Spanner's PostgreSQL interface](https://cloud.google.com/spanner/docs/postgresql-interface).
 >  * To run complex queries on the Firestore manifest, users may find it helpful to replicate Firestore to BigQuery 
 >    using the automated process described in 
 >    [this article](https://medium.com/@ammppp/automated-firestore-replication-to-bigquery-15915d518e38). 
