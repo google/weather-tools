@@ -40,6 +40,7 @@ base_requirements = [
     "urllib3==1.26.5",
     "google-cloud-firestore==2.6.0",
     "firebase-admin==6.0.1",
+    "psycopg2-binary",
     # "gcloud" should already be installed in the host image.
     # If we install it here, we'll hit auth issues.
 ]

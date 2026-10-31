@@ -41,6 +41,7 @@ weather_dl_requirements = [
     "google-cloud-firestore",
     "firebase-admin",
     "urllib3==1.26.5",
+    "psycopg2-binary",
 ]
 
 weather_mv_requirements = [

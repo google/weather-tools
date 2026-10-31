@@ -22,11 +22,12 @@ import json
 import logging
 import os
 import pandas as pd
+import re
 import threading
 import time
 import traceback
 import typing as t
-from urllib.parse import urlparse, parse_qsl
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from .util import (
     to_json_serializable_type,
@@ -577,6 +578,183 @@ class BQManifest(Manifest):
             logger.debug(download_status)
 
 
+class PostgresManifest(Manifest):
+    """A PostgreSQL Manifest.
+
+    This implementation stores download statuses in a relational table, where
+    each row is keyed by the download `location`. Updating a status upserts the
+    corresponding row, so the latest value represents the current state of a
+    download.
+
+    Location format:
+        postgresql://<user>:<password>@<host>:<port>/<database>?table=<table-name>
+
+    The `table` query parameter is optional and defaults to 'manifest'. The
+    table and an index on `config_name` are created if they do not already
+    exist. Any additional query parameters are forwarded to `psycopg2` as
+    connection options (e.g. `sslmode=require`).
+
+    Example:
+        >>> manifest = PostgresManifest(
+        ...     Location('postgresql://user:pass@localhost:5432/weather?table=downloads'))
+    """
+
+    DEFAULT_TABLE = 'manifest'
+
+    _COLUMNS = (
+        'config_name', 'dataset', 'selection', 'location', 'area', 'stage',
+        'status', 'error', 'username', 'size', 'scheduled_time',
+        'retrieve_start_time', 'retrieve_end_time', 'fetch_start_time',
+        'fetch_end_time', 'download_start_time', 'download_end_time',
+        'upload_start_time', 'upload_end_time',
+    )
+
+    _TIMESTAMP_COLUMNS = (
+        'scheduled_time', 'retrieve_start_time', 'retrieve_end_time',
+        'fetch_start_time', 'fetch_end_time', 'download_start_time',
+        'download_end_time', 'upload_start_time', 'upload_end_time',
+    )
+
+    _CREATE_TABLE_TEMPLATE = """
+        CREATE TABLE IF NOT EXISTS {table} (
+            config_name TEXT NOT NULL,
+            dataset TEXT,
+            selection TEXT NOT NULL,
+            location TEXT PRIMARY KEY,
+            area TEXT,
+            stage TEXT,
+            status TEXT NOT NULL,
+            error TEXT,
+            username TEXT NOT NULL,
+            size DOUBLE PRECISION,
+            scheduled_time TIMESTAMPTZ,
+            retrieve_start_time TIMESTAMPTZ,
+            retrieve_end_time TIMESTAMPTZ,
+            fetch_start_time TIMESTAMPTZ,
+            fetch_end_time TIMESTAMPTZ,
+            download_start_time TIMESTAMPTZ,
+            download_end_time TIMESTAMPTZ,
+            upload_start_time TIMESTAMPTZ,
+            upload_end_time TIMESTAMPTZ
+        )
+    """
+
+    def __init__(self, location: Location) -> None:
+        super().__init__(location)
+        self.dsn, self.table = self.parse_location(location)
+        self._ensure_table()
+
+    @classmethod
+    def parse_location(cls, location: str) -> t.Tuple[str, str]:
+        """Split a manifest location into a PostgreSQL DSN and table name.
+
+        The `table` query parameter is removed from the DSN, since it is not a
+        valid libpq connection option.
+
+        Raises:
+            ManifestException: If the table name is not a valid SQL identifier.
+        """
+        parsed = urlparse(location)
+        query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        table = query_params.pop('table', cls.DEFAULT_TABLE)
+
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,62}', table):
+            raise ManifestException(
+                f"Invalid table name {table!r}. Table names must be valid PostgreSQL identifiers.")
+
+        dsn = urlunparse(parsed._replace(query=urlencode(query_params)))
+        return dsn, table
+
+    def _connect(self):
+        """Open a new connection to the manifest's PostgreSQL database."""
+        import psycopg2
+        return psycopg2.connect(self.dsn)
+
+    def _ensure_table(self) -> None:
+        """Create the manifest table and its index if they don't exist."""
+        import psycopg2.sql as sql
+        create_table = sql.SQL(self._CREATE_TABLE_TEMPLATE).format(table=sql.Identifier(self.table))
+        create_index = sql.SQL(
+            'CREATE INDEX IF NOT EXISTS {index} ON {table} (config_name)'
+        ).format(
+            index=sql.Identifier(f'{self.table}_config_name_idx'),
+            table=sql.Identifier(self.table),
+        )
+
+        conn = self._connect()
+        try:
+            with conn, conn.cursor() as cursor:
+                cursor.execute(create_table)
+                cursor.execute(create_index)
+        finally:
+            conn.close()
+
+    def _read(self, location: str) -> DownloadStatus:
+        """Read the download status for a location from the manifest."""
+        import psycopg2.sql as sql
+        query = sql.SQL('SELECT {columns} FROM {table} WHERE location = %s').format(
+            columns=sql.SQL(', ').join(map(sql.Identifier, self._COLUMNS)),
+            table=sql.Identifier(self.table),
+        )
+
+        conn = self._connect()
+        try:
+            with conn, conn.cursor() as cursor:
+                cursor.execute(query, (location,))
+                row = cursor.fetchone()
+                if row is None:
+                    return DownloadStatus()
+                record = dict(zip(self._COLUMNS, row))
+        finally:
+            conn.close()
+
+        return DownloadStatus.from_dict(self._to_serializable(record))
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        """Upsert the download status for a location into the manifest."""
+        import psycopg2.sql as sql
+        status = DownloadStatus.to_dict(download_status)
+        values = [self._to_db_value(column, status.get(column)) for column in self._COLUMNS]
+
+        query = sql.SQL(
+            'INSERT INTO {table} ({columns}) VALUES ({values}) '
+            'ON CONFLICT (location) DO UPDATE SET {updates}'
+        ).format(
+            table=sql.Identifier(self.table),
+            columns=sql.SQL(', ').join(map(sql.Identifier, self._COLUMNS)),
+            values=sql.SQL(', ').join([sql.Placeholder()] * len(self._COLUMNS)),
+            updates=sql.SQL(', ').join(
+                sql.SQL('{column} = EXCLUDED.{column}').format(column=sql.Identifier(column))
+                for column in self._COLUMNS if column != 'location'
+            ),
+        )
+
+        conn = self._connect()
+        try:
+            with conn, conn.cursor() as cursor:
+                cursor.execute(query, values)
+        finally:
+            conn.close()
+
+        logger.debug('Manifest written to.')
+        logger.debug(download_status)
+
+    @classmethod
+    def _to_db_value(cls, column: str, value: t.Any) -> t.Any:
+        """Normalize a DownloadStatus field before writing it to PostgreSQL."""
+        if column in cls._TIMESTAMP_COLUMNS and not value:
+            return None
+        return value
+
+    @classmethod
+    def _to_serializable(cls, record: t.Dict) -> t.Dict:
+        """Convert a PostgreSQL row into a manifest-ingestible dictionary."""
+        return {
+            key: value.isoformat() if isinstance(value, datetime.datetime) else value
+            for key, value in record.items()
+        }
+
+
 class FirestoreManifest(Manifest):
     """A Firestore Manifest.
     This Manifest implementation stores DownloadStatuses in a Firebase document store.
@@ -720,6 +898,8 @@ MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
     'fs': FirestoreManifest,
     'bq': BQManifest,
+    'postgresql': PostgresManifest,
+    'postgres': PostgresManifest,
     '': LocalManifest,
 })
 
