@@ -229,7 +229,7 @@ In addition to the above, the table below presents further partitioning examples
     <tr>
       <!-- https://github.com/google/weather-tools/pull/503 -->
       <td>year-month</td>
-      <td>Added support for a year‑month key, allowing users to specify downloads using month granularity instead of ranged formats.</td>
+      <td>Added support for a year‑month key, allowing users to specify downloads using month granularity instead of ranged formats.<br/><br/>Note: year-month must be specified in partition_keys.</td>
       <td>[parameters]<br/>target_path={year-month}.gb<br/>partition_keys=year-month<br/>[selection]<br/>year-month=2024-11/to/2025-02</td>
       <td>2024-11.gb<br/>2024-12.gb<br/>2025-01.gb<br/>2025-02.gb</td>
     </tr>
@@ -320,9 +320,9 @@ the [Copernicus documentation](https://cds.climate.copernicus.eu/datasets).
 See [this example](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)
 for what kind of requests one can make.
 
-**Bypassing CDS Cache (`no_cache`)**:
-To download fresh data and bypass the CDS server-side request cache (see [CDS cache issue discussion](https://forum.ecmwf.int/t/how-to-avoid-the-cds-cache-issue/905)), set `no_cache = true` in the `[selection]` section of your configuration file.
-* `no_cache`: (optional) Accepts `true` or `false`. When set to `true`, `weather-dl` automatically includes the `nocache` parameter in the CDS request payload to force downloading fresh data instead of retrieving cached data.
+**Bypassing Cache (`no_cache`)**:
+To download fresh data and bypass server-side request caching (see [CDS cache issue discussion](https://forum.ecmwf.int/t/how-to-avoid-the-cds-cache-issue/905)), set `no_cache = true` in the `[selection]` section of your configuration file.
+* `no_cache`: (optional, case-insensitive) Accepts `true` or `false`. When set to `true`, `weather-dl` automatically includes the `nocache` parameter in the request payload (accepted by both CDS and MARS).
 
 ### MARS
 

@@ -16,6 +16,7 @@
 import calendar
 import copy
 import dataclasses
+import datetime
 import itertools
 import typing as t
 
@@ -79,26 +80,70 @@ class Config:
         return config_instance
 
 
-def optimize_selection_partition(selection: t.Dict) -> t.Dict:
+def _parse_date_token(token: str) -> datetime.date:
+    """Parses a MARS date token into datetime.date."""
+    if token.startswith("-") and token[1:].isdecimal():
+        return datetime.date.today() - datetime.timedelta(days=int(token[1:]))
+    for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y-%j"):
+        try:
+            return datetime.datetime.strptime(token, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Invalid date token '{token}' in 'date_range'.")
+
+
+def _expand_date_range(block: str) -> t.List[str]:
+    """Expands a MARS date_range string (e.g. 'D1/to/D2[/by/N]') into YYYY-MM-DD dates."""
+    tokens = [b.strip() for b in block.split("/") if b.strip()]
+    if "to" not in tokens and "by" not in tokens:
+        return [_parse_date_token(tok).strftime("%Y-%m-%d") for tok in tokens]
+    try:
+        to_idx = tokens.index("to")
+        assert to_idx != 0, "There must be a start token."
+        start = _parse_date_token(tokens[to_idx - 1])
+        end = _parse_date_token(tokens[to_idx + 1])
+        increment = int(tokens[tokens.index("by") + 1]) if "by" in tokens else 1
+        assert increment != 0, "Increment cannot be 0."
+    except (AssertionError, IndexError, ValueError) as exc:
+        raise SyntaxError(f"Improper range syntax in '{block}'.") from exc
+    if start > end and increment > 0:
+        increment *= -1
+    offset = 1 if start <= end else -1
+    return [
+        (start + datetime.timedelta(days=x)).strftime("%Y-%m-%d")
+        for x in range(0, (end - start).days + offset, increment)
+    ]
+
+
+def optimize_selection_partition(selection: t.Dict, client_name: t.Optional[str] = None) -> t.Dict:
     """Compute right-hand-side values for the selection section of a single partition.
 
     Used to support custom syntax and optimizations, such as 'all'.
     """
     selection_ = copy.deepcopy(selection)
+    # True for direct MARS/ECPublic requests or MARS-brokered CDS datasets.
+    is_mars = client_name in ("mars", "ecpublic") or ("class" in selection_ and "stream" in selection_)
 
     if 'year-month' in selection_.keys():
-        ym = selection_['year-month'][0]
+        ym = selection_['year-month'][0] if isinstance(selection_['year-month'], list) else selection_['year-month']
         year, month = map(int, ym.split('-'))
         last_day = calendar.monthrange(year, month)[1]
-        selection_['date'] = [f'{year:04d}-{month:02d}-01/to/{year:04d}-{month:02d}-{last_day:02d}']
+        # Expand to explicit YYYY-MM-DD dates supported by both CDS and MARS.
+        selection_['date'] = [f'{year:04d}-{month:02d}-{day:02d}' for day in range(1, last_day + 1)]
         del selection_['year-month']
 
     if "date_range" in selection_.keys():
-        selection_["date"] = selection_["date_range"][0]
+        # Standard CDS rejects '/to/' syntax; expand to explicit YYYY-MM-DD dates.
+        selection_["date"] = (
+            _expand_date_range(selection_["date_range"][0])
+            if client_name == "cds" and not is_mars
+            else selection_["date_range"][0]
+        )
         del selection_["date_range"]
 
-    if "day" in selection_.keys() and selection_["day"] == "all":
-        years, months = selection_["year"], selection_["month"]
+    # Convert year/month/day into explicit YYYY-MM-DD dates when day='all' or targeting MARS.
+    if "day" in selection_.keys() and (selection_["day"] == "all" or is_mars):
+        years, months, days = selection_["year"], selection_["month"], selection_["day"]
 
         multiples_error = "When using day='all' in selection, '/' is not allowed in {type}."
 
@@ -107,6 +152,9 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
 
         if isinstance(months, str):
             months = [months]
+
+        if isinstance(days, str) and days != "all":
+            days = [days]
 
         date_ranges = []
 
@@ -123,7 +171,13 @@ def optimize_selection_partition(selection: t.Dict) -> t.Dict:
 
             _, n_days_in_month = calendar.monthrange(year, month)
 
-            date_range = [f'{year:04d}-{month:02d}-{day:02d}' for day in range(1, n_days_in_month + 1)]
+            # Skip invalid calendar days (e.g. Feb 30/31) when explicit days are provided.
+            valid_days = (
+                range(1, n_days_in_month + 1)
+                if days == "all"
+                else [int(d) for d in days if 1 <= int(d) <= n_days_in_month]
+            )
+            date_range = [f'{year:04d}-{month:02d}-{day:02d}' for day in valid_days]
 
             date_ranges.extend(date_range)
 
