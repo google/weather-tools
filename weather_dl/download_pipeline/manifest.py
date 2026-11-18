@@ -44,6 +44,14 @@ from google.cloud import bigquery
 from google.cloud.firestore_v1 import DocumentReference
 from google.cloud.firestore_v1.types import WriteResult
 
+try:
+    import psycopg2
+    from psycopg2 import sql
+    from psycopg2.extras import RealDictCursor
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
+
 """An implementation-dependent Manifest URI."""
 Location = t.NewType('Location', str)
 
@@ -708,6 +716,161 @@ class NoOpManifest(Manifest):
         pass
 
 
+class PostgreSQLManifest(Manifest):
+    """A PostgreSQL manifest implementation.
+    
+    This manifest stores DownloadStatuses in a PostgreSQL database table.
+    The table schema is designed to match the DownloadStatus dataclass fields.
+    
+    The manifest location should be in the format:
+    'pg://host:port/database/schema/table?user=username&password=password'
+    
+    Example usage:
+        >>> manifest = PostgreSQLManifest(Location('pg://localhost:5432/weatherdb/public/manifest?user=postgres&password=secret'))
+    
+    Args:
+        location: A PostgreSQL URI in the format 'pg://host:port/database/schema/table?user=user&password=pass'
+                 If no table is specified, defaults to 'download_manifest'.
+                 Connection parameters can also be set via environment variables.
+    
+    Raises:
+        ManifestException: If psycopg2 is not installed.
+    """
+
+    def __init__(self, location: Location) -> None:
+        if not HAS_POSTGRES:
+            raise ManifestException(
+                'psycopg2 is not installed. Please install it with: '
+                'pip install psycopg2-binary'
+            )
+        
+        super().__init__(Location(location[5:]))  # Remove 'pg://' prefix
+        
+        # Parse the location to get connection parameters
+        parsed = urlparse(self.location)
+        
+        # The table name is the path
+        self.table_name = parsed.path.lstrip('/')
+        
+        # Parse query parameters for connection details
+        query_params = {}
+        if parsed.query:
+            query_params = dict(parse_qsl(parsed.query, strict_parsing=True))
+        
+        self.db_config = {
+            'host': query_params.get('host', 'localhost'),
+            'port': query_params.get('port', '5432'),
+            'database': query_params.get('database', 'weather_dl'),
+            'user': query_params.get('user', 'postgres'),
+            'password': query_params.get('password', ''),
+        }
+        
+        # If no table specified, use default
+        if not self.table_name:
+            self.table_name = 'download_manifest'
+        
+        self._create_table()
+
+    def _get_connection(self):
+        """Create and return a PostgreSQL connection."""
+        return psycopg2.connect(**self.db_config)
+
+    def _create_table(self) -> None:
+        """Create the manifest table if it doesn't exist."""
+        create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                location TEXT PRIMARY KEY,
+                config_name TEXT,
+                dataset TEXT,
+                selection JSONB,
+                area TEXT,
+                stage TEXT,
+                status TEXT,
+                error TEXT,
+                username TEXT,
+                size DOUBLE PRECISION,
+                scheduled_time TIMESTAMP WITH TIME ZONE,
+                retrieve_start_time TIMESTAMP WITH TIME ZONE,
+                retrieve_end_time TIMESTAMP WITH TIME ZONE,
+                fetch_start_time TIMESTAMP WITH TIME ZONE,
+                fetch_end_time TIMESTAMP WITH TIME ZONE,
+                download_start_time TIMESTAMP WITH TIME ZONE,
+                download_end_time TIMESTAMP WITH TIME ZONE,
+                upload_start_time TIMESTAMP WITH TIME ZONE,
+                upload_end_time TIMESTAMP WITH TIME ZONE
+            )
+        """
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(create_table_query)
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Failed to create table {self.table_name}: {e}")
+
+    def _read(self, location: str) -> DownloadStatus:
+        """Read a download status from the manifest."""
+        select_query = f"""
+            SELECT * FROM {self.table_name} WHERE location = %s
+        """
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(select_query, (location,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if row:
+                # Convert row to dict and then to DownloadStatus
+                status_dict = dict(row)
+                # Convert JSONB fields
+                if status_dict.get('selection') and isinstance(status_dict['selection'], str):
+                    status_dict['selection'] = json.loads(status_dict['selection'])
+                return DownloadStatus.from_dict(status_dict)
+            return DownloadStatus()
+        except Exception as e:
+            logger.warning(f"Failed to read from {self.table_name}: {e}")
+            return DownloadStatus()
+
+    def _update(self, download_status: DownloadStatus) -> None:
+        """Update or insert a download status in the manifest."""
+        status = DownloadStatus.to_dict(download_status)
+        
+        # Convert dict to lists for column names and values
+        columns = list(status.keys())
+        values = list(status.values())
+        
+        # Build the INSERT ... ON CONFLICT statement
+        columns_str = ', '.join(columns)
+        placeholders = ', '.join([f'%s' for _ in columns])
+        update_sets = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns if col != 'location'])
+        
+        upsert_query = f"""
+            INSERT INTO {self.table_name} ({columns_str})
+            VALUES ({placeholders})
+            ON CONFLICT (location) DO UPDATE
+            SET {update_sets}
+        """
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(upsert_query, values)
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.debug(f'Manifest updated in {self.table_name}.')
+            logger.debug(download_status)
+        except Exception as e:
+            logger.error(f"Failed to update {self.table_name}: {e}")
+            raise
+
+
 """Exposed manifest implementations.
 
 Users can choose their preferred manifest implementation by via the protocol of the Manifest Location.
@@ -720,6 +883,7 @@ MANIFESTS = collections.OrderedDict({
     'cli': ConsoleManifest,
     'fs': FirestoreManifest,
     'bq': BQManifest,
+    'pg': PostgreSQLManifest,
     '': LocalManifest,
 })
 
