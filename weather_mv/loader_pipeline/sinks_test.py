@@ -90,24 +90,24 @@ class OpenDatasetTest(TestDataBase):
     def test_opens_grib_files(self):
         with open_dataset(self.test_grib_path) as ds1:
             self.assertIsNotNone(ds1)
-            self.assertDictContainsSubset({'is_normalized': True}, ds1.attrs)
+            self.assertEqual(ds1.attrs, {**ds1.attrs, 'is_normalized': True})
         with open_dataset(self.test_grib_path, disable_grib_schema_normalization=True) as ds2:
             self.assertIsNotNone(ds2)
-            self.assertDictContainsSubset({'is_normalized': False}, ds2.attrs)
+            self.assertEqual(ds2.attrs, {**ds2.attrs, 'is_normalized': False})
 
     def test_accepts_xarray_kwargs(self):
         with open_dataset(self.test_data_path) as ds1:
             self.assertIn('d2m', ds1)
-            self.assertDictContainsSubset({'is_normalized': False}, ds1.attrs)
+            self.assertEqual(ds1.attrs, {**ds1.attrs, 'is_normalized': False})
         with open_dataset(self.test_data_path, {'drop_variables': 'd2m'}) as ds2:
             self.assertNotIn('d2m', ds2)
-            self.assertDictContainsSubset({'is_normalized': False}, ds2.attrs)
+            self.assertEqual(ds2.attrs, {**ds2.attrs, 'is_normalized': False})
 
     def test_opens_tif_files(self):
         with open_dataset(self.test_tif_path, tif_metadata_for_start_time='start_time',
                             tif_metadata_for_end_time='end_time') as ds:
             self.assertIsNotNone(ds)
-            self.assertDictContainsSubset({'is_normalized': False}, ds.attrs)
+            self.assertEqual(ds.attrs, {**ds.attrs, 'is_normalized': False})
 
     def test_opens_zarr(self):
         with open_dataset(self.test_zarr_path, is_zarr=True, open_dataset_kwargs={}) as ds:
