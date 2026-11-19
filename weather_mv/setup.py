@@ -24,40 +24,40 @@ Please see this documentation and example code:
 from setuptools import setup, find_packages
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.47.0",
+    "google-cloud-bigquery-storage==2.43.0",
+    "google-cloud-bigtable==2.50.2",
+    "google-cloud-core==2.8.0",
+    "google-cloud-datastore==2.27.1",
+    "google-cloud-dlp==3.40.0",
+    "google-cloud-language==2.22.0",
+    "google-cloud-pubsub==2.44.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",  # Capped by apache-beam[gcp] (<0.11.0).
+    "google-cloud-spanner==3.72.0",
+    "google-cloud-videointelligence==2.21.0",
+    "google-cloud-vision==3.16.0",
+    "apache-beam[gcp]==2.77.0",
 ]
 
 base_requirements = [
     "dataclasses",
-    "numpy==1.22.4",
-    "pandas==1.5.1",
-    "xarray==2023.1.0",
-    "xarray-beam==0.6.2",
-    "cfgrib==0.9.10.2",
-    "netcdf4==1.6.1",
-    "geojson==2.5.0",
-    "simplejson==3.17.6",
-    "rioxarray==0.13.4",
-    "metview==1.13.1",
-    "rasterio==1.3.1",
-    "earthengine-api>=0.1.263",
-    "pyproj==3.4.0",  # requires separate binary installation!
-    "gdal==3.5.1",  # requires separate binary installation!
-    "gcsfs==2022.11.0",
-    "zarr==2.15.0",
+    "numpy==2.4.6",  # Capped by apache-beam==2.77.0 (<2.5.0).
+    "pandas==2.3.3",  # Latest pandas 2.x compatible with xarray==2025.9.0.
+    "xarray==2025.9.0",  # Capped by cfgrib==0.9.15.1.
+    "xarray-beam==0.11.5",
+    "cfgrib==0.9.15.1",
+    "netcdf4==1.7.5",
+    "geojson==3.3.0",
+    "simplejson==4.3.0",
+    "rioxarray==0.21.0",  # Capped by xarray==2025.9.0 (rioxarray>=0.22.0 requires xarray>=2026.2).
+    "metview==1.16.3",
+    "rasterio==1.5.2",
+    "earthengine-api>=0.1.263,<1.7.36",  # Capped by apache-beam[gcp] (google-auth-httplib2<0.3.0).
+    "pyproj==3.8.0",  # requires separate binary installation!
+    "gdal==3.13.3",  # requires separate binary installation!
+    "gcsfs==2026.10.1",
+    "zarr==3.4.2",
 ]
 
 setup(
@@ -65,7 +65,7 @@ setup(
     packages=find_packages(),
     author='Anthromets',
     author_email='anthromets-ecmwf@google.com',
-    version='0.2.48',
+    version='0.3.0',
     url='https://weather-tools.readthedocs.io/en/latest/weather_mv/',
     description='A tool to load weather data into BigQuery.',
     install_requires=beam_gcp_requirements + base_requirements,

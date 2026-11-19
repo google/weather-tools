@@ -43,7 +43,7 @@ from .parsers import (
     validate_all_configs,
 )
 from .partition import PartitionConfig
-from .stores import TempFileStore, LocalFileStore
+from .stores import Store, TempFileStore, LocalFileStore
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class PipelineArgs:
     pipeline_options: PipelineOptions
     configs: t.List[Config]
     client_name: str
-    store: None
+    store: t.Optional[Store]
     manifest: Manifest
     num_requesters_per_key: int
 

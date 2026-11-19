@@ -1,0 +1,47 @@
+name: weather-tools
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - apache-beam=2.77.0
+  - pytest=9.2.0
+  - pytest-subtests=0.15.0
+  - cfgrib=0.9.15.1
+  - dask=2026.8.0
+  - dataclasses=0.8
+  - distributed=2026.8.0
+  - eccodes=2.50.0
+  - requests=2.34.2
+  - netcdf4=1.7.5
+  - ecmwf-api-client=1.7.0
+  - fsspec=2026.9.0
+  - gcsfs=2026.10.1
+  - gdal=3.13.3
+  - libgdal-grib=3.13.3
+  - rasterio=1.5.2
+  - rioxarray=0.21.0  # Capped by xarray=2025.9.0 (rioxarray>=0.22.0 requires xarray>=2026.2).
+  - pyproj=3.8.0
+  - geojson=3.3.0
+  - simplejson=4.3.0
+  - metview-batch=5.26.2
+  - numpy=2.4.6  # Capped by apache-beam==2.77.0 (<2.5.0).
+  - pandas=2.3.3  # Latest pandas 2.x compatible with xarray=2025.9.0 (pandas 3 support added in xarray 2026.1.0).
+  - scipy=1.18.1
+  - pip=26.2.2
+  - pygrib=2.1.8
+  - google-cloud-sdk=594.0.0
+  - aria2=1.37.0
+  - xarray=2025.9.0  # Capped by cfgrib==0.9.15.1 (xarray>=2025.10 moved _validate_dataset_names to writers).
+  - ruff=0.17.4
+  - zarr=3.4.2
+  - google-cloud-monitoring=2.31.0
+  - pillow=12.3.0  # Capped by apache-beam==2.77.0 (<13).
+  - cdsapi=0.7.7
+  - pip:
+    - cython==3.3.1
+    - earthengine-api==1.7.35  # Latest compatible with apache-beam[gcp] (google-auth-httplib2<0.3.0).
+    - firebase-admin==7.7.0
+    - setuptools==84.2.1
+    - xarray-beam==0.11.5
+    - pyparsing==3.3.3
+    - .[test]

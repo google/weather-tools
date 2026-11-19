@@ -81,14 +81,15 @@ class FetchDataTest(unittest.TestCase):
             fetcher = Fetcher('cds', self.dummy_manifest, InMemoryStore())
             fetcher.fetch_data(config)
 
-            self.assertDictContainsSubset(dict(
+            actual = list(self.dummy_manifest.records.values())[0]
+            self.assertEqual(actual, {**actual, **dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='upload',
                 status='success',
                 error=None,
                 username='unknown',
-            ), list(self.dummy_manifest.records.values())[0])
+            )})
 
     @patch('weather_dl.download_pipeline.clients.CDSClientExtended.fetch')
     def test_fetch_data__manifest__records_retrieve_failure(self, mock_fetch):
@@ -117,13 +118,13 @@ class FetchDataTest(unittest.TestCase):
 
             actual = list(self.dummy_manifest.records.values())[0]
 
-            self.assertDictContainsSubset(dict(
+            self.assertEqual(actual, {**actual, **dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='fetch',
                 status='failure',
                 username='unknown',
-            ), actual)
+            )})
 
             self.assertIn(error.args[0], actual['error'])
             self.assertIn(error.args[0], e.exception.args[0])
@@ -155,13 +156,13 @@ class FetchDataTest(unittest.TestCase):
 
             actual = list(self.dummy_manifest.records.values())[0]
 
-            self.assertDictContainsSubset(dict(
+            self.assertEqual(actual, {**actual, **dict(
                 selection=json.dumps(config.selection),
                 location=os.path.join(tmpdir, 'download-01-12.nc'),
                 stage='fetch',
                 status='failure',
                 username='unknown',
-            ), actual)
+            )})
 
             self.assertIn(error.args[0], actual['error'])
             self.assertIn(error.args[0], e.exception.args[0])

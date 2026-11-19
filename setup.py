@@ -15,32 +15,32 @@
 from setuptools import find_packages, setup
 
 beam_gcp_requirements = [
-    "google-cloud-bigquery==2.34.4",
-    "google-cloud-bigquery-storage==2.14.1",
-    "google-cloud-bigtable==1.7.2",
-    "google-cloud-core==1.7.3",
-    "google-cloud-datastore==1.15.5",
-    "google-cloud-dlp==3.8.0",
-    "google-cloud-language==1.3.2",
-    "google-cloud-pubsub==2.13.4",
-    "google-cloud-pubsublite==1.4.2",
-    "google-cloud-recommendations-ai==0.2.0",
-    "google-cloud-spanner==1.19.3",
-    "google-cloud-videointelligence==1.16.3",
-    "google-cloud-vision==1.0.2",
-    "apache-beam[gcp]==2.40.0",
+    "google-cloud-bigquery==3.47.0",
+    "google-cloud-bigquery-storage==2.43.0",
+    "google-cloud-bigtable==2.50.2",
+    "google-cloud-core==2.8.0",
+    "google-cloud-datastore==2.27.1",
+    "google-cloud-dlp==3.40.0",
+    "google-cloud-language==2.22.0",
+    "google-cloud-pubsub==2.44.0",
+    "google-cloud-pubsublite==1.13.0",
+    "google-cloud-recommendations-ai==0.10.18",  # Capped by apache-beam[gcp] (<0.11.0).
+    "google-cloud-spanner==3.72.0",
+    "google-cloud-videointelligence==2.21.0",
+    "google-cloud-vision==3.16.0",
+    "apache-beam[gcp]==2.77.0",
 ]
 
 weather_dl_requirements = [
-    "cdsapi==0.7.5",
+    "cdsapi==0.7.7",
     "ecmwf-api-client",
     "numpy>=1.19.1",
     "pandas",
     "xarray",
     "requests>=2.24.0",
     "google-cloud-firestore",
-    "firebase-admin",
-    "urllib3==1.26.5",
+    "firebase-admin==7.7.0",
+    "urllib3==2.8.0",
 ]
 
 weather_mv_requirements = [
@@ -54,12 +54,12 @@ weather_mv_requirements = [
     "simplejson",
     "rioxarray",
     "rasterio",
-    "earthengine-api>=0.1.263",
+    "earthengine-api>=0.1.263,<1.7.36",  # Capped by apache-beam[gcp] (google-auth-httplib2<0.3.0).
     "pyproj",  # requires separate binary installation!
     "gdal",  # requires separate binary installation!
-    "xarray-beam==0.6.2",
-    "gcsfs==2022.11.0",
-    "zarr==2.15.0",
+    "xarray-beam==0.11.5",
+    "gcsfs==2026.10.1",
+    "zarr==3.4.2",
 ]
 
 weather_sp_requirements = [
@@ -70,8 +70,8 @@ weather_sp_requirements = [
 ]
 
 test_requirements = [
-    "pytype==2021.11.29",
-    "ruff==0.1.2",
+    "pytype==2024.10.11",
+    "ruff==0.17.4",
     "pytest",
     "pytest-subtests",
     "netcdf4",
@@ -111,19 +111,18 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         # 'Operating System :: Microsoft :: Windows',  # TODO(#64): Fully support Windows.
         'Operating System :: POSIX',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Scientific/Engineering :: Atmospheric Science',
 
     ],
-    python_requires='>=3.8, <3.10',
-    install_requires=['apache-beam[gcp]==2.40.0', 'gcsfs==2022.11.0'],
+    python_requires='>=3.12',
+    install_requires=['apache-beam[gcp]==2.77.0', 'apache-beam[dill]==2.77.0', 'gcsfs==2026.10.1'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     scripts=['weather_dl/weather-dl', 'weather_mv/weather-mv', 'weather_sp/weather-sp'],
     tests_require=test_requirements,
     extras_require={
-        'docs': ['tox', 'sphinx>=2.1', 'myst-parser', 'Jinja2<3.1'],
+        'docs': ['tox', 'sphinx>=2.1', 'myst-parser', 'Jinja2<3.2'],
         'test': all_test_requirements,
         'dev': ['google-weather-tools[docs,test]'],
         'regrid': ['metview']

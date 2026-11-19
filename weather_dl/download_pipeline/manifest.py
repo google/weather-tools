@@ -700,6 +700,8 @@ class MockManifest(Manifest):
 
 class NoOpManifest(Manifest):
     """A manifest that performs no operations."""
+    def __call__(self):  # This makes the instance "callable"
+        return self
 
     def _read(self, location: str) -> DownloadStatus:
         return DownloadStatus()

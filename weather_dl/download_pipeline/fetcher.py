@@ -46,7 +46,7 @@ class Fetcher(beam.DoFn):
     """
 
     client_name: str
-    manifest: Manifest = NoOpManifest(Location('noop://in-memory'))
+    manifest: Manifest = dataclasses.field(default_factory=NoOpManifest(Location('noop://in-memory')))
     store: t.Optional[Store] = None
     log_level: t.Optional[int] = logging.INFO
 
