@@ -15,8 +15,8 @@
 import dataclasses
 import json
 import typing as t
+from importlib import resources
 
-import pkg_resources
 
 Values = t.Union[t.List["Values"], t.Dict[str, "Values"], bool, int, float, str]  # pytype: disable=not-supported-yet
 
@@ -54,7 +54,7 @@ cli_config = None
 def get_config():
     global cli_config
 
-    cli_config_json = pkg_resources.resource_filename('app', 'data/cli_config.json')
+    cli_config_json = str(resources.files('app') / 'data' / 'cli_config.json')
 
     if cli_config is None:
         with open(cli_config_json) as file:
