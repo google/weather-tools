@@ -472,20 +472,42 @@ def process_config(file: t.IO, config_name: str) -> Config:
         ),
     )
 
+    # True for direct MARS/ECPublic requests or MARS-brokered CDS datasets.
+    is_mars_selection = params.get("client") in ("mars", "ecpublic") or (
+        "class" in selection and "stream" in selection
+    )
+
     if "day" in partition_keys:
         require(
             selection["day"] != "all",
             """If 'all' is used for a selection value, it cannot appear as a partition key.""",
         )
 
+    # Require year and month whenever day is converted into explicit YYYY-MM-DD dates.
+    if "day" in selection and (selection["day"] == "all" or is_mars_selection):
+        require(
+            "year" in selection and "month" in selection,
+            """If 'day' is specified in the 'selection' section for MARS or with day='all',
+                then both 'year' and 'month' are also required.""",
+        )
+
     if 'hdate' in selection:
         require('date' in partition_keys,
                 """"If 'hdate' is specified in the 'selection' section,
                 then 'date' is required as a partition keys.""")
+        # Reject hdate on standard CDS and ERA5 reanalysis datasets.
+        require(is_mars_selection and selection.get('class') != 'ea',
+                """'hdate' is only supported for hindcast/reforecast MARS requests """
+                """(not standard CDS or ERA5 reanalysis datasets).""")
 
     if 'date_range' in selection:
         require('date_range' in partition_keys,
                 """"If 'date_range' is specified in the 'selection' section,
+                then it is also required as a partition keys.""")
+
+    if 'year-month' in selection:
+        require('year-month' in partition_keys,
+                """"If 'year-month' is specified in the 'selection' section,
                 then it is also required as a partition keys.""")
 
     if 'no_cache' in selection:
@@ -493,7 +515,8 @@ def process_config(file: t.IO, config_name: str) -> Config:
         require(no_cache in ["true", "false"],
                 """no_cache can only be true or false.""")
 
-        if selection['no_cache'] == "true":
+        # Compare against lowercased value so no_cache is case-insensitive.
+        if no_cache == "true":
             # To download the fresh data and not from cache.
             # https://forum.ecmwf.int/t/how-to-avoid-the-cds-cache-issue/905
             config['selection']['nocache'] = '123'

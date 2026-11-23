@@ -135,7 +135,7 @@ class CdsClient(Client):
             warning_callback=self.logger.warning,
             error_callback=self.logger.error,
         )
-        selection_ = optimize_selection_partition(selection)
+        selection_ = optimize_selection_partition(selection, client_name='cds')
         with StdoutLogger(self.logger, level=logging.DEBUG):
             manifest.set_stage(Stage.FETCH)
             precise_fetch_start_time = (
@@ -323,7 +323,7 @@ class MarsClient(Client):
             log=self.logger.debug,
             verbose=True,
         )
-        selection_ = optimize_selection_partition(selection)
+        selection_ = optimize_selection_partition(selection, client_name='mars')
         with StdoutLogger(self.logger, level=logging.DEBUG):
             manifest.set_stage(Stage.FETCH)
             precise_fetch_start_time = (
@@ -373,7 +373,7 @@ class ECMWFPublicClient(Client):
             verbose=True,
             dataset=dataset,
         )
-        selection_ = optimize_selection_partition(selection)
+        selection_ = optimize_selection_partition(selection, client_name='ecpublic')
         with StdoutLogger(self.logger, level=logging.DEBUG):
             manifest.set_stage(Stage.FETCH)
             precise_fetch_start_time = (

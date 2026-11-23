@@ -1049,6 +1049,24 @@ class ProcessConfigTest(unittest.TestCase):
             ) as f:
                 process_config(f, 'test.cfg')
 
+    def test_partition_key_contains_year_month(self):
+        with self.assertRaisesRegex(ValueError, """If 'year-month' is specified in the 'selection' section,
+                then it is also required as a partition keys."""):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=foo
+                    client=mars
+                    target_path=bar-{}
+                    partition_keys=
+                        time
+                    [selection]
+                    year-month=2024-11/to/2025-01
+                    time=00/12
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
     def test_partition_key_contains_date__in_case_of_hdate(self):
         with self.assertRaisesRegex(ValueError, "'date' is required as a partition keys."):
             with io.StringIO(
@@ -1063,6 +1081,55 @@ class ProcessConfigTest(unittest.TestCase):
                     date=2020-01-02
                     step=1/2/3/4
                     hdate=1/to/6
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
+    def test_hdate_rejected_on_cds_standard_and_era5(self):
+        with self.assertRaisesRegex(ValueError, "'hdate' is only supported for hindcast/reforecast"):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=reanalysis-era5-single-levels
+                    client=cds
+                    target_path=bar-{}
+                    partition_keys=date
+                    [selection]
+                    date=2025-01-09
+                    hdate=1
+                    variable=2m_temperature
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
+        with self.assertRaisesRegex(ValueError, "'hdate' is only supported for hindcast/reforecast"):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    dataset=reanalysis-era5-complete
+                    client=cds
+                    target_path=bar-{}
+                    partition_keys=date
+                    [selection]
+                    class=ea
+                    stream=oper
+                    date=2025-01-09
+                    hdate=1
+                    param=167.128
+                    """
+            ) as f:
+                process_config(f, 'test.cfg')
+
+    def test_mars_day_requires_year_and_month(self):
+        with self.assertRaisesRegex(ValueError, "both 'year' and 'month' are also required"):
+            with io.StringIO(
+                    """
+                    [parameters]
+                    client=mars
+                    target_path=bar
+                    [selection]
+                    year=2025
+                    day=01/02
                     """
             ) as f:
                 process_config(f, 'test.cfg')
@@ -1093,6 +1160,17 @@ class ProcessConfigTest(unittest.TestCase):
                 target_path=bar
                 [selection]
                 no_cache=true
+                """
+        ) as f:
+            config = process_config(f, 'test.cfg')
+            self.assertEqual(config.selection['nocache'], "123")
+        with io.StringIO(
+                """
+                [parameters]
+                client=cds
+                target_path=bar
+                [selection]
+                no_cache=True
                 """
         ) as f:
             config = process_config(f, 'test.cfg')

@@ -82,8 +82,73 @@ class SelectionSyntaxTest(unittest.TestCase):
 
     def test_date_range(self):
         selection_with_date_range = {'date_range': ['2017-01-01/to/2017-01-10']}
-        actual = optimize_selection_partition(selection_with_date_range)
+        actual = optimize_selection_partition(selection_with_date_range, client_name='mars')
         self.assertEqual(actual['date'], selection_with_date_range['date_range'][0])
+        self.assertNotIn('date_range', actual)
+
+    def test_date_range_cds_standard_expands_dates(self):
+        selection = {'date_range': ['2025-01-01/to/2025-01-03'], 'variable': '2m_temperature'}
+        actual = optimize_selection_partition(selection, client_name='cds')
+        self.assertEqual(actual['date'], ['2025-01-01', '2025-01-02', '2025-01-03'])
+        self.assertNotIn('date_range', actual)
+
+        stepped = {'date_range': ['2025-01-01/to/2025-01-05/by/2'], 'variable': '2m_temperature'}
+        actual_stepped = optimize_selection_partition(stepped, client_name='cds')
+        self.assertEqual(actual_stepped['date'], ['2025-01-01', '2025-01-03', '2025-01-05'])
+
+    def test_date_range_cds_mars_brokered_keeps_mars_syntax(self):
+        selection = {
+            'date_range': ['2025-01-01/to/2025-01-02'],
+            'class': 'ea',
+            'stream': 'oper',
+        }
+        actual = optimize_selection_partition(selection, client_name='cds')
+        self.assertEqual(actual['date'], '2025-01-01/to/2025-01-02')
+        self.assertNotIn('date_range', actual)
+
+    def test_year_month(self):
+        selection_with_year_month = {'year-month': ['2024-02']}
+        actual = optimize_selection_partition(selection_with_year_month)
+        expected_leap = [f'2024-02-{day:02d}' for day in range(1, 30)]
+        self.assertEqual(actual['date'], expected_leap)
+        self.assertNotIn('year-month', actual)
+
+        selection_with_year_month_str = {'year-month': '2025-02'}
+        actual_str = optimize_selection_partition(selection_with_year_month_str, client_name='cds')
+        expected_non_leap = [f'2025-02-{day:02d}' for day in range(1, 29)]
+        self.assertEqual(actual_str['date'], expected_non_leap)
+        self.assertNotIn('year-month', actual_str)
+
+    def test_explicit_year_month_day_mars_and_cds(self):
+        mars_sel = {'year': ['2025'], 'month': ['01'], 'day': ['01', '02'], 'param': '167.128'}
+        actual_mars = optimize_selection_partition(mars_sel, client_name='mars')
+        self.assertEqual(actual_mars['date'], ['2025-01-01', '2025-01-02'])
+        self.assertNotIn('day', actual_mars)
+        self.assertNotIn('month', actual_mars)
+        self.assertNotIn('year', actual_mars)
+
+        mars_brok_sel = {
+            'year': ['2025'],
+            'month': ['02'],
+            'day': ['27', '28', '29', '30', '31'],
+            'class': 'ea',
+            'stream': 'oper',
+        }
+        actual_brok = optimize_selection_partition(mars_brok_sel, client_name='cds')
+        self.assertEqual(actual_brok['date'], ['2025-02-27', '2025-02-28'])
+        self.assertNotIn('day', actual_brok)
+
+        cds_std_sel = {
+            'year': ['2025'],
+            'month': ['01'],
+            'day': ['01', '02'],
+            'variable': '2m_temperature',
+        }
+        actual_cds = optimize_selection_partition(cds_std_sel, client_name='cds')
+        self.assertEqual(actual_cds['year'], ['2025'])
+        self.assertEqual(actual_cds['month'], ['01'])
+        self.assertEqual(actual_cds['day'], ['01', '02'])
+        self.assertNotIn('date', actual_cds)
 
     def test_with_year_month_as_string(self):
         selection_with_multiple_months = {'year': '2017', 'month': '12', 'day':'all'}
