@@ -437,9 +437,9 @@ class ToBigQuery(ToDataSink):
 
 def map_dtype_to_sql_type(var_type: np.dtype) -> str:
     """Maps a np.dtype to a suitable BigQuery column type."""
-    if var_type in {np.dtype('float64'), np.dtype('float32'), np.dtype('timedelta64[ns]')}:
+    if var_type in {np.dtype('float64'), np.dtype('float32')} or np.issubdtype(var_type, np.timedelta64):
         return 'FLOAT64'
-    elif var_type in {np.dtype('<M8[ns]')}:
+    elif np.issubdtype(var_type, np.datetime64):
         return 'TIMESTAMP'
     elif var_type in {np.dtype('int8'), np.dtype('int16'), np.dtype('int32'), np.dtype('int64')}:
         return 'INT64'
@@ -504,6 +504,7 @@ def fetch_geo_polygon(latitude: float, longitude: float, lat_grid_resolution: fl
     The `get_lat_lon_range` function gives the `.` point and `bound_point` gives the `*` point.
     """
     lat_lon_bound = bound_point(latitude, longitude, lat_grid_resolution, lon_grid_resolution)
+    lat_lon_bound = np.array(lat_lon_bound).tolist()
     polygon = geojson.dumps(geojson.Polygon([[
         (lat_lon_bound[0][0], lat_lon_bound[0][1]),  # lower_left
         (lat_lon_bound[1][0], lat_lon_bound[1][1]),  # upper_left

@@ -2,42 +2,43 @@ name: weather-tools
 channels:
   - conda-forge
 dependencies:
-  - python=3.8.13
-  - apache-beam=2.40.0
-  - xarray-beam=0.6.2
-  - xarray=2023.1.0
-  - fsspec=2022.11.0
-  - gcsfs=2022.11.0
-  - rioxarray=0.13.4
-  - gdal=3.5.1
-  - pyproj=3.4.0
-  - ecmwf-api-client=1.6.3
-  - eccodes=2.27.0
-  - cfgrib=0.9.10.2
-  - pygrib=2.1.4
-  - metview-batch=5.17.0
-  - netcdf4=1.6.1
-  - geojson=2.5.0=py_0
-  - simplejson=3.17.6
-  - numpy=1.22.4
-  - pandas=1.5.1
-  - google-cloud-sdk=410.0.0
-  - aria2=1.36.0
-  - pip=24.3.1
-  - zarr=2.15.0
-  - google-cloud-monitoring=2.22.2
-  - pillow=10.4.0
-  - cdsapi=0.7.5
+  - python=3.12
+  - apache-beam=2.77.0
+  - xarray=2025.9.0  # Capped by cfgrib==0.9.15.1 (xarray>=2025.10 moved _validate_dataset_names to writers).
+  - fsspec=2026.9.0
+  - gcsfs=2026.10.1
+  - gdal=3.13.3
+  - libgdal-grib=3.13.3
+  - rasterio=1.5.2
+  - rioxarray=0.21.0  # Capped by xarray=2025.9.0 (rioxarray>=0.22.0 requires xarray>=2026.2).
+  - pyproj=3.8.0
+  - ecmwf-api-client=1.7.0
+  - eccodes=2.50.0
+  - cfgrib=0.9.15.1
+  - pygrib=2.1.8
+  - metview-batch=5.26.2
+  - netcdf4=1.7.5
+  - geojson=3.3.0
+  - simplejson=4.3.0
+  - numpy=2.4.6  # Capped by apache-beam==2.77.0 (<2.5.0).
+  - pandas=2.3.3  # Latest pandas 2.x compatible with xarray=2025.9.0 (pandas 3 support added in xarray 2026.1.0).
+  - scipy=1.18.1
+  - google-cloud-sdk=594.0.0
+  - aria2=1.37.0
+  - pip=26.2.2
+  - zarr=3.4.2
+  - google-cloud-monitoring=2.31.0
+  - pillow=12.3.0  # Capped by apache-beam==2.77.0 (<13).
+  - cdsapi=0.7.7
   - pip:
-    - cython==0.29.34
-    - earthengine-api==0.1.329
-    - firebase-admin==6.0.1
-    - contourpy==1.1.1
-    - google-crc32c==1.1.2
-    - MarkupSafe==2.1.5
-    - setuptools==70.3.0
-    - pyparsing==3.1.4
-    - findlibs==0.1.2
+    - cython==3.3.1
+    - earthengine-api==1.7.35  # Latest compatible with apache-beam[gcp] (google-auth-httplib2<0.3.0).
+    - firebase-admin==7.7.0
+    - setuptools==84.2.1
+    - apache-beam[gcp,dill]==2.77.0  # Need dill to run metview on dataflow.
+    - xarray-beam==0.11.5
+    - pyparsing==3.3.3
+    - findlibs==0.1.5
     - .
     - ./weather_dl
     - ./weather_mv

@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9"]
+        python-version: ["3.12"]
     steps:
     - name: Cancel previous
       uses: styfle/cancel-workflow-action@0.7.0
@@ -47,7 +47,7 @@ jobs:
       with:
         path: ~/conda_pkgs_dir
         key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.8.yml') }}
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.12.yml') }}
     - name: Setup conda environment
       uses: conda-incubator/setup-miniconda@v3
       with:
@@ -68,6 +68,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      matrix:
+        python-version: ["3.12"]
     steps:
       - name: Cancel previous
         uses: styfle/cancel-workflow-action@0.7.0
@@ -86,7 +88,7 @@ jobs:
           echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
       - name: Install linter
         run: |
-          pip install ruff==0.1.2
+          pip install ruff==0.17.4
       - name: Lint project
         run: ruff check .
   type-check:
@@ -94,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8"]
+        python-version: ["3.12"]
     steps:
       - name: Cancel previous
         uses: styfle/cancel-workflow-action@0.7.0
@@ -110,7 +112,7 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.8.yml') }}
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci3.12.yml') }}
       - name: Setup conda environment
         uses: conda-incubator/setup-miniconda@v3
         with:
@@ -123,6 +125,6 @@ jobs:
           use-mamba: true
       - name: Install weather-tools[test]
         run: |
-          conda run -n weather-tools pip install -e .[test] --use-deprecated=legacy-resolver
+          conda run -n weather-tools pip install -e .[test]
       - name: Run type checker
         run: conda run -n weather-tools pytype
